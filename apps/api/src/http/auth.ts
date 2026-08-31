@@ -10,7 +10,10 @@ const productionCookieName = '__Host-laap_access'
 export type AuthClaims = { sub: string; email: string; displayName: string; role: ApiUser['role'] }
 
 function cookieOptions(name: string, maxAge: number, secure: boolean) {
-  return `${name}=VALUE; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${secure ? '; Secure' : ''}`
+  // The production dashboard and API use different Cloudflare domains. A
+  // cross-site fetch therefore requires SameSite=None; the API's strict
+  // Origin allowlist remains the CSRF boundary.
+  return `${name}=VALUE; HttpOnly; SameSite=${secure ? 'None' : 'Lax'}; Path=/; Max-Age=${maxAge}${secure ? '; Secure' : ''}`
 }
 
 export async function createAccessToken(user: ApiUser, secret: string) {
