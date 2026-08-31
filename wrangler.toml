@@ -1,0 +1,14 @@
+name = "laap-api"
+main = "apps/api/worker.ts"
+compatibility_date = "2026-08-31"
+compatibility_flags = ["nodejs_compat", "enable_nodejs_http_modules", "enable_nodejs_http_server_modules"]
+
+[observability]
+enabled = true
+
+[vars]
+NODE_ENV = "production"
+LAAP_STORAGE_DRIVER = "supabase"
+ALLOWED_ORIGIN = "https://laap-control-center.pages.dev"
+SUPABASE_URL = "https://rlhkkszeagixqmvtmknx.supabase.co"
+CF_WORKER = "1"

@@ -1,6 +1,6 @@
 # LAAP Control Center
 
-LAAP is a secure control plane for brokering access to a shared League of Legends / Riot account pool. This repository now ships a runnable local MVP: a dark, responsive admin dashboard backed by an authenticated API, durable persistence, atomic lease operations, and typed module boundaries.
+LAAP is a secure control plane for brokering access to a shared League of Legends / Riot account pool. This repository ships a dark, responsive admin dashboard backed by an authenticated API, durable persistence, atomic lease operations, and typed module boundaries. It runs locally with SQL.js and deploys to Supabase + Cloudflare for a small production footprint.
 
 ## Workspace
 

@@ -76,6 +76,12 @@ create table if not exists public.audit_logs (
   created_at timestamptz not null default now()
 );
 
+create or replace function public.is_admin()
+returns boolean
+as $$
+  select coalesce((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin', false);
+$$ language sql stable;
+
 create or replace function public.handle_new_auth_user()
 returns trigger
 language plpgsql
@@ -93,19 +99,13 @@ $$;
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
-  for each row execute procedure public.handle_new_auth_user();
+  for each row execute function public.handle_new_auth_user();
 
 create unique index if not exists idx_exclusive_account_session
   on public.account_sessions (account_id)
   where status in ('starting', 'active', 'stopping');
 create index if not exists idx_sessions_user_status on public.account_sessions(user_id, status);
 create index if not exists idx_assignments_user_active on public.account_assignments(user_id) where status = 'active';
-
-create or replace function public.is_admin()
-returns boolean
-language sql
-stable
-as 'select coalesce((auth.jwt() -> ''app_metadata'' ->> ''role'') = ''admin'', false)';
 
 alter table public.profiles enable row level security;
 alter table public.user_devices enable row level security;

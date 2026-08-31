@@ -4,15 +4,10 @@ import type { ApiUser, DashboardAccount, DashboardActivity, DashboardMetrics, Da
 import { releaseLeaseSchema } from '@laap/validation'
 import type { AppDatabase } from '../db/database.js'
 import type { LaapServicePort } from './service-port.js'
+import { ServiceError } from './service-error.js'
 
 type UserRow = { id: string; email: string; password_hash: string; display_name: string; role: UserRole; status: ApiUser['status'] }
 type SessionRow = { id: string; account_id: string; account_name: string; region: string; user_id: string; user_name: string; device_name: string; platform: string; runtime_state: SessionState; status: DashboardSession['status']; started_at: string; last_heartbeat_at: string; reconnect_grace_until: string | null }
-
-export class ServiceError extends Error {
-  constructor(readonly code: string, readonly status: number, message = code) {
-    super(message)
-  }
-}
 
 const avatarTones: DashboardSession['avatarTone'][] = ['violet', 'cyan', 'amber', 'rose']
 const accountAccents: DashboardAccount['accent'][] = ['violet', 'cyan', 'orange', 'lime', 'rose']

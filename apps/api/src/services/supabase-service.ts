@@ -2,7 +2,7 @@ import { createPublicKey, verify as verifySignature } from 'node:crypto'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { ApiUser, DashboardAccount, DashboardActivity, DashboardMetrics, DashboardSession, DashboardSnapshot, SessionState, UserRole } from '@laap/types'
 import { releaseLeaseSchema } from '@laap/validation'
-import { ServiceError } from './laap-service.js'
+import { ServiceError } from './service-error.js'
 import type { AssignmentView, AuditView, DeviceView, LaapServicePort, UserLookup } from './service-port.js'
 import type { CredentialVaultPort } from './credential-vault.js'
 

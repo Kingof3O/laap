@@ -3,7 +3,7 @@
 The repository is deployable in two modes:
 
 1. **Local development:** `npm run dev` uses the SQL.js adapter and an encrypted local vault so the entire workflow runs without cloud credentials.
-2. **Production:** Cloudflare Pages serves the admin UI; Supabase Postgres/Auth/RLS/Realtime/Edge Functions are the source of truth. Do not deploy the SQL.js adapter as a multi-instance production API.
+2. **Production:** Cloudflare Pages serves the admin UI and the Cloudflare Worker (`laap-api`) runs the Supabase-backed API. Supabase Postgres/Auth/RLS/Realtime/Edge Functions remain the source of truth. Do not deploy the SQL.js adapter as a multi-instance production API.
 
 The Node API supports `LAAP_STORAGE_DRIVER=supabase` when all three Supabase server secrets are present. It refuses to start with the single-process local adapter in production unless you explicitly opt into that unsafe mode.
 
@@ -20,7 +20,7 @@ ALLOWED_ORIGIN=https://admin.example.com
 ENABLE_DEMO_AUTH=false
 ```
 
-For Supabase, configure `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` only in Edge Functions. The service-role key must never be bundled into Vite or exposed to a browser.
+For the API Worker, configure `SUPABASE_URL` as a public Worker variable and configure `LAAP_WORKER_SUPABASE_ANON_KEY`, `LAAP_WORKER_SUPABASE_SERVICE_ROLE_KEY`, `LAAP_WORKER_JWT_SECRET`, `LAAP_WORKER_VAULT_KEY`, and `LAAP_WORKER_ADMIN_PASSWORD` as encrypted Worker secrets. The service-role key must never be bundled into Vite or exposed to a browser.
 
 Deploy the functions with the Supabase CLI after linking the project:
 

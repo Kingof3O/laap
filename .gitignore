@@ -4,8 +4,11 @@ dist
 .env.*
 !.env.example
 .DS_Store
+._*
 coverage
 .turbo
 *.local
 .data
 apps/api/.data
+supabase/.temp/
+supabase/._.temp

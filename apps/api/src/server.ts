@@ -3,20 +3,19 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 import { config as defaultConfig } from './config.js'
-import { AppDatabase } from './db/database.js'
-import { seedDatabase } from './db/seed.js'
+import type { AppDatabase } from './db/database.js'
 import { readJson } from './http/body.js'
 import { requireAdmin, requireAuth, createAccessToken, clearAccessCookie, readAuth, setAccessCookie } from './http/auth.js'
 import { HttpError } from './http/errors.js'
 import { FixedWindowRateLimiter } from './http/rate-limit.js'
 import { applySecurityHeaders, sendError, sendJson } from './http/response.js'
-import { LaapService, ServiceError } from './services/laap-service.js'
-import { LocalCredentialVault, type CredentialVaultPort } from './services/credential-vault.js'
+import { ServiceError } from './services/service-error.js'
+import type { CredentialVaultPort } from './services/credential-vault.js'
 import { SupabaseCredentialVault, SupabaseLaapService } from './services/supabase-service.js'
 import type { LaapServicePort } from './services/service-port.js'
 import { accountCreateSchema, accountUpdateSchema, assignmentSchema, credentialSchema, deviceRegistrationSchema, heartbeatSchema, leaseAcquireSchema, loginSchema, uuidSchema } from '@laap/validation'
 
-type RuntimeConfig = typeof defaultConfig
+type RuntimeConfig = typeof defaultConfig & { reaperEnabled?: boolean }
 
 export type AppHandle = {
   server: http.Server
@@ -223,6 +222,12 @@ async function route(request: IncomingMessage, response: ServerResponse, service
 }
 
 export async function createApp(overrides: Partial<RuntimeConfig> & { dataDir?: string } = {}): Promise<AppHandle> {
+  const [{ AppDatabase }, { seedDatabase }, { LaapService }, { LocalCredentialVault }] = await Promise.all([
+    import('./db/database.js'),
+    import('./db/seed.js'),
+    import('./services/laap-service.js'),
+    import('./services/credential-vault.js'),
+  ])
   const runtime = { ...defaultConfig, ...overrides }
   if (runtime.storageDriver !== 'local') throw new Error('The Supabase/Postgres adapter is deployed through the Supabase migration and Edge Functions; this local API only supports storageDriver=local')
   const database = await AppDatabase.open(overrides.dataDir ?? runtime.dataDir)
@@ -251,9 +256,9 @@ export async function createApp(overrides: Partial<RuntimeConfig> & { dataDir?: 
       sendError(response, serviceErrorToHttp(error), requestId)
     }
   })
-  const reaper = setInterval(() => { service.reapStaleSessions(); loginLimiter.sweep() }, 60_000)
-  reaper.unref()
-  return { server, database, service, vault, close: async () => { clearInterval(reaper); await database.save(); database.close(); if (!server.listening) return; await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())) } }
+  const reaper = runtime.reaperEnabled === false ? undefined : setInterval(() => { service.reapStaleSessions(); loginLimiter.sweep() }, 60_000)
+  reaper?.unref()
+  return { server, database, service, vault, close: async () => { if (reaper) clearInterval(reaper); await database.save(); database.close(); if (!server.listening) return; await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())) } }
 }
 
 export async function createSupabaseApp(overrides: Partial<RuntimeConfig> = {}): Promise<AppHandle> {
@@ -278,9 +283,9 @@ export async function createSupabaseApp(overrides: Partial<RuntimeConfig> = {}):
       sendError(response, serviceErrorToHttp(error), requestId)
     }
   })
-  const reaper = setInterval(() => { void service.reapStaleSessions() }, 60_000)
-  reaper.unref()
-  return { server, service, vault, close: async () => { clearInterval(reaper); if (!server.listening) return; await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())) } }
+  const reaper = runtime.reaperEnabled === false ? undefined : setInterval(() => { void service.reapStaleSessions() }, 60_000)
+  reaper?.unref()
+  return { server, service, vault, close: async () => { if (reaper) clearInterval(reaper); if (!server.listening) return; await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())) } }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

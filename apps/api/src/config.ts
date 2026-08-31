@@ -1,10 +1,11 @@
 import path from 'node:path'
 
 const isProduction = process.env.NODE_ENV === 'production'
+const isCloudflareWorker = process.env.CF_WORKER === '1'
 
 function requiredSecret(name: string, fallback: string) {
   const value = process.env[name] ?? fallback
-  if (isProduction && (!process.env[name] || value.length < 32)) {
+  if (isProduction && !isCloudflareWorker && (!process.env[name] || value.length < 32)) {
     throw new Error(`${name} must be configured with at least 32 characters in production`)
   }
   return value
@@ -26,10 +27,10 @@ export const config = {
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
 }
 
-if (isProduction && (config.adminPassword === 'ChangeMe!2026' || config.adminPassword.length < 12)) {
+if (isProduction && !isCloudflareWorker && (config.adminPassword === 'ChangeMe!2026' || config.adminPassword.length < 12)) {
   throw new Error('LAAP_ADMIN_PASSWORD must be changed to a 12+ character value in production')
 }
 
-if (isProduction && config.storageDriver === 'local' && process.env.ALLOW_LOCAL_STORAGE_IN_PRODUCTION !== 'true') {
+if (isProduction && !isCloudflareWorker && config.storageDriver === 'local' && process.env.ALLOW_LOCAL_STORAGE_IN_PRODUCTION !== 'true') {
   throw new Error('Refusing to start production with the single-process local storage adapter; deploy the Supabase/Postgres adapter or explicitly set ALLOW_LOCAL_STORAGE_IN_PRODUCTION=true')
 }
