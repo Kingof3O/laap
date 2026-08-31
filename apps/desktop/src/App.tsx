@@ -31,6 +31,8 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [launchRequested, setLaunchRequested] = useState(false)
   const runtimeSeen = useRef(false)
+  const launchRequestedAt = useRef<number | null>(null)
+  const heartbeatFailures = useRef(0)
 
   const refreshRuntime = async () => {
     if (!invoke) return
@@ -54,7 +56,10 @@ export default function App() {
     if (!sessionId || !user) return
     const timer = window.setInterval(() => {
       const runtimeState = processes.game ? 'IN_GAME' : processes.league_client ? 'IN_CLIENT' : processes.riot_client ? 'LAUNCHING' : 'EXITED'
-      void apiRequest(`/api/leases/${sessionId}/heartbeat`, { method: 'POST', body: JSON.stringify({ runtimeState }) }).catch((cause) => { setSessionId(null); setLaunchRequested(false); setError(cause instanceof Error ? 'Lease lost. Sign in again to reacquire the account.' : String(cause)) })
+      void apiRequest(`/api/leases/${sessionId}/heartbeat`, { method: 'POST', body: JSON.stringify({ runtimeState }) }).then(() => { heartbeatFailures.current = 0 }).catch((cause) => {
+        if (cause instanceof TypeError) { heartbeatFailures.current += 1; if (heartbeatFailures.current < 3) return }
+        setSessionId(null); setLaunchRequested(false); launchRequestedAt.current = null; setError('Lease lost. Sign in again to reacquire the account.')
+      })
     }, 20_000)
     return () => window.clearInterval(timer)
   }, [sessionId, user, processes])
@@ -68,13 +73,17 @@ export default function App() {
       runtimeSeen.current = false
       setError('Lease lost because the Riot/League process exited.')
     }
-  }, [processes, sessionId])
+    if (sessionId && launchRequested && launchRequestedAt.current && !running && Date.now() - launchRequestedAt.current > 60_000) {
+      void apiRequest(`/api/leases/${sessionId}/release`, { method: 'POST', body: JSON.stringify({ reason: 'process_exit' }) }).catch(() => undefined)
+      setSessionId(null); setLaunchRequested(false); launchRequestedAt.current = null; setError('Logged out / Riot client closed before authentication.')
+    }
+  }, [launchRequested, processes, sessionId])
 
   const runtimeLabel = useMemo(() => processes.game ? 'League running' : processes.riot_client || processes.league_client || launchRequested ? 'Waiting for Riot login' : sessionId ? 'Lease acquired' : 'Logged out / Riot client closed', [launchRequested, processes, sessionId])
   const login = async () => { setBusy(true); setError(null); try { const result = await apiRequest<{ user: User }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }); setUser(result.user); setPassword(''); await loadAccounts() } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) } }
   const acquire = async () => { if (!deviceId || !selectedAccount || !invoke) { setError('Bind this desktop to an account before acquiring a lease.'); return }; setBusy(true); setError(null); try { const nonce = `${Date.now()}:${selectedAccount}`; const signature = await invoke<string>('sign_device_nonce', { nonce }); const result = await apiRequest<{ sessionId: string }>('/api/leases/acquire', { method: 'POST', body: JSON.stringify({ accountId: selectedAccount, deviceId, nonce, signature }) }); setSessionId(result.sessionId); setError(null) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) } }
-  const launchRiot = async () => { if (!invoke) return; setBusy(true); setError(null); try { await invoke('launch_riot_client'); setLaunchRequested(true) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) } }
-  const release = async (reason: 'manual' | 'logout' = 'manual') => { if (!sessionId) return; await apiRequest(`/api/leases/${sessionId}/release`, { method: 'POST', body: JSON.stringify({ reason }) }).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause))); setSessionId(null); setLaunchRequested(false); runtimeSeen.current = false }
+  const launchRiot = async () => { if (!invoke) return; setBusy(true); setError(null); try { await invoke('launch_riot_client'); setLaunchRequested(true); launchRequestedAt.current = Date.now() } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) } }
+  const release = async (reason: 'manual' | 'logout' | 'process_exit' = 'manual') => { if (!sessionId) return; await apiRequest(`/api/leases/${sessionId}/release`, { method: 'POST', body: JSON.stringify({ reason }) }).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause))); setSessionId(null); setLaunchRequested(false); launchRequestedAt.current = null; runtimeSeen.current = false }
   const logout = async () => { await release('logout'); await apiRequest('/api/auth/logout', { method: 'POST' }).catch(() => undefined); setUser(null); setAccounts([]); setDeviceId(null); setSessionId(null); setLaunchRequested(false) }
 
   if (!user) return <div className="desktop-app"><div className="desktop-glow" aria-hidden="true" /><main className="desktop-main login-shell"><div className="brand-lockup"><span className="brand-mark"><ShieldCheck aria-hidden="true" size={18} /></span><div><p className="brand-title">LAAP Desktop</p><p className="brand-subtitle">Secure operator shell</p></div></div><section className="desktop-card login-card"><p className="eyebrow">Trusted access</p><h1>Sign in to your workspace.</h1><p className="card-note">Use the operator account created by an administrator. Credentials stay in memory and are sent only over TLS.</p><label>Email<input className="desktop-input" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} /></label><label>Password<input className="desktop-input" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>{error ? <p className="desktop-error" role="alert">{error}</p> : null}<button type="button" className="launch-button" onClick={() => void login()} disabled={busy || !email || !password}><span><LogIn aria-hidden="true" size={17} />{busy ? 'Signing in…' : 'Sign in'}</span><ArrowRight aria-hidden="true" size={17} /></button></section></main></div>
