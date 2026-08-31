@@ -75,6 +75,9 @@ describe('LAAP lease service', () => {
     expect(dashboard.status).toBe(200)
     const payload = await dashboard.json() as { metrics: { totalAccounts: number } }
     expect(payload.metrics.totalAccounts).toBe(55)
+    const createUser = await fetch(`${baseUrl}/api/users`, { method: 'POST', headers: { cookie: cookie!, 'content-type': 'application/json' }, body: JSON.stringify({ displayName: 'New Operator', email: 'new-operator@example.com', password: 'LongEnoughPassword!2026', role: 'operator' }) })
+    expect(createUser.status).toBe(201)
+    expect((await createUser.json() as { user: { email: string; role: string } }).user).toMatchObject({ email: 'new-operator@example.com', role: 'operator' })
     const account = (await instance.service.listAccounts())[0]
     const credentialWrite = await fetch(`${baseUrl}/api/accounts/${account.id}/credentials`, { method: 'POST', headers: { cookie: cookie!, 'content-type': 'application/json' }, body: JSON.stringify({ username: 'riot-user', password: 'not-returned-to-browser' }) })
     expect(credentialWrite.status).toBe(204)
