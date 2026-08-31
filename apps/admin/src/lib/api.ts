@@ -39,6 +39,7 @@ export const api = {
   heartbeat: (sessionId: string, runtimeState: SessionState) => request<{ success: true }>(`/leases/${sessionId}/heartbeat`, { method: 'POST', body: JSON.stringify({ runtimeState }) }),
   getAccounts: () => request<{ accounts: DashboardSnapshot['accounts'] }>('/accounts'),
   createAccount: (input: { displayName: string; externalId: string; region: string; status: 'available' | 'maintenance' | 'disabled' }) => request<{ accountId: string }>('/accounts', { method: 'POST', body: JSON.stringify(input) }),
+  setAccountCredential: (accountId: string, input: { username: string; password: string }) => request<void>(`/accounts/${accountId}/credentials`, { method: 'POST', body: JSON.stringify(input) }),
   getAssignments: () => request<{ assignments: Array<{ id: string; accountId: string; userId: string; account: string; user: string; email: string; status: string; assignedAt: string; expiresAt: string | null }> }>('/assignments'),
   addAssignment: (input: { accountId: string; userId: string; expiresAt?: string | null }) => request<{ assignmentId: string }>('/assignments', { method: 'POST', body: JSON.stringify(input) }),
   revokeAssignment: (accountId: string, userId: string) => request<{ success: true }>(`/assignments/${accountId}/${userId}`, { method: 'DELETE' }),

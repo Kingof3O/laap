@@ -6,7 +6,7 @@ Set `LAAP_STORAGE_DRIVER=supabase` to use the Supabase service adapter. It requi
 
 ## Authentication
 
-- `POST /api/auth/login` accepts `{ email, password }` and sets an `HttpOnly`, `SameSite=Lax` `laap_access` cookie.
+- `POST /api/auth/login` accepts `{ email, password }` and sets an `HttpOnly`, `Secure`, `SameSite=None` `__Host-laap_access` cookie in production (the local adapter uses `laap_access`).
 - `GET /api/auth/session` returns the current sanitized user.
 - `POST /api/auth/demo` exists only when `NODE_ENV !== production` and `ENABLE_DEMO_AUTH` is not `false`.
 - The browser never receives a password hash, vault key, private key, or Riot credential.
