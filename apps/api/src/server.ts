@@ -13,7 +13,7 @@ import { ServiceError } from './services/service-error.js'
 import type { CredentialVaultPort } from './services/credential-vault.js'
 import { SupabaseCredentialVault, SupabaseLaapService } from './services/supabase-service.js'
 import type { LaapServicePort } from './services/service-port.js'
-import { accountCreateSchema, accountUpdateSchema, assignmentSchema, credentialSchema, deviceRegistrationSchema, heartbeatSchema, leaseAcquireSchema, loginSchema, userCreateSchema, uuidSchema } from '@laap/validation'
+import { accountCreateSchema, accountUpdateSchema, assignmentSchema, deviceRegistrationSchema, heartbeatSchema, leaseAcquireSchema, loginSchema, userCreateSchema, uuidSchema } from '@laap/validation'
 
 type RuntimeConfig = typeof defaultConfig & { reaperEnabled?: boolean }
 
@@ -121,24 +121,10 @@ async function route(request: IncomingMessage, response: ServerResponse, service
   }
 
   if (parts[1] === 'accounts' && parts.length === 4 && parts[3] === 'credential-status' && method === 'GET') {
-    await requireAdmin(request, runtime.jwtSecret)
-    if (runtime.nodeEnv === 'production' && runtime.storageDriver === 'local') throw new HttpError(501, 'USE_VAULT_EDGE_FUNCTION', 'Production credentials are managed through the Supabase Vault Edge Function')
-    const accountId = routeUuid(parts[2], 'INVALID_ACCOUNT_ID')
-    if (!(await service.listAccounts()).some((account) => account.id === accountId)) throw new HttpError(404, 'ACCOUNT_NOT_FOUND')
-    return sendJson(response, 200, { accountId, hasCredential: await vault.has(accountId) })
+    throw new HttpError(410, 'RIOT_RSO_REQUIRED', 'Riot accounts must be linked through the approved Riot Sign On flow')
   }
   if (parts[1] === 'accounts' && parts.length === 4 && parts[3] === 'credentials' && method === 'POST') {
-    await requireAdmin(request, runtime.jwtSecret)
-    if (runtime.nodeEnv === 'production' && runtime.storageDriver === 'local') throw new HttpError(501, 'USE_VAULT_EDGE_FUNCTION', 'Production credentials are managed through the Supabase Vault Edge Function')
-    const accountId = routeUuid(parts[2], 'INVALID_ACCOUNT_ID')
-    if (!(await service.listAccounts()).some((account) => account.id === accountId)) throw new HttpError(404, 'ACCOUNT_NOT_FOUND')
-    const input = credentialSchema.safeParse(await readJson(request))
-    if (!input.success) throw new HttpError(400, 'INVALID_CREDENTIAL', 'Credential fields are invalid')
-    await vault.set(accountId, input.data.username, input.data.password)
-    await service.recordAudit(user.id, 'CREDENTIAL_ROTATED', 'accounts', accountId, { storedIn: runtime.storageDriver === 'supabase' ? 'supabase-vault' : 'local-encrypted-vault' })
-    response.statusCode = 204
-    response.end()
-    return
+    throw new HttpError(410, 'RIOT_RSO_REQUIRED', 'Riot credentials are never accepted by LAAP; use Riot Sign On')
   }
   if (parts[1] === 'accounts' && parts.length === 2 && method === 'GET') return sendJson(response, 200, { accounts: await service.listAccounts(user.role === 'admin' ? undefined : user.id) })
   if (parts[1] === 'accounts' && parts.length === 2 && method === 'POST') {
