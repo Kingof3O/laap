@@ -13,7 +13,7 @@ import { ServiceError } from './services/service-error.js'
 import type { CredentialVaultPort } from './services/credential-vault.js'
 import { SupabaseCredentialVault, SupabaseLaapService } from './services/supabase-service.js'
 import type { LaapServicePort } from './services/service-port.js'
-import { accountCreateSchema, accountUpdateSchema, assignmentSchema, credentialSchema, deviceRegistrationSchema, heartbeatSchema, leaseAcquireSchema, loginSchema, uuidSchema } from '@laap/validation'
+import { accountCreateSchema, accountUpdateSchema, assignmentSchema, credentialSchema, deviceRegistrationSchema, heartbeatSchema, leaseAcquireSchema, loginSchema, userCreateSchema, uuidSchema } from '@laap/validation'
 
 type RuntimeConfig = typeof defaultConfig & { reaperEnabled?: boolean }
 
@@ -107,6 +107,13 @@ async function route(request: IncomingMessage, response: ServerResponse, service
   if (parts[1] === 'users' && method === 'GET') {
     await requireAdmin(request, runtime.jwtSecret)
     return sendJson(response, 200, { users: await service.listUsers() })
+  }
+  if (parts[1] === 'users' && parts.length === 2 && method === 'POST') {
+    await requireAdmin(request, runtime.jwtSecret)
+    const input = userCreateSchema.safeParse(await readJson(request))
+    if (!input.success) throw new HttpError(400, 'INVALID_USER', 'User fields are invalid')
+    if (input.data.role === 'admin' && user.role !== 'admin') throw new HttpError(403, 'ADMIN_REQUIRED', 'Only an administrator can create administrators')
+    try { return sendJson(response, 201, { user: await service.createUser(user.id, input.data) }) } catch (error) { throw serviceErrorToHttp(error) }
   }
 
   if (parts[1] === 'accounts' && parts.length === 4 && parts[3] === 'credential-status' && method === 'GET') {

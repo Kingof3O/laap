@@ -44,6 +44,7 @@ export const api = {
   addAssignment: (input: { accountId: string; userId: string; expiresAt?: string | null }) => request<{ assignmentId: string }>('/assignments', { method: 'POST', body: JSON.stringify(input) }),
   revokeAssignment: (accountId: string, userId: string) => request<{ success: true }>(`/assignments/${accountId}/${userId}`, { method: 'DELETE' }),
   getUsers: () => request<{ users: ApiUser[] }>('/users'),
+  createUser: (input: { email: string; displayName: string; password: string; role: 'admin' | 'operator' }) => request<{ user: ApiUser }>('/users', { method: 'POST', body: JSON.stringify(input) }),
   getDevices: () => request<{ devices: Array<{ id: string; userId: string; deviceName: string; platform: string; appVersion: string; status: string; lastSeenAt: string; user: string; publicKeyPresent: boolean }> }>('/devices'),
   getAudit: () => request<{ audit: Array<{ id: string; action: string; entityType: string; entityId: string; payload: Record<string, unknown>; createdAt: string; actor: string }> }>('/audit'),
 }

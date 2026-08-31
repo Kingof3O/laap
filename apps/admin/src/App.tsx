@@ -1,4 +1,4 @@
-import { ClipboardList, Gamepad2, LayoutDashboard, LaptopMinimal, UsersRound } from 'lucide-react'
+import { ClipboardList, Gamepad2, LayoutDashboard, LaptopMinimal, UserRoundPlus, UsersRound } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ApiUser, DashboardSnapshot } from '@laap/types'
 import type { PageName } from './lib/data'
@@ -14,11 +14,13 @@ import { AccountsPage } from './pages/AccountsPage'
 import { AssignmentsPage } from './pages/AssignmentsPage'
 import { DevicesPage } from './pages/DevicesPage'
 import { AuditLogPage } from './pages/AuditLogPage'
+import { UsersPage } from './pages/UsersPage'
 
 const baseNavItems: NavItem[] = [
   { label: 'Overview', icon: LayoutDashboard },
   { label: 'Account pool', icon: Gamepad2 },
   { label: 'Assignments', icon: UsersRound },
+  { label: 'Users', icon: UserRoundPlus },
   { label: 'Devices', icon: LaptopMinimal },
   { label: 'Audit log', icon: ClipboardList },
 ]
@@ -144,7 +146,9 @@ export default function App() {
     : activePage === 'Account pool'
       ? <AccountsPage initialAccounts={activeSnapshot.accounts} offline={offline} onToast={moduleToast} />
       : activePage === 'Assignments'
-        ? <AssignmentsPage initialAccounts={activeSnapshot.accounts} offline={offline} onToast={moduleToast} />
+          ? <AssignmentsPage initialAccounts={activeSnapshot.accounts} offline={offline} onToast={moduleToast} />
+        : activePage === 'Users'
+          ? <UsersPage offline={offline} onToast={moduleToast} />
         : activePage === 'Devices'
           ? <DevicesPage offline={offline} onToast={moduleToast} />
           : activePage === 'Audit log'

@@ -1,7 +1,7 @@
 import { Circle, LoaderCircle, Radio, TriangleAlert } from 'lucide-react'
 import type { SessionRow } from '../lib/data'
 
-type StatusValue = SessionRow['runtimeState'] | SessionRow['status'] | 'Available' | 'Leased' | 'Maintenance'
+type StatusValue = SessionRow['runtimeState'] | SessionRow['status'] | 'Available' | 'Leased' | 'Maintenance' | 'Operator' | 'Administrator' | 'Active' | 'suspended' | 'disabled'
 
 const statusConfig: Record<StatusValue, { label: string; className: string; Icon: typeof Circle }> = {
   IN_GAME: { label: 'In game', className: 'status-green', Icon: Radio },
@@ -17,6 +17,11 @@ const statusConfig: Record<StatusValue, { label: string; className: string; Icon
   Available: { label: 'Available', className: 'status-green', Icon: Circle },
   Leased: { label: 'Leased', className: 'status-violet', Icon: Circle },
   Maintenance: { label: 'Maintenance', className: 'status-amber', Icon: TriangleAlert },
+  Operator: { label: 'Operator', className: 'status-blue', Icon: Circle },
+  Administrator: { label: 'Administrator', className: 'status-violet', Icon: Circle },
+  Active: { label: 'Active', className: 'status-green', Icon: Circle },
+  suspended: { label: 'Suspended', className: 'status-amber', Icon: TriangleAlert },
+  disabled: { label: 'Disabled', className: 'status-red', Icon: TriangleAlert },
 }
 
 export function StatusBadge({ value, compact = false }: { value: StatusValue; compact?: boolean }) {

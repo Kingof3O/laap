@@ -62,6 +62,15 @@ export class SupabaseLaapService implements LaapServicePort {
     return Promise.all(rows.map(async (row) => publicUser({ ...row, role: await this.roleForUser(String(row.id)) })))
   }
 
+  async createUser(actorId: string, input: { email: string; displayName: string; password: string; role: 'admin' | 'operator' }) {
+    const { data, error } = await this.data.auth.admin.createUser({ email: input.email.toLowerCase(), password: input.password, email_confirm: true, user_metadata: { display_name: input.displayName }, app_metadata: { role: input.role } })
+    if (error || !data.user) throw new ServiceError(error?.code === 'email_exists' ? 'USER_EXISTS' : 'USER_CREATE_FAILED', error?.code === 'email_exists' ? 409 : 503, error?.message ?? 'Unable to create user')
+    const profile = await this.findUserById(data.user.id)
+    if (!profile) throw new ServiceError('PROFILE_CREATE_FAILED', 503, 'User profile was not created')
+    await this.recordAudit(actorId, 'USER_CREATED', 'profiles', profile.id, { email: profile.email, role: input.role })
+    return profile
+  }
+
   async roleForUser(userId: string): Promise<UserRole> {
     // Roles are sealed in auth.app_metadata in production. The service-role
     // adapter reads that claim from the Auth Admin API and falls back to the

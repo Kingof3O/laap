@@ -25,6 +25,13 @@ export const loginSchema = z.object({
   password: z.string().min(8).max(256),
 })
 
+export const userCreateSchema = z.object({
+  email: z.string().email().max(254),
+  displayName: z.string().trim().min(2).max(120),
+  password: z.string().min(12).max(256),
+  role: z.enum(['operator', 'admin']).default('operator'),
+})
+
 export const deviceRegistrationSchema = z.object({
   publicKey: z.string().min(8).max(512),
   platform: z.enum(['windows', 'macos']),
@@ -63,6 +70,7 @@ export type LaunchRequestInput = z.infer<typeof launchRequestSchema>
 export type HeartbeatInput = z.infer<typeof heartbeatSchema>
 export type ReleaseLeaseInput = z.infer<typeof releaseLeaseSchema>
 export type LoginInput = z.infer<typeof loginSchema>
+export type UserCreateInput = z.infer<typeof userCreateSchema>
 export type DeviceRegistrationInput = z.infer<typeof deviceRegistrationSchema>
 export type AssignmentInput = z.infer<typeof assignmentSchema>
 export type AccountCreateInput = z.infer<typeof accountCreateSchema>

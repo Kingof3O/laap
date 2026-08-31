@@ -11,6 +11,7 @@ export interface LaapServicePort {
   findUserById(id: string): MaybePromise<ApiUser | undefined>
   authenticate(email: string, password: string): Promise<ApiUser>
   listUsers(): MaybePromise<ApiUser[]>
+  createUser(actorId: string, input: { email: string; displayName: string; password: string; role: 'admin' | 'operator' }): MaybePromise<ApiUser>
   listDevices(userId?: string): MaybePromise<DeviceView[]>
   registerDevice(userId: string, input: { publicKey: string; platform: 'windows' | 'macos'; deviceName: string; appVersion: string }): MaybePromise<string>
   revokeDevice(actorId: string, deviceId: string): MaybePromise<void>

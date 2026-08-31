@@ -168,6 +168,11 @@ export const pageMeta = {
     title: 'Access with guardrails.',
     description: 'Control who can claim each account and when that authorization expires.',
   },
+  Users: {
+    eyebrow: 'ACCESS / USERS',
+    title: 'People with the right access.',
+    description: 'Create operators and administrators without leaving the control center.',
+  },
   Devices: {
     eyebrow: 'TRUST / DEVICES',
     title: 'Every device, cryptographically known.',

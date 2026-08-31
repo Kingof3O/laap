@@ -63,6 +63,19 @@ export class LaapService implements LaapServicePort {
     return this.database.all<UserRow>('SELECT id, email, password_hash, display_name, role, status FROM users ORDER BY display_name').map(publicUser)
   }
 
+  async createUser(actorId: string, input: { email: string; displayName: string; password: string; role: 'admin' | 'operator' }) {
+    const existing = this.database.get<{ id: string }>('SELECT id FROM users WHERE lower(email) = lower(?)', [input.email])
+    if (existing) throw new ServiceError('USER_EXISTS', 409, 'A user with this email already exists')
+    const id = randomUUID()
+    const timestamp = new Date().toISOString()
+    const passwordHash = await bcrypt.hash(input.password, 12)
+    this.database.transactionSync(() => {
+      this.database.run('INSERT INTO users (id, email, password_hash, display_name, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [id, input.email.toLowerCase(), passwordHash, input.displayName, input.role, 'active', timestamp, timestamp])
+      this.addAudit(actorId, 'USER_CREATED', 'users', id, { email: input.email.toLowerCase(), role: input.role })
+    })
+    return { id, email: input.email.toLowerCase(), displayName: input.displayName, role: input.role, status: 'active' } as ApiUser
+  }
+
   listDevices(userId?: string) {
     const query = `SELECT d.id, d.user_id, d.public_key, d.platform, d.device_name, d.app_version, d.status, d.last_seen_at, u.display_name AS user_name FROM user_devices d JOIN users u ON u.id = d.user_id ${userId ? 'WHERE d.user_id = ?' : ''} ORDER BY d.last_seen_at DESC`
     return this.database.all<Record<string, unknown>>(query, userId ? [userId] : []).map((row) => ({ id: String(row.id), userId: String(row.user_id), deviceName: String(row.device_name), platform: String(row.platform), appVersion: String(row.app_version), status: String(row.status), lastSeenAt: String(row.last_seen_at), user: String(row.user_name), publicKeyPresent: Boolean(row.public_key) }))
