@@ -83,6 +83,10 @@ describe('LAAP lease service', () => {
     expect(credentialWrite.status).toBe(204)
     const credentialStatus = await fetch(`${baseUrl}/api/accounts/${account.id}/credential-status`, { headers: { cookie: cookie! } })
     expect(await credentialStatus.json()).toEqual({ accountId: account.id, hasCredential: true })
+    const operatorLogin = await fetch(`${baseUrl}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'maya@laap.local', password: 'ChangeMe!2026' }) })
+    const operatorCookie = operatorLogin.headers.get('set-cookie')?.split(';')[0]
+    const operatorCredentialWrite = await fetch(`${baseUrl}/api/accounts/${account.id}/credentials`, { method: 'POST', headers: { cookie: operatorCookie!, 'content-type': 'application/json' }, body: JSON.stringify({ username: 'operator-must-not-write', password: 'blocked' }) })
+    expect(operatorCredentialWrite.status).toBe(403)
     const freeAccount = (await instance.service.listAccounts()).find((row) => row.name === 'Lumen#EUNE')!
     const adminDevice = (await instance.service.listDevices()).find((row) => row.user === 'Alex Kim')!
     const acquire = await fetch(`${baseUrl}/api/leases/acquire`, { method: 'POST', headers: { cookie: cookie!, 'content-type': 'application/json' }, body: JSON.stringify({ accountId: freeAccount.id, deviceId: adminDevice.id }) })

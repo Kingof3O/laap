@@ -157,7 +157,7 @@ export default function App() {
   const content = activePage === 'Overview'
     ? <OverviewPage metrics={activeSnapshot.metrics} sessions={filteredSessions} activity={activeSnapshot.activity} accounts={activeSnapshot.accounts} onRelease={releaseSession} />
     : activePage === 'Account pool'
-      ? <AccountsPage initialAccounts={activeSnapshot.accounts} offline={offline} onToast={moduleToast} />
+      ? <AccountsPage initialAccounts={activeSnapshot.accounts} offline={offline} canManageCredentials={activeSnapshot.user.role === 'admin'} onToast={moduleToast} />
       : activePage === 'Assignments'
           ? <AssignmentsPage initialAccounts={activeSnapshot.accounts} offline={offline} onToast={moduleToast} />
         : activePage === 'Users'

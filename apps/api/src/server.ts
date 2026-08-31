@@ -121,16 +121,16 @@ async function route(request: IncomingMessage, response: ServerResponse, service
   }
 
   if (parts[1] === 'accounts' && parts.length === 4 && parts[3] === 'credential-status' && method === 'GET') {
+    await requireAdmin(request, runtime.jwtSecret)
     if (runtime.nodeEnv === 'production' && runtime.storageDriver === 'local') throw new HttpError(501, 'USE_VAULT_EDGE_FUNCTION', 'Production credentials are managed through the Supabase Vault Edge Function')
     const accountId = routeUuid(parts[2], 'INVALID_ACCOUNT_ID')
-    if (user.role !== 'admin' && !(await service.listAccounts(user.id)).some((account) => account.id === accountId)) throw new HttpError(403, 'ACCOUNT_NOT_ASSIGNED', 'This account is not assigned to you')
     if (!(await service.listAccounts()).some((account) => account.id === accountId)) throw new HttpError(404, 'ACCOUNT_NOT_FOUND')
     return sendJson(response, 200, { accountId, hasCredential: await vault.has(accountId) })
   }
   if (parts[1] === 'accounts' && parts.length === 4 && parts[3] === 'credentials' && method === 'POST') {
+    await requireAdmin(request, runtime.jwtSecret)
     if (runtime.nodeEnv === 'production' && runtime.storageDriver === 'local') throw new HttpError(501, 'USE_VAULT_EDGE_FUNCTION', 'Production credentials are managed through the Supabase Vault Edge Function')
     const accountId = routeUuid(parts[2], 'INVALID_ACCOUNT_ID')
-    if (user.role !== 'admin' && !(await service.listAccounts(user.id)).some((account) => account.id === accountId)) throw new HttpError(403, 'ACCOUNT_NOT_ASSIGNED', 'This account is not assigned to you')
     if (!(await service.listAccounts()).some((account) => account.id === accountId)) throw new HttpError(404, 'ACCOUNT_NOT_FOUND')
     const input = credentialSchema.safeParse(await readJson(request))
     if (!input.success) throw new HttpError(400, 'INVALID_CREDENTIAL', 'Credential fields are invalid')
