@@ -39,7 +39,11 @@ async function currentUser(request: IncomingMessage, service: LaapServicePort, r
 
 function originAllowed(request: IncomingMessage, runtime: RuntimeConfig) {
   const origin = request.headers.origin
-  return !origin || origin === runtime.allowedOrigin
+  return !origin || runtime.allowedOrigin.split(',').map((value) => value.trim()).includes(origin)
+}
+
+function responseOrigin(request: IncomingMessage, runtime: RuntimeConfig) {
+  return request.headers.origin && originAllowed(request, runtime) ? request.headers.origin : runtime.allowedOrigin.split(',')[0].trim()
 }
 
 function routeUuid(value: string | undefined, code = 'INVALID_ID') {
@@ -117,21 +121,21 @@ async function route(request: IncomingMessage, response: ServerResponse, service
   }
 
   if (parts[1] === 'accounts' && parts.length === 4 && parts[3] === 'credential-status' && method === 'GET') {
-    await requireAdmin(request, runtime.jwtSecret)
     if (runtime.nodeEnv === 'production' && runtime.storageDriver === 'local') throw new HttpError(501, 'USE_VAULT_EDGE_FUNCTION', 'Production credentials are managed through the Supabase Vault Edge Function')
     const accountId = routeUuid(parts[2], 'INVALID_ACCOUNT_ID')
+    if (user.role !== 'admin' && !(await service.listAccounts(user.id)).some((account) => account.id === accountId)) throw new HttpError(403, 'ACCOUNT_NOT_ASSIGNED', 'This account is not assigned to you')
     if (!(await service.listAccounts()).some((account) => account.id === accountId)) throw new HttpError(404, 'ACCOUNT_NOT_FOUND')
     return sendJson(response, 200, { accountId, hasCredential: await vault.has(accountId) })
   }
   if (parts[1] === 'accounts' && parts.length === 4 && parts[3] === 'credentials' && method === 'POST') {
-    await requireAdmin(request, runtime.jwtSecret)
     if (runtime.nodeEnv === 'production' && runtime.storageDriver === 'local') throw new HttpError(501, 'USE_VAULT_EDGE_FUNCTION', 'Production credentials are managed through the Supabase Vault Edge Function')
     const accountId = routeUuid(parts[2], 'INVALID_ACCOUNT_ID')
+    if (user.role !== 'admin' && !(await service.listAccounts(user.id)).some((account) => account.id === accountId)) throw new HttpError(403, 'ACCOUNT_NOT_ASSIGNED', 'This account is not assigned to you')
     if (!(await service.listAccounts()).some((account) => account.id === accountId)) throw new HttpError(404, 'ACCOUNT_NOT_FOUND')
     const input = credentialSchema.safeParse(await readJson(request))
     if (!input.success) throw new HttpError(400, 'INVALID_CREDENTIAL', 'Credential fields are invalid')
     await vault.set(accountId, input.data.username, input.data.password)
-    await service.recordAudit(user.id, 'CREDENTIAL_ROTATED', 'accounts', accountId, { storedIn: 'local-encrypted-vault' })
+    await service.recordAudit(user.id, 'CREDENTIAL_ROTATED', 'accounts', accountId, { storedIn: runtime.storageDriver === 'supabase' ? 'supabase-vault' : 'local-encrypted-vault' })
     response.statusCode = 204
     response.end()
     return
@@ -249,7 +253,7 @@ export async function createApp(overrides: Partial<RuntimeConfig> & { dataDir?: 
     response.on('finish', () => {
       if (runtime.logRequests) console.info(JSON.stringify({ event: 'http_request', requestId, method: request.method, path: (request.url ?? '/').split('?')[0], status: response.statusCode, durationMs: Date.now() - startedAt }))
     })
-    applySecurityHeaders(response, runtime.allowedOrigin, runtime.nodeEnv === 'production')
+    applySecurityHeaders(response, responseOrigin(request, runtime), runtime.nodeEnv === 'production')
     if (!originAllowed(request, runtime)) return sendJson(response, 403, { error: { code: 'ORIGIN_NOT_ALLOWED', message: 'Origin is not allowed' } })
     if (request.method === 'OPTIONS') {
       response.statusCode = 204
@@ -281,7 +285,7 @@ export async function createSupabaseApp(overrides: Partial<RuntimeConfig> = {}):
     response.on('finish', () => {
       if (runtime.logRequests) console.info(JSON.stringify({ event: 'http_request', requestId, method: request.method, path: (request.url ?? '/').split('?')[0], status: response.statusCode, durationMs: Date.now() - startedAt }))
     })
-    applySecurityHeaders(response, runtime.allowedOrigin, runtime.nodeEnv === 'production')
+    applySecurityHeaders(response, responseOrigin(request, runtime), runtime.nodeEnv === 'production')
     if (!originAllowed(request, runtime)) return sendJson(response, 403, { error: { code: 'ORIGIN_NOT_ALLOWED', message: 'Origin is not allowed' } })
     if (request.method === 'OPTIONS') { response.statusCode = 204; response.end(); return }
     try {

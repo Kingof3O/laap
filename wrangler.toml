@@ -9,6 +9,6 @@ enabled = true
 [vars]
 NODE_ENV = "production"
 LAAP_STORAGE_DRIVER = "supabase"
-ALLOWED_ORIGIN = "https://laap-control-center.pages.dev"
+ALLOWED_ORIGIN = "https://laap-control-center.pages.dev,http://localhost:1420,http://tauri.localhost,https://tauri.localhost,tauri://localhost"
 SUPABASE_URL = "https://rlhkkszeagixqmvtmknx.supabase.co"
 CF_WORKER = "1"
