@@ -15,11 +15,11 @@ import { AssignmentsPage } from './pages/AssignmentsPage'
 import { DevicesPage } from './pages/DevicesPage'
 import { AuditLogPage } from './pages/AuditLogPage'
 
-const navItems: NavItem[] = [
+const baseNavItems: NavItem[] = [
   { label: 'Overview', icon: LayoutDashboard },
-  { label: 'Account pool', icon: Gamepad2, badge: '48' },
+  { label: 'Account pool', icon: Gamepad2 },
   { label: 'Assignments', icon: UsersRound },
-  { label: 'Devices', icon: LaptopMinimal, badge: '12' },
+  { label: 'Devices', icon: LaptopMinimal },
   { label: 'Audit log', icon: ClipboardList },
 ]
 
@@ -133,6 +133,11 @@ export default function App() {
   if (authState === 'loading') return <div className="grid min-h-dvh place-items-center bg-canvas text-slate-400"><div className="flex items-center gap-3 text-xs"><span className="live-dot" aria-hidden="true" />Connecting to LAAP API…</div></div>
   if (authState === 'unauthenticated') return <LoginPage onSubmit={login} error={authError} demoAvailable={import.meta.env.DEV} />
   const activeSnapshot = snapshot ?? fallbackSnapshot
+  const sidebarItems = baseNavItems.map((item) => item.label === 'Account pool'
+    ? { ...item, badge: String(activeSnapshot.metrics.totalAccounts) }
+    : item.label === 'Devices'
+      ? { ...item, badge: String(activeSnapshot.metrics.boundDevices) }
+      : item)
   const moduleToast = (message: string) => setToast(message)
   const content = activePage === 'Overview'
     ? <OverviewPage metrics={activeSnapshot.metrics} sessions={filteredSessions} activity={activeSnapshot.activity} accounts={activeSnapshot.accounts} onRelease={releaseSession} />
@@ -145,5 +150,5 @@ export default function App() {
           : activePage === 'Audit log'
             ? <AuditLogPage offline={offline} onToast={moduleToast} />
             : <PlaceholderPage page={activePage} />
-  return <div className="min-h-dvh overflow-x-hidden bg-canvas text-ink"><div className="ambient ambient-one" aria-hidden="true" /><div className="ambient ambient-two" aria-hidden="true" /><div className="ambient ambient-three" aria-hidden="true" /><div className="app-shell"><Sidebar items={navItems} activePage={activePage} onNavigate={navigate} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} currentUser={currentUser ?? activeSnapshot.user} onLogout={logout} /><div className="min-w-0 flex-1"><TopBar activePage={activePage} onMenu={() => setMobileOpen(true)} query={query} onQueryChange={setQuery} onNotify={notify} /><main id="main-content" tabIndex={-1}>{content}</main></div></div><ActivityToast message={toast} onDismiss={() => setToast(null)} /></div>
+  return <div className="min-h-dvh overflow-x-hidden bg-canvas text-ink"><div className="ambient ambient-one" aria-hidden="true" /><div className="ambient ambient-two" aria-hidden="true" /><div className="ambient ambient-three" aria-hidden="true" /><div className="app-shell"><Sidebar items={sidebarItems} activePage={activePage} onNavigate={navigate} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} currentUser={currentUser ?? activeSnapshot.user} onLogout={logout} /><div className="min-w-0 flex-1"><TopBar activePage={activePage} onMenu={() => setMobileOpen(true)} query={query} onQueryChange={setQuery} onNotify={notify} /><main id="main-content" tabIndex={-1}>{content}</main></div></div><ActivityToast message={toast} onDismiss={() => setToast(null)} /></div>
 }
