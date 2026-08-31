@@ -7,8 +7,11 @@ dist
 ._*
 coverage
 .turbo
+.toolchains/
 *.local
 .data
 apps/api/.data
 supabase/.temp/
 supabase/._.temp
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
