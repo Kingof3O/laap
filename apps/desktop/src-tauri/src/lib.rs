@@ -4,7 +4,7 @@ pub mod monitor;
 use std::process::Command;
 
 pub use device::DeviceIdentity;
-pub use monitor::{ProcessSnapshot, RuntimeMonitor, RuntimeState};
+pub use monitor::{ClientState, ProcessSnapshot, RuntimeMonitor};
 
 #[tauri::command]
 pub fn device_public_key() -> Result<String, String> {

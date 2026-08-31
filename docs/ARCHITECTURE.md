@@ -44,3 +44,14 @@ The dashboard uses the API adapter in `apps/admin/src/lib/api.ts`. The local API
 Riot's official RSO flow is available only to approved production applications. When an RSO client is approved, account linking should be implemented as a browser OAuth authorization-code flow with server-side token exchange and encrypted refresh-token storage. RSO tokens identify/authorize the player for supported Riot APIs; they are not a supported way to silently sign the native League client in.
 
 The Tauri app therefore launches Riot Client with no arguments or secrets, waits for the user to complete Riot's normal authentication, and reports process/lease states. No credential injector, memory scraper, cookie extractor, or command-line password path is permitted.
+
+### State determination
+
+- `Lease acquired`: the server has returned a valid lease for this user/device and no launch has been requested.
+- `Waiting for Riot login`: Riot Client or League Client is present, but LAAP has no supported authentication signal. Process presence alone is never treated as authentication.
+- `Authenticated`: reserved for an explicit, supported Riot signal (for example, a future approved RSO/session callback). It is not emitted by the current process monitor.
+- `League running`: the League game process is detected while the lease remains valid.
+- `Lease lost`: the heartbeat is rejected, the lease expires, or the process disappears after a previously observed runtime; the client clears its local lease and the server reaper releases stale sessions.
+- `Logged out / Riot client closed`: no active lease and no Riot/League process is observed.
+
+Riot's documented third-party APIs do not provide a supported native League-client “currently logged-in account” signal. LAAP therefore cannot reliably distinguish a different Riot account or a Riot logout while the client process remains open; it remains in `Waiting for Riot login` and never claims `Authenticated`.

@@ -17,3 +17,5 @@ npm run desktop:check
 ```
 
 The desktop shell authenticates LAAP operators, registers the OS-keychain-backed Ed25519 device identity, acquires signed account leases, opens the installed Riot Client without arguments, and reports process state. Riot authentication remains inside Riot's supported browser/client flow; no password or token is injected by LAAP.
+
+Process existence is not proof of Riot authentication. The shell reports `Waiting for Riot login` until a supported authentication signal exists; `Authenticated` is reserved and currently not emitted. Closing/crashing the observed runtime transitions through the reconnect grace period and releases the lease when the heartbeat/session is no longer valid.
