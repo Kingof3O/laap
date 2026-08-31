@@ -1,0 +1,13 @@
+name: Supabase keepalive
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health check
+        run: curl --fail --silent --show-error --retry 3 "${{ secrets.SUPABASE_HEALTHCHECK_URL }}"

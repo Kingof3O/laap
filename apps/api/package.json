@@ -1,0 +1,31 @@
+{
+  "name": "@laap/api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": { "node": ">=22.0.0" },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -b",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -b --pretty false",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "@laap/types": "0.1.0",
+    "@laap/validation": "0.1.0",
+    "@supabase/supabase-js": "^2.49.8",
+    "bcryptjs": "^2.4.3",
+    "jose": "^6.0.8",
+    "sql.js": "^1.12.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.10.5",
+    "@types/sql.js": "^1.4.9",
+    "tsx": "^4.19.2",
+    "typescript": "~5.7.2",
+    "vitest": "^3.2.6"
+  }
+}

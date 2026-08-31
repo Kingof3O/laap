@@ -1,0 +1,26 @@
+{
+  "name": "laap-control-center",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.0.0",
+  "engines": { "node": ">=22.0.0" },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n API,ADMIN -c cyan,magenta \"npm --workspace @laap/api run dev\" \"npm --workspace @laap/admin run dev\"",
+    "dev:api": "npm --workspace @laap/api run dev",
+    "dev:admin": "npm --workspace @laap/admin run dev",
+    "desktop:check": "npm --workspace @laap/desktop run check",
+    "desktop:test": "npm --workspace @laap/desktop run test",
+    "build": "npm --workspace @laap/api run build && npm --workspace @laap/admin run build && npm --workspace @laap/desktop run build",
+    "desktop:build": "npm --workspace @laap/desktop run build",
+    "preview": "npm --workspace @laap/admin run preview",
+    "typecheck": "npm --workspace @laap/api run typecheck && npm --workspace @laap/admin run typecheck",
+    "test": "npm --workspace @laap/api run test && npm --workspace @laap/admin run test"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

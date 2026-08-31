@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LAAP Desktop",
+  "version": "0.1.0",
+  "identifier": "com.laaP.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [{ "title": "LAAP Desktop", "width": 1160, "height": 760, "minWidth": 960, "minHeight": 640 }],
+    "security": { "csp": "default-src 'self'; connect-src 'self' https://*.supabase.co http://127.0.0.1:4170" }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": true
+  }
+}
