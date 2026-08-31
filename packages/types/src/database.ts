@@ -20,7 +20,6 @@ export interface Database {
       release_account_lease: { Args: { p_session_id: string; p_reason?: string }; Returns: { success: boolean; code?: string } }
       release_account_lease_for_user: { Args: { p_actor_id: string; p_session_id: string; p_reason?: string; p_is_admin?: boolean }; Returns: { success: boolean; code?: string } }
       reap_stale_account_sessions: { Args: Record<string, never>; Returns: number }
-      issue_device_launch_payload: { Args: { p_session_id: string; p_device_id: string; p_nonce: string }; Returns: Record<string, unknown> }
     }
   }
 }

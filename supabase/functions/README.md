@@ -1,6 +1,6 @@
 # Edge Function boundary
 
-`get-launch-payload` belongs here. It should authenticate the caller, verify the signed Ed25519 device challenge against `user_devices.public_key`, confirm the session owner and freshness, then fetch the secret from Supabase Vault and return only a short-lived encrypted payload to the Tauri client.
+Riot authentication is deliberately not implemented as a server-side credential handoff. The only supported path is Riot Sign On (RSO) when Riot approves an RSO client for the application.
 
 Password-based credential writes are intentionally not part of LAAP. Riot accounts must be linked through an approved Riot Sign On (RSO) OAuth client; the service-role key and any OAuth refresh material stay server-side.
 

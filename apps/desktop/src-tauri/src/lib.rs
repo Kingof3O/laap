@@ -1,11 +1,9 @@
 pub mod device;
-pub mod injection;
 pub mod monitor;
 
 use std::process::Command;
 
 pub use device::DeviceIdentity;
-pub use injection::{LaunchRequest, SecureLauncher, TransientLaunchPayload};
 pub use monitor::{ProcessSnapshot, RuntimeMonitor, RuntimeState};
 
 #[tauri::command]

@@ -2,13 +2,6 @@ import { z } from 'zod'
 
 export const uuidSchema = z.string().uuid()
 
-export const launchRequestSchema = z.object({
-  accountId: z.string().uuid(),
-  deviceId: z.string().uuid(),
-  nonce: z.string().min(16).max(256),
-  signature: z.string().min(32).max(512),
-})
-
 export const heartbeatSchema = z.object({
   sessionId: z.string().uuid(),
   runtimeState: z.enum(['LAUNCHING', 'IN_CLIENT', 'IN_GAME', 'RECONNECTING', 'EXITED']),
@@ -61,12 +54,6 @@ export const leaseAcquireSchema = z.object({
   signature: z.string().min(8).max(512).optional(),
 })
 
-export const credentialSchema = z.object({
-  username: z.string().trim().min(1).max(120),
-  password: z.string().min(1).max(256),
-})
-
-export type LaunchRequestInput = z.infer<typeof launchRequestSchema>
 export type HeartbeatInput = z.infer<typeof heartbeatSchema>
 export type ReleaseLeaseInput = z.infer<typeof releaseLeaseSchema>
 export type LoginInput = z.infer<typeof loginSchema>
@@ -75,4 +62,3 @@ export type DeviceRegistrationInput = z.infer<typeof deviceRegistrationSchema>
 export type AssignmentInput = z.infer<typeof assignmentSchema>
 export type AccountCreateInput = z.infer<typeof accountCreateSchema>
 export type LeaseAcquireInput = z.infer<typeof leaseAcquireSchema>
-export type CredentialInput = z.infer<typeof credentialSchema>

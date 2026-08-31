@@ -27,8 +27,6 @@ Deploy the functions with the Supabase CLI after linking the project:
 ```bash
 supabase db push
 supabase functions deploy health-check --no-verify-jwt
-supabase functions deploy get-launch-payload
-supabase functions deploy upsert-account-credential
 supabase secrets set SUPABASE_URL=... SUPABASE_ANON_KEY=... SUPABASE_SERVICE_ROLE_KEY=...
 ```
 
@@ -39,6 +37,7 @@ supabase secrets set SUPABASE_URL=... SUPABASE_ANON_KEY=... SUPABASE_SERVICE_ROL
 - Run concurrent lease-claim tests against Postgres, not only the local adapter.
 - Do not deploy or re-enable password-based credential injection. The old Vault credential RPCs remain revoked from the application surface until an approved Riot RSO design is available.
 - Configure an approved Riot Sign On (RSO) client before adding account-linking routes. Store only the minimum OAuth refresh/token material server-side, encrypted, with rotation and revocation.
+- RSO is not enabled by default: Riot requires an approved production application and RSO client before issuing credentials. Until those values are provisioned, the UI must show account linking as unavailable rather than accepting passwords.
 - The Tauri client must launch Riot Client without credentials, then report `WAITING_FOR_RIOT_LOGIN`, `AUTHENTICATED`, `LEAGUE_RUNNING`, or `LEASE_LOST` based on supported observable state.
 - Enable the `pg_cron` stale-session job and verify the five-minute reconnect grace behavior.
 - Rotate Supabase service-role, JWT, Vault, and Tauri signing keys before production cutover.

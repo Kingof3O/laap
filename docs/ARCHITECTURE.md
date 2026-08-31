@@ -16,8 +16,8 @@ apps/api (auth + SQL.js local adapter + atomic lease service)
         ▼
 supabase (RLS + atomic lease functions + Vault)
         ▲
-        │ signed, short-lived launch payload
-apps/desktop (Tauri/Rust process monitor and injector)
+        │ signed lease + native client state
+apps/desktop (Tauri/Rust process monitor and native launcher)
 ```
 
 The dashboard uses the API adapter in `apps/admin/src/lib/api.ts`. The local API is fully runnable without a cloud account and persists to SQL.js/WASM. The API also includes a Supabase service adapter selected with `LAAP_STORAGE_DRIVER=supabase`; it uses service-role queries for read models and the explicit `*_for_user` Postgres RPCs for lease mutations. The local adapter remains intentionally single-process for development.
@@ -27,9 +27,9 @@ The dashboard uses the API adapter in `apps/admin/src/lib/api.ts`. The local API
 1. The browser never receives or stores Riot credentials, private device keys, or long-lived launch tokens.
 2. Every lease claim is authorized by the server using the authenticated user, an active assignment, and an active device record.
 3. PostgreSQL locks the account row and enforces one `starting`/`active`/`stopping` session per account with a partial unique index.
-4. Tauri signs device challenges with an Ed25519 key held by the OS keychain. Rust owns transient decryption and `zeroize` cleanup.
+4. Tauri signs device challenges with an Ed25519 key held by the OS keychain and launches Riot Client without credentials.
 5. Admin actions are role-gated by signed session claims in the local API (or immutable JWT `app_metadata` in Supabase) and recorded in `audit_logs`.
-6. Local credential writes use an AES-256-GCM encrypted vault file with restrictive permissions; cloud deployments should switch this adapter to Supabase Vault.
+6. Password-based credential storage and injection are not part of the production architecture. Riot authentication stays inside Riot's supported client/RSO flow.
 
 ## Frontend conventions
 
@@ -39,9 +39,8 @@ The dashboard uses the API adapter in `apps/admin/src/lib/api.ts`. The local API
 - Mobile styles are the default. The session table changes to labeled row groups rather than introducing a horizontal scroll region.
 - `prefers-reduced-motion` disables non-essential transitions and spinners.
 
-## Suggested next slices
+## Supported Riot authentication boundary
 
-1. Add a Supabase data adapter with generated database types and a single Realtime subscription per resource.
-2. Add the production Edge Function that seals Vault credentials for the Tauri device's public encryption key.
-3. Scaffold the Tauri shell and expose a minimal command DTO for device registration and process state.
-4. Add CI for typecheck, SQL formatting, Rust tests, and a production build; keep secrets in deployment environment variables only.
+Riot's official RSO flow is available only to approved production applications. When an RSO client is approved, account linking should be implemented as a browser OAuth authorization-code flow with server-side token exchange and encrypted refresh-token storage. RSO tokens identify/authorize the player for supported Riot APIs; they are not a supported way to silently sign the native League client in.
+
+The Tauri app therefore launches Riot Client with no arguments or secrets, waits for the user to complete Riot's normal authentication, and reports process/lease states. No credential injector, memory scraper, cookie extractor, or command-line password path is permitted.
