@@ -18,6 +18,8 @@ Set `LAAP_STORAGE_DRIVER=supabase` to use the Supabase service adapter. It requi
 | `GET` | `/api/dashboard` | authenticated |
 | `GET` | `/api/accounts` | authenticated; operators see assigned accounts |
 | `POST` | `/api/accounts` | admin |
+| `GET` | `/api/users` | admin |
+| `POST` | `/api/users` | admin; creates an Auth user and profile |
 | `GET` | `/api/assignments` | admin |
 | `POST` | `/api/assignments` | admin |
 | `DELETE` | `/api/assignments/:accountId/:userId` | admin |
