@@ -4,7 +4,7 @@ use sysinfo::System;
 
 /// UI/runtime states. `Authenticated` requires a future supported Riot signal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ClientState { LoggedOut, LeaseAcquired, WaitingForRiotLogin, Authenticated, LeagueRunning, Reconnecting, LeaseLost }
+pub enum ClientState { LoggedOut, LeaseAcquired, RiotClientStarting, WaitingForRiotLogin, Authenticated, AccountVerified, LeagueRunning, Reconnecting, LeaseLost, WrongAccount, RiotClientClosed, LeagueClosed, StaleSession }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct ProcessSnapshot { pub riot_client: bool, pub league_client: bool, pub game: bool }
@@ -25,21 +25,22 @@ impl ProcessSnapshot {
 }
 
 #[derive(Debug)]
-pub struct RuntimeMonitor { state: ClientState, lease_active: bool, authenticated_signal: bool, reconnect_until: Option<DateTime<Utc>> }
+pub struct RuntimeMonitor { state: ClientState, lease_active: bool, authenticated_signal: bool, account_verified_signal: bool, reconnect_until: Option<DateTime<Utc>> }
 
-impl Default for RuntimeMonitor { fn default() -> Self { Self { state: ClientState::LoggedOut, lease_active: false, authenticated_signal: false, reconnect_until: None } } }
+impl Default for RuntimeMonitor { fn default() -> Self { Self { state: ClientState::LoggedOut, lease_active: false, authenticated_signal: false, account_verified_signal: false, reconnect_until: None } } }
 
 impl RuntimeMonitor {
     pub fn state(&self) -> ClientState { self.state }
-    pub fn set_lease_active(&mut self, active: bool) { self.lease_active = active; if !active { self.authenticated_signal = false; self.reconnect_until = None; self.state = ClientState::LoggedOut; } else if self.state == ClientState::LoggedOut { self.state = ClientState::LeaseAcquired; } }
+    pub fn set_lease_active(&mut self, active: bool) { self.lease_active = active; if !active { self.authenticated_signal = false; self.account_verified_signal = false; self.reconnect_until = None; self.state = ClientState::LoggedOut; } else if self.state == ClientState::LoggedOut { self.state = ClientState::LeaseAcquired; } }
     /// Only an explicit supported integration may set this signal. Process presence never flips it to true.
     pub fn set_authenticated_signal(&mut self, authenticated: bool) { self.authenticated_signal = authenticated; }
+    pub fn set_account_verified_signal(&mut self, verified: bool) { self.account_verified_signal = verified; }
     pub fn transition(&mut self, snapshot: ProcessSnapshot, now: DateTime<Utc>) -> ClientState {
         if !self.lease_active { self.state = ClientState::LoggedOut; return self.state; }
         if snapshot.game { self.reconnect_until = None; self.state = ClientState::LeagueRunning; return self.state; }
         if self.state == ClientState::LeagueRunning { self.reconnect_until = Some(now + Duration::seconds(300)); self.state = ClientState::Reconnecting; return self.state; }
         if self.state == ClientState::Reconnecting { if self.reconnect_until.is_some_and(|deadline| now < deadline) { return self.state; } self.reconnect_until = None; self.state = ClientState::LeaseLost; return self.state; }
-        self.state = if self.authenticated_signal && (snapshot.riot_client || snapshot.league_client) { ClientState::Authenticated } else if snapshot.riot_client || snapshot.league_client { ClientState::WaitingForRiotLogin } else { ClientState::LeaseAcquired };
+        self.state = if self.account_verified_signal && self.authenticated_signal && (snapshot.riot_client || snapshot.league_client) { ClientState::AccountVerified } else if self.authenticated_signal && (snapshot.riot_client || snapshot.league_client) { ClientState::Authenticated } else if snapshot.riot_client || snapshot.league_client { ClientState::WaitingForRiotLogin } else { ClientState::LeaseAcquired };
         self.state
     }
     pub fn poll(&mut self) -> ClientState { self.transition(ProcessSnapshot::detect(), Utc::now()) }
@@ -55,6 +56,8 @@ mod tests {
         assert_eq!(monitor.transition(ProcessSnapshot { league_client: true, ..Default::default() }, now), ClientState::WaitingForRiotLogin);
         monitor.set_authenticated_signal(true);
         assert_eq!(monitor.transition(ProcessSnapshot { league_client: true, ..Default::default() }, now), ClientState::Authenticated);
+        monitor.set_account_verified_signal(true);
+        assert_eq!(monitor.transition(ProcessSnapshot { league_client: true, ..Default::default() }, now), ClientState::AccountVerified);
     }
     #[test]
     fn protects_an_in_game_crash_for_five_minutes() {

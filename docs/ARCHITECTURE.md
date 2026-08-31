@@ -55,3 +55,5 @@ The Tauri app therefore launches Riot Client with no arguments or secrets, waits
 - `Logged out / Riot client closed`: no active lease and no Riot/League process is observed.
 
 Riot's documented third-party APIs do not provide a supported native League-client “currently logged-in account” signal. LAAP therefore cannot reliably distinguish a different Riot account or a Riot logout while the client process remains open; it remains in `Waiting for Riot login` and never claims `Authenticated`.
+
+The League lockfile is not used for verification. Reading it would expose client connection credentials, and calling the local League Client API would rely on an unsupported/private interface. Under LAAP's security rules those values are never read, stored, or transmitted. Consequently `Account verified` and `Wrong account` are reserved for a future Riot-supported signal; they are not guessed from process names or command-line arguments.

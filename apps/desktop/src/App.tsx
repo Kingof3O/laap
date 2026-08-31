@@ -80,7 +80,13 @@ export default function App() {
     }
   }, [launchRequested, processes, sessionId])
 
-  const runtimeLabel = useMemo(() => leaseLost ? 'Lease lost' : processes.game ? 'League running' : processes.riot_client || processes.league_client || launchRequested ? 'Waiting for Riot login' : sessionId ? 'Lease acquired' : 'Logged out / Riot client closed', [launchRequested, leaseLost, processes, sessionId])
+  const runtimeLabel = useMemo(() => {
+    if (leaseLost) return 'Lease lost'
+    if (processes.game) return 'League running'
+    if (processes.riot_client || processes.league_client) return 'Waiting for Riot login'
+    if (launchRequested) return launchRequestedAt.current && Date.now() - launchRequestedAt.current < 15_000 ? 'Riot Client starting' : 'Waiting for Riot login'
+    return sessionId ? 'Lease acquired' : 'Logged out / Riot client closed'
+  }, [launchRequested, leaseLost, processes, sessionId])
   const login = async () => { setBusy(true); setError(null); try { const result = await apiRequest<{ user: User }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }); setUser(result.user); setPassword(''); await loadAccounts() } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) } }
   const acquire = async () => { if (!deviceId || !selectedAccount || !invoke) { setError('Bind this desktop to an account before acquiring a lease.'); return }; setBusy(true); setError(null); try { const nonce = `${Date.now()}:${selectedAccount}`; const signature = await invoke<string>('sign_device_nonce', { nonce }); const result = await apiRequest<{ sessionId: string }>('/api/leases/acquire', { method: 'POST', body: JSON.stringify({ accountId: selectedAccount, deviceId, nonce, signature }) }); setSessionId(result.sessionId); setLeaseLost(false); setError(null) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) } }
   const launchRiot = async () => { if (!invoke) return; setBusy(true); setError(null); try { await invoke('launch_riot_client'); setLaunchRequested(true); launchRequestedAt.current = Date.now() } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) } }
