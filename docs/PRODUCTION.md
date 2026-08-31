@@ -20,7 +20,7 @@ ALLOWED_ORIGIN=https://admin.example.com
 ENABLE_DEMO_AUTH=false
 ```
 
-For the API Worker, configure `SUPABASE_URL` as a public Worker variable and configure `LAAP_WORKER_SUPABASE_ANON_KEY`, `LAAP_WORKER_SUPABASE_SERVICE_ROLE_KEY`, `LAAP_WORKER_JWT_SECRET`, `LAAP_WORKER_VAULT_KEY`, and `LAAP_WORKER_ADMIN_PASSWORD` as encrypted Worker secrets. The service-role key must never be bundled into Vite or exposed to a browser.
+For the API Worker, configure `SUPABASE_URL` as a public Worker variable and configure `LAAP_WORKER_SUPABASE_ANON_KEY`, `LAAP_WORKER_SUPABASE_SERVICE_ROLE_KEY`, `LAAP_WORKER_JWT_SECRET`, and `LAAP_WORKER_ADMIN_PASSWORD` as encrypted Worker secrets. The service-role key must never be bundled into Vite or exposed to a browser.
 
 Deploy the functions with the Supabase CLI after linking the project:
 
@@ -37,7 +37,9 @@ supabase secrets set SUPABASE_URL=... SUPABASE_ANON_KEY=... SUPABASE_SERVICE_ROL
 - Apply `supabase/migrations/20260831000000_init.sql` to a staging project first.
 - Verify RLS policies with an operator JWT and an admin JWT; confirm operators cannot read other users, vault identifiers, audit logs, or unassigned accounts.
 - Run concurrent lease-claim tests against Postgres, not only the local adapter.
-- Configure the private `issue_device_launch_payload` RPC and Edge Function. It must verify the Ed25519 challenge, session ownership, freshness, one-time use, and Vault access before returning a device-sealed payload.
+- Do not deploy or re-enable password-based credential injection. The old Vault credential RPCs remain revoked from the application surface until an approved Riot RSO design is available.
+- Configure an approved Riot Sign On (RSO) client before adding account-linking routes. Store only the minimum OAuth refresh/token material server-side, encrypted, with rotation and revocation.
+- The Tauri client must launch Riot Client without credentials, then report `WAITING_FOR_RIOT_LOGIN`, `AUTHENTICATED`, `LEAGUE_RUNNING`, or `LEASE_LOST` based on supported observable state.
 - Enable the `pg_cron` stale-session job and verify the five-minute reconnect grace behavior.
 - Rotate Supabase service-role, JWT, Vault, and Tauri signing keys before production cutover.
 

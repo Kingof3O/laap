@@ -11,9 +11,3 @@ enabled = true
 
 [functions.health-check]
 verify_jwt = false
-
-[functions.get-launch-payload]
-verify_jwt = true
-
-[functions.upsert-account-credential]
-verify_jwt = true

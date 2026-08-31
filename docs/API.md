@@ -9,7 +9,7 @@ Set `LAAP_STORAGE_DRIVER=supabase` to use the Supabase service adapter. It requi
 - `POST /api/auth/login` accepts `{ email, password }` and sets an `HttpOnly`, `Secure`, `SameSite=None` `__Host-laap_access` cookie in production (the local adapter uses `laap_access`).
 - `GET /api/auth/session` returns the current sanitized user.
 - `POST /api/auth/demo` exists only when `NODE_ENV !== production` and `ENABLE_DEMO_AUTH` is not `false`.
-- The browser never receives a password hash, vault key, private key, or Riot credential.
+- The browser never receives a password hash, vault key, private key, Riot password, or native-client token.
 
 ## Operations
 
@@ -29,7 +29,5 @@ Set `LAAP_STORAGE_DRIVER=supabase` to use the Supabase service adapter. It requi
 | `POST` | `/api/leases/:id/heartbeat` | session owner |
 | `POST` | `/api/leases/:id/release` | owner or admin |
 | `GET` | `/api/audit` | admin |
-| `POST` | `/api/accounts/:id/credentials` | admin; encrypted local adapter or Supabase Vault |
-| `GET` | `/api/accounts/:id/credential-status` | admin; boolean status only |
 
 Lease acquisition runs under a serialized transaction and is protected by a unique active-session index. A signed `{ nonce, signature }` device challenge is mandatory in production; development fixtures may omit it to keep the local demo usable.
