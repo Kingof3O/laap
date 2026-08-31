@@ -128,14 +128,27 @@ export default function App() {
     try { await api.releaseLease(session.id); setToast(`Force release completed for ${session.account}`); await loadDashboard() } catch (error) { setToast(errorMessage(error)) }
   }
   const login = async (email: string, password: string) => {
-    try { const result = await api.login(email, password); if (result.user) { setCurrentUser(result.user); setAuthState('authenticated'); setAuthError(null); await loadDashboard() } }
-    catch (error) { setAuthError(errorMessage(error)) }
+    try {
+      const result = await api.login(email, password)
+      if (!result.user) throw new ApiError(401, 'UNAUTHENTICATED', 'Sign in is required')
+      await loadDashboard()
+      setCurrentUser(result.user)
+      setAuthState('authenticated')
+      setAuthError(null)
+    } catch (error) {
+      setCurrentUser(null)
+      setSnapshot(null)
+      setAuthState('unauthenticated')
+      setAuthError(errorMessage(error))
+    }
   }
   const logout = async () => { try { await api.logout() } catch { /* session expiry is safe to handle locally */ } setCurrentUser(null); setSnapshot(null); setAuthState('unauthenticated'); setActivePage('Overview') }
   if (authState === 'loading') return <div className="grid min-h-dvh place-items-center bg-canvas text-slate-400"><div className="flex items-center gap-3 text-xs"><span className="live-dot" aria-hidden="true" />Connecting to LAAP API…</div></div>
   if (authState === 'unauthenticated') return <LoginPage onSubmit={login} error={authError} demoAvailable={import.meta.env.DEV} />
-  const activeSnapshot = snapshot ?? fallbackSnapshot
-  const sidebarItems = baseNavItems.map((item) => item.label === 'Account pool'
+  const activeSnapshot = snapshot ?? (import.meta.env.DEV ? fallbackSnapshot : null)
+  if (!activeSnapshot) return <div className="grid min-h-dvh place-items-center bg-canvas text-slate-400"><p className="text-sm">Workspace data is unavailable. Please sign in again.</p></div>
+  const isAdmin = activeSnapshot.user.role === 'admin'
+  const sidebarItems = baseNavItems.filter((item) => isAdmin || !['Assignments', 'Users', 'Audit log'].includes(item.label)).map((item) => item.label === 'Account pool'
     ? { ...item, badge: String(activeSnapshot.metrics.totalAccounts) }
     : item.label === 'Devices'
       ? { ...item, badge: String(activeSnapshot.metrics.boundDevices) }
