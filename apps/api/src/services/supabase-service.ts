@@ -4,7 +4,6 @@ import type { ApiUser, DashboardAccount, DashboardActivity, DashboardMetrics, Da
 import { releaseLeaseSchema } from '@laap/validation'
 import { ServiceError } from './service-error.js'
 import type { AssignmentView, AuditView, DeviceView, LaapServicePort, UserLookup } from './service-port.js'
-import type { CredentialVaultPort } from './credential-vault.js'
 
 const activeStatuses = ['starting', 'active', 'stopping']
 const avatarTones: DashboardSession['avatarTone'][] = ['violet', 'cyan', 'amber', 'rose']
@@ -246,20 +245,5 @@ export class SupabaseLaapService implements LaapServicePort {
   async reapStaleSessions() {
     const result = await this.query<unknown>(this.data.rpc('reap_stale_account_sessions'), 'REAPER_FAILED')
     return Number(result ?? 0)
-  }
-}
-
-export class SupabaseCredentialVault implements CredentialVaultPort {
-  constructor(private readonly client: SupabaseClient) {}
-
-  async has(accountId: string) {
-    const { data, error } = await this.client.from('accounts').select('vault_secret_id').eq('id', accountId).maybeSingle()
-    if (error) throw new ServiceError('VAULT_STATUS_FAILED', 503, error.message)
-    return Boolean(data?.vault_secret_id)
-  }
-
-  async set(accountId: string, username: string, password: string) {
-    const { error } = await this.client.rpc('upsert_account_vault_secret', { p_account_id: accountId, p_username: username, p_password: password })
-    if (error) throw new ServiceError('VAULT_WRITE_FAILED', 503, error.message)
   }
 }

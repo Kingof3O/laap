@@ -25,6 +25,6 @@ npm run dev
 
 The API persists its local development database under `apps/api/.data` (or `LAAP_DATA_DIR`) and exposes authenticated routes for accounts, assignments, devices, sessions, leases, and audit events. Lease claims are serialized inside a transaction and missed heartbeats are reaped after 90 seconds.
 
-The dashboard is intentionally dark-only. The UI uses semantic CSS variables, Lucide SVG icons, keyboard-visible focus states, responsive layouts, and reduced-motion fallbacks. Credential writes go to an encrypted local vault adapter for development; production should use Supabase Vault through an authenticated Edge Function. Credentials are never returned to the browser dashboard or written to client storage.
+The dashboard is intentionally dark-only. The UI uses semantic CSS variables, Lucide SVG icons, keyboard-visible focus states, responsive layouts, and reduced-motion fallbacks. Riot passwords are never accepted or stored by LAAP; operators authenticate inside Riot Client, while the backend manages assignments, leases, and device/process state.
 
 See [docs/PRODUCTION.md](docs/PRODUCTION.md) for the deployment gates and required external secrets.
