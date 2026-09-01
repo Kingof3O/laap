@@ -71,6 +71,9 @@ describe('LAAP lease service', () => {
     expect(login.status).toBe(200)
     const cookie = login.headers.get('set-cookie')?.split(';')[0]
     expect(cookie).toMatch(/^laap_access=/)
+    const tauriLogin = await fetch(`${baseUrl}/api/auth/login?client=tauri`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'admin@laap.local', password: 'ChangeMe!2026' }) })
+    const tauriLoginPayload = await tauriLogin.json() as { accessToken?: string }
+    expect(tauriLoginPayload.accessToken).toEqual(expect.any(String))
     const dashboard = await fetch(`${baseUrl}/api/dashboard`, { headers: { cookie: cookie! } })
     expect(dashboard.status).toBe(200)
     const payload = await dashboard.json() as { metrics: { totalAccounts: number } }
