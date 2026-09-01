@@ -17,6 +17,6 @@
     "active": true,
     "icon": ["icons/icon.png"],
     "targets": "all",
-    "createUpdaterArtifacts": true
+    "createUpdaterArtifacts": false
   }
 }
