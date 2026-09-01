@@ -73,8 +73,13 @@ async function route(request: IncomingMessage, response: ServerResponse, service
       if (!user) throw new HttpError(500, 'DEMO_USER_MISSING')
       const publicUser = await service.findUserById(user.id)
       if (!publicUser) throw new HttpError(500, 'DEMO_USER_MISSING')
-      setAccessCookie(response, await createAccessToken(publicUser, runtime.jwtSecret), runtime.nodeEnv === 'production')
-      return sendJson(response, 200, { user: publicUser })
+      const accessToken = await createAccessToken(publicUser, runtime.jwtSecret)
+      setAccessCookie(response, accessToken, runtime.nodeEnv === 'production')
+      const responseBody: { user: typeof publicUser; accessToken?: string } = { user: publicUser }
+      const origin = String(request.headers.origin ?? '').toLowerCase()
+      const tauriOrigin = ['tauri://localhost', 'https://tauri.localhost', 'http://tauri.localhost', 'http://localhost:1420'].includes(origin)
+      if (tauriOrigin || String(request.headers['x-laap-client'] ?? '').toLowerCase() === 'tauri' || url.searchParams.get('client') === 'tauri') responseBody.accessToken = accessToken
+      return sendJson(response, 200, responseBody)
     }
     if (parts[2] === 'login' && method === 'POST') {
       const key = request.socket.remoteAddress ?? 'unknown'
@@ -85,8 +90,13 @@ async function route(request: IncomingMessage, response: ServerResponse, service
       try {
         const user = await service.authenticate(input.data.email, input.data.password)
         loginLimiter.reset(key)
-        setAccessCookie(response, await createAccessToken(user, runtime.jwtSecret), runtime.nodeEnv === 'production')
-        return sendJson(response, 200, { user })
+        const accessToken = await createAccessToken(user, runtime.jwtSecret)
+        setAccessCookie(response, accessToken, runtime.nodeEnv === 'production')
+        const responseBody: { user: typeof user; accessToken?: string } = { user }
+        const origin = String(request.headers.origin ?? '').toLowerCase()
+        const tauriOrigin = ['tauri://localhost', 'https://tauri.localhost', 'http://tauri.localhost', 'http://localhost:1420'].includes(origin)
+        if (tauriOrigin || String(request.headers['x-laap-client'] ?? '').toLowerCase() === 'tauri' || url.searchParams.get('client') === 'tauri') responseBody.accessToken = accessToken
+        return sendJson(response, 200, responseBody)
       } catch (error) {
         throw serviceErrorToHttp(error)
       }
