@@ -5,6 +5,7 @@ dist
 !.env.example
 .DS_Store
 ._*
+*.swp
 coverage
 .turbo
 .toolchains/
