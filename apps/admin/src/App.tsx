@@ -1,5 +1,5 @@
 import { ClipboardList, Gamepad2, LayoutDashboard, LaptopMinimal, UserRoundPlus, UsersRound } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { ApiUser, DashboardSnapshot } from '@laap/types'
 import type { PageName } from './lib/data'
 import { accounts as fallbackAccounts, activity as fallbackActivity, sessions as fallbackSessions } from './lib/data'
@@ -28,7 +28,7 @@ const baseNavItems: NavItem[] = [
 const demoUser: ApiUser = { id: 'demo-admin', email: 'admin@laap.local', displayName: 'Alex Kim', role: 'admin', status: 'active' }
 const fallbackSnapshot: DashboardSnapshot = {
   user: demoUser,
-  metrics: { availableAccounts: 48, totalAccounts: 55, activeLeases: 4, inGameLeases: 1, inClientLeases: 1, boundDevices: 12, healthyDevices: 11, authorizedUsers: 24, activeUsers: 18 },
+  metrics: { availableAccounts: 48, totalAccounts: 55, activeLeases: 4, boundDevices: 12, healthyDevices: 11, authorizedUsers: 24, activeUsers: 18 },
   sessions: fallbackSessions,
   activity: fallbackActivity,
   accounts: fallbackAccounts,
@@ -39,19 +39,19 @@ type AuthState = 'loading' | 'authenticated' | 'unauthenticated'
 function errorMessage(error: unknown) {
   if (error instanceof ApiError) return error.message
   if (error instanceof Error) return error.message
-  return 'Unable to reach the LAAP API.'
+  return 'We could not connect to LAAP.'
 }
 
 export default function App() {
   const [activePage, setActivePage] = useState<PageName>('Overview')
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [query, setQuery] = useState('')
   const [toast, setToast] = useState<string | null>(null)
   const [authState, setAuthState] = useState<AuthState>('loading')
   const [authError, setAuthError] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<ApiUser | null>(null)
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null)
   const [offline, setOffline] = useState(false)
+  const moduleToast = useCallback((message: string) => setToast(message), [])
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -90,7 +90,7 @@ export default function App() {
           setCurrentUser(fallbackSnapshot.user)
           setOffline(true)
           setAuthState('authenticated')
-          setToast('API offline · showing safe preview data')
+          setToast('You are offline · showing preview data')
         } else if (!cancelled) {
           setAuthError(errorMessage(error))
           setAuthState('unauthenticated')
@@ -115,18 +115,7 @@ export default function App() {
     return () => window.clearInterval(refreshTimer)
   }, [authState, offline, loadDashboard])
 
-  const filteredSessions = useMemo(() => {
-    const allSessions = snapshot?.sessions ?? fallbackSessions
-    const normalized = query.trim().toLowerCase()
-    if (!normalized) return allSessions
-    return allSessions.filter((session) => [session.account, session.user, session.region, session.device, session.runtimeState].some((value) => value.toLowerCase().includes(normalized)))
-  }, [query, snapshot])
   const navigate = (page: PageName) => { setActivePage(page); setMobileOpen(false) }
-  const notify = () => setToast('No new alerts · your workspace is healthy')
-  const releaseSession = async (session: (typeof fallbackSessions)[number]) => {
-    if (offline) { setToast(`Preview mode · force release queued for ${session.account}`); return }
-    try { await api.releaseLease(session.id); setToast(`Force release completed for ${session.account}`); await loadDashboard() } catch (error) { setToast(errorMessage(error)) }
-  }
   const login = async (email: string, password: string) => {
     try {
       const result = await api.login(email, password)
@@ -153,11 +142,10 @@ export default function App() {
     : item.label === 'Devices'
       ? { ...item, badge: String(activeSnapshot.metrics.boundDevices) }
       : item)
-  const moduleToast = (message: string) => setToast(message)
   const content = activePage === 'Overview'
-    ? <OverviewPage metrics={activeSnapshot.metrics} sessions={filteredSessions} activity={activeSnapshot.activity} accounts={activeSnapshot.accounts} onRelease={releaseSession} />
+    ? <OverviewPage metrics={activeSnapshot.metrics} sessions={activeSnapshot.sessions} activity={activeSnapshot.activity} accounts={activeSnapshot.accounts} onNavigate={navigate} userName={activeSnapshot.user.displayName} offline={offline} isAdmin={isAdmin} />
     : activePage === 'Account pool'
-      ? <AccountsPage initialAccounts={activeSnapshot.accounts} offline={offline} canManageCredentials={activeSnapshot.user.role === 'admin'} onToast={moduleToast} />
+      ? <AccountsPage initialAccounts={activeSnapshot.accounts} offline={offline} canManageAccounts={activeSnapshot.user.role === 'admin'} onToast={moduleToast} />
       : activePage === 'Assignments'
           ? <AssignmentsPage initialAccounts={activeSnapshot.accounts} offline={offline} onToast={moduleToast} />
         : activePage === 'Users'
@@ -167,5 +155,5 @@ export default function App() {
           : activePage === 'Audit log'
             ? <AuditLogPage offline={offline} onToast={moduleToast} />
             : <PlaceholderPage page={activePage} />
-  return <div className="min-h-dvh overflow-x-hidden bg-canvas text-ink"><div className="ambient ambient-one" aria-hidden="true" /><div className="ambient ambient-two" aria-hidden="true" /><div className="ambient ambient-three" aria-hidden="true" /><div className="app-shell"><Sidebar items={sidebarItems} activePage={activePage} onNavigate={navigate} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} currentUser={currentUser ?? activeSnapshot.user} onLogout={logout} /><div className="min-w-0 flex-1"><TopBar activePage={activePage} onMenu={() => setMobileOpen(true)} query={query} onQueryChange={setQuery} onNotify={notify} /><main id="main-content" tabIndex={-1}>{content}</main></div></div><ActivityToast message={toast} onDismiss={() => setToast(null)} /></div>
+  return <div className="min-h-dvh overflow-x-clip bg-canvas text-ink"><div className="ambient ambient-one" aria-hidden="true" /><div className="ambient ambient-two" aria-hidden="true" /><div className="ambient ambient-three" aria-hidden="true" /><div className="app-shell"><Sidebar items={sidebarItems} activePage={activePage} onNavigate={navigate} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} currentUser={currentUser ?? activeSnapshot.user} onLogout={logout} isAdmin={isAdmin} /><div className="min-w-0 flex-1 lg:pl-[260px]"><TopBar activePage={activePage} onMenu={() => setMobileOpen(true)} /><main id="main-content" tabIndex={-1}>{content}</main></div></div><ActivityToast message={toast} onDismiss={() => setToast(null)} /></div>
 }

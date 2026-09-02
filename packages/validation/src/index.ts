@@ -2,15 +2,9 @@ import { z } from 'zod'
 
 export const uuidSchema = z.string().uuid()
 
-export const heartbeatSchema = z.object({
-  sessionId: z.string().uuid(),
-  runtimeState: z.enum(['LAUNCHING', 'IN_CLIENT', 'IN_GAME', 'RECONNECTING', 'EXITED']),
-  observedAt: z.string().datetime(),
-})
-
 export const releaseLeaseSchema = z.object({
   sessionId: z.string().uuid(),
-  reason: z.enum(['manual', 'process_exit', 'logout', 'heartbeat_timeout', 'admin_force_release', 'error']),
+  reason: z.enum(['manual', 'logout', 'lease_timeout', 'admin_force_release', 'error']),
 })
 
 export const loginSchema = z.object({
@@ -54,7 +48,10 @@ export const leaseAcquireSchema = z.object({
   signature: z.string().min(8).max(512).optional(),
 })
 
-export type HeartbeatInput = z.infer<typeof heartbeatSchema>
+export const sessionBlobSchema = z.object({
+  sessionBlob: z.string().min(10).max(131072),
+})
+
 export type ReleaseLeaseInput = z.infer<typeof releaseLeaseSchema>
 export type LoginInput = z.infer<typeof loginSchema>
 export type UserCreateInput = z.infer<typeof userCreateSchema>
@@ -62,3 +59,4 @@ export type DeviceRegistrationInput = z.infer<typeof deviceRegistrationSchema>
 export type AssignmentInput = z.infer<typeof assignmentSchema>
 export type AccountCreateInput = z.infer<typeof accountCreateSchema>
 export type LeaseAcquireInput = z.infer<typeof leaseAcquireSchema>
+export type SessionBlobInput = z.infer<typeof sessionBlobSchema>

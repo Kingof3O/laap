@@ -12,7 +12,7 @@ import { applySecurityHeaders, sendError, sendJson } from './http/response.js'
 import { ServiceError } from './services/service-error.js'
 import { SupabaseLaapService } from './services/supabase-service.js'
 import type { LaapServicePort } from './services/service-port.js'
-import { accountCreateSchema, accountUpdateSchema, assignmentSchema, deviceRegistrationSchema, heartbeatSchema, leaseAcquireSchema, loginSchema, userCreateSchema, uuidSchema } from '@laap/validation'
+import { accountCreateSchema, accountUpdateSchema, assignmentSchema, deviceRegistrationSchema, leaseAcquireSchema, loginSchema, sessionBlobSchema, userCreateSchema, uuidSchema } from '@laap/validation'
 
 type RuntimeConfig = typeof defaultConfig & { reaperEnabled?: boolean }
 
@@ -50,12 +50,19 @@ function routeUuid(value: string | undefined, code = 'INVALID_ID') {
   return parsed.data
 }
 
+function queryInteger(value: string | null, fallback: number, minimum: number, maximum: number) {
+  if (value === null || value.trim() === '') return fallback
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed) || parsed < minimum) return fallback
+  return Math.min(parsed, maximum)
+}
+
 async function route(request: IncomingMessage, response: ServerResponse, service: LaapServicePort, runtime: RuntimeConfig, loginLimiter: FixedWindowRateLimiter) {
   const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`)
   const method = request.method ?? 'GET'
   const parts = url.pathname.split('/').filter(Boolean)
   if (parts[0] !== 'api') throw new HttpError(404, 'NOT_FOUND')
-  if (['POST', 'PATCH'].includes(method) && !['/api/auth/demo', '/api/auth/logout'].includes(url.pathname) && !String(request.headers['content-type'] ?? '').toLowerCase().startsWith('application/json')) {
+  if (['POST', 'PATCH', 'PUT'].includes(method) && !['/api/auth/demo', '/api/auth/logout'].includes(url.pathname) && !String(request.headers['content-type'] ?? '').toLowerCase().startsWith('application/json')) {
     throw new HttpError(415, 'UNSUPPORTED_MEDIA_TYPE', 'JSON request body required')
   }
 
@@ -154,6 +161,18 @@ async function route(request: IncomingMessage, response: ServerResponse, service
     await service.deleteAccount(user.id, routeUuid(parts[2], 'INVALID_ACCOUNT_ID'))
     return sendJson(response, 200, { success: true })
   }
+  if (parts[1] === 'accounts' && parts.length === 4 && parts[3] === 'session-blob' && (method === 'PUT' || method === 'POST')) {
+    await requireAdmin(request, runtime.jwtSecret)
+    const input = sessionBlobSchema.safeParse(await readJson(request))
+    if (!input.success) throw new HttpError(400, 'INVALID_SESSION_BLOB', 'Session blob is invalid')
+    await service.saveAccountSessionBlob(user.id, routeUuid(parts[2], 'INVALID_ACCOUNT_ID'), input.data.sessionBlob)
+    return sendJson(response, 200, { success: true })
+  }
+  if (parts[1] === 'accounts' && parts.length === 4 && parts[3] === 'session-blob' && method === 'DELETE') {
+    await requireAdmin(request, runtime.jwtSecret)
+    await service.deleteAccountSessionBlob(user.id, routeUuid(parts[2], 'INVALID_ACCOUNT_ID'))
+    return sendJson(response, 200, { success: true })
+  }
 
   if (parts[1] === 'assignments' && parts.length === 2 && method === 'GET') {
     await requireAdmin(request, runtime.jwtSecret)
@@ -187,7 +206,10 @@ async function route(request: IncomingMessage, response: ServerResponse, service
 
   if (parts[1] === 'audit' && method === 'GET') {
     await requireAdmin(request, runtime.jwtSecret)
-    return sendJson(response, 200, { audit: await service.listAudit(Number(url.searchParams.get('limit') ?? 100)) })
+    const limit = queryInteger(url.searchParams.get('limit'), 100, 1, 100)
+    const offset = queryInteger(url.searchParams.get('offset'), 0, 0, 1_000_000)
+    const page = await service.listAudit(limit + 1, offset)
+    return sendJson(response, 200, { audit: page.slice(0, limit), pagination: { limit, offset, hasMore: page.length > limit } })
   }
 
   if (parts[1] === 'leases' && parts[2] === 'acquire' && method === 'POST') {
@@ -203,21 +225,18 @@ async function route(request: IncomingMessage, response: ServerResponse, service
       throw serviceErrorToHttp(error)
     }
   }
-  if (parts[1] === 'leases' && parts.length === 4 && parts[3] === 'heartbeat' && method === 'POST' && parts[2]) {
-    const sessionId = routeUuid(parts[2], 'INVALID_SESSION_ID')
-    const input = await readJson<{ runtimeState?: unknown }>(request)
-    const parsed = heartbeatSchema.safeParse({ sessionId, runtimeState: input.runtimeState, observedAt: new Date().toISOString() })
-    if (!parsed.success) throw new HttpError(400, 'INVALID_HEARTBEAT', 'Runtime state is invalid')
-    try {
-      return sendJson(response, 200, await service.heartbeat(user.id, sessionId, parsed.data.runtimeState))
-    } catch (error) {
-      throw serviceErrorToHttp(error)
-    }
-  }
   if (parts[1] === 'leases' && parts.length === 4 && parts[3] === 'release' && method === 'POST') {
     const input = await readJson<{ reason?: string }>(request)
     try {
       return sendJson(response, 200, await service.releaseLease(user, routeUuid(parts[2], 'INVALID_SESSION_ID'), input.reason ?? 'manual'))
+    } catch (error) {
+      throw serviceErrorToHttp(error)
+    }
+  }
+  if (parts[1] === 'leases' && parts.length === 4 && parts[3] === 'session-blob' && method === 'GET') {
+    try {
+      const sessionBlob = await service.getAccountSessionBlob(user.id, routeUuid(parts[2], 'INVALID_SESSION_ID'))
+      return sendJson(response, 200, { sessionBlob })
     } catch (error) {
       throw serviceErrorToHttp(error)
     }

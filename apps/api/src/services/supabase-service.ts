@@ -1,6 +1,6 @@
 import { createPublicKey, verify as verifySignature } from 'node:crypto'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { ApiUser, DashboardAccount, DashboardActivity, DashboardMetrics, DashboardSession, DashboardSnapshot, SessionState, UserRole } from '@laap/types'
+import type { ApiUser, DashboardAccount, DashboardActivity, DashboardMetrics, DashboardSession, DashboardSnapshot, UserRole } from '@laap/types'
 import { releaseLeaseSchema } from '@laap/validation'
 import { ServiceError } from './service-error.js'
 import type { AssignmentView, AuditView, DeviceView, LaapServicePort, UserLookup } from './service-port.js'
@@ -103,7 +103,7 @@ export class SupabaseLaapService implements LaapServicePort {
       assignedIds = assignments.map((row) => String(row.account_id))
       if (!assignedIds.length) return []
     }
-    let accountQuery = this.data.from('accounts').select('id,display_name,region,status,metadata,updated_at').order('updated_at', { ascending: false })
+    let accountQuery = this.data.from('accounts').select('id,display_name,region,status,metadata,session_blob,updated_at').order('updated_at', { ascending: false })
     if (assignedIds) accountQuery = accountQuery.in('id', assignedIds)
     const rows = await this.query<Row[]>(accountQuery, 'ACCOUNT_LOOKUP_FAILED')
     const sessions = await this.query<Row[]>(this.data.from('account_sessions').select('id,account_id,started_at').in('status', activeStatuses), 'SESSION_LOOKUP_FAILED')
@@ -111,8 +111,8 @@ export class SupabaseLaapService implements LaapServicePort {
     return rows.map((row, index) => {
       const session = sessionMap.get(String(row.id))
       const metadata = (row.metadata as Row | null) ?? {}
-      const status: DashboardAccount['status'] = row.status === 'maintenance' ? 'Maintenance' : session ? 'Leased' : 'Available'
-      return { id: String(row.id), name: String(row.display_name), region: String(row.region), status, lastUsed: relativeTime(String(session?.started_at ?? row.updated_at)), level: Number(metadata.level ?? 120 + (index % 170)), accent: accentFor(String(row.id)) }
+      const status: DashboardAccount['status'] = row.status === 'maintenance' ? 'Maintenance' : row.status === 'disabled' ? 'Disabled' : session ? 'Leased' : 'Available'
+      return { id: String(row.id), name: String(row.display_name), region: String(row.region), status, lastUsed: relativeTime(String(session?.started_at ?? row.updated_at)), level: Number(metadata.level ?? 120 + (index % 170)), accent: accentFor(String(row.id)), hasSessionBlob: Boolean(row.session_blob) }
     })
   }
 
@@ -181,18 +181,18 @@ export class SupabaseLaapService implements LaapServicePort {
   async getMetrics(userId?: string): Promise<DashboardMetrics> {
     const [accounts, sessions, devices, users] = await Promise.all([this.listAccounts(userId), this.listSessions(userId), this.listDevices(userId), userId ? Promise.resolve([]) : this.listUsers()])
     const authorizedUsers = userId ? 1 : users.filter((row) => row.status === 'active').length
-    return { availableAccounts: accounts.filter((row) => row.status === 'Available').length, totalAccounts: accounts.length, activeLeases: sessions.length, inGameLeases: sessions.filter((row) => row.runtimeState === 'IN_GAME').length, inClientLeases: sessions.filter((row) => row.runtimeState === 'IN_CLIENT').length, boundDevices: devices.filter((row) => row.status === 'active').length, healthyDevices: devices.filter((row) => row.status === 'active' && Date.now() - new Date(row.lastSeenAt).getTime() < 300_000).length, authorizedUsers, activeUsers: authorizedUsers }
+    return { availableAccounts: accounts.filter((row) => row.status === 'Available').length, totalAccounts: accounts.length, activeLeases: sessions.length, boundDevices: devices.filter((row) => row.status === 'active').length, healthyDevices: devices.filter((row) => row.status === 'active' && Date.now() - new Date(row.lastSeenAt).getTime() < 300_000).length, authorizedUsers, activeUsers: authorizedUsers }
   }
 
   async listSessions(userId?: string): Promise<DashboardSession[]> {
-    let sessionQuery = this.data.from('account_sessions').select('id,account_id,user_id,device_id,status,runtime_state,started_at,last_heartbeat_at,reconnect_grace_until').in('status', activeStatuses)
+    let sessionQuery = this.data.from('account_sessions').select('id,account_id,user_id,device_id,status,started_at').in('status', activeStatuses)
     if (userId) sessionQuery = sessionQuery.eq('user_id', userId)
     const rows = await this.query<Row[]>(sessionQuery.order('started_at', { ascending: false }), 'SESSION_LOOKUP_FAILED')
     if (!rows.length) return []
     const accountIds = rows.map((row) => String(row.account_id)); const userIds = rows.map((row) => String(row.user_id)); const deviceIds = rows.map((row) => String(row.device_id))
     const [accounts, users, devices] = await Promise.all([this.query<Row[]>(this.data.from('accounts').select('id,display_name,region').in('id', accountIds), 'ACCOUNT_LOOKUP_FAILED'), this.query<Row[]>(this.data.from('profiles').select('id,display_name').in('id', userIds), 'PROFILE_LOOKUP_FAILED'), this.query<Row[]>(this.data.from('user_devices').select('id,device_name,platform').in('id', deviceIds), 'DEVICE_LOOKUP_FAILED')])
     const accountMap = new Map(accounts.map((row) => [String(row.id), row])); const userMap = new Map(users.map((row) => [String(row.id), row])); const deviceMap = new Map(devices.map((row) => [String(row.id), row]))
-    return rows.map((row) => { const account = accountMap.get(String(row.account_id))!; const operator = userMap.get(String(row.user_id))!; const device = deviceMap.get(String(row.device_id))!; return { id: String(row.id), account: String(account.display_name), region: String(account.region), user: String(operator.display_name), initials: initials(String(operator.display_name)), device: `${String(device.device_name)} · ${String(device.platform) === 'macos' ? 'macOS' : 'Windows'}`, runtimeState: row.runtime_state as SessionState, status: row.status as DashboardSession['status'], started: relativeTime(String(row.started_at)), heartbeat: relativeTime(String(row.last_heartbeat_at)), avatarTone: toneFor(String(row.user_id)) } })
+    return rows.map((row) => { const account = accountMap.get(String(row.account_id))!; const operator = userMap.get(String(row.user_id))!; const device = deviceMap.get(String(row.device_id))!; return { id: String(row.id), account: String(account.display_name), region: String(account.region), user: String(operator.display_name), initials: initials(String(operator.display_name)), device: `${String(device.device_name)} · ${String(device.platform) === 'macos' ? 'macOS' : 'Windows'}`, status: row.status as DashboardSession['status'], started: relativeTime(String(row.started_at)), avatarTone: toneFor(String(row.user_id)) } })
   }
 
   async listActivity(userId?: string): Promise<DashboardActivity[]> {
@@ -213,13 +213,6 @@ export class SupabaseLaapService implements LaapServicePort {
     return { success: true, sessionId: String(payload.session_id), isReconnect: Boolean(payload.is_reconnect) } as const
   }
 
-  async heartbeat(userId: string, sessionId: string, runtimeState: SessionState) {
-    const result = await this.query<unknown>(this.data.rpc('heartbeat_account_session_for_user', { p_user_id: userId, p_session_id: sessionId, p_runtime_state: runtimeState }), 'HEARTBEAT_FAILED')
-    const payload = result as Row
-    if (!payload.success) throw new ServiceError(String(payload.code ?? 'SESSION_NOT_FOUND'), 404)
-    return { success: true as const, sessionId }
-  }
-
   async releaseLease(actor: ApiUser, sessionId: string, reason: string) {
     const parsed = releaseLeaseSchema.safeParse({ sessionId, reason })
     if (!parsed.success) throw new ServiceError('INVALID_RELEASE_REASON', 400)
@@ -229,9 +222,29 @@ export class SupabaseLaapService implements LaapServicePort {
     return { success: true as const }
   }
 
-  async listAudit(limit = 100): Promise<AuditView[]> {
-    const safeLimit = Math.min(Math.max(limit, 1), 500)
-    const rows = await this.query<Row[]>(this.data.from('audit_logs').select('id,action,entity_type,entity_id,payload,created_at,actor_id').order('created_at', { ascending: false }).limit(safeLimit), 'AUDIT_LOOKUP_FAILED')
+  async saveAccountSessionBlob(actorId: string, accountId: string, sessionBlob: string) {
+    const result = await this.query<unknown>(this.data.rpc('save_account_session_blob', { p_account_id: accountId, p_session_blob: sessionBlob }), 'SESSION_BLOB_SAVE_FAILED')
+    const payload = result as Row
+    if (!payload.success) throw new ServiceError(String(payload.code ?? 'SESSION_BLOB_SAVE_FAILED'), payload.code === 'FORBIDDEN' ? 403 : 404)
+  }
+
+  async getAccountSessionBlob(userId: string, sessionId: string): Promise<string> {
+    const result = await this.query<unknown>(this.data.rpc('get_account_session_blob_for_user', { p_user_id: userId, p_session_id: sessionId }), 'SESSION_BLOB_GET_FAILED')
+    const payload = result as Row
+    if (!payload.success || !payload.session_blob) throw new ServiceError(String(payload.code ?? 'SESSION_BLOB_NOT_PROVISIONED'), payload.code === 'UNAUTHENTICATED' ? 401 : payload.code === 'SESSION_NOT_FOUND' ? 404 : 404, 'No active session token provisioned for this account')
+    return String(payload.session_blob)
+  }
+
+  async deleteAccountSessionBlob(actorId: string, accountId: string) {
+    const result = await this.query<unknown>(this.data.rpc('delete_account_session_blob', { p_account_id: accountId }), 'SESSION_BLOB_DELETE_FAILED')
+    const payload = result as Row
+    if (!payload.success) throw new ServiceError(String(payload.code ?? 'SESSION_BLOB_DELETE_FAILED'), payload.code === 'FORBIDDEN' ? 403 : 404)
+  }
+
+  async listAudit(limit = 100, offset = 0): Promise<AuditView[]> {
+    const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.floor(limit), 1), 500) : 100
+    const safeOffset = Number.isFinite(offset) ? Math.min(Math.max(Math.floor(offset), 0), 1_000_000) : 0
+    const rows = await this.query<Row[]>(this.data.from('audit_logs').select('id,action,entity_type,entity_id,payload,created_at,actor_id').order('created_at', { ascending: false }).range(safeOffset, safeOffset + safeLimit - 1), 'AUDIT_LOOKUP_FAILED')
     const actorIds = rows.map((row) => row.actor_id).filter(Boolean).map(String)
     const actors = actorIds.length ? await this.query<Row[]>(this.data.from('profiles').select('id,display_name').in('id', actorIds), 'PROFILE_LOOKUP_FAILED') : []
     const actorMap = new Map(actors.map((row) => [String(row.id), String(row.display_name)]))

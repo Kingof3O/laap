@@ -17,3 +17,4 @@ supabase/.temp/
 supabase/._.temp
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/gen/
+.playwright-mcp/

@@ -78,6 +78,16 @@ describe('LAAP lease service', () => {
     expect(dashboard.status).toBe(200)
     const payload = await dashboard.json() as { metrics: { totalAccounts: number } }
     expect(payload.metrics.totalAccounts).toBe(55)
+    const firstAuditPage = await fetch(`${baseUrl}/api/audit?limit=1&offset=0`, { headers: { cookie: cookie! } })
+    expect(firstAuditPage.status).toBe(200)
+    const firstAuditPayload = await firstAuditPage.json() as { audit: Array<{ id: string }>; pagination: { limit: number; offset: number; hasMore: boolean } }
+    expect(firstAuditPayload.audit).toHaveLength(1)
+    expect(firstAuditPayload.pagination).toMatchObject({ limit: 1, offset: 0, hasMore: true })
+    const secondAuditPage = await fetch(`${baseUrl}/api/audit?limit=1&offset=1`, { headers: { cookie: cookie! } })
+    const secondAuditPayload = await secondAuditPage.json() as { audit: Array<{ id: string }>; pagination: { limit: number; offset: number; hasMore: boolean } }
+    expect(secondAuditPayload.audit).toHaveLength(1)
+    expect(secondAuditPayload.pagination.offset).toBe(1)
+    expect(secondAuditPayload.audit[0].id).not.toBe(firstAuditPayload.audit[0].id)
     const createUser = await fetch(`${baseUrl}/api/users`, { method: 'POST', headers: { cookie: cookie!, 'content-type': 'application/json' }, body: JSON.stringify({ displayName: 'New Operator', email: 'new-operator@example.com', password: 'LongEnoughPassword!2026', role: 'operator' }) })
     expect(createUser.status).toBe(201)
     expect((await createUser.json() as { user: { email: string; role: string } }).user).toMatchObject({ email: 'new-operator@example.com', role: 'operator' })
@@ -97,7 +107,7 @@ describe('LAAP lease service', () => {
     expect((await acquire.json() as { success: boolean }).success).toBe(true)
   })
 
-  it('accepts owner heartbeats and transitions a starting session to active', async () => {
+  it('allows acquiring and releasing leases cleanly without heartbeat dependency', async () => {
     const instance = await createTestApp()
     await new Promise<void>((resolve) => instance.server.listen(0, '127.0.0.1', () => resolve()))
     const address = instance.server.address() as AddressInfo
@@ -105,9 +115,9 @@ describe('LAAP lease service', () => {
     const login = await fetch(`${baseUrl}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'leo@laap.local', password: 'ChangeMe!2026' }) })
     const cookie = login.headers.get('set-cookie')?.split(';')[0]!
     const session = (await instance.service.listSessions()).find((row) => row.account === 'Orbit#BR1')!
-    const heartbeat = await fetch(`${baseUrl}/api/leases/${session.id}/heartbeat`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ runtimeState: 'IN_CLIENT' }) })
-    expect(heartbeat.status).toBe(200)
-    expect((await instance.service.listSessions()).find((row) => row.id === session.id)?.runtimeState).toBe('IN_CLIENT')
+    const release = await fetch(`${baseUrl}/api/leases/${session.id}/release`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'manual' }) })
+    expect(release.status).toBe(200)
+    expect((await instance.service.listSessions()).find((row) => row.id === session.id)).toBeUndefined()
   })
 
   it('requires a signed device challenge in production mode', async () => {
@@ -125,6 +135,67 @@ describe('LAAP lease service', () => {
     expect(acquire.status).toBe(401)
     const acquirePayload = await acquire.json() as { error: { code: string } }
     expect(acquirePayload.error.code).toBe('DEVICE_SIGNATURE_REQUIRED')
+  })
+
+  it('allows admins to save session blobs and allows active lease holders to retrieve them', async () => {
+    const instance = await createTestApp()
+    await new Promise<void>((resolve) => instance.server.listen(0, '127.0.0.1', () => resolve()))
+    const address = instance.server.address() as AddressInfo
+    const baseUrl = `http://127.0.0.1:${address.port}`
+
+    // 1. Admin logs in and provisions a session blob for an account
+    const adminLogin = await fetch(`${baseUrl}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'admin@laap.local', password: 'ChangeMe!2026' }) })
+    const adminCookie = adminLogin.headers.get('set-cookie')?.split(';')[0]!
+    const account = (await instance.service.listAccounts()).find((row) => row.name === 'Lumen#EUNE')!
+
+    const sampleYaml = 'riot-client:\n  sessions:\n    league_of_legends.live:\n      remember: true\n      sub: "test-puuid"\n'
+    const saveRes = await fetch(`${baseUrl}/api/accounts/${account.id}/session-blob`, {
+      method: 'PUT',
+      headers: { cookie: adminCookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionBlob: sampleYaml }),
+    })
+    expect(saveRes.status).toBe(200)
+
+    // Verify account list now reflects hasSessionBlob = true
+    const updatedAccounts = await instance.service.listAccounts()
+    expect(updatedAccounts.find((row) => row.id === account.id)?.hasSessionBlob).toBe(true)
+
+    // 2. Operator acquires lease on the account
+    const mayaLogin = await fetch(`${baseUrl}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'maya@laap.local', password: 'ChangeMe!2026' }) })
+    const mayaCookie = mayaLogin.headers.get('set-cookie')?.split(';')[0]!
+    const mayaDevice = (await instance.service.listDevices()).find((row) => row.user === 'Maya Chen')!
+
+    // Assign account to Maya first
+    await instance.service.addAssignment(
+      (await instance.service.findUserByEmail('admin@laap.local'))!.id,
+      account.id,
+      (await instance.service.findUserByEmail('maya@laap.local'))!.id,
+      null,
+    )
+
+    const acquireRes = await fetch(`${baseUrl}/api/leases/acquire`, {
+      method: 'POST',
+      headers: { cookie: mayaCookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ accountId: account.id, deviceId: mayaDevice.id }),
+    })
+    expect(acquireRes.status).toBe(200)
+    const { sessionId } = await acquireRes.json() as { sessionId: string }
+
+    // 3. Operator retrieves the session blob
+    const getBlobRes = await fetch(`${baseUrl}/api/leases/${sessionId}/session-blob`, {
+      headers: { cookie: mayaCookie },
+    })
+    expect(getBlobRes.status).toBe(200)
+    const blobPayload = await getBlobRes.json() as { sessionBlob: string }
+    expect(blobPayload.sessionBlob).toBe(sampleYaml)
+
+    // 4. Other users cannot fetch this session blob
+    const leoLogin = await fetch(`${baseUrl}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'leo@laap.local', password: 'ChangeMe!2026' }) })
+    const leoCookie = leoLogin.headers.get('set-cookie')?.split(';')[0]!
+    const unauthorizedGet = await fetch(`${baseUrl}/api/leases/${sessionId}/session-blob`, {
+      headers: { cookie: leoCookie },
+    })
+    expect(unauthorizedGet.status).toBe(404)
   })
 
   it('fails closed when the production Supabase adapter lacks server secrets', async () => {

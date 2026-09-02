@@ -60,25 +60,35 @@ Keep these invariants:
 - Migration `20260831000000_init.sql` is applied and recorded remotely.
 - Migration `20260901000000_remove_password_credential_paths.sql` is applied;
   it revokes the old password/Vault RPC privileges.
+- Migration `20260901100000_session_token_sandboxing.sql` adds encrypted
+  session blob storage and RPCs (`save_account_session_blob`, `get_account_session_blob_for_user`,
+  `delete_account_session_blob`) for passwordless 1-click launch.
 - Only `health-check` remains deployed. The old `get-launch-payload` and
   `upsert-account-credential` Edge Functions were deleted.
 - Do not re-add those functions or the old password credential routes.
 - Riot RSO is optional and requires an approved Riot production application
   and RSO client before any OAuth code is enabled.
 
-## Tauri behavior
+## Tauri behavior & Session Sandboxing
 
 On sign-in, Tauri requests a short-lived LAAP bearer with
 `/api/auth/login?client=tauri`; it stores that token only in process memory.
 It registers the keychain public key, loads assigned accounts, acquires a
-signed lease, opens Riot Client, and sends heartbeats. It releases the lease
-on logout/process exit; the backend reaper handles crashes and stale sessions.
+signed lease, downloads the account's session token YAML (if provisioned),
+safely injects it to the client's `RiotClientPrivateSettings.yaml` (with
+automatic backup/restoration), opens Riot Client, and sends heartbeats.
+It cleans up the injected session and restores the user's personal settings on
+release/logout.
+
+Admins can use the built-in 1-Click Provisioning Sandbox in the desktop app:
+1. Opens Riot Client in a clean session sandbox.
+2. Captures the generated session tokens upon login ("Stay signed in").
+3. Uploads the session blob to the secure cloud backend with 0 manual file copying.
 
 Runtime states are explicit: `Lease acquired`, `Riot Client starting`,
-`Waiting for Riot login`, `League running`, `Lease lost`, and
-`Logged out / Riot client closed`. The monitor never claims which Riot account
-is signed in because Riot exposes no documented supported native signal for
-that identity.
+`Waiting for Riot login`, `League running (In Game)`, `Lease lost`, and
+`Logged out / Riot client closed`. In-game crashes are protected by a 5-minute
+reconnect window.
 
 ## Verification commands
 

@@ -1,104 +1,551 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, ArrowRight, CheckCircle2, KeyRound, LogIn, Monitor, RefreshCcw, ShieldCheck, Square } from 'lucide-react'
-
-const API_BASE = 'https://laap-api.hussiensalah100.workers.dev'
-type RuntimeSnapshot = { riot_client: boolean; league_client: boolean; game: boolean }
-type Invoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>
-type Account = { id: string; name: string; region: string; status: string; lastUsed: string; level: number; accent: string }
-type User = { id: string; email: string; displayName: string; role: 'admin' | 'operator'; status: string }
-
-async function invokeTauri<T>(command: string, args?: Record<string, unknown>) { return (await import('@tauri-apps/api/core')).invoke<T>(command, args) }
-const invoke: Invoke | null = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window ? invokeTauri : null
-let accessToken: string | null = null
-
-async function apiRequest<T>(path: string, init: RequestInit = {}) {
-  const requestHeaders = new Headers(init.headers)
-  requestHeaders.set('content-type', 'application/json')
-  if (accessToken) requestHeaders.set('authorization', `Bearer ${accessToken}`)
-  const response = await fetch(`${API_BASE}${path}`, { ...init, credentials: 'include', headers: requestHeaders })
-  const body = await response.json().catch(() => ({})) as { error?: { message?: string } }
-  if (!response.ok) throw new Error(body.error?.message ?? `Request failed (${response.status})`)
-  return body as T
-}
+import { useEffect, useMemo, useState } from 'react'
+import { CheckCircle2, Play, Square, X } from 'lucide-react'
+import { Header } from './components/layout/Header'
+import { SubNavbar } from './components/layout/SubNavbar'
+import { AccountCard } from './components/accounts/AccountCard'
+import { AccountListTable } from './components/accounts/AccountListTable'
+import { EmptyState } from './components/accounts/EmptyState'
+import { LoginView } from './components/auth/LoginView'
+import { AddAccountModal } from './components/modals/AddAccountModal'
+import { SyncAccountModal } from './components/modals/SyncAccountModal'
+import { DeleteConfirmModal } from './components/modals/DeleteConfirmModal'
+import { SettingsModal } from './components/modals/SettingsModal'
+import { useAuth } from './hooks/useAuth'
+import { useLocalAccounts } from './hooks/useLocalAccounts'
+import { useCloudAccounts } from './hooks/useCloudAccounts'
+import { VIEW_MODE_KEY } from './lib/constants'
+import { hasTauri, invokeTauri } from './lib/api'
+import type { Account, AppMode, Region, ViewMode } from './lib/types'
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [accounts, setAccounts] = useState<Account[]>([])
-  const [selectedAccount, setSelectedAccount] = useState('')
-  const [deviceId, setDeviceId] = useState<string | null>(null)
-  const [publicKey, setPublicKey] = useState<string | null>(null)
-  const [sessionId, setSessionId] = useState<string | null>(null)
-  const [processes, setProcesses] = useState<RuntimeSnapshot>({ riot_client: false, league_client: false, game: false })
-  const [error, setError] = useState<string | null>(null)
+  const [appMode, setAppMode] = useState<AppMode>('local')
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    try {
+      return (localStorage.getItem(VIEW_MODE_KEY) as ViewMode) || 'grid'
+    } catch {
+      return 'grid'
+    }
+  })
+  const [selectedRegion, setSelectedRegion] = useState<Region>('ALL')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // Modals state
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [syncTarget, setSyncTarget] = useState<Account | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; isCloud: boolean } | null>(null)
+
+  // Status feedback
+  const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [launchRequested, setLaunchRequested] = useState(false)
-  const [leaseLost, setLeaseLost] = useState(false)
-  const runtimeSeen = useRef(false)
-  const launchRequestedAt = useRef<number | null>(null)
-  const heartbeatFailures = useRef(0)
 
-  const refreshRuntime = async () => {
-    if (!invoke) return
-    try { setPublicKey(await invoke<string>('device_public_key')); setProcesses(await invoke<RuntimeSnapshot>('runtime_snapshot')); setError(null) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+  // Hooks
+  const { user, login, logout, error: authError } = useAuth()
+  const {
+    localAccounts,
+    loadAccounts: reloadLocal,
+    saveAccount: saveLocal,
+    deleteAccount: deleteLocal,
+    launchAccount: launchLocal,
+    captureActive: captureActiveLocal,
+    startSandbox: startLocalSandbox,
+    cancelSandbox: cancelLocalSandbox,
+    pollSandbox: pollLocalSandbox,
+    finishSandbox: finishLocalSandbox,
+    provisioning: localProvisioning,
+    getFullAccount,
+  } = useLocalAccounts()
+
+  const {
+    accounts: cloudAccounts,
+    loadAccounts: reloadCloud,
+    acquireAndLaunch: launchCloud,
+    releaseLease: releaseCloud,
+    deleteCloudAccount: deleteCloud,
+    uploadSessionBlob: uploadCloudBlob,
+    createAndUploadAccount: pushLocalToCloud,
+    sessionId: cloudSessionId,
+    activeAccountId: cloudActiveAccountId,
+    startSandbox: startCloudSandbox,
+    cancelSandbox: cancelCloudSandbox,
+    provisioning: cloudProvisioning,
+  } = useCloudAccounts(user)
+
+  // Persist view mode preference
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode)
+    try {
+      localStorage.setItem(VIEW_MODE_KEY, mode)
+    } catch {}
   }
-  const loadAccounts = async () => { const result = await apiRequest<{ accounts: Account[] }>('/api/accounts'); setAccounts(result.accounts); setSelectedAccount((current) => current || result.accounts[0]?.id || '') }
-  const loadSession = async () => { try { const result = await apiRequest<{ user: User | null }>('/api/auth/session'); setUser(result.user); if (result.user) await loadAccounts() } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } }
-  useEffect(() => { void refreshRuntime(); void loadSession(); const timer = window.setInterval(() => { void refreshRuntime() }, 15_000); return () => window.clearInterval(timer) }, [])
+
+  // Keyboard shortcut listener (Cmd+K / Ctrl+K)
   useEffect(() => {
-    if (!user || !invoke) return
-    void (async () => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        const searchInput = document.querySelector<HTMLInputElement>('.search-input')
+        searchInput?.focus()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  // Sandbox Poller for Local Mode
+  useEffect(() => {
+    if (!localProvisioning) return
+    const interval = window.setInterval(async () => {
       try {
-        const key = await invoke<string>('device_public_key')
-        setPublicKey(key)
-        const result = await apiRequest<{ deviceId: string }>('/api/devices', { method: 'POST', body: JSON.stringify({ publicKey: key, platform: /win/i.test(navigator.userAgent) ? 'windows' : 'macos', deviceName: navigator.platform || 'LAAP Desktop', appVersion: '0.1.0' }) })
-        setDeviceId(result.deviceId)
-      } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
-    })()
-  }, [user])
-  useEffect(() => {
-    if (!sessionId || !user) return
-    const timer = window.setInterval(() => {
-      const runtimeState = processes.game ? 'IN_GAME' : processes.league_client ? 'IN_CLIENT' : processes.riot_client ? 'LAUNCHING' : 'EXITED'
-      void apiRequest(`/api/leases/${sessionId}/heartbeat`, { method: 'POST', body: JSON.stringify({ runtimeState }) }).then(() => { heartbeatFailures.current = 0 }).catch((cause) => {
-        if (cause instanceof TypeError) { heartbeatFailures.current += 1; if (heartbeatFailures.current < 3) return }
-        setSessionId(null); setLaunchRequested(false); launchRequestedAt.current = null; setLeaseLost(true); setError('Lease lost. Sign in again to reacquire the account.')
-      })
-    }, 20_000)
-    return () => window.clearInterval(timer)
-  }, [sessionId, user, processes])
-  useEffect(() => {
-    const running = processes.riot_client || processes.league_client || processes.game
-    if (sessionId && running) runtimeSeen.current = true
-    if (sessionId && runtimeSeen.current && !running) {
-      void apiRequest(`/api/leases/${sessionId}/release`, { method: 'POST', body: JSON.stringify({ reason: 'process_exit' }) }).catch(() => undefined)
-      setSessionId(null)
-      setLaunchRequested(false)
-      runtimeSeen.current = false
-      setLeaseLost(true); setError('Lease lost because the Riot/League process exited.')
-    }
-    if (sessionId && launchRequested && launchRequestedAt.current && !running && Date.now() - launchRequestedAt.current > 60_000) {
-      void apiRequest(`/api/leases/${sessionId}/release`, { method: 'POST', body: JSON.stringify({ reason: 'process_exit' }) }).catch(() => undefined)
-      setSessionId(null); setLaunchRequested(false); launchRequestedAt.current = null; setLeaseLost(false); setError('Logged out / Riot client closed before authentication.')
-    }
-  }, [launchRequested, processes, sessionId])
+        const captured = await pollLocalSandbox()
+        if (captured) {
+          window.clearInterval(interval)
+          setStatusMessage('Session captured! Saving profile…')
+          await finishLocalSandbox()
+          setShowAddModal(false)
+          setStatusMessage('Account saved successfully!')
+          await reloadLocal()
+        }
+      } catch (err) {
+        setErrorMessage(err instanceof Error ? err.message : String(err))
+      }
+    }, 1500)
+    return () => window.clearInterval(interval)
+  }, [localProvisioning, pollLocalSandbox, finishLocalSandbox, reloadLocal])
 
-  const runtimeLabel = useMemo(() => {
-    if (leaseLost) return 'Lease lost'
-    if (processes.game) return 'League running'
-    if (processes.riot_client || processes.league_client) return 'Waiting for Riot login'
-    if (launchRequested) return launchRequestedAt.current && Date.now() - launchRequestedAt.current < 15_000 ? 'Riot Client starting' : 'Waiting for Riot login'
-    return sessionId ? 'Lease acquired' : 'Logged out / Riot client closed'
-  }, [launchRequested, leaseLost, processes, sessionId])
-  const login = async () => { setBusy(true); setError(null); try { const result = await apiRequest<{ user: User; accessToken?: string }>('/api/auth/login?client=tauri', { method: 'POST', headers: { 'x-laap-client': 'tauri' }, body: JSON.stringify({ email, password }) }); accessToken = result.accessToken ?? null; setUser(result.user); setPassword(''); await loadAccounts() } catch (cause) { accessToken = null; setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) } }
-  const acquire = async () => { if (!deviceId || !selectedAccount || !invoke) { setError('Bind this desktop to an account before acquiring a lease.'); return }; setBusy(true); setError(null); try { const nonce = `${Date.now()}:${selectedAccount}`; const signature = await invoke<string>('sign_device_nonce', { nonce }); const result = await apiRequest<{ sessionId: string }>('/api/leases/acquire', { method: 'POST', body: JSON.stringify({ accountId: selectedAccount, deviceId, nonce, signature }) }); setSessionId(result.sessionId); setLeaseLost(false); setError(null) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) } }
-  const launchRiot = async () => { if (!invoke) return; setBusy(true); setError(null); try { await invoke('launch_riot_client'); setLaunchRequested(true); launchRequestedAt.current = Date.now() } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) } }
-  const release = async (reason: 'manual' | 'logout' | 'process_exit' = 'manual') => { if (!sessionId) return; await apiRequest(`/api/leases/${sessionId}/release`, { method: 'POST', body: JSON.stringify({ reason }) }).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause))); setSessionId(null); setLaunchRequested(false); setLeaseLost(false); launchRequestedAt.current = null; runtimeSeen.current = false }
-  const logout = async () => { await release('logout'); await apiRequest('/api/auth/logout', { method: 'POST' }).catch(() => undefined); accessToken = null; setUser(null); setAccounts([]); setDeviceId(null); setSessionId(null); setLaunchRequested(false); setLeaseLost(false) }
+  // Toast Auto-dismiss
+  useEffect(() => {
+    if (!statusMessage) return
+    const timer = window.setTimeout(() => setStatusMessage(null), 4000)
+    return () => window.clearTimeout(timer)
+  }, [statusMessage])
 
-  if (!user) return <div className="desktop-app"><div className="desktop-glow" aria-hidden="true" /><main className="desktop-main login-shell"><div className="brand-lockup"><span className="brand-mark"><ShieldCheck aria-hidden="true" size={18} /></span><div><p className="brand-title">LAAP Desktop</p><p className="brand-subtitle">Secure operator shell</p></div></div><section className="desktop-card login-card"><p className="eyebrow">Trusted access</p><h1>Sign in to your workspace.</h1><p className="card-note">Use the operator account created by an administrator. Credentials stay in memory and are sent only over TLS.</p><label>Email<input className="desktop-input" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} /></label><label>Password<input className="desktop-input" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>{error ? <p className="desktop-error" role="alert">{error}</p> : null}<button type="button" className="launch-button" onClick={() => void login()} disabled={busy || !email || !password}><span><LogIn aria-hidden="true" size={17} />{busy ? 'Signing in…' : 'Sign in'}</span><ArrowRight aria-hidden="true" size={17} /></button></section></main></div>
-  return <div className="desktop-app"><div className="desktop-glow" aria-hidden="true" /><header className="desktop-header"><div className="brand-mark"><ShieldCheck aria-hidden="true" size={18} /></div><div><p className="brand-title">LAAP Desktop</p><p className="brand-subtitle">Secure operator shell</p></div><div className="header-actions"><button type="button" className="refresh-button" onClick={() => void refreshRuntime()} aria-label="Refresh device status"><RefreshCcw aria-hidden="true" size={16} /></button><button type="button" className="refresh-button" onClick={() => void logout()} aria-label="Sign out">×</button></div></header><main className="desktop-main"><section className="desktop-hero"><div><p className="eyebrow">{user.displayName} · {user.role}</p><h1>Ready when you are.</h1><p>Device identity, account leases, and Riot process state stay local to this signed shell.</p></div><span className="desktop-status"><span className="live-dot" aria-hidden="true" />{runtimeLabel}</span></section><section className="desktop-grid"><article className="desktop-card"><div className="card-heading"><span className="card-icon card-icon-cyan"><KeyRound aria-hidden="true" size={17} /></span><div><h2>Device binding</h2><p>OS keychain-backed identity</p></div></div><div className="key-row"><span className="status-check"><CheckCircle2 aria-hidden="true" size={14} />{deviceId ? 'Registered' : 'Binding…'}</span><code>{publicKey ? `${publicKey.slice(0, 10)}…${publicKey.slice(-8)}` : 'Unavailable'}</code></div><p className="card-note">Private key material never enters the browser or filesystem.</p></article><article className="desktop-card"><div className="card-heading"><span className="card-icon card-icon-violet"><Activity aria-hidden="true" size={17} /></span><div><h2>Runtime monitor</h2><p>15-second process heartbeat</p></div></div><div className="process-list"><Process label="Riot Client" active={processes.riot_client} /><Process label="League Client" active={processes.league_client} /><Process label="3D Game" active={processes.game} /></div></article></section><section className="desktop-card launcher-card"><div className="card-heading"><span className="card-icon card-icon-cyan"><Monitor aria-hidden="true" size={17} /></span><div><h2>Account lease</h2><p>Only assigned accounts are available</p></div></div><select className="desktop-input" value={selectedAccount} onChange={(event) => setSelectedAccount(event.target.value)}><option value="">Select an assigned account</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.region}</option>)}</select>{sessionId ? <><button type="button" className="launch-button" onClick={() => void launchRiot()} disabled={busy || !invoke}><span><Monitor aria-hidden="true" size={17} />{launchRequested ? 'Waiting for Riot login…' : 'Open Riot Client'}</span><ArrowRight aria-hidden="true" size={17} /></button><button type="button" className="launch-button danger" onClick={() => void release()}><span><Square aria-hidden="true" size={16} />Release lease</span></button></> : <button type="button" className="launch-button" onClick={() => void acquire()} disabled={busy || !deviceId || !selectedAccount || !invoke}><span><Monitor aria-hidden="true" size={17} />{busy ? 'Acquiring…' : 'Acquire account lease'}</span><ArrowRight aria-hidden="true" size={17} /></button>}<p className="desktop-footnote">LAAP never supplies Riot passwords. Sign in inside Riot Client, then return when the client is authenticated.</p></section>{error ? <p className="desktop-error" role="alert">{error}</p> : null}</main></div>
+  useEffect(() => {
+    if (!errorMessage) return
+    const timer = window.setTimeout(() => setErrorMessage(null), 5000)
+    return () => window.clearTimeout(timer)
+  }, [errorMessage])
+
+  // Filtered accounts based on search query and region
+  const filteredLocalAccounts = useMemo(() => {
+    return localAccounts.filter((acc) => {
+      const matchRegion = selectedRegion === 'ALL' || acc.region.toUpperCase() === selectedRegion
+      const matchSearch =
+        !searchQuery.trim() ||
+        `${acc.name} ${acc.region}`.toLowerCase().includes(searchQuery.trim().toLowerCase())
+      return matchRegion && matchSearch
+    })
+  }, [localAccounts, selectedRegion, searchQuery])
+
+  const filteredCloudAccounts = useMemo(() => {
+    return cloudAccounts.filter((acc) => {
+      const matchRegion = selectedRegion === 'ALL' || acc.region.toUpperCase() === selectedRegion
+      const matchSearch =
+        !searchQuery.trim() ||
+        `${acc.name} ${acc.region}`.toLowerCase().includes(searchQuery.trim().toLowerCase())
+      return matchRegion && matchSearch
+    })
+  }, [cloudAccounts, selectedRegion, searchQuery])
+
+  // Actions
+  const handleLaunchLocal = async (id: string) => {
+    setBusy(true)
+    setErrorMessage(null)
+    setStatusMessage('Launching League of Legends…')
+    try {
+      await launchLocal(id)
+      setStatusMessage('Game started!')
+    } catch (cause) {
+      setErrorMessage(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleLaunchCloud = async (id: string) => {
+    setBusy(true)
+    setErrorMessage(null)
+    try {
+      await launchCloud(id, (step) => setStatusMessage(step))
+      setStatusMessage('Launching League of Legends with claimed account!')
+    } catch (cause) {
+      setErrorMessage(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleCaptureLocal = async (name: string, region: string) => {
+    setBusy(true)
+    setErrorMessage(null)
+    try {
+      const activeSession = await captureActiveLocal()
+      if (!activeSession) {
+        throw new Error('No active Riot login found. Please sign into League or Riot Client first.')
+      }
+      await saveLocal(name, region, activeSession)
+      setShowAddModal(false)
+      setStatusMessage(`Profile "${name}" registered successfully!`)
+    } catch (cause) {
+      setErrorMessage(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handlePushLocalToCloud = async (localId: string) => {
+    if (!user || user.role !== 'admin') return
+    setBusy(true)
+    setErrorMessage(null)
+    setStatusMessage('Publishing account to Team Vault…')
+    try {
+      const full = await getFullAccount(localId)
+      if (!full || !full.session_blob) {
+        throw new Error('No valid session stored in this profile.')
+      }
+      await pushLocalToCloud(full.name, full.region, full.session_blob)
+      setStatusMessage(`Account "${full.name}" published to Team Vault!`)
+    } catch (cause) {
+      setErrorMessage(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleLinkLocalToCloud = async (cloudAccountId: string, localId: string) => {
+    setBusy(true)
+    setErrorMessage(null)
+    setStatusMessage('Linking local session…')
+    try {
+      const full = await getFullAccount(localId)
+      if (!full || !full.session_blob) {
+        throw new Error('Selected profile has no valid session.')
+      }
+      await uploadCloudBlob(cloudAccountId, full.session_blob)
+      setSyncTarget(null)
+      setStatusMessage('Team account synced and ready to play!')
+    } catch (cause) {
+      setErrorMessage(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleSyncActiveToCloud = async (cloudAccountId: string) => {
+    setBusy(true)
+    setErrorMessage(null)
+    setStatusMessage('Uploading active login…')
+    try {
+      const activeSession = await captureActiveLocal()
+      if (!activeSession) {
+        throw new Error('No active Riot login found on this machine.')
+      }
+      await uploadCloudBlob(cloudAccountId, activeSession)
+      setSyncTarget(null)
+      setStatusMessage('Team account synced and ready to play!')
+    } catch (cause) {
+      setErrorMessage(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return
+    setBusy(true)
+    setErrorMessage(null)
+    setStatusMessage(`Removing "${deleteTarget.name}"…`)
+    try {
+      if (deleteTarget.isCloud) {
+        await deleteCloud(deleteTarget.id)
+      } else {
+        await deleteLocal(deleteTarget.id)
+      }
+      setStatusMessage(`Profile "${deleteTarget.name}" removed.`)
+      setDeleteTarget(null)
+    } catch (cause) {
+      setErrorMessage(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleResetRiot = async () => {
+    if (!hasTauri) return
+    setBusy(true)
+    try {
+      await invokeTauri('cleanup_account_session')
+      setStatusMessage('Personal Riot settings restored.')
+      setShowSettingsModal(false)
+    } catch (cause) {
+      setErrorMessage(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const activeCloudAccount = useMemo(() => {
+    return cloudAccounts.find((a) => a.id === cloudActiveAccountId)
+  }, [cloudAccounts, cloudActiveAccountId])
+
+  return (
+    <div className="app-container">
+      {/* Top Header */}
+      <Header
+        appMode={appMode}
+        onModeChange={(mode) => {
+          setAppMode(mode)
+          setErrorMessage(null)
+          setStatusMessage(null)
+        }}
+        user={user}
+        onRefresh={() => {
+          if (appMode === 'local') void reloadLocal()
+          else void reloadCloud()
+        }}
+        onOpenSettings={() => setShowSettingsModal(true)}
+      />
+
+      {/* Sub Navigation Bar (Only if logged in for cloud, or in local mode) */}
+      {appMode === 'local' || user ? (
+        <SubNavbar
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          selectedRegion={selectedRegion}
+          onRegionChange={setSelectedRegion}
+          viewMode={viewMode}
+          onViewModeChange={handleViewModeChange}
+          onAddAccount={appMode === 'local' ? () => setShowAddModal(true) : undefined}
+          addButtonLabel={appMode === 'local' ? 'Add Profile' : undefined}
+          totalCount={appMode === 'local' ? filteredLocalAccounts.length : filteredCloudAccounts.length}
+        />
+      ) : null}
+
+      {/* Main Viewport */}
+      <main className="main-viewport">
+        {/* PERSONAL ROSTER (LOCAL) */}
+        {appMode === 'local' && (
+          <div>
+            {filteredLocalAccounts.length === 0 ? (
+              <EmptyState
+                searchActive={Boolean(searchQuery || selectedRegion !== 'ALL')}
+                onAddAccount={() => setShowAddModal(true)}
+              />
+            ) : viewMode === 'grid' ? (
+              <div className="roster-grid">
+                {filteredLocalAccounts.map((acc) => (
+                  <AccountCard
+                    key={acc.id}
+                    id={acc.id}
+                    name={acc.name}
+                    region={acc.region}
+                    hasSession={acc.has_session}
+                    lastUsedText={acc.last_used_at ? `Played ${new Date(acc.last_used_at).toLocaleDateString()}` : null}
+                    canManage={true}
+                    busy={busy}
+                    onLaunch={() => void handleLaunchLocal(acc.id)}
+                    onPushToCloud={user?.role === 'admin' ? () => void handlePushLocalToCloud(acc.id) : undefined}
+                    onDelete={() => setDeleteTarget({ id: acc.id, name: acc.name, isCloud: false })}
+                  />
+                ))}
+              </div>
+            ) : (
+              <AccountListTable
+                items={filteredLocalAccounts.map((acc) => ({
+                  id: acc.id,
+                  name: acc.name,
+                  region: acc.region,
+                  hasSession: acc.has_session,
+                  lastUsedText: acc.last_used_at ? new Date(acc.last_used_at).toLocaleDateString() : null,
+                }))}
+                canManage={true}
+                busy={busy}
+                onLaunch={(id) => void handleLaunchLocal(id)}
+                onPushToCloud={user?.role === 'admin' ? (id) => void handlePushLocalToCloud(id) : undefined}
+                onDelete={(id, name) => setDeleteTarget({ id, name, isCloud: false })}
+              />
+            )}
+          </div>
+        )}
+
+        {/* TEAM VAULT (CLOUD) */}
+        {appMode === 'cloud' && (
+          <div>
+            {!user ? (
+              <LoginView
+                onLogin={async (em, pw, rem) => {
+                  await login(em, pw, rem)
+                  await reloadCloud()
+                }}
+                busy={busy}
+                error={authError}
+              />
+            ) : (
+              <div>
+                {/* Active Held Lease Banner */}
+                {cloudSessionId && activeCloudAccount ? (
+                  <div className="hextech-card" style={{ padding: '20px 24px', marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <div className="card-avatar" style={{ width: '48px', height: '48px' }}>
+                          <span className="avatar-initials">{activeCloudAccount.name.slice(0, 2).toUpperCase()}</span>
+                        </div>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 800 }}>
+                              {activeCloudAccount.name}
+                            </span>
+                            <span className="avatar-region-pip" style={{ position: 'static' }}>
+                              {activeCloudAccount.region}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '12px', color: 'var(--teal-primary)', fontWeight: 600 }}>
+                            ● Active Team Session Held
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                          type="button"
+                          className="btn-launch-primary"
+                          style={{ width: 'auto', padding: '0 20px' }}
+                          onClick={() => void handleLaunchCloud(activeCloudAccount.id)}
+                          disabled={busy}
+                        >
+                          <Play size={14} fill="currentColor" />
+                          <span>Relaunch League</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-modal-secondary"
+                          onClick={() => void releaseCloud()}
+                          disabled={busy}
+                        >
+                          <Square size={13} />
+                          <span>Release Account</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Team Accounts View */}
+                {filteredCloudAccounts.length === 0 ? (
+                  <EmptyState
+                    isCloud={true}
+                    searchActive={Boolean(searchQuery || selectedRegion !== 'ALL')}
+                  />
+                ) : viewMode === 'grid' ? (
+                  <div className="roster-grid">
+                    {filteredCloudAccounts.map((acc) => (
+                      <AccountCard
+                        key={acc.id}
+                        id={acc.id}
+                        name={acc.name}
+                        region={acc.region}
+                        hasSession={Boolean(acc.hasSessionBlob)}
+                        isCloud={true}
+                        canManage={user.role === 'admin'}
+                        busy={busy}
+                        onLaunch={() => void handleLaunchCloud(acc.id)}
+                        onSync={() => setSyncTarget(acc)}
+                        onDelete={() => setDeleteTarget({ id: acc.id, name: acc.name, isCloud: true })}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <AccountListTable
+                    items={filteredCloudAccounts.map((acc) => ({
+                      id: acc.id,
+                      name: acc.name,
+                      region: acc.region,
+                      hasSession: Boolean(acc.hasSessionBlob),
+                      lastUsedText: acc.lastUsed || null,
+                    }))}
+                    isCloud={true}
+                    canManage={user.role === 'admin'}
+                    busy={busy}
+                    onLaunch={(id) => void handleLaunchCloud(id)}
+                    onSync={(id) => {
+                      const acc = filteredCloudAccounts.find((a) => a.id === id)
+                      if (acc) setSyncTarget(acc)
+                    }}
+                    onDelete={(id, name) => setDeleteTarget({ id, name, isCloud: true })}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* Add Account Modal (Local) */}
+      <AddAccountModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onCaptureActive={handleCaptureLocal}
+        onStartSandbox={async (name, reg) => {
+          await startLocalSandbox()
+        }}
+        onCancelSandbox={async () => {
+          await cancelLocalSandbox()
+        }}
+        provisioning={localProvisioning}
+        busy={busy}
+      />
+
+      {/* Sync Account Modal (Cloud) */}
+      <SyncAccountModal
+        targetAccount={syncTarget}
+        localAccounts={localAccounts}
+        isOpen={Boolean(syncTarget)}
+        onClose={() => setSyncTarget(null)}
+        onLinkFromLocal={handleLinkLocalToCloud}
+        onSyncActive={handleSyncActiveToCloud}
+        onStartSandbox={async (accId) => {
+          await startCloudSandbox()
+        }}
+        busy={busy}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        target={deleteTarget}
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleConfirmDelete}
+        busy={busy}
+      />
+
+      {/* Settings Modal */}
+      <SettingsModal
+        user={user}
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        onResetRiot={handleResetRiot}
+        onLogout={async () => {
+          await logout()
+          setShowSettingsModal(false)
+        }}
+        busy={busy}
+      />
+
+      {/* Global HUD Toast Notifications */}
+      {statusMessage ? (
+        <div className="hud-toast hud-toast-success">
+          <CheckCircle2 size={16} />
+          <span>{statusMessage}</span>
+        </div>
+      ) : null}
+
+      {errorMessage ? (
+        <div className="hud-toast hud-toast-error">
+          <X size={16} />
+          <span>{errorMessage}</span>
+        </div>
+      ) : null}
+    </div>
+  )
 }
-
-function Process({ label, active }: { label: string; active: boolean }) { return <div className="process-row"><span className={`process-dot ${active ? 'process-dot-active' : ''}`} aria-hidden="true" /><span>{label}</span><span className={active ? 'process-state-active' : 'process-state'}>{active ? 'Detected' : 'Not running'}</span></div> }

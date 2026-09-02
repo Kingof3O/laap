@@ -1,4 +1,4 @@
-import type { ApiUser, DashboardAccount, DashboardActivity, DashboardMetrics, DashboardSession, DashboardSnapshot, SessionState } from '@laap/types'
+import type { ApiUser, DashboardAccount, DashboardActivity, DashboardMetrics, DashboardSession, DashboardSnapshot } from '@laap/types'
 
 export type MaybePromise<T> = T | Promise<T>
 export type UserLookup = { id: string; email: string; display_name?: string; role?: ApiUser['role']; status?: ApiUser['status'] }
@@ -28,9 +28,11 @@ export interface LaapServicePort {
   listSessions(userId?: string): MaybePromise<DashboardSession[]>
   listActivity(userId?: string): MaybePromise<DashboardActivity[]>
   acquireLease(userId: string, accountId: string, deviceId: string, options?: { nonce?: string; signature?: string }): Promise<{ success: true; sessionId: string; isReconnect: boolean }>
-  heartbeat(userId: string, sessionId: string, runtimeState: SessionState): MaybePromise<{ success: true; sessionId: string }>
   releaseLease(actor: ApiUser, sessionId: string, reason: string): Promise<{ success: true }>
-  listAudit(limit?: number): MaybePromise<AuditView[]>
+  saveAccountSessionBlob(actorId: string, accountId: string, sessionBlob: string): MaybePromise<void>
+  getAccountSessionBlob(userId: string, sessionId: string): MaybePromise<string>
+  deleteAccountSessionBlob(actorId: string, accountId: string): MaybePromise<void>
+  listAudit(limit?: number, offset?: number): MaybePromise<AuditView[]>
   recordAudit(actorId: string, action: string, entityType: string, entityId: string, payload: Record<string, unknown>): MaybePromise<void>
   reapStaleSessions(persist?: boolean): MaybePromise<number>
 }

@@ -1,8 +1,10 @@
-import type { ApiUser, DashboardSnapshot, SessionState } from '@laap/types'
+import type { ApiUser, DashboardSnapshot } from '@laap/types'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
 type SessionResponse = { user: ApiUser | null }
+export type AuditEntry = { id: string; action: string; entityType: string; entityId: string; payload: Record<string, unknown>; createdAt: string; actor: string }
+export type AuditPage = { audit: AuditEntry[]; pagination: { limit: number; offset: number; hasMore: boolean } }
 
 export class ApiError extends Error {
   constructor(readonly status: number, readonly code: string, message: string) {
@@ -36,14 +38,14 @@ export const api = {
   logout: () => request<{ success: true }>('/auth/logout', { method: 'POST' }),
   getDashboard: () => request<DashboardSnapshot>('/dashboard'),
   releaseLease: (sessionId: string, reason = 'admin_force_release') => request<{ success: true }>(`/leases/${sessionId}/release`, { method: 'POST', body: JSON.stringify({ reason }) }),
-  heartbeat: (sessionId: string, runtimeState: SessionState) => request<{ success: true }>(`/leases/${sessionId}/heartbeat`, { method: 'POST', body: JSON.stringify({ runtimeState }) }),
   getAccounts: () => request<{ accounts: DashboardSnapshot['accounts'] }>('/accounts'),
   createAccount: (input: { displayName: string; externalId: string; region: string; status: 'available' | 'maintenance' | 'disabled' }) => request<{ accountId: string }>('/accounts', { method: 'POST', body: JSON.stringify(input) }),
+  deleteAccount: (accountId: string) => request<{ success: true }>(`/accounts/${accountId}`, { method: 'DELETE' }),
   getAssignments: () => request<{ assignments: Array<{ id: string; accountId: string; userId: string; account: string; user: string; email: string; status: string; assignedAt: string; expiresAt: string | null }> }>('/assignments'),
   addAssignment: (input: { accountId: string; userId: string; expiresAt?: string | null }) => request<{ assignmentId: string }>('/assignments', { method: 'POST', body: JSON.stringify(input) }),
   revokeAssignment: (accountId: string, userId: string) => request<{ success: true }>(`/assignments/${accountId}/${userId}`, { method: 'DELETE' }),
   getUsers: () => request<{ users: ApiUser[] }>('/users'),
   createUser: (input: { email: string; displayName: string; password: string; role: 'admin' | 'operator' }) => request<{ user: ApiUser }>('/users', { method: 'POST', body: JSON.stringify(input) }),
   getDevices: () => request<{ devices: Array<{ id: string; userId: string; deviceName: string; platform: string; appVersion: string; status: string; lastSeenAt: string; user: string; publicKeyPresent: boolean }> }>('/devices'),
-  getAudit: () => request<{ audit: Array<{ id: string; action: string; entityType: string; entityId: string; payload: Record<string, unknown>; createdAt: string; actor: string }> }>('/audit'),
+  getAudit: ({ limit = 10, offset = 0 }: { limit?: number; offset?: number } = {}) => request<AuditPage>(`/audit?limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}`),
 }

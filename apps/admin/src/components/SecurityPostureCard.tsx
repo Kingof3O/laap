@@ -1,8 +1,35 @@
-import { Check, LockKeyhole, ShieldCheck, Sparkles } from 'lucide-react'
+import { Check, LockKeyhole, ShieldCheck } from 'lucide-react'
 import { GlassCard } from './GlassCard'
 
 export function SecurityPostureCard() {
-  return <GlassCard className="relative overflow-hidden p-5 sm:p-6"><div className="absolute -right-12 -top-14 h-40 w-40 rounded-full bg-violet-400/10 blur-3xl" aria-hidden="true" /><div className="flex items-start justify-between"><div><div className="flex items-center gap-2"><span className="section-icon section-icon-green"><ShieldCheck aria-hidden="true" size={16} /></span><h2 className="section-title">Security posture</h2></div><p className="mt-2 text-xs text-slate-500">Workspace health checks</p></div><span className="rounded-full border border-emerald-400/15 bg-emerald-400/10 px-2 py-1 text-[10px] font-medium text-emerald-300">Healthy</span></div><div className="mt-6 flex items-center gap-5"><div className="relative grid h-[106px] w-[106px] shrink-0 place-items-center"><svg viewBox="0 0 120 120" className="absolute inset-0 h-full w-full -rotate-90"><circle cx="60" cy="60" r="49" fill="none" stroke="rgba(148,163,184,.12)" strokeWidth="8" /><circle cx="60" cy="60" r="49" fill="none" stroke="url(#postureGradient)" strokeWidth="8" strokeLinecap="round" strokeDasharray="307.8" strokeDashoffset="15.4" /><defs><linearGradient id="postureGradient"><stop stopColor="var(--color-success)" /><stop offset="1" stopColor="var(--color-cyan)" /></linearGradient></defs></svg><div className="text-center"><p className="font-mono text-2xl font-semibold text-slate-100">95<span className="text-sm text-slate-500">%</span></p><p className="text-[10px] uppercase tracking-[0.1em] text-slate-600">score</p></div></div><div className="min-w-0 flex-1 space-y-3"><PostureCheck label="No stale sessions" /><PostureCheck label="All devices signed" /><PostureCheck label="Vault access locked" /></div></div><div className="mt-6 flex items-center gap-3 rounded-2xl border border-cyan-300/10 bg-cyan-300/[0.045] p-3"><LockKeyhole aria-hidden="true" className="shrink-0 text-cyan-200" size={16} /><p className="text-[11px] leading-5 text-slate-400">Credentials stay in Supabase Vault. The dashboard only receives short-lived session state.</p></div><button type="button" className="mt-4 inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.035] text-xs font-medium text-slate-300 transition hover:border-white/[0.16] hover:bg-white/[0.065] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80"><Sparkles aria-hidden="true" size={14} className="text-violet-300" />Run security check</button></GlassCard>
+  return (
+    <GlassCard className="relative overflow-hidden p-5 sm:p-6">
+      <div className="absolute -right-12 -top-14 h-40 w-40 rounded-full bg-violet-400/10 blur-3xl" aria-hidden="true" />
+      <div className="relative flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="section-icon section-icon-green"><ShieldCheck aria-hidden="true" size={16} /></span>
+            <h2 className="section-title">Safety</h2>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">The safeguards that keep your workspace private.</p>
+        </div>
+        <span className="rounded-full border border-emerald-400/15 bg-emerald-400/10 px-2 py-1 text-[10px] font-medium text-emerald-300">Protected</span>
+      </div>
+
+      <div className="relative mt-6 space-y-3">
+        <SafetyCheck label="Riot passwords never enter LAAP" />
+        <SafetyCheck label="Only approved computers can start a session" />
+        <SafetyCheck label="One person can use an account at a time" />
+      </div>
+
+      <div className="mt-6 flex items-start gap-3 rounded-2xl border border-cyan-300/10 bg-cyan-300/[0.045] p-3">
+        <LockKeyhole aria-hidden="true" className="mt-0.5 shrink-0 text-cyan-200" size={16} />
+        <p className="text-[11px] leading-5 text-slate-400">Sign in to Riot Client yourself. LAAP only manages access and keeps track of the session.</p>
+      </div>
+    </GlassCard>
+  )
 }
 
-function PostureCheck({ label }: { label: string }) { return <div className="flex items-center gap-2 text-xs text-slate-400"><span className="grid h-4 w-4 place-items-center rounded-full bg-emerald-400/10 text-emerald-300"><Check aria-hidden="true" size={10} strokeWidth={3} /></span>{label}</div> }
+function SafetyCheck({ label }: { label: string }) {
+  return <div className="flex items-start gap-2 text-xs leading-5 text-slate-400"><span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-emerald-400/10 text-emerald-300"><Check aria-hidden="true" size={10} strokeWidth={3} /></span>{label}</div>
+}

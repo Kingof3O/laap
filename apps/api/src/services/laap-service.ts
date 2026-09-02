@@ -1,13 +1,12 @@
 import { createPublicKey, randomUUID, verify as verifySignature } from 'node:crypto'
 import bcrypt from 'bcryptjs'
-import type { ApiUser, DashboardAccount, DashboardActivity, DashboardMetrics, DashboardSession, DashboardSnapshot, SessionState, UserRole } from '@laap/types'
+import type { ApiUser, DashboardAccount, DashboardActivity, DashboardMetrics, DashboardSession, DashboardSnapshot, UserRole } from '@laap/types'
 import { releaseLeaseSchema } from '@laap/validation'
 import type { AppDatabase } from '../db/database.js'
 import type { LaapServicePort } from './service-port.js'
 import { ServiceError } from './service-error.js'
 
 type UserRow = { id: string; email: string; password_hash: string; display_name: string; role: UserRole; status: ApiUser['status'] }
-type SessionRow = { id: string; account_id: string; account_name: string; region: string; user_id: string; user_name: string; device_name: string; platform: string; runtime_state: SessionState; status: DashboardSession['status']; started_at: string; last_heartbeat_at: string; reconnect_grace_until: string | null }
 
 const avatarTones: DashboardSession['avatarTone'][] = ['violet', 'cyan', 'amber', 'rose']
 const accountAccents: DashboardAccount['accent'][] = ['violet', 'cyan', 'orange', 'lime', 'rose']
@@ -106,7 +105,7 @@ export class LaapService implements LaapServicePort {
 
   listAccounts(userId?: string) {
     const query = `
-      SELECT a.id, a.display_name, a.region, a.status, a.metadata_json,
+      SELECT a.id, a.display_name, a.region, a.status, a.metadata_json, a.session_blob,
         CASE WHEN s.id IS NULL THEN 0 ELSE 1 END AS leased,
         COALESCE(s.started_at, a.updated_at) AS last_used
       FROM accounts a
@@ -118,8 +117,8 @@ export class LaapService implements LaapServicePort {
     return rows.map((row, index) => {
       const metadata = JSON.parse(String(row.metadata_json ?? '{}')) as { level?: number }
       const dbStatus = String(row.status)
-      const status: DashboardAccount['status'] = dbStatus === 'maintenance' ? 'Maintenance' : Number(row.leased) === 1 ? 'Leased' : 'Available'
-      return { id: String(row.id), name: String(row.display_name), region: String(row.region), status, lastUsed: relativeTime(String(row.last_used)), level: metadata.level ?? 120 + (index % 170), accent: accountTone(String(row.id)) }
+      const status: DashboardAccount['status'] = dbStatus === 'maintenance' ? 'Maintenance' : dbStatus === 'disabled' ? 'Disabled' : Number(row.leased) === 1 ? 'Leased' : 'Available'
+      return { id: String(row.id), name: String(row.display_name), region: String(row.region), status, lastUsed: relativeTime(String(row.last_used)), level: metadata.level ?? 120 + (index % 170), accent: accountTone(String(row.id)), hasSessionBlob: Boolean(row.session_blob) }
     })
   }
 
@@ -217,19 +216,17 @@ export class LaapService implements LaapServicePort {
     const userClause = userId ? ' AND user_id = ?' : ''
     const userParam = userId ? [userId] : []
     const active = this.database.get<{ count: number }>(`SELECT COUNT(*) AS count FROM account_sessions WHERE status IN ('starting', 'active', 'stopping')${userClause}`, userParam)
-    const inGame = this.database.get<{ count: number }>(`SELECT COUNT(*) AS count FROM account_sessions WHERE status IN ('starting', 'active', 'stopping') AND runtime_state = 'IN_GAME'${userClause}`, userParam)
-    const inClient = this.database.get<{ count: number }>(`SELECT COUNT(*) AS count FROM account_sessions WHERE status IN ('starting', 'active', 'stopping') AND runtime_state = 'IN_CLIENT'${userClause}`, userParam)
     const devices = this.database.get<{ count: number }>(`SELECT COUNT(*) AS count FROM user_devices WHERE status = 'active'${userClause}`, userParam)
     const healthyDevices = this.database.get<{ count: number }>(`SELECT COUNT(*) AS count FROM user_devices WHERE status = 'active' AND last_seen_at > ?${userClause}`, [new Date(Date.now() - 5 * 60_000).toISOString(), ...userParam])
     const users = this.database.get<{ count: number }>(`SELECT COUNT(*) AS count FROM users WHERE status = 'active'`)
     const userCount = userId ? 1 : Number(users?.count ?? 0)
     const scopedTotal = userId ? Number(this.database.get<{ count: number }>('SELECT COUNT(*) AS count FROM accounts a WHERE 1 = 1' + scope, scopeParams)?.count ?? 0) : Number(total?.count ?? 0)
-    return { availableAccounts: Number(available?.count ?? 0), totalAccounts: scopedTotal, activeLeases: Number(active?.count ?? 0), inGameLeases: Number(inGame?.count ?? 0), inClientLeases: Number(inClient?.count ?? 0), boundDevices: Number(devices?.count ?? 0), healthyDevices: Number(healthyDevices?.count ?? 0), authorizedUsers: userCount, activeUsers: userCount }
+    return { availableAccounts: Number(available?.count ?? 0), totalAccounts: scopedTotal, activeLeases: Number(active?.count ?? 0), boundDevices: Number(devices?.count ?? 0), healthyDevices: Number(healthyDevices?.count ?? 0), authorizedUsers: userCount, activeUsers: userCount }
   }
 
   listSessions(userId?: string) {
-    const rows = this.database.all<SessionRow>(`SELECT s.id, s.account_id, a.display_name AS account_name, a.region, s.user_id, u.display_name AS user_name, d.device_name, d.platform, s.runtime_state, s.status, s.started_at, s.last_heartbeat_at, s.reconnect_grace_until FROM account_sessions s JOIN accounts a ON a.id = s.account_id JOIN users u ON u.id = s.user_id JOIN user_devices d ON d.id = s.device_id WHERE s.status IN ('starting', 'active', 'stopping')${userId ? ' AND s.user_id = ?' : ''} ORDER BY s.started_at DESC`, userId ? [userId] : [])
-    return rows.map((row) => ({ id: row.id, account: row.account_name, region: row.region, user: row.user_name, initials: initials(row.user_name), device: `${row.device_name} · ${row.platform === 'macos' ? 'macOS' : 'Windows'}`, runtimeState: row.runtime_state, status: row.status, started: relativeTime(row.started_at), heartbeat: relativeTime(row.last_heartbeat_at), avatarTone: sessionTone(row.user_id) })) satisfies DashboardSession[]
+    const rows = this.database.all<{ id: string; account_id: string; account_name: string; region: string; user_id: string; user_name: string; device_name: string; platform: string; status: DashboardSession['status']; started_at: string }>(`SELECT s.id, s.account_id, a.display_name AS account_name, a.region, s.user_id, u.display_name AS user_name, d.device_name, d.platform, s.status, s.started_at FROM account_sessions s JOIN accounts a ON a.id = s.account_id JOIN users u ON u.id = s.user_id JOIN user_devices d ON d.id = s.device_id WHERE s.status IN ('starting', 'active', 'stopping')${userId ? ' AND s.user_id = ?' : ''} ORDER BY s.started_at DESC`, userId ? [userId] : [])
+    return rows.map((row) => ({ id: row.id, account: row.account_name, region: row.region, user: row.user_name, initials: initials(row.user_name), device: `${row.device_name} · ${row.platform === 'macos' ? 'macOS' : 'Windows'}`, status: row.status, started: relativeTime(row.started_at), avatarTone: sessionTone(row.user_id) })) satisfies DashboardSession[]
   }
 
   listActivity(userId?: string) {
@@ -247,39 +244,31 @@ export class LaapService implements LaapServicePort {
   acquireLease(userId: string, accountId: string, deviceId: string, options: { nonce?: string; signature?: string } = {}) {
     return this.database.transaction(() => {
       this.reapStaleSessions(false)
+      const user = this.database.get<{ id: string; role: string }>('SELECT id, role FROM users WHERE id = ?', [userId])
+      const isAdmin = user?.role === 'admin'
       const assignment = this.database.get<{ id: string; expires_at: string | null }>('SELECT id, expires_at FROM account_assignments WHERE account_id = ? AND user_id = ? AND status = \'active\'', [accountId, userId])
-      if (!assignment || (assignment.expires_at && new Date(assignment.expires_at).getTime() <= Date.now())) throw new ServiceError('NO_ACTIVE_ASSIGNMENT', 403)
+      if (!isAdmin && (!assignment || (assignment.expires_at && new Date(assignment.expires_at).getTime() <= Date.now()))) throw new ServiceError('NO_ACTIVE_ASSIGNMENT', 403)
       const device = this.database.get<{ id: string }>('SELECT id FROM user_devices WHERE id = ? AND user_id = ? AND status = \'active\'', [deviceId, userId])
       if (!device) throw new ServiceError('DEVICE_NOT_AUTHORIZED', 403)
       const account = this.database.get<{ id: string; status: string }>('SELECT id, status FROM accounts WHERE id = ?', [accountId])
       if (!account || account.status !== 'available') throw new ServiceError('ACCOUNT_UNAVAILABLE', 409)
-      const active = this.database.get<{ id: string; user_id: string; device_id: string; last_heartbeat_at: string; runtime_state: SessionState }>(`SELECT id, user_id, device_id, last_heartbeat_at, runtime_state FROM account_sessions WHERE account_id = ? AND status IN ('starting', 'active', 'stopping')`, [accountId])
+      const active = this.database.get<{ id: string; user_id: string; device_id: string; started_at: string }>(`SELECT id, user_id, device_id, started_at FROM account_sessions WHERE account_id = ? AND status IN ('starting', 'active', 'stopping')`, [accountId])
       if (active) {
-        const grace = this.database.get<{ reconnect_grace_until: string | null }>('SELECT reconnect_grace_until FROM account_sessions WHERE id = ?', [active.id])
-        const protectedReconnect = grace?.reconnect_grace_until && new Date(grace.reconnect_grace_until).getTime() > Date.now()
-        if (!protectedReconnect && new Date(active.last_heartbeat_at).getTime() < Date.now() - 90_000) {
-          this.database.run('UPDATE account_sessions SET status = \'stale\', ended_at = ?, release_reason = \'heartbeat_timeout\' WHERE id = ?', [new Date().toISOString(), active.id])
+        // Automatically expire leases older than 4 hours
+        if (new Date(active.started_at).getTime() < Date.now() - 4 * 3600_000) {
+          this.database.run('UPDATE account_sessions SET status = \'stale\', ended_at = ?, release_reason = \'lease_timeout\' WHERE id = ?', [new Date().toISOString(), active.id])
           this.addAudit(userId, 'SESSION_LAZILY_REAPED', 'account_sessions', active.id, { accountId })
         } else if (active.user_id === userId && active.device_id === deviceId) {
           return { success: true as const, sessionId: active.id, isReconnect: true }
-        } else throw new ServiceError('ACCOUNT_BUSY', 409)
+        } else {
+          throw new ServiceError('ACCOUNT_BUSY', 409)
+        }
       }
       const sessionId = randomUUID()
       const timestamp = new Date().toISOString()
-      this.database.run('INSERT INTO account_sessions (id, account_id, user_id, device_id, status, runtime_state, started_at, last_heartbeat_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [sessionId, accountId, userId, deviceId, 'starting', 'LAUNCHING', timestamp, timestamp, timestamp])
+      this.database.run('INSERT INTO account_sessions (id, account_id, user_id, device_id, status, runtime_state, started_at, last_heartbeat_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [sessionId, accountId, userId, deviceId, 'active', 'LAUNCHING', timestamp, timestamp, timestamp])
       this.addAudit(userId, 'SESSION_STARTED', 'account_sessions', sessionId, { accountId, deviceId, signed: Boolean(options.nonce && options.signature) })
       return { success: true as const, sessionId, isReconnect: false }
-    })
-  }
-
-  heartbeat(userId: string, sessionId: string, runtimeState: SessionState) {
-    return this.database.transactionSync(() => {
-      const timestamp = new Date().toISOString()
-      const graceUntil = runtimeState === 'RECONNECTING' ? new Date(Date.now() + 300_000).toISOString() : null
-      const result = this.database.get<{ id: string }>('SELECT id FROM account_sessions WHERE id = ? AND user_id = ? AND status IN (\'starting\', \'active\')', [sessionId, userId])
-      if (!result) throw new ServiceError('SESSION_NOT_FOUND', 404)
-      this.database.run('UPDATE account_sessions SET status = \'active\', runtime_state = ?, last_heartbeat_at = ?, reconnect_grace_until = ? WHERE id = ?', [runtimeState, timestamp, graceUntil, sessionId])
-      return { success: true as const, sessionId }
     })
   }
 
@@ -297,9 +286,36 @@ export class LaapService implements LaapServicePort {
     })
   }
 
-  listAudit(limit = 100) {
-    const safeLimit = Math.min(Math.max(limit, 1), 500)
-    return this.database.all<Record<string, unknown>>(`SELECT l.id, l.action, l.entity_type, l.entity_id, l.payload_json, l.created_at, COALESCE(u.display_name, 'System') AS actor FROM audit_logs l LEFT JOIN users u ON u.id = l.actor_id ORDER BY l.created_at DESC LIMIT ${safeLimit}`).map((row) => ({ id: String(row.id), action: String(row.action), entityType: String(row.entity_type), entityId: String(row.entity_id), payload: JSON.parse(String(row.payload_json ?? '{}')), createdAt: String(row.created_at), actor: String(row.actor) }))
+  saveAccountSessionBlob(actorId: string, accountId: string, sessionBlob: string) {
+    this.database.transactionSync(() => {
+      const account = this.database.get<{ id: string }>('SELECT id FROM accounts WHERE id = ?', [accountId])
+      if (!account) throw new ServiceError('ACCOUNT_NOT_FOUND', 404)
+      this.database.run('UPDATE accounts SET session_blob = ?, updated_at = ? WHERE id = ?', [sessionBlob, new Date().toISOString(), accountId])
+      this.addAudit(actorId, 'SESSION_BLOB_PROVISIONED', 'accounts', accountId, { accountId })
+    })
+  }
+
+  getAccountSessionBlob(userId: string, sessionId: string) {
+    const session = this.database.get<{ id: string; account_id: string; user_id: string; status: string }>('SELECT id, account_id, user_id, status FROM account_sessions WHERE id = ? AND user_id = ? AND status IN (\'starting\', \'active\')', [sessionId, userId])
+    if (!session) throw new ServiceError('SESSION_NOT_FOUND', 404)
+    const account = this.database.get<{ session_blob: string | null }>('SELECT session_blob FROM accounts WHERE id = ?', [session.account_id])
+    if (!account?.session_blob) throw new ServiceError('SESSION_BLOB_NOT_PROVISIONED', 404, 'No active session token provisioned for this account')
+    return account.session_blob
+  }
+
+  deleteAccountSessionBlob(actorId: string, accountId: string) {
+    this.database.transactionSync(() => {
+      const account = this.database.get<{ id: string }>('SELECT id FROM accounts WHERE id = ?', [accountId])
+      if (!account) throw new ServiceError('ACCOUNT_NOT_FOUND', 404)
+      this.database.run('UPDATE accounts SET session_blob = NULL, updated_at = ? WHERE id = ?', [new Date().toISOString(), accountId])
+      this.addAudit(actorId, 'SESSION_BLOB_REVOKED', 'accounts', accountId, { accountId })
+    })
+  }
+
+  listAudit(limit = 100, offset = 0) {
+    const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.floor(limit), 1), 500) : 100
+    const safeOffset = Number.isFinite(offset) ? Math.min(Math.max(Math.floor(offset), 0), 1_000_000) : 0
+    return this.database.all<Record<string, unknown>>(`SELECT l.id, l.action, l.entity_type, l.entity_id, l.payload_json, l.created_at, COALESCE(u.display_name, 'System') AS actor FROM audit_logs l LEFT JOIN users u ON u.id = l.actor_id ORDER BY l.created_at DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`).map((row) => ({ id: String(row.id), action: String(row.action), entityType: String(row.entity_type), entityId: String(row.entity_id), payload: JSON.parse(String(row.payload_json ?? '{}')), createdAt: String(row.created_at), actor: String(row.actor) }))
   }
 
   recordAudit(actorId: string, action: string, entityType: string, entityId: string, payload: Record<string, unknown>) {

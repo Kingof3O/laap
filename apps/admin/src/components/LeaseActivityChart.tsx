@@ -1,18 +1,62 @@
-import { BarChart3, ChevronDown } from 'lucide-react'
-import { useState } from 'react'
-import { chartSets, type ChartRange } from '../lib/data'
+import { CheckCircle2, CircleAlert, LayoutDashboard } from 'lucide-react'
+import type { DashboardMetrics } from '@laap/types'
+import type { SessionRow } from '../lib/data'
 import { GlassCard } from './GlassCard'
 
-export function LeaseActivityChart() {
-  const [range, setRange] = useState<ChartRange>('24h')
-  const chart = chartSets[range]
-  return <GlassCard className="p-5 sm:p-6" aria-label="Lease activity chart">
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div><div className="flex items-center gap-2"><span className="section-icon"><BarChart3 aria-hidden="true" size={16} /></span><h2 className="section-title">Lease activity</h2></div><p className="mt-2 text-xs text-slate-500">Successful account claims across your workspace</p></div>
-      <button type="button" onClick={() => setRange(range === '24h' ? '7d' : range === '7d' ? '30d' : '24h')} className="select-button" aria-label="Cycle chart range"><span>{range === '24h' ? 'Last 24 hours' : range === '7d' ? 'Last 7 days' : 'Last 30 days'}</span><ChevronDown aria-hidden="true" size={14} /></button>
+type WorkspaceSummaryProps = { metrics: DashboardMetrics; sessions: SessionRow[] }
+
+/**
+ * A small, honest summary of the live workspace. It intentionally uses only
+ * values returned by the API; there are no invented trends or placeholder
+ * timestamps in the user-facing dashboard.
+ */
+export function LeaseActivityChart({ metrics, sessions }: WorkspaceSummaryProps) {
+  const attentionCount = sessions.filter((session) => session.status === 'stale' || session.status === 'error').length
+  const readyPercent = metrics.totalAccounts > 0 ? Math.round((metrics.availableAccounts / metrics.totalAccounts) * 100) : 0
+
+  return (
+    <GlassCard className="p-5 sm:p-6" aria-label="Workspace summary">
+      <div className="flex items-start gap-3">
+        <span className="section-icon">
+          <LayoutDashboard aria-hidden="true" size={16} />
+        </span>
+        <div>
+          <h2 className="section-title">At a glance</h2>
+          <p className="mt-2 text-xs text-slate-500">A simple view of what is ready and what needs attention.</p>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+        <SummaryItem label="Ready to use" value={metrics.availableAccounts} detail={`${readyPercent}% of your accounts`} tone="green" />
+        <SummaryItem label="In use now" value={metrics.activeLeases} detail={metrics.activeLeases === 1 ? '1 active session' : `${metrics.activeLeases} active sessions`} tone="cyan" />
+        <SummaryItem label="Needs attention" value={attentionCount} detail={attentionCount ? 'Check these sessions' : 'Everything looks good'} tone={attentionCount ? 'amber' : 'green'} />
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-white/[0.05] bg-slate-950/25 p-4">
+        <div className="flex items-center justify-between gap-3 text-[11px]">
+          <span className="text-slate-400">Account availability</span>
+          <span className="font-mono text-slate-300">{metrics.availableAccounts} / {metrics.totalAccounts} ready</span>
+        </div>
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/[0.06]" aria-hidden="true">
+          <div className="h-full rounded-full bg-gradient-to-r from-emerald-300/80 to-cyan-300/80 transition-[width] duration-500" style={{ width: `${readyPercent}%` }} />
+        </div>
+      </div>
+      <div className="mt-4 rounded-2xl border border-cyan-300/10 bg-cyan-300/[0.045] p-4">
+        <p className="text-[11px] font-medium text-cyan-100">Ready to start?</p>
+        <p className="mt-1 text-[11px] leading-5 text-slate-400">Open LAAP Desktop, choose a ready account, and sign in through Riot Client.</p>
+      </div>
+    </GlassCard>
+  )
+}
+
+function SummaryItem({ label, value, detail, tone }: { label: string; value: number; detail: string; tone: 'green' | 'cyan' | 'amber' }) {
+  const Icon = tone === 'amber' ? CircleAlert : CheckCircle2
+  const color = tone === 'amber' ? 'text-amber-200' : tone === 'cyan' ? 'text-cyan-200' : 'text-emerald-200'
+  return (
+    <div className="rounded-2xl border border-white/[0.05] bg-white/[0.025] p-4">
+      <div className="flex items-center gap-2 text-[11px] text-slate-500"><Icon aria-hidden="true" className={color} size={14} />{label}</div>
+      <p className="mt-3 font-mono text-2xl font-semibold tracking-[-0.04em] text-slate-100">{value}</p>
+      <p className="mt-1 text-[11px] text-slate-600">{detail}</p>
     </div>
-    <div className="mt-5 flex items-end justify-between gap-4"><div><p className="font-mono text-[30px] font-semibold tracking-[-0.05em] text-slate-100">{chart.value}</p><p className="mt-1 inline-flex items-center gap-1.5 text-xs text-emerald-300"><span className="trend-pill">↗</span>{chart.delta}<span className="text-slate-600">vs previous period</span></p></div><div className="flex items-center gap-4 text-[10px] text-slate-500"><span className="inline-flex items-center gap-1.5"><span className="legend-dot bg-cyan-300" />Successful</span><span className="inline-flex items-center gap-1.5"><span className="legend-dot bg-slate-700" />Capacity</span></div></div>
-    <div className="mt-5 overflow-hidden rounded-2xl border border-white/[0.05] bg-slate-950/25 px-2 pb-2 pt-4 sm:px-4"><svg viewBox="0 0 495 170" className="h-[170px] w-full" role="img" aria-label={`Lease activity over ${range}`} preserveAspectRatio="none"><defs><linearGradient id="leaseArea" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="var(--color-cyan)" stopOpacity=".25" /><stop offset="1" stopColor="var(--color-cyan)" stopOpacity="0" /></linearGradient><linearGradient id="leaseLine" x1="0" x2="1"><stop offset="0" stopColor="var(--color-accent)" /><stop offset="1" stopColor="var(--color-cyan)" /></linearGradient></defs>{[25, 60, 95, 130].map((y) => <line key={y} x1="0" x2="495" y1={y} y2={y} stroke="rgba(148,163,184,.1)" strokeDasharray="3 5" />)}<path d={chart.area} fill="url(#leaseArea)" /><polyline points={chart.points} fill="none" stroke="url(#leaseLine)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />{chart.points.split(' ').map((point) => { const [cx, cy] = point.split(','); return <circle key={point} cx={cx} cy={cy} r="3.2" fill="var(--color-canvas)" stroke="var(--color-cyan)" strokeWidth="1.5" /> })}<line x1="405" x2="405" y1="18" y2="150" stroke="rgba(103,232,249,.35)" strokeDasharray="3 4" /><circle cx="405" cy="31" r="5" fill="var(--color-cyan)" fillOpacity=".18" /><circle cx="405" cy="31" r="3" fill="var(--color-cyan)" /><rect x="371" y="0" width="68" height="25" rx="7" fill="var(--color-tooltip)" stroke="rgba(103,232,249,.22)" /><text x="405" y="16" textAnchor="middle" fill="var(--color-cyan)" fontSize="9" fontFamily="Fira Code, monospace">42 claims</text></svg><div className="mt-1 flex justify-between px-1 text-[10px] font-mono text-slate-600">{chart.labels.map((label) => <span key={label}>{label}</span>)}</div></div>
-    <div className="mt-4 flex items-center gap-1 rounded-xl bg-white/[0.025] p-1" role="group" aria-label="Chart range"><span className="mr-auto px-2 text-[10px] uppercase tracking-[0.12em] text-slate-600">View</span>{(['24h', '7d', '30d'] as ChartRange[]).map((option) => <button key={option} type="button" aria-pressed={range === option} onClick={() => setRange(option)} className={`range-button ${range === option ? 'range-button-active' : ''}`}>{option}</button>)}</div>
-  </GlassCard>
+  )
 }

@@ -1,17 +1,5 @@
-export const sessionStates = [
-  'LAUNCHING',
-  'IN_CLIENT',
-  'IN_GAME',
-  'RECONNECTING',
-  'EXITED',
-] as const
-
-export type SessionState = (typeof sessionStates)[number]
-
 export const sessionStatuses = [
-  'starting',
   'active',
-  'stopping',
   'ended',
   'stale',
   'error',
@@ -27,6 +15,7 @@ export interface Account {
   region: string
   provider: 'riot'
   status: 'available' | 'maintenance' | 'disabled'
+  hasSessionBlob?: boolean
 }
 
 export interface AccountSession {
@@ -35,9 +24,9 @@ export interface AccountSession {
   userId: string
   deviceId: string
   status: SessionStatus
-  runtimeState: SessionState
   startedAt: string
-  lastHeartbeatAt: string
+  endedAt?: string | null
+  releaseReason?: string | null
 }
 
 export interface LaunchRequest {
@@ -61,8 +50,6 @@ export interface DashboardMetrics {
   availableAccounts: number
   totalAccounts: number
   activeLeases: number
-  inGameLeases: number
-  inClientLeases: number
   boundDevices: number
   healthyDevices: number
   authorizedUsers: number
@@ -76,10 +63,8 @@ export interface DashboardSession {
   user: string
   initials: string
   device: string
-  runtimeState: SessionState
-  status: Extract<SessionStatus, 'active' | 'starting' | 'stopping' | 'stale' | 'error'>
+  status: SessionStatus
   started: string
-  heartbeat: string
   avatarTone: 'violet' | 'cyan' | 'amber' | 'rose'
 }
 
@@ -95,10 +80,11 @@ export interface DashboardAccount {
   id: string
   name: string
   region: string
-  status: 'Available' | 'Leased' | 'Maintenance'
+  status: 'Available' | 'Leased' | 'Maintenance' | 'Disabled'
   lastUsed: string
   level: number
   accent: 'violet' | 'cyan' | 'lime' | 'orange' | 'rose'
+  hasSessionBlob?: boolean
 }
 
 export interface DashboardSnapshot {

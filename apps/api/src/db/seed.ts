@@ -72,14 +72,14 @@ export async function seedDatabase(database: AppDatabase, adminPassword: string)
   }
 
   const sessionRows = [
-    ['Nova#EUW', mayaId, 'IN_GAME', 'active', 18],
-    ['Atlas#NA1', jonId, 'IN_CLIENT', 'active', 42],
-    ['Morrow#KR1', soraId, 'RECONNECTING', 'active', 66],
-    ['Orbit#BR1', leoId, 'LAUNCHING', 'starting', 2],
+    ['Nova#EUW', mayaId, 'active', 18],
+    ['Atlas#NA1', jonId, 'active', 42],
+    ['Morrow#KR1', soraId, 'active', 66],
+    ['Orbit#BR1', leoId, 'active', 2],
   ] as const
-  for (const [accountName, userId, runtimeState, status, age] of sessionRows) {
+  for (const [accountName, userId, status, age] of sessionRows) {
     const id = randomUUID()
-    database.run('INSERT INTO account_sessions (id, account_id, user_id, device_id, status, runtime_state, started_at, last_heartbeat_at, reconnect_grace_until, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [id, accountIds.get(accountName)!, userId, deviceIds.get(userId)!, status, runtimeState, minutesAgo(age), minutesAgo(runtimeState === 'RECONNECTING' ? 0.5 : 0.2), runtimeState === 'RECONNECTING' ? new Date(Date.now() + 240_000).toISOString() : null, timestamp])
+    database.run('INSERT INTO account_sessions (id, account_id, user_id, device_id, status, runtime_state, started_at, last_heartbeat_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [id, accountIds.get(accountName)!, userId, deviceIds.get(userId)!, status, 'LAUNCHING', minutesAgo(age), minutesAgo(age), timestamp])
     database.run('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [randomUUID(), userId, 'SESSION_STARTED', 'account_sessions', id, JSON.stringify({ account: accountName }), minutesAgo(Math.max(1, age - 1))])
   }
   database.run('INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [randomUUID(), adminId, 'DEVICE_REGISTERED', 'user_devices', deviceIds.get(adminId)!, JSON.stringify({ platform: 'macos' }), minutesAgo(14)])

@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   region TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'available' CHECK (status IN ('available', 'maintenance', 'disabled')),
   vault_secret_id TEXT,
+  session_blob TEXT,
   metadata_json TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -112,6 +113,7 @@ export class AppDatabase {
     }
     const database = new AppDatabase(raw, filePath)
     database.exec(schemaSql)
+    try { database.run('ALTER TABLE accounts ADD COLUMN session_blob TEXT') } catch {}
     await database.save()
     return database
   }
