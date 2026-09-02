@@ -1,6 +1,6 @@
 use std::process::Command;
 use std::sync::Mutex;
-use crate::session::{RiotProvisioner, RiotSessionManager};
+use crate::riot::{RiotProvisioner, RiotSessionManager};
 
 pub const LEAGUE_LAUNCH_ARGS: [&str; 2] = [
     "--launch-product=league_of_legends",
@@ -106,7 +106,7 @@ pub fn poll_provisioning_session() -> Result<Option<String>, String> {
 #[tauri::command]
 pub fn finish_provisioning_session() -> Result<(), String> {
     let mut lock = PROVISIONER.lock().map_err(|e| e.to_string())?;
-    if let Some(provisioner) = lock.take() {
+    if let Some(mut provisioner) = lock.take() {
         provisioner.finish_and_restore()
     } else {
         Ok(())
@@ -117,7 +117,7 @@ pub fn finish_provisioning_session() -> Result<(), String> {
 #[tauri::command]
 pub fn cancel_provisioning_session() -> Result<(), String> {
     let mut lock = PROVISIONER.lock().map_err(|e| e.to_string())?;
-    if let Some(provisioner) = lock.take() {
+    if let Some(mut provisioner) = lock.take() {
         provisioner.finish_and_restore()
     } else {
         Ok(())

@@ -1,4 +1,5 @@
 import type { ApiUser, DashboardAccount, DashboardActivity, DashboardMetrics, DashboardSession, DashboardSnapshot } from '@laap/types'
+import type { IAuthService, IAccountService, ILeaseService, IDeviceService, IAdminService } from './domain/index.js'
 
 export type MaybePromise<T> = T | Promise<T>
 export type UserLookup = { id: string; email: string; display_name?: string; role?: ApiUser['role']; status?: ApiUser['status'] }
@@ -6,33 +7,17 @@ export type DeviceView = { id: string; userId: string; deviceName: string; platf
 export type AssignmentView = { id: string; accountId: string; userId: string; account: string; user: string; email: string; status: string; assignedAt: string; expiresAt: string | null }
 export type AuditView = { id: string; action: string; entityType: string; entityId: string; payload: Record<string, unknown>; createdAt: string; actor: string }
 
-export interface LaapServicePort {
-  findUserByEmail(email: string): MaybePromise<UserLookup | undefined>
-  findUserById(id: string): MaybePromise<ApiUser | undefined>
-  authenticate(email: string, password: string): Promise<ApiUser>
-  listUsers(): MaybePromise<ApiUser[]>
-  createUser(actorId: string, input: { email: string; displayName: string; password: string; role: 'admin' | 'operator' }): MaybePromise<ApiUser>
-  listDevices(userId?: string): MaybePromise<DeviceView[]>
-  registerDevice(userId: string, input: { publicKey: string; platform: 'windows' | 'macos'; deviceName: string; appVersion: string }): MaybePromise<string>
-  revokeDevice(actorId: string, deviceId: string): MaybePromise<void>
-  listAccounts(userId?: string): MaybePromise<DashboardAccount[]>
-  createAccount(actorId: string, input: { displayName: string; externalId: string; region: string; status: 'available' | 'maintenance' | 'disabled' }): MaybePromise<string>
-  updateAccount(actorId: string, accountId: string, input: Partial<{ displayName: string; externalId: string; region: string; status: 'available' | 'maintenance' | 'disabled' }>): MaybePromise<void>
-  deleteAccount(actorId: string, accountId: string): MaybePromise<void>
-  listAssignments(): MaybePromise<AssignmentView[]>
-  addAssignment(actorId: string, accountId: string, userId: string, expiresAt: string | null): MaybePromise<string>
-  revokeAssignment(actorId: string, accountId: string, userId: string): MaybePromise<void>
-  verifyDeviceChallenge(userId: string, deviceId: string, accountId: string, nonce: string, signature: string): MaybePromise<boolean>
-  getDashboard(userId: string): MaybePromise<DashboardSnapshot>
-  getMetrics(userId?: string): MaybePromise<DashboardMetrics>
-  listSessions(userId?: string): MaybePromise<DashboardSession[]>
-  listActivity(userId?: string): MaybePromise<DashboardActivity[]>
-  acquireLease(userId: string, accountId: string, deviceId: string, options?: { nonce?: string; signature?: string }): Promise<{ success: true; sessionId: string; isReconnect: boolean }>
-  releaseLease(actor: ApiUser, sessionId: string, reason: string): Promise<{ success: true }>
-  saveAccountSessionBlob(actorId: string, accountId: string, sessionBlob: string): MaybePromise<void>
-  getAccountSessionBlob(userId: string, sessionId: string): MaybePromise<string>
-  deleteAccountSessionBlob(actorId: string, accountId: string): MaybePromise<void>
-  listAudit(limit?: number, offset?: number): MaybePromise<AuditView[]>
-  recordAudit(actorId: string, action: string, entityType: string, entityId: string, payload: Record<string, unknown>): MaybePromise<void>
-  reapStaleSessions(persist?: boolean): MaybePromise<number>
+export interface LaapServicePort
+  extends IAuthService,
+    IAccountService,
+    ILeaseService,
+    IDeviceService,
+    IAdminService {}
+
+export type {
+  IAuthService,
+  IAccountService,
+  ILeaseService,
+  IDeviceService,
+  IAdminService,
 }

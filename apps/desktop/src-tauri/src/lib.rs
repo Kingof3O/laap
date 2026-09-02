@@ -1,10 +1,11 @@
 pub mod device;
-pub mod session;
+pub mod riot;
 pub mod local_store;
 pub mod commands;
 
 pub use device::DeviceIdentity;
-pub use session::{RiotProvisioner, RiotSessionManager};
+pub use riot::{RiotProvisioner, RiotSessionManager};
+pub use riot as session;
 pub use local_store::{LocalAccount, LocalAccountSummary, LocalStore};
 
 pub fn run() {

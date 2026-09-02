@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Play, Square } from 'lucide-react'
-import { AccountCard } from '../components/accounts/AccountCard'
-import { AccountListTable } from '../components/accounts/AccountListTable'
 import { EmptyState } from '../components/accounts/EmptyState'
+import { ActiveLeaseBanner } from '../components/accounts/ActiveLeaseBanner'
+import { AccountRosterDisplay } from '../components/accounts/AccountRosterDisplay'
 import { LoginView } from '../components/auth/LoginView'
 import { SyncAccountModal } from '../components/modals/SyncAccountModal'
 import { DeleteConfirmModal } from '../components/modals/DeleteConfirmModal'
@@ -165,78 +164,22 @@ export function TeamVaultView({
     <div>
       {/* Active Held Lease Banner */}
       {cloudSessionId && activeAccount ? (
-        <div className="hextech-card" style={{ padding: '20px 24px', marginBottom: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <div className="card-avatar" style={{ width: '48px', height: '48px' }}>
-                <span className="avatar-initials">{activeAccount.name.slice(0, 2).toUpperCase()}</span>
-              </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 800 }}>
-                    {activeAccount.name}
-                  </span>
-                  <span className="avatar-region-pip" style={{ position: 'static' }}>
-                    {activeAccount.region}
-                  </span>
-                </div>
-                <span style={{ fontSize: '12px', color: 'var(--teal-primary)', fontWeight: 600 }}>
-                  ● Active Team Session Held
-                </span>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button
-                type="button"
-                className="btn-launch-primary"
-                style={{ width: 'auto', padding: '0 20px' }}
-                onClick={() => void handleLaunch(activeAccount.id)}
-                disabled={busy}
-              >
-                <Play size={14} fill="currentColor" />
-                <span>Relaunch League</span>
-              </button>
-              <button
-                type="button"
-                className="btn-modal-secondary"
-                onClick={() => void handleRelease()}
-                disabled={busy}
-              >
-                <Square size={13} />
-                <span>Release Account</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        <ActiveLeaseBanner
+          account={activeAccount}
+          onRelaunch={() => void handleLaunch(activeAccount.id)}
+          onRelease={() => void handleRelease()}
+          busy={busy}
+        />
       ) : null}
 
-      {/* Team Accounts View */}
+      {/* Team Accounts Roster */}
       {filteredAccounts.length === 0 ? (
         <EmptyState
           isCloud={true}
           searchActive={Boolean(searchQuery || selectedRegion !== 'ALL')}
         />
-      ) : viewMode === 'grid' ? (
-        <div className="roster-grid">
-          {filteredAccounts.map((acc) => (
-            <AccountCard
-              key={acc.id}
-              id={acc.id}
-              name={acc.name}
-              region={acc.region}
-              hasSession={Boolean(acc.hasSessionBlob)}
-              isCloud={true}
-              canManage={user.role === 'admin'}
-              busy={busy}
-              onLaunch={() => void handleLaunch(acc.id)}
-              onSync={() => setSyncTarget(acc)}
-              onDelete={() => setDeleteTarget({ id: acc.id, name: acc.name })}
-            />
-          ))}
-        </div>
       ) : (
-        <AccountListTable
+        <AccountRosterDisplay
           items={filteredAccounts.map((acc) => ({
             id: acc.id,
             name: acc.name,
@@ -244,10 +187,11 @@ export function TeamVaultView({
             hasSession: Boolean(acc.hasSessionBlob),
             lastUsedText: acc.lastUsed || null,
           }))}
+          viewMode={viewMode}
           isCloud={true}
           canManage={user.role === 'admin'}
           busy={busy}
-          onLaunch={(id) => void handleLaunch(id)}
+          onLaunch={handleLaunch}
           onSync={(id) => {
             const acc = filteredAccounts.find((a) => a.id === id)
             if (acc) setSyncTarget(acc)

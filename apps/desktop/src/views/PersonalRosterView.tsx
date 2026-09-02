@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AccountCard } from '../components/accounts/AccountCard'
-import { AccountListTable } from '../components/accounts/AccountListTable'
 import { EmptyState } from '../components/accounts/EmptyState'
+import { AccountRosterDisplay } from '../components/accounts/AccountRosterDisplay'
 import { AddAccountModal } from '../components/modals/AddAccountModal'
 import { DeleteConfirmModal } from '../components/modals/DeleteConfirmModal'
 import { useLocalAccounts } from '../hooks/useLocalAccounts'
+import { useProvisioningSandbox } from '../hooks/useProvisioningSandbox'
 import { useToast } from '../context/ToastContext'
 import type { Region, ViewMode } from '../lib/types'
 
@@ -50,26 +50,19 @@ export function PersonalRosterView({
     getFullAccount,
   } = useLocalAccounts()
 
-  // Sandbox Poller
-  useEffect(() => {
-    if (!provisioning) return
-    const interval = window.setInterval(async () => {
-      try {
-        const captured = await pollSandbox()
-        if (captured) {
-          window.clearInterval(interval)
-          showSuccess('Session captured! Saving profile…')
-          await finishSandbox()
-          onCloseAddModal()
-          showSuccess('Account saved successfully!')
-          await loadAccounts()
-        }
-      } catch (err) {
-        showError(err instanceof Error ? err.message : String(err))
-      }
-    }, 1500)
-    return () => window.clearInterval(interval)
-  }, [provisioning, pollSandbox, finishSandbox, loadAccounts, showSuccess, showError, onCloseAddModal])
+  // Encapsulated Sandbox Poller hook
+  useProvisioningSandbox({
+    active: provisioning,
+    pollFn: pollSandbox,
+    onCapture: async (captured) => {
+      showSuccess('Session captured! Saving profile…')
+      await finishSandbox()
+      onCloseAddModal()
+      showSuccess('Account saved successfully!')
+      await loadAccounts()
+    },
+    onError: (err) => showError(err.message),
+  })
 
   // Filter accounts by region and search query
   const filteredAccounts = useMemo(() => {
@@ -156,37 +149,20 @@ export function PersonalRosterView({
           searchActive={Boolean(searchQuery || selectedRegion !== 'ALL')}
           onAddAccount={onOpenAddModal}
         />
-      ) : viewMode === 'grid' ? (
-        <div className="roster-grid">
-          {filteredAccounts.map((acc) => (
-            <AccountCard
-              key={acc.id}
-              id={acc.id}
-              name={acc.name}
-              region={acc.region}
-              hasSession={acc.has_session}
-              lastUsedText={acc.last_used_at ? `Played ${new Date(acc.last_used_at).toLocaleDateString()}` : null}
-              canManage={true}
-              busy={busy}
-              onLaunch={() => void handleLaunch(acc.id)}
-              onPushToCloud={isAdmin ? () => void handlePush(acc.id) : undefined}
-              onDelete={() => setDeleteTarget({ id: acc.id, name: acc.name })}
-            />
-          ))}
-        </div>
       ) : (
-        <AccountListTable
+        <AccountRosterDisplay
           items={filteredAccounts.map((acc) => ({
             id: acc.id,
             name: acc.name,
             region: acc.region,
             hasSession: acc.has_session,
-            lastUsedText: acc.last_used_at ? new Date(acc.last_used_at).toLocaleDateString() : null,
+            lastUsedText: acc.last_used_at ? `Played ${new Date(acc.last_used_at).toLocaleDateString()}` : null,
           }))}
+          viewMode={viewMode}
           canManage={true}
           busy={busy}
-          onLaunch={(id) => void handleLaunch(id)}
-          onPushToCloud={isAdmin ? (id) => void handlePush(id) : undefined}
+          onLaunch={handleLaunch}
+          onPushToCloud={isAdmin ? handlePush : undefined}
           onDelete={(id, name) => setDeleteTarget({ id, name })}
         />
       )}
