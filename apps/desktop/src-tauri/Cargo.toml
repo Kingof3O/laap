@@ -19,7 +19,7 @@ path = "src/main.rs"
 base64 = "0.22"
 chrono = { version = "0.4", features = ["clock", "serde"] }
 directories = "6"
-ed25519-dalek = { version = "2", features = ["rand_core"] }
+ed25519-dalek = { version = "3", features = ["rand_core"] }
 keyring = { version = "3", default-features = false }
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }
