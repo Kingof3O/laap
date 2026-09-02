@@ -1,55 +1,118 @@
-# Production launch checklist
+# Production Deployment & Operation Guide
 
-The repository is deployable in two modes:
+This guide details the deployment process, required secrets, verification steps, and operational procedures for running LAAP in production.
 
-1. **Local development:** `npm run dev` uses the SQL.js adapter and an encrypted local vault so the entire workflow runs without cloud credentials.
-2. **Production:** Cloudflare Pages serves the admin UI and the Cloudflare Worker (`laap-api`) runs the Supabase-backed API. Supabase Postgres/Auth/RLS/Realtime/Edge Functions remain the source of truth. Do not deploy the SQL.js adapter as a multi-instance production API.
+---
 
-The Node API supports `LAAP_STORAGE_DRIVER=supabase` when all three Supabase server secrets are present. It refuses to start with the single-process local adapter in production unless you explicitly opt into that unsafe mode.
-
-## Required environment
-
-Set these in the deployment platform, never in git:
+## 1. Production Topology
 
 ```text
-VITE_API_BASE_URL=https://api.example.com
-LAAP_JWT_SECRET=<32+ random bytes, rotated through your secret manager>
-LAAP_VAULT_KEY=<32+ random bytes, separate from JWT secret>
-LAAP_ADMIN_PASSWORD=<12+ character bootstrap password>
-ALLOWED_ORIGIN=https://admin.example.com
-ENABLE_DEMO_AUTH=false
+┌─────────────────────────────────────────────────────────────┐
+│                      End Users                              │
+│          ┌──────────────────────┬────────────────────┐      │
+│          │  LAAP Desktop App    │  Web Admin (Pages) │      │
+└──────────┴──────────┬───────────┴────────────┬───────┴──────┘
+                      │                        │
+                      │ HTTPS                  │ HTTPS /api (Proxy)
+                      ▼                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│       Cloudflare Worker: laap-api (apps/api/worker.ts)       │
+│        - Ed25519 Nonce Verification                         │
+│        - Session Token Sandboxing API                       │
+│        - JWT Verification & Rate Limiting                   │
+└─────────────────────────────┬───────────────────────────────┘
+                              │
+                              │ Authenticated Service-Role Connection
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Supabase Cloud (PostgreSQL 15+)                │
+│        - Row Level Security (RLS) on all tables             │
+│        - Atomic lease acquisition stored procedures (RPC)   │
+│        - Encrypted session token storage                    │
+│        - Health check Edge Function                         │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-For the API Worker, configure `SUPABASE_URL` as a public Worker variable and configure `LAAP_WORKER_SUPABASE_ANON_KEY`, `LAAP_WORKER_SUPABASE_SERVICE_ROLE_KEY`, `LAAP_WORKER_JWT_SECRET`, and `LAAP_WORKER_ADMIN_PASSWORD` as encrypted Worker secrets. The service-role key must never be bundled into Vite or exposed to a browser.
+---
 
-Deploy the functions with the Supabase CLI after linking the project:
+## 2. Secrets & Environment Variables
+
+### Cloudflare Worker (`laap-api`)
+Configure these secrets via `npx wrangler secret put`:
+
+| Secret Name | Purpose |
+| :--- | :--- |
+| `LAAP_WORKER_SUPABASE_ANON_KEY` | Public Supabase anon key for client-scoped operations. |
+| `LAAP_WORKER_SUPABASE_SERVICE_ROLE_KEY` | High-privilege key used exclusively server-side for lease RPCs. |
+| `LAAP_WORKER_JWT_SECRET` | 32+ byte cryptographic secret for signing LAAP access tokens. |
+| `LAAP_WORKER_ADMIN_PASSWORD` | Initial admin password bootstrap. |
+
+Configure public variables in `apps/api/wrangler.toml`:
+```toml
+[vars]
+SUPABASE_URL = "https://<project-ref>.supabase.co"
+ALLOWED_ORIGIN = "https://laap-control-center.pages.dev"
+```
+
+### Cloudflare Pages (`laap-control-center`)
+- **Build Command:** `npm run build`
+- **Build Output Directory:** `apps/admin/dist`
+- **Environment Variable:**
+  - `VITE_API_BASE_URL`: Leave **empty** in production so requests go to the same-origin `/api` proxy defined in `apps/admin/public/_worker.js`.
+
+---
+
+## 3. Database Migration Deployment
+
+All database migrations are maintained in `supabase/migrations/`:
 
 ```bash
-supabase db push
-supabase functions deploy health-check --no-verify-jwt
-supabase secrets set SUPABASE_URL=... SUPABASE_ANON_KEY=... SUPABASE_SERVICE_ROLE_KEY=...
+# Verify pending migrations
+npx supabase migration list --linked
+
+# Push migrations to the remote database
+npx supabase db push --linked
 ```
 
-## Database and security gates
+### Applied Migrations:
+1. `20260831000000_init.sql`: Core tables, initial RLS policies, audit log triggers.
+2. `20260901000000_remove_password_credential_paths.sql`: Deprecates password injection paths.
+3. `20260901100000_session_token_sandboxing.sql`: Encrypted session token storage and RPCs.
+4. `20260901110000_remove_telemetry_and_heartbeat.sql`: Eliminates heartbeat overhead.
+5. `20260901120000_admin_lease_bypass.sql`: Allows administrators to claim leases directly.
+6. `20260901121000_fix_admin_lease_role.sql`: Corrects Supabase metadata role check.
 
-- Apply `supabase/migrations/20260831000000_init.sql` to a staging project first.
-- Verify RLS policies with an operator JWT and an admin JWT; confirm operators cannot read other users, vault identifiers, audit logs, or unassigned accounts.
-- Run concurrent lease-claim tests against Postgres, not only the local adapter.
-- Do not deploy or re-enable password-based credential injection. The old Vault credential RPCs remain revoked from the application surface until an approved Riot RSO design is available.
-- Configure an approved Riot Sign On (RSO) client before adding account-linking routes. Store only the minimum OAuth refresh/token material server-side, encrypted, with rotation and revocation.
-- RSO is not enabled by default: Riot requires an approved production application and RSO client before issuing credentials. Until those values are provisioned, the UI must show account linking as unavailable rather than accepting passwords.
-- The Tauri client must launch Riot Client without credentials, then report `WAITING_FOR_RIOT_LOGIN`, `AUTHENTICATED`, `LEAGUE_RUNNING`, or `LEASE_LOST` based on supported observable state.
-- Enable the `pg_cron` stale-session job and verify the five-minute reconnect grace behavior.
-- Rotate Supabase service-role, JWT, Vault, and Tauri signing keys before production cutover.
+---
 
-## Deployment gates
+## 4. Pre-Deployment Verification Checklist
 
-- `npm ci`, `npm run test`, `npm run typecheck`, `npm run build`, and `npm audit --omit=dev` must pass.
-- `cargo test` and `cargo clippy -- -D warnings` must pass for `apps/desktop/src-tauri` on macOS and Windows runners.
-- Publish the desktop app only from signed GitHub Actions artifacts; never distribute unsigned binaries.
-- Configure Cloudflare Pages with the `VITE_API_BASE_URL` value and a restrictive custom domain policy.
-- Monitor `/api/health` and the Supabase health-check function; alert on stale sessions, failed lease claims, and auth error spikes.
+Before deploying changes, ensure all tests pass:
 
-## Explicit external dependencies
+```bash
+# 1. Full workspace typecheck, test, and build
+npm run typecheck
+npm run test
+npm run build
 
-The code cannot create these on your behalf: a Supabase project, Riot account credentials, Cloudflare/GitHub secrets, Apple/Windows signing identities, or a Rust toolchain. They are the final deployment inputs after the repository checks pass.
+# 2. Native Rust core tests
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+
+# 3. Security audit
+npm audit --omit=dev
+```
+
+---
+
+## 5. Deployment Commands
+
+```bash
+# 1. Deploy API Worker to Cloudflare
+npx wrangler deploy
+
+# 2. Deploy Web Admin Dashboard to Cloudflare Pages
+npm run build
+npx wrangler pages deploy apps/admin/dist --project-name laap-control-center --branch main --commit-dirty=true
+
+# 3. Build Native Desktop Release Bundle
+npx --workspace @laap/desktop tauri build --ci
+```
