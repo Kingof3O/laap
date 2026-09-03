@@ -1,40 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiRequest, hasTauri, invokeTauri } from '../lib/api'
+import { useDevice } from '../features/device'
 import type { Account, User } from '../lib/types'
 
 export function useCloudAccounts(user: User | null) {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [deviceId, setDeviceId] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null)
   const [provisioning, setProvisioning] = useState(false)
 
-  // Initialize hardware device identity
-  useEffect(() => {
-    if (!user || !hasTauri) return
-    void (async () => {
-      try {
-        const key = await invokeTauri<string>('device_public_key')
-        const platform = await invokeTauri<string>('device_platform').catch(() =>
-          /win/i.test(navigator.userAgent) ? 'windows' : 'macos'
-        )
-        const result = await apiRequest<{ deviceId: string }>('/api/devices', {
-          method: 'POST',
-          body: JSON.stringify({
-            publicKey: key,
-            platform: platform === 'windows' ? 'windows' : 'macos',
-            deviceName: 'Gaming Launcher',
-            appVersion: '1.0.0',
-          }),
-        })
-        setDeviceId(result.deviceId)
-      } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause))
-      }
-    })()
-  }, [user])
+  // Hardware device identity isolated via useDevice
+  const { deviceId, error: deviceError } = useDevice(user)
 
   const loadAccounts = useCallback(async () => {
     if (!user) {
@@ -60,7 +38,7 @@ export function useCloudAccounts(user: User | null) {
 
   const acquireAndLaunch = async (accId: string, onStepChange?: (step: string) => void) => {
     if (!deviceId || !hasTauri) {
-      throw new Error('Device is initializing. Please wait a moment.')
+      throw new Error(deviceError || 'Device is initializing. Please wait a moment.')
     }
     setError(null)
     onStepChange?.('Securing account lease…')
@@ -69,98 +47,112 @@ export function useCloudAccounts(user: User | null) {
     const signature = await invokeTauri<string>('sign_device_nonce', { nonce })
     const result = await apiRequest<{ sessionId: string }>('/api/leases/acquire', {
       method: 'POST',
-      body: JSON.stringify({ accountId: accId, deviceId, nonce, signature }),
+      body: JSON.stringify({
+        accountId: accId,
+        deviceId,
+        nonce,
+        signature,
+      }),
     })
+
     setSessionId(result.sessionId)
     setActiveAccountId(accId)
 
     onStepChange?.('Injecting credentials…')
-    const blobResult = await apiRequest<{ sessionBlob: string }>(`/api/leases/${result.sessionId}/session-blob`)
-    if (!blobResult.sessionBlob || blobResult.sessionBlob.trim().length === 0) {
-      throw new Error('This account does not have an active login session yet. Click "Sync" to link it.')
-    }
+    const sessionRes = await apiRequest<{ sessionBlob: string }>(
+      `/api/leases/${result.sessionId}/session-blob`
+    )
 
-    await invokeTauri('inject_account_session', { sessionYaml: blobResult.sessionBlob })
+    await invokeTauri('inject_account_session', { sessionYaml: sessionRes.sessionBlob })
 
     onStepChange?.('Launching League of Legends…')
     await invokeTauri('launch_riot_client')
+    await loadAccounts()
   }
 
   const releaseLease = async () => {
     if (!sessionId) return
-    if (hasTauri) {
-      await invokeTauri('cleanup_account_session').catch(() => undefined)
+    setError(null)
+    try {
+      await apiRequest(`/api/leases/${sessionId}/release`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: 'manual' }),
+      })
+    } finally {
+      setSessionId(null)
+      setActiveAccountId(null)
+      if (hasTauri) {
+        await invokeTauri('cleanup_account_session').catch(() => {})
+      }
+      await loadAccounts()
     }
-    await apiRequest(`/api/leases/${sessionId}/release`, {
-      method: 'POST',
-      body: JSON.stringify({ reason: 'manual' }),
-    }).catch(() => undefined)
-    setSessionId(null)
-    setActiveAccountId(null)
   }
 
-  const deleteCloudAccount = async (accId: string) => {
-    await apiRequest(`/api/accounts/${accId}`, { method: 'DELETE' })
+  const deleteCloudAccount = async (id: string) => {
+    setError(null)
+    await apiRequest(`/api/accounts/${id}`, { method: 'DELETE' })
     await loadAccounts()
   }
 
-  const uploadSessionBlob = async (accId: string, sessionBlob: string) => {
-    await apiRequest(`/api/accounts/${accId}/session-blob`, {
+  const uploadSessionBlob = async (accountId: string, sessionBlob: string) => {
+    setError(null)
+    await apiRequest(`/api/accounts/${accountId}/session-blob`, {
       method: 'PUT',
       body: JSON.stringify({ sessionBlob }),
     })
-    await loadAccounts()
-  }
-
-  const createAndUploadAccount = async (name: string, region: string, sessionBlob: string) => {
-    const existing = accounts.find((a) => a.name.toLowerCase() === name.toLowerCase())
-    let accId = existing?.id
-
-    if (!accId) {
-      const createResult = await apiRequest<{ accountId: string }>('/api/accounts', {
-        method: 'POST',
-        body: JSON.stringify({
-          displayName: name,
-          externalId: name,
-          region,
-          status: 'available',
-        }),
-      })
-      accId = createResult.accountId
-    }
-
-    await uploadSessionBlob(accId, sessionBlob)
-    await loadAccounts()
   }
 
   const startSandbox = async () => {
     if (!hasTauri) return
-    await invokeTauri('start_provisioning_session')
+    setError(null)
     setProvisioning(true)
+    try {
+      await invokeTauri('start_provisioning_session')
+    } catch (cause) {
+      setProvisioning(false)
+      throw cause
+    }
+  }
+
+  const pollSandbox = async (): Promise<string | null> => {
+    if (!hasTauri) return null
+    return invokeTauri<string | null>('poll_provisioning_session')
+  }
+
+  const finishSandbox = async () => {
+    if (!hasTauri) return
+    try {
+      await invokeTauri('finish_provisioning_session')
+    } finally {
+      setProvisioning(false)
+    }
   }
 
   const cancelSandbox = async () => {
     if (!hasTauri) return
-    await invokeTauri('cancel_provisioning_session').catch(() => undefined)
-    setProvisioning(false)
+    try {
+      await invokeTauri('cancel_provisioning_session')
+    } finally {
+      setProvisioning(false)
+    }
   }
 
   return {
     accounts,
     loading,
-    error,
-    setError,
+    error: error || deviceError,
     sessionId,
     activeAccountId,
-    deviceId,
     provisioning,
+    deviceId,
     loadAccounts,
     acquireAndLaunch,
     releaseLease,
     deleteCloudAccount,
     uploadSessionBlob,
-    createAndUploadAccount,
     startSandbox,
+    pollSandbox,
+    finishSandbox,
     cancelSandbox,
   }
 }

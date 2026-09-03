@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Header } from './components/layout/Header'
-import { SubNavbar } from './components/layout/SubNavbar'
-import { SettingsModal } from './components/modals/SettingsModal'
+import { Header, SubNavbar, SettingsModal } from './shared/ui'
 import { ToastProvider, useToast } from './context/ToastContext'
-import { PersonalRosterView } from './views/PersonalRosterView'
-import { TeamVaultView } from './views/TeamVaultView'
-import { useAuth } from './hooks/useAuth'
+import { PersonalRosterView } from './features/personal-roster'
+import { TeamVaultView } from './features/team-vault'
+import { useAuth } from './features/auth'
 import { VIEW_MODE_KEY } from './lib/constants'
 import { hasTauri, invokeTauri } from './lib/api'
 import type { AppMode, Region, ViewMode } from './lib/types'
@@ -70,10 +68,7 @@ function AppContent() {
         appMode={appMode}
         onModeChange={setAppMode}
         user={user}
-        onRefresh={() => {
-          // Triggers refresh via re-render
-          setSelectedRegion((prev) => prev)
-        }}
+        onRefresh={() => setSelectedRegion((prev) => prev)}
         onOpenSettings={() => setShowSettingsModal(true)}
       />
 
