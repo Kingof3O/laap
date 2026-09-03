@@ -28,7 +28,8 @@ pub fn run() {
             commands::local_accounts::get_local_account,
             commands::local_accounts::save_local_account,
             commands::local_accounts::delete_local_account,
-            commands::local_accounts::launch_local_account
+            commands::local_accounts::launch_local_account,
+            commands::session::open_external_url
         ])
         .run(tauri::generate_context!())
         .expect("error while running LAAP desktop")

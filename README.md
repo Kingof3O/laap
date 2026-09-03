@@ -7,6 +7,7 @@
 **High-performance tactical account control plane and desktop launcher for League of Legends.**
 
 [![CI Status](https://img.shields.io/github/actions/workflow/status/Kingof3O/laap/test-and-lint.yml?branch=main&style=for-the-badge&logo=github&label=CI)](https://github.com/Kingof3O/laap/actions)
+[![Platform: Windows & macOS](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-0078D6?style=for-the-badge&logo=windows&logoColor=white)](docs/ARCHITECTURE.md)
 [![Tauri v2](https://img.shields.io/badge/Tauri-v2.0-24C8D8?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
 [![Rust](https://img.shields.io/badge/Rust-2021-DEA584?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -24,6 +25,22 @@
 **LAAP** (League Account Access Platform) is an esports-grade, credential-free tactical desktop launcher and account management control plane. Engineered specifically for competitive players, organizations, and scrim rosters, LAAP eliminates the friction of multi-account management without storing plaintext passwords or triggering Riot Vanguard anti-cheat heuristics.
 
 The platform couples a native **Hextech Tactical Desktop Launcher** (built with Tauri v2, Rust, and React 19) with a centralized **Web Control Center** (Cloudflare Pages + Workers + Supabase).
+
+---
+
+## 🖥️ Full Cross-Platform Parity (Windows & macOS)
+
+LAAP provides 100% feature parity and native OS integration on both **Windows** and **macOS**:
+
+| Component / Subsystem | Windows (10 & 11 64-bit) | macOS (Apple Silicon & Intel) |
+|:---|:---|:---|
+| **Hardware Key Storage** | Windows Credential Manager (`windows-native`) | Apple Keychain (`apple-native`) |
+| **Riot Data Directory** | `%LOCALAPPDATA%\Riot Games\Riot Client\Data` | `~/Library/Application Support/Riot Games/Riot Client/Data` |
+| **Local Store Directory** | `%APPDATA%\LAAP\` | `~/Library/Application Support/LAAP/` |
+| **Process Execution** | Spawns `RiotClientServices.exe` directly | Dispatches via `/Applications/Riot Client.app` |
+| **Process Inspection** | Native Windows sysinfo PID & handle polling | Darwin sysinfo PID & process inspection |
+| **Tactical Hotkeys** | `Ctrl+K` (Search), `Esc`, `Tab`, `Enter` | `⌘K` (Search), `Esc`, `Tab`, `Enter` |
+| **Distribution Packages** | Windows Installer (`.msi`) & NSIS (`.exe`) | Apple Disk Image (`.dmg`) & App Bundle (`.app`) |
 
 ---
 
@@ -66,6 +83,7 @@ Access shared accounts with atomic single-active session locking, hardware signa
 | **Multi-Server Organization** | ❌ Flat list | ❌ Flat list | **Built-in Filters** (`EUW`, `NA`, `KR`, `BR`) |
 | **Hardware Binding** | ❌ None | ❌ None | **Ed25519 OS Keychain Keypair** |
 | **Shared Account Protection** | ⚠️ Concurrent collision conflicts | ⚠️ Password leaks & desyncs | **Atomic Single-Active Lease Locking** |
+| **In-App Release Updates** | ❌ Manual browser checks | N/A | **Automatic GitHub Releases Popup** |
 
 ---
 
@@ -106,13 +124,18 @@ LAAP **strictly never prompts for, collects, stores, or handles Riot account pas
 - **Server Distribution:** Proportional breakdown across competitive server regions (`EUW`, `NA`, `KR`, `BR`, `EUNE`).
 - **Quick Launch Dossier:** Instant inspection of selected profiles, last-played timestamps, and one-click game launch.
 
+### 5. In-App Release Notifications
+- **Automatic Version Polling:** Seamlessly compares installed version against the public GitHub Releases API on launch.
+- **Hextech Release Modal:** Displays new version highlights, changelog summaries, and a direct 1-click browser download CTA.
+- **Manual Verification:** Players can verify release status anytime via the **`Check for Updates`** action in Launcher Settings.
+
 ---
 
 ## ⌨️ Tactical Controls & Hotkeys
 
 | Shortcut | Action | Scope |
 |:---|:---|:---|
-| `⌘K` / `Ctrl+K` | Focus instant summoner search | Global |
+| `⌘K` / `Ctrl+K` | Focus instant summoner search | Global (macOS / Windows) |
 | `Esc` | Clear search query / Dismiss open modal | Global |
 | `Tab` | Cycle through account cards and launch actions | Roster View |
 | `Enter` | Launch selected summoner profile | Quick Launch |
@@ -158,6 +181,8 @@ Detailed architectural diagrams and domain breakdowns are available in [docs/ARC
 ### Prerequisites
 - **Node.js**: v20 or v22 LTS
 - **Rust**: 1.80+ (`rustc` & `cargo`)
+- **macOS Requirements**: Xcode Command Line Tools (`xcode-select --install`)
+- **Windows Requirements**: Visual Studio Build Tools (C++ Desktop Development) and WebView2 Runtime
 
 ### Local Setup
 ```bash
@@ -173,12 +198,18 @@ npm run dev
 ```
 
 ### Building Native Desktop Releases
+
+#### On macOS
 ```bash
-# Build native macOS App bundle & DMG installer
+# Build native macOS universal App bundle & DMG installer
 npm --workspace @laap/desktop run build
 npx --workspace @laap/desktop tauri build --bundles app,dmg
+```
 
-# Build native Windows installer (.msi / .exe)
+#### On Windows (PowerShell)
+```powershell
+# Build native Windows installer (.msi & .exe)
+npm --workspace @laap/desktop run build
 npx --workspace @laap/desktop tauri build --bundles msi,nsis
 ```
 

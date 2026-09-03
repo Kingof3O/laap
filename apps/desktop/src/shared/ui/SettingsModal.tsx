@@ -7,6 +7,8 @@ export interface SettingsModalProps {
   onClose: () => void
   onResetRiot: () => Promise<void>
   onLogout: () => Promise<void>
+  onCheckUpdates?: () => Promise<void> | void
+  checkingUpdates?: boolean
   busy: boolean
 }
 
@@ -16,6 +18,8 @@ export function SettingsModal({
   onClose,
   onResetRiot,
   onLogout,
+  onCheckUpdates,
+  checkingUpdates = false,
   busy,
 }: SettingsModalProps) {
   if (!isOpen) return null
@@ -59,6 +63,18 @@ export function SettingsModal({
               <span>Clean Active Riot Session & Reset</span>
             </button>
 
+            {onCheckUpdates ? (
+              <button
+                type="button"
+                className="btn-modal-secondary"
+                onClick={() => void onCheckUpdates()}
+                disabled={busy || checkingUpdates}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', height: '36px' }}
+              >
+                <span>{checkingUpdates ? 'Checking for updates…' : 'Check for Updates (v0.2.0)'}</span>
+              </button>
+            ) : null}
+
             {user ? (
               <button
                 type="button"
@@ -68,7 +84,7 @@ export function SettingsModal({
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', height: '36px', color: '#fca5a5' }}
               >
                 <LogOut size={13} />
-                <span>Sign Out from Organization ({user.displayName})</span>
+                <span>Sign Out ({user.displayName})</span>
               </button>
             ) : null}
           </div>

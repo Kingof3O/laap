@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Header, SubNavbar, SettingsModal } from './shared/ui'
+import { UpdateModal } from './shared/ui/UpdateModal'
 import { ToastProvider, useToast } from './context/ToastContext'
 import { PersonalRosterView } from './features/personal-roster'
 import { TeamVaultView } from './features/team-vault'
 import { useAuth } from './features/auth'
+import { useUpdateChecker } from './hooks/useUpdateChecker'
 import { VIEW_MODE_KEY } from './lib/constants'
 import { apiRequest, hasTauri, invokeTauri } from './lib/api'
 import type { AppMode, Region, ViewMode } from './lib/types'
@@ -27,6 +29,22 @@ function AppContent() {
 
   const { user, login, logout, error: authError, loading: loginBusy } = useAuth()
   const { showSuccess, showError } = useToast()
+  const {
+    currentVersion,
+    checking: checkingUpdates,
+    updateAvailable,
+    latestRelease,
+    checkForUpdates,
+    dismissUpdate,
+    openReleasePage,
+  } = useUpdateChecker()
+
+  const handleManualCheckUpdates = async () => {
+    const release = await checkForUpdates(true)
+    if (!release) {
+      showSuccess(`LAAP Desktop is up to date (v${currentVersion}).`)
+    }
+  }
 
   const handleViewModeChange = (mode: ViewMode) => {
     setViewMode(mode)
@@ -142,7 +160,18 @@ function AppContent() {
           await logout()
           setShowSettingsModal(false)
         }}
+        onCheckUpdates={handleManualCheckUpdates}
+        checkingUpdates={checkingUpdates}
         busy={busy}
+      />
+
+      {/* Update Available Modal */}
+      <UpdateModal
+        isOpen={updateAvailable}
+        currentVersion={currentVersion}
+        release={latestRelease}
+        onDownload={openReleasePage}
+        onDismiss={dismissUpdate}
       />
     </div>
   )

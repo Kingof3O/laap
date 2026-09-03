@@ -10,6 +10,20 @@ export async function invokeTauri<T>(command: string, args?: Record<string, unkn
 
 export const hasTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
+export async function openExternalUrl(url: string): Promise<void> {
+  if (hasTauri) {
+    try {
+      await invokeTauri('open_external_url', { url })
+      return
+    } catch {
+      // Fallback to window.open
+    }
+  }
+  if (typeof window !== 'undefined') {
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+}
+
 export function getStoredToken(): string | null {
   try {
     return typeof window !== 'undefined' ? localStorage.getItem(AUTH_TOKEN_KEY) : null

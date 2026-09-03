@@ -113,6 +113,35 @@ npx wrangler deploy
 npm run build
 npx wrangler pages deploy apps/admin/dist --project-name laap-control-center --branch main --commit-dirty=true
 
-# 3. Build Native Desktop Release Bundle
-npx --workspace @laap/desktop tauri build --ci
+# 3. Build Native Desktop Release Bundles Locally
+# On macOS (builds universal .app & .dmg):
+npm --workspace @laap/desktop run build
+npx --workspace @laap/desktop tauri build --bundles app,dmg
+
+# On Windows (builds .msi installer & .exe standalone):
+npm --workspace @laap/desktop run build
+npx --workspace @laap/desktop tauri build --bundles msi,nsis
 ```
+
+---
+
+## 6. GitHub Actions Automated Multi-Platform Desktop Releases
+
+Desktop release binaries are automatically cross-compiled for **both Windows and macOS** via `.github/workflows/release-desktop.yml`:
+
+```yaml
+jobs:
+  release:
+    matrix:
+      include:
+        - platform: macos-latest
+          args: '--target universal-apple-darwin'
+        - platform: windows-latest
+          args: ''
+```
+
+When a tag (e.g. `v0.2.0`) is published:
+1. `macos-latest` compiles the universal Apple Silicon & Intel `.dmg` and `.app`.
+2. `windows-latest` compiles the Windows 64-bit `.msi` installer and `.exe`.
+3. The artifacts are automatically attached to the GitHub Release draft where end users can download them directly.
+4. Installed LAAP Desktop clients automatically query `https://api.github.com/repos/Kingof3O/laap/releases/latest`, popping up the Hextech update notification modal with a direct download CTA.
