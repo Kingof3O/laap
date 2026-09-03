@@ -107,7 +107,7 @@ export function TeamVaultView({
     setBusy(true)
     try {
       await releaseLease()
-      showSuccess('Account released back to Shared Vault.')
+      showSuccess('Account released back to Shared Pool.')
       await reloadCloud()
     } catch (cause) {
       showError(cause instanceof Error ? cause.message : String(cause))

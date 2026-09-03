@@ -21,7 +21,7 @@ export function ActiveLeaseBanner({
           <ShieldCheck size={18} />
         </div>
         <div>
-          <div className="lease-hud-title">Active Vault Session</div>
+          <div className="lease-hud-title">Active Pool Session</div>
           <div className="lease-hud-name">
             {account.name} · {account.region}
           </div>

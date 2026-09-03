@@ -51,11 +51,11 @@ export function EmptyState({
 
         <div className="empty-content-block">
           <h2 className="empty-state-title">
-            {isCloud ? 'Shared Vault is Empty' : 'Your Personal Roster is Empty'}
+            {isCloud ? 'Shared Pool is Empty' : 'Your Personal Roster is Empty'}
           </h2>
           <p className="empty-state-text">
             {isCloud
-              ? 'No shared accounts have been added to the vault yet. Publish accounts from your local roster or add cloud accounts.'
+              ? 'No shared accounts have been added to the pool yet. Publish accounts from your local roster or add cloud accounts.'
               : 'Add your League of Legends profiles to enable 1-click credential-free account switching with zero Vanguard ban risk.'}
           </p>
 

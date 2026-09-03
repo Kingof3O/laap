@@ -29,7 +29,7 @@ export function LoginView({ onLogin, busy, error }: LoginViewProps) {
           />
         </div>
 
-        <h1 className="login-heading">Shared Vault</h1>
+        <h1 className="login-heading">Shared Pool</h1>
         <p className="login-caption">
           Sign in to access your shared account pool.
         </p>
@@ -84,7 +84,7 @@ export function LoginView({ onLogin, busy, error }: LoginViewProps) {
             disabled={busy || !email || !password}
           >
             <LogIn size={14} />
-            <span>{busy ? 'Authenticating…' : 'Sign In to Vault'}</span>
+            <span>{busy ? 'Authenticating…' : 'Sign In to Pool'}</span>
           </button>
         </form>
       </div>
