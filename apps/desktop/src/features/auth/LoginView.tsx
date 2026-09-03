@@ -21,8 +21,12 @@ export function LoginView({ onLogin, busy, error }: LoginViewProps) {
   return (
     <div className="login-stage">
       <div className="login-box">
-        <div className="login-crest">
-          <ShieldCheck size={24} />
+        <div className="login-crest" style={{ background: 'transparent', border: 'none', width: 'auto', height: 'auto' }}>
+          <img
+            src="/favicon.webp"
+            alt="LAAP"
+            style={{ width: '52px', height: '52px', borderRadius: '12px', boxShadow: '0 6px 20px rgba(0,0,0,0.6)' }}
+          />
         </div>
 
         <h1 className="login-heading">Team Vault</h1>

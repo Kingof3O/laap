@@ -18,14 +18,16 @@ export function LoginPage({ onSubmit, error, demoAvailable }: LoginPageProps) {
         <div className="absolute -left-24 top-1/3 h-72 w-72 rounded-full bg-violet-500/10 blur-3xl" aria-hidden="true" />
         <div className="absolute -right-20 bottom-0 h-64 w-64 rounded-full bg-cyan-300/10 blur-3xl" aria-hidden="true" />
         <div className="relative w-full max-w-xl">
-          <p className="brand-wordmark bg-gradient-to-r from-cyan-100 via-white to-violet-300 bg-clip-text text-[5.5rem] font-semibold leading-[0.85] tracking-[-0.1em] text-transparent sm:text-[7rem] lg:text-[9rem]">LAAP</p>
+          <img src="/logo.webp" alt="LAAP" className="h-16 w-auto max-w-sm sm:h-20 lg:h-24 object-contain" />
           <div className="mt-7 max-w-md sm:mt-10 lg:mt-12"><p className="text-lg font-medium tracking-[-0.02em] text-slate-200 sm:text-xl">Account access, made simple.</p><p className="mt-3 text-sm leading-6 text-slate-500 sm:text-base">Keep your team moving with one clear place to manage accounts and sessions.</p></div>
-          <div className="mt-8 hidden items-center gap-2 text-[11px] text-slate-600 lg:flex"><span className="h-px w-8 bg-cyan-300/30" />Built for focused teams</div>
+          <div className="mt-8 hidden items-center gap-2 text-[11px] text-slate-600 lg:flex"><span className="h-px w-8 bg-amber-400/30" />Built for focused teams</div>
         </div>
       </section>
       <section className="relative flex min-h-[62dvh] items-center justify-center px-5 py-10 sm:px-8 lg:min-h-dvh lg:px-12">
         <GlassCard className="w-full max-w-[410px] p-6 sm:p-8" as="section">
-          <div><p className="eyebrow">Sign in</p><h1 className="mt-3 text-3xl font-semibold tracking-[-0.045em] text-slate-100">Welcome back.</h1><p className="mt-3 text-sm leading-6 text-slate-400">Continue to your LAAP workspace.</p></div>
+          <div>
+            <img src="/favicon.webp" alt="LAAP" className="mb-5 h-12 w-12 rounded-xl shadow-xl" />
+            <p className="eyebrow">Sign in</p><h1 className="mt-2 text-3xl font-semibold tracking-[-0.045em] text-slate-100">Welcome back.</h1><p className="mt-3 text-sm leading-6 text-slate-400">Continue to your LAAP workspace.</p></div>
           <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
             <div><label className="mb-2 block text-xs font-medium text-slate-300" htmlFor="email">Email</label><input id="email" value={email} onChange={(event) => setEmail(event.target.value)} className="input-base h-12 w-full px-3 text-sm" type="email" autoComplete="username" required /></div>
             <div><label className="mb-2 block text-xs font-medium text-slate-300" htmlFor="password">Password</label><div className="relative"><KeyRound aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={15} /><input id="password" value={password} onChange={(event) => setPassword(event.target.value)} className="input-base h-12 w-full px-3 pl-9 text-sm" type="password" autoComplete="current-password" required /></div></div>

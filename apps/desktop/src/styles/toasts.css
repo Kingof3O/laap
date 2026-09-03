@@ -1,12 +1,13 @@
 .active-lease-hud {
   margin: 0 24px 16px 24px;
   padding: 14px 20px;
-  background: rgba(200, 170, 110, 0.07);
-  border: 1px solid rgba(200, 170, 110, 0.35);
-  border-radius: 10px;
+  background: rgba(229, 184, 92, 0.08);
+  border: 1px solid rgba(229, 184, 92, 0.4);
+  border-radius: 11px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  box-shadow: var(--inner-highlight), 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 .lease-hud-left {
@@ -16,10 +17,11 @@
 }
 
 .lease-icon-pulse {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: 8px;
-  background: rgba(200, 170, 110, 0.15);
+  background: var(--gold-surface);
+  border: 1px solid rgba(229, 184, 92, 0.35);
   display: grid;
   place-items: center;
   color: var(--gold-light);
@@ -28,9 +30,9 @@
 .lease-hud-title {
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: var(--gold-primary);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .lease-hud-name {
@@ -46,71 +48,212 @@
 }
 
 .btn-lease-relaunch {
-  height: 30px;
-  padding: 0 12px;
+  height: 32px;
+  padding: 0 14px;
   border-radius: 6px;
-  background: var(--gold-surface);
-  border: 1px solid var(--gold-primary);
-  color: var(--gold-light);
-  font-size: 11px;
-  font-weight: 600;
+  background: var(--gold-gradient);
+  border: 1px solid var(--gold-border);
+  color: #07090E;
+  font-size: 12px;
+  font-weight: 800;
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  box-shadow: 0 2px 8px rgba(212, 158, 53, 0.25);
+  cursor: pointer;
+}
+
+.btn-lease-relaunch:hover {
+  background: var(--gold-gradient-hover);
+  box-shadow: 0 4px 14px rgba(229, 184, 92, 0.4);
 }
 
 .btn-lease-release {
-  height: 30px;
+  height: 32px;
   padding: 0 12px;
   border-radius: 6px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
   color: #FCA5A5;
   font-size: 11px;
   font-weight: 600;
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  cursor: pointer;
 }
 
 .btn-lease-release:hover {
-  background: rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.22);
 }
 
-.empty-state-card {
+/* ==========================================================================
+   GROUNDED EMPTY STATE STUDIO LAYOUT
+   ========================================================================== */
+
+.empty-stage-container {
+  padding: 40px 24px 60px 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.empty-blueprint-panel {
+  max-width: 600px;
+  width: 100%;
   background: var(--bg-surface);
-  border: 1px dashed var(--border-subtle);
-  border-radius: 12px;
-  padding: 48px 24px;
-  text-align: center;
+  border: 1px solid var(--border-card);
+  border-radius: 16px;
+  padding: 36px 32px 28px 32px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  text-align: center;
+  box-shadow: var(--inner-highlight), 0 20px 48px rgba(0, 0, 0, 0.45);
 }
 
-.empty-state-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--text-muted);
+/* Ghosted Blueprint Card Silhouette */
+.ghost-card-preview {
+  width: 100%;
+  max-width: 360px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(229, 184, 92, 0.35);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  box-shadow: inset 0 0 16px rgba(229, 184, 92, 0.03);
+}
+
+.ghost-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--gold-surface);
+  border: 1px dashed var(--gold-primary);
   display: grid;
   place-items: center;
+  flex-shrink: 0;
+}
+
+.ghost-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: left;
+}
+
+.ghost-line {
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.ghost-line-title {
+  width: 70%;
+}
+
+.ghost-line-sub {
+  width: 40%;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ghost-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--status-ready);
+  background: var(--status-ready-bg);
+  border: 1px solid var(--status-ready-border);
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+
+.ghost-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--status-ready);
+}
+
+.ghost-btn {
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: 5px;
+  background: rgba(229, 184, 92, 0.12);
+  border: 1px dashed rgba(229, 184, 92, 0.4);
+  color: var(--gold-primary);
+}
+
+.empty-content-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
 }
 
 .empty-state-title {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
   color: #FFFFFF;
+  letter-spacing: -0.01em;
 }
 
 .empty-state-text {
   font-size: 13px;
-  color: var(--text-muted);
-  max-width: 360px;
-  line-height: 1.5;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  max-width: 440px;
 }
+
+.empty-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.empty-trust-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-divider);
+  width: 100%;
+  justify-content: center;
+}
+
+.trust-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.trust-divider {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--border-subtle);
+}
+
+/* ==========================================================================
+   TOAST HUD NOTIFICATIONS
+   ========================================================================== */
 
 .toast-container {
   position: fixed;
@@ -129,10 +272,10 @@
   padding: 10px 16px;
   border-radius: 8px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   background: var(--bg-surface-elevated);
-  border: 1px solid var(--border-subtle);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--border-card);
+  box-shadow: var(--inner-highlight), 0 10px 24px rgba(0, 0, 0, 0.6);
   animation: toastIn 150ms ease;
 }
 

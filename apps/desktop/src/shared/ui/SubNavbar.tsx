@@ -23,6 +23,7 @@ export function SubNavbar({
   onViewModeChange,
   onAddAccount,
   addButtonLabel = 'Add Profile',
+  totalCount = 0,
 }: SubNavbarProps) {
   return (
     <div className="sub-navbar">
@@ -67,26 +68,28 @@ export function SubNavbar({
 
       {/* View Switcher & Add Action */}
       <div className="view-action-controls">
-        <div className="view-mode-toggle" aria-label="Layout view switcher">
-          <button
-            type="button"
-            className={`view-toggle-btn ${viewMode === 'grid' ? 'view-toggle-btn-active' : ''}`}
-            onClick={() => onViewModeChange('grid')}
-            title="Grid View"
-            aria-label="Grid View"
-          >
-            <LayoutGrid size={14} />
-          </button>
-          <button
-            type="button"
-            className={`view-toggle-btn ${viewMode === 'list' ? 'view-toggle-btn-active' : ''}`}
-            onClick={() => onViewModeChange('list')}
-            title="List View"
-            aria-label="List View"
-          >
-            <List size={14} />
-          </button>
-        </div>
+        {totalCount > 0 ? (
+          <div className="view-mode-toggle" aria-label="Layout view switcher">
+            <button
+              type="button"
+              className={`view-toggle-btn ${viewMode === 'grid' ? 'view-toggle-btn-active' : ''}`}
+              onClick={() => onViewModeChange('grid')}
+              title="Grid View"
+              aria-label="Grid View"
+            >
+              <LayoutGrid size={14} />
+            </button>
+            <button
+              type="button"
+              className={`view-toggle-btn ${viewMode === 'list' ? 'view-toggle-btn-active' : ''}`}
+              onClick={() => onViewModeChange('list')}
+              title="List View"
+              aria-label="List View"
+            >
+              <List size={14} />
+            </button>
+          </div>
+        ) : null}
 
         {onAddAccount ? (
           <button

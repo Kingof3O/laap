@@ -4,21 +4,25 @@
   --font-body: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  /* Obsidian & Surface Elevations */
-  --bg-canvas: #090B10;
-  --bg-surface: #0F131C;
-  --bg-surface-elevated: #151A26;
-  --bg-card: #121622;
-  --bg-card-hover: #171E2D;
-  --bg-card-selected: #1B2334;
+  /* Atmospheric Obsidian & Natural Surfaces */
+  --bg-canvas: #07090E;
+  --bg-surface: #0E121B;
+  --bg-surface-elevated: #141926;
+  --bg-card: #121724;
+  --bg-card-hover: #182032;
+  --bg-card-selected: #1C263B;
 
-  /* Hextech Champagne & Metallic Accents */
-  --gold-primary: #C8AA6E;
-  --gold-light: #F0E6D2;
-  --gold-dark: #785A28;
-  --gold-deep: #463714;
-  --gold-glow: rgba(200, 170, 110, 0.2);
-  --gold-surface: rgba(200, 170, 110, 0.08);
+  /* Radiant Hextech Metallic Gold */
+  --gold-primary: #E5B85C;
+  --gold-light: #FFF4D9;
+  --gold-hover: #F0C469;
+  --gold-active: #D49E35;
+  --gold-deep: #966B1E;
+  --gold-border: #F6D896;
+  --gold-gradient: linear-gradient(135deg, #F5CC70 0%, #DCA43B 50%, #BD851D 100%);
+  --gold-gradient-hover: linear-gradient(135deg, #FDE096 0%, #EAB54E 50%, #CB952B 100%);
+  --gold-glow: rgba(229, 184, 92, 0.35);
+  --gold-surface: rgba(229, 184, 92, 0.12);
 
   /* Semantic Status Tokens */
   --status-ready: #10B981;
@@ -33,16 +37,20 @@
   --status-danger-bg: rgba(239, 68, 68, 0.12);
   --status-danger-border: rgba(239, 68, 68, 0.3);
 
-  /* Borders & Dividers */
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-card: rgba(255, 255, 255, 0.08);
-  --border-card-hover: rgba(200, 170, 110, 0.35);
-  --border-card-selected: rgba(200, 170, 110, 0.75);
-  --border-divider: rgba(255, 255, 255, 0.05);
+  /* Defined Borders & Surface Separation */
+  --border-subtle: rgba(255, 255, 255, 0.09);
+  --border-card: rgba(255, 255, 255, 0.11);
+  --border-card-hover: rgba(229, 184, 92, 0.45);
+  --border-card-selected: rgba(229, 184, 92, 0.85);
+  --border-modal: rgba(255, 255, 255, 0.14);
+  --border-divider: rgba(255, 255, 255, 0.08);
+
+  /* Surface Elevation Highlights */
+  --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 
   /* Typography Colors */
   --text-primary: #F8FAFC;
   --text-secondary: #94A3B8;
   --text-muted: #64748B;
-  --text-gold: #F0E6D2;
+  --text-gold: #FFF4D9;
 }

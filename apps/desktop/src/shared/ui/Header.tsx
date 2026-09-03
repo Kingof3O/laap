@@ -20,13 +20,11 @@ export function Header({
     <header className="header-bar" data-tauri-drag-region>
       {/* Brand Identity */}
       <div className="brand-zone">
-        <div className="brand-crest">
-          <Zap size={15} fill="currentColor" />
-        </div>
-        <div className="brand-text-block">
-          <span className="brand-name">LAAP</span>
-          <span className="brand-tag">Esports</span>
-        </div>
+        <img
+          src="/logo.webp"
+          alt="LAAP"
+          style={{ height: '26px', width: 'auto', objectFit: 'contain' }}
+        />
       </div>
 
       {/* Mode Navigation Switcher */}

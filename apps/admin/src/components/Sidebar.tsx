@@ -23,12 +23,8 @@ export function Sidebar({ items, activePage, onNavigate, mobileOpen, onClose, cu
       <div aria-hidden="true" onClick={onClose} className={`fixed inset-0 z-30 bg-slate-950/70 backdrop-blur-sm transition-opacity lg:hidden ${mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`} />
       <aside className={`sidebar fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col border-r border-white/[0.07] bg-sidebar px-4 pb-5 pt-5 backdrop-blur-2xl transition-transform duration-300 lg:h-dvh lg:max-h-dvh lg:overflow-y-auto lg:translate-x-0 lg:bg-transparent lg:backdrop-blur-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`} aria-label="Primary navigation">
         <div className="flex items-center justify-between px-3">
-          <button type="button" onClick={() => onNavigate('Overview')} className="group flex cursor-pointer items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80" aria-label="Go to overview">
-            <span className="brand-mark"><ShieldCheck aria-hidden="true" size={18} strokeWidth={2.2} /></span>
-            <span>
-              <span className="block font-mono text-[15px] font-semibold tracking-[0.12em] text-slate-100">LAAP</span>
-              <span className="block text-[10px] font-medium uppercase tracking-[0.17em] text-slate-500">Your workspace</span>
-            </span>
+          <button type="button" onClick={() => onNavigate('Overview')} className="group flex cursor-pointer items-center rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/80" aria-label="Go to overview">
+            <img src="/logo.webp" alt="LAAP" className="h-7 w-auto object-contain" />
           </button>
           <button type="button" onClick={onClose} className="icon-button lg:hidden" aria-label="Close navigation"><X aria-hidden="true" size={18} /></button>
         </div>

@@ -162,6 +162,9 @@ export function PersonalRosterView({
           isCloud={false}
           searchActive={Boolean(searchQuery || selectedRegion !== 'ALL')}
           onAction={onOpenAddModal}
+          onQuickImport={() => {
+            void handleCaptureActive('Active Summoner', selectedRegion === 'ALL' ? 'EUW' : selectedRegion)
+          }}
         />
       ) : (
         <AccountRosterDisplay

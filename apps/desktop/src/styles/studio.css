@@ -30,12 +30,13 @@
 
 .overview-pod {
   background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  padding: 16px;
+  border: 1px solid var(--border-card);
+  border-radius: 11px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+  box-shadow: var(--inner-highlight), 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 .pod-header {
@@ -115,20 +116,22 @@
   width: 100%;
   height: 36px;
   border-radius: 7px;
-  background: linear-gradient(135deg, #C8AA6E, #A0824B);
-  color: #090B10;
+  background: var(--gold-gradient);
+  color: #07090E;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1px solid #E4C88E;
-  box-shadow: 0 4px 12px rgba(200, 170, 110, 0.2);
+  border: 1px solid var(--gold-border);
+  box-shadow: 0 2px 10px rgba(212, 158, 53, 0.25);
+  cursor: pointer;
 }
 
 .inspector-launch-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #D8BA7E, #B0925B);
+  background: var(--gold-gradient-hover);
+  box-shadow: 0 4px 16px rgba(229, 184, 92, 0.4);
   transform: translateY(-1px);
 }
 
@@ -136,4 +139,5 @@
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+  box-shadow: none;
 }
