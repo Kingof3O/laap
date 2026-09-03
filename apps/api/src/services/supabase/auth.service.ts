@@ -69,7 +69,7 @@ export class SupabaseAuthService implements IAuthService {
   async createUser(
     actorId: string,
     input: { email: string; displayName: string; password: string; role: 'admin' | 'operator' }
-  ) {
+  ): Promise<ApiUser> {
     const { data, error } = await this.data.auth.admin.createUser({
       email: input.email,
       password: input.password,

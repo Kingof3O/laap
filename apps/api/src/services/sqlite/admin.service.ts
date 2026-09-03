@@ -6,12 +6,13 @@ import type { IAdminService } from '../domain/admin.js'
 import type { IAccountService } from '../domain/accounts.js'
 import type { IAuthService } from '../domain/auth.js'
 import type { ILeaseService } from '../domain/leases.js'
+import type { SqliteAuthService } from './auth.service.js'
 import { initials, relativeTime, sessionTone } from './shared.js'
 
 export class SqliteAdminService implements IAdminService {
   constructor(
     private readonly database: AppDatabase,
-    private readonly authService: IAuthService,
+    private readonly authService: SqliteAuthService,
     private readonly accountService: IAccountService,
     private readonly leaseService: ILeaseService
   ) {}
