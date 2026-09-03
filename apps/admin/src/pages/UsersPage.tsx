@@ -1,13 +1,18 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { ShieldCheck, UserRoundPlus } from 'lucide-react'
+import { ArrowRight, ShieldCheck, UserRoundPlus } from 'lucide-react'
 import type { ApiUser } from '@laap/types'
 import { api, ApiError } from '../lib/api'
 import { GlassCard } from '../components/GlassCard'
 import { StatusBadge } from '../components/StatusBadge'
+import type { PageName } from '../lib/data'
 
-type UsersPageProps = { offline: boolean; onToast: (message: string) => void }
+type UsersPageProps = {
+  offline: boolean
+  onToast: (message: string) => void
+  onNavigate?: (page: PageName) => void
+}
 
-export function UsersPage({ offline, onToast }: UsersPageProps) {
+export function UsersPage({ offline, onToast, onNavigate }: UsersPageProps) {
   const [users, setUsers] = useState<ApiUser[]>([])
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ displayName: '', email: '', password: '', role: 'operator' as 'operator' | 'admin' })
@@ -46,7 +51,30 @@ export function UsersPage({ offline, onToast }: UsersPageProps) {
 
       <GlassCard className="mt-5 overflow-hidden">
         <div className="flex items-center gap-2 border-b border-white/[0.06] px-5 py-5 sm:px-6"><span className="section-icon section-icon-violet"><ShieldCheck aria-hidden="true" size={16} /></span><div><h2 className="section-title">Authorized users <span className="font-mono text-[11px] text-slate-600">{users.length}</span></h2><p className="mt-1 text-xs text-slate-500">Everyone who can sign in to LAAP.</p></div></div>
-        <div className="divide-y divide-white/[0.05]">{users.map((user) => <div key={user.id} className="flex flex-wrap items-center gap-4 px-5 py-4 sm:px-6"><div className="avatar avatar-indigo">{user.displayName.slice(0, 2).toUpperCase()}</div><div className="min-w-[180px] flex-1"><p className="text-xs font-medium text-slate-200">{user.displayName}</p><p className="mt-1 text-[11px] text-slate-500">{user.email}</p></div><StatusBadge value={user.role === 'admin' ? 'Administrator' : 'Operator'} compact /><StatusBadge value={user.status === 'active' ? 'Active' : user.status} compact /></div>)}{!users.length ? <p className="px-6 py-10 text-center text-xs text-slate-500">No users have been added yet.</p> : null}</div>
+        <div className="divide-y divide-white/[0.05]">
+          {users.map((user) => (
+            <div key={user.id} className="flex flex-wrap items-center gap-4 px-5 py-4 sm:px-6">
+              <div className="avatar avatar-indigo">{user.displayName.slice(0, 2).toUpperCase()}</div>
+              <div className="min-w-[180px] flex-1">
+                <p className="text-xs font-medium text-slate-200">{user.displayName}</p>
+                <p className="mt-1 text-[11px] text-slate-500">{user.email}</p>
+              </div>
+              <StatusBadge value={user.role === 'admin' ? 'Administrator' : 'Operator'} compact />
+              <StatusBadge value={user.status === 'active' ? 'Active' : user.status} compact />
+              {user.role !== 'admin' && onNavigate ? (
+                <button
+                  type="button"
+                  onClick={() => onNavigate('Assignments')}
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-2.5 py-1 text-xs font-medium text-cyan-200 transition hover:bg-cyan-400/20"
+                >
+                  <span>Manage Access</span>
+                  <ArrowRight size={12} />
+                </button>
+              ) : null}
+            </div>
+          ))}
+          {!users.length ? <p className="px-6 py-10 text-center text-xs text-slate-500">No users have been added yet.</p> : null}
+        </div>
       </GlassCard>
     </div>
   )

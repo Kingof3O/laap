@@ -1,73 +1,208 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { ArrowRight, Link2, UserPlus, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ApiUser, DashboardAccount } from '@laap/types'
 import { api, ApiError } from '../lib/api'
-import { assignmentStatusLabel } from '../lib/labels'
 import { GlassCard } from '../components/GlassCard'
-import { StatusBadge } from '../components/StatusBadge'
+import type { AssignmentRow } from '../components/assignments/types'
+import { OperatorSelector } from '../components/assignments/OperatorSelector'
+import { OperatorDossierHeader } from '../components/assignments/OperatorDossierHeader'
+import { GrantAccessForm } from '../components/assignments/GrantAccessForm'
+import { AssignedAccountsList } from '../components/assignments/AssignedAccountsList'
+import { GlobalAssignmentsTable } from '../components/assignments/GlobalAssignmentsTable'
 
-type Assignment = { id: string; accountId: string; userId: string; account: string; user: string; email: string; status: string; assignedAt: string; expiresAt: string | null }
-type AssignmentsPageProps = { initialAccounts: DashboardAccount[]; offline: boolean; onToast: (message: string) => void }
+type AssignmentsPageProps = {
+  initialAccounts: DashboardAccount[]
+  offline: boolean
+  onToast: (message: string) => void
+}
 
 export function AssignmentsPage({ initialAccounts, offline, onToast }: AssignmentsPageProps) {
-  const [rows, setRows] = useState<Assignment[]>([])
+  const [rows, setRows] = useState<AssignmentRow[]>([])
   const [accounts, setAccounts] = useState(initialAccounts)
   const [users, setUsers] = useState<ApiUser[]>([])
-  const [form, setForm] = useState({ accountId: initialAccounts.find((account) => account.status === 'Available')?.id ?? '', userId: '', expiresAt: '' })
+  const [selectedUserId, setSelectedUserId] = useState<string>('')
+  const [userSearch, setUserSearch] = useState('')
+  const [viewMode, setViewMode] = useState<'by-user' | 'all'>('by-user')
   const [saving, setSaving] = useState(false)
+  const [revokingKey, setRevokingKey] = useState<string | null>(null)
 
   const refresh = async () => {
     if (offline) return
     try {
-      const [assignmentResult, accountResult, userResult] = await Promise.all([api.getAssignments(), api.getAccounts(), api.getUsers()])
+      const [assignmentResult, accountResult, userResult] = await Promise.all([
+        api.getAssignments(),
+        api.getAccounts(),
+        api.getUsers(),
+      ])
       setRows(assignmentResult.assignments)
       setAccounts(accountResult.accounts)
-      setUsers(userResult.users.filter((user) => user.role !== 'admin'))
-      setForm((current) => ({ ...current, accountId: current.accountId || accountResult.accounts.find((account) => account.status === 'Available')?.id || '' }))
-    } catch (error) { onToast(error instanceof ApiError ? error.message : 'Unable to load access') }
+      const nonAdminUsers = userResult.users.filter((u) => u.role !== 'admin')
+      setUsers(nonAdminUsers)
+      if (!selectedUserId && nonAdminUsers.length > 0) {
+        setSelectedUserId(nonAdminUsers[0].id)
+      }
+    } catch (error) {
+      onToast(error instanceof ApiError ? error.message : 'Unable to load access data')
+    }
   }
 
-  useEffect(() => { void refresh() }, [offline])
+  useEffect(() => {
+    void refresh()
+  }, [offline])
 
-  const assign = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  // Filtered operators by search query
+  const filteredUsers = useMemo(() => {
+    if (!userSearch.trim()) return users
+    const query = userSearch.toLowerCase()
+    return users.filter(
+      (u) => u.displayName.toLowerCase().includes(query) || u.email.toLowerCase().includes(query)
+    )
+  }, [users, userSearch])
+
+  // Currently focused operator
+  const selectedUser = useMemo(() => {
+    return users.find((u) => u.id === selectedUserId) ?? users[0] ?? null
+  }, [users, selectedUserId])
+
+  // Accounts assigned to the focused operator
+  const userAssignments = useMemo(() => {
+    if (!selectedUser) return []
+    return rows.filter((r) => r.userId === selectedUser.id)
+  }, [rows, selectedUser])
+
+  // Accounts available to grant to this operator (not yet assigned)
+  const availableAccountsForUser = useMemo(() => {
+    const assignedIds = new Set(
+      userAssignments.filter((r) => r.status === 'active').map((r) => r.accountId)
+    )
+    return accounts.filter((a) => !assignedIds.has(a.id))
+  }, [accounts, userAssignments])
+
+  // Grant account access
+  const handleGrantAccess = async (accountId: string, expiresAt: string | null) => {
+    if (!selectedUser) return
     setSaving(true)
     try {
-      await api.addAssignment({ accountId: form.accountId, userId: form.userId, expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null })
-      onToast('Access granted')
-      setForm((current) => ({ ...current, userId: '', expiresAt: '' }))
+      await api.addAssignment({
+        accountId,
+        userId: selectedUser.id,
+        expiresAt,
+      })
+      const targetAccount = accounts.find((a) => a.id === accountId)
+      onToast(`Granted access to ${targetAccount?.name ?? 'account'} for ${selectedUser.displayName}`)
       await refresh()
-    } catch (error) { onToast(error instanceof ApiError ? error.message : 'Unable to grant access') }
-    finally { setSaving(false) }
+    } catch (error) {
+      onToast(error instanceof ApiError ? error.message : 'Unable to grant access')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const revoke = async (row: Assignment) => {
-    try { await api.revokeAssignment(row.accountId, row.userId); onToast(`Access removed for ${row.user}`); await refresh() } catch (error) { onToast(error instanceof ApiError ? error.message : 'Unable to remove access') }
+  // Revoke account access
+  const handleRevoke = async (accountId: string, userId: string, accountName: string, userName?: string) => {
+    const key = `${accountId}-${userId}`
+    setRevokingKey(key)
+    try {
+      await api.revokeAssignment(accountId, userId)
+      onToast(`Revoked access to ${accountName} from ${userName ?? selectedUser?.displayName ?? 'user'}`)
+      await refresh()
+    } catch (error) {
+      onToast(error instanceof ApiError ? error.message : 'Unable to revoke access')
+    } finally {
+      setRevokingKey(null)
+    }
   }
 
   return (
     <div className="mx-auto max-w-[1600px] px-5 py-7 sm:px-8 sm:py-9 lg:px-10 lg:py-10">
-      <p className="eyebrow">Access</p>
-      <h1 className="display-title mt-3">Who can use each account.</h1>
-      <p className="mt-4 max-w-xl text-sm leading-6 text-slate-400">Give people access to the accounts they need, and remove it when you are done.</p>
+      {/* Header & Controls */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="eyebrow">ACCESS CONTROL</p>
+          <h1 className="display-title mt-3">User Account Assignments</h1>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-slate-400">
+            Inspect assigned accounts per operator, grant new permissions, and revoke access instantly.
+          </p>
+        </div>
 
-      <GlassCard className="mt-7 p-5 sm:p-6">
-        <div className="flex items-center gap-2"><span className="section-icon section-icon-cyan"><UserPlus aria-hidden="true" size={16} /></span><div><h2 className="section-title">Give someone access</h2><p className="mt-1 text-xs text-slate-500">Choose an account and the person who should use it.</p></div></div>
-        <form className="mt-5 grid gap-4 md:grid-cols-[1.2fr_1.2fr_1fr_auto] md:items-end" onSubmit={assign}>
-          <Field label="Account"><select className="input-base h-11 w-full cursor-pointer px-3 text-sm" value={form.accountId} onChange={(event) => setForm({ ...form, accountId: event.target.value })} required><option value="">Select account</option>{accounts.filter((account) => account.status === 'Available').map((account) => <option key={account.id} value={account.id}>{account.name} · {account.region}</option>)}</select></Field>
-          <Field label="Person"><select className="input-base h-11 w-full cursor-pointer px-3 text-sm" value={form.userId} onChange={(event) => setForm({ ...form, userId: event.target.value })} required><option value="">Select person</option>{users.map((user) => <option key={user.id} value={user.id}>{user.displayName} · {user.email}</option>)}</select></Field>
-          <Field label="End date (optional)"><input className="input-base h-11 w-full px-3 text-sm" type="datetime-local" value={form.expiresAt} onChange={(event) => setForm({ ...form, expiresAt: event.target.value })} /></Field>
-          <button type="submit" disabled={saving || offline || !form.accountId || !form.userId} className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-4 text-xs font-medium text-cyan-100 transition hover:bg-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-50">{saving ? 'Saving…' : offline ? 'Not connected' : 'Give access'}<ArrowRight aria-hidden="true" size={14} /></button>
-        </form>
-        <p className="mt-4 text-[11px] leading-5 text-slate-500">People still sign in to Riot Client themselves. LAAP never asks for or stores their Riot password.</p>
-      </GlassCard>
+        {/* View Switcher */}
+        <div className="inline-flex rounded-xl border border-white/[0.08] bg-white/[0.03] p-1">
+          <button
+            type="button"
+            onClick={() => setViewMode('by-user')}
+            className={`cursor-pointer rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
+              viewMode === 'by-user'
+                ? 'bg-cyan-400/20 text-cyan-200 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            By User (Operator Dossier)
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('all')}
+            className={`cursor-pointer rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
+              viewMode === 'all'
+                ? 'bg-cyan-400/20 text-cyan-200 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            All Assignments ({rows.filter((r) => r.status === 'active').length})
+          </button>
+        </div>
+      </div>
 
-      <GlassCard className="mt-5 overflow-hidden">
-        <div className="flex items-center gap-2 border-b border-white/[0.06] px-5 py-5 sm:px-6"><span className="section-icon section-icon-violet"><Link2 aria-hidden="true" size={16} /></span><div><h2 className="section-title">Current access <span className="font-mono text-[11px] text-slate-600">{rows.filter((row) => row.status === 'active').length}</span></h2><p className="mt-1 text-xs text-slate-500">People who can use an account.</p></div></div>
-        <div className="divide-y divide-white/[0.05]">{rows.map((row) => <div key={row.id} className="flex flex-wrap items-center gap-4 px-5 py-4 sm:px-6"><div className="account-glyph account-glyph-violet" aria-hidden="true">{row.account.slice(0, 1)}</div><div className="min-w-[170px] flex-1"><p className="font-mono text-xs font-medium text-slate-200">{row.account}</p><p className="mt-1 text-[11px] text-slate-500">{row.user} · {row.email}</p></div><StatusBadge value={assignmentStatusLabel(row.status)} compact /><button type="button" onClick={() => void revoke(row)} disabled={row.status !== 'active' || offline} className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border border-transparent px-3 text-[11px] text-slate-500 transition hover:border-rose-400/20 hover:bg-rose-400/10 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80"><X aria-hidden="true" size={13} />Remove access</button></div>)}{!rows.length ? <p className="px-6 py-10 text-center text-xs text-slate-500">No one has been given access yet.</p> : null}</div>
-      </GlassCard>
+      {viewMode === 'by-user' ? (
+        <div className="mt-8 grid gap-6 lg:grid-cols-[340px_1fr]">
+          <OperatorSelector
+            users={filteredUsers}
+            selectedUserId={selectedUser?.id ?? ''}
+            onSelectUser={setSelectedUserId}
+            search={userSearch}
+            onSearchChange={setUserSearch}
+            getAssignmentCount={(id) => rows.filter((r) => r.userId === id && r.status === 'active').length}
+          />
+
+          {selectedUser ? (
+            <div className="flex flex-col gap-6">
+              <GlassCard className="p-5 sm:p-6">
+                <OperatorDossierHeader
+                  user={selectedUser}
+                  activeAssignmentsCount={userAssignments.filter((r) => r.status === 'active').length}
+                />
+                <GrantAccessForm
+                  userName={selectedUser.displayName}
+                  availableAccounts={availableAccountsForUser}
+                  onGrant={handleGrantAccess}
+                  saving={saving}
+                  offline={offline}
+                />
+              </GlassCard>
+
+              <AssignedAccountsList
+                userName={selectedUser.displayName}
+                assignments={userAssignments}
+                accounts={accounts}
+                onRevoke={(accId, usrId, accName) => handleRevoke(accId, usrId, accName, selectedUser.displayName)}
+                revokingKey={revokingKey}
+                offline={offline}
+              />
+            </div>
+          ) : (
+            <GlassCard className="p-12 text-center text-slate-500">
+              <p className="text-sm">Select an operator from the left to view and manage their account access.</p>
+            </GlassCard>
+          )}
+        </div>
+      ) : (
+        <div className="mt-8">
+          <GlobalAssignmentsTable
+            assignments={rows}
+            onRevoke={handleRevoke}
+            revokingKey={revokingKey}
+            offline={offline}
+          />
+        </div>
+      )}
     </div>
   )
 }
-
-function Field({ label, children }: { label: string; children: ReactNode }) { return <label className="block"><span className="mb-2 block text-[11px] font-medium uppercase tracking-[0.12em] text-slate-500">{label}</span>{children}</label> }

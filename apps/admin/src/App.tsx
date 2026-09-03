@@ -148,7 +148,7 @@ export default function App() {
       : activePage === 'Assignments'
           ? <AssignmentsPage initialAccounts={activeSnapshot.accounts} offline={offline} onToast={moduleToast} />
         : activePage === 'Users'
-          ? <UsersPage offline={offline} onToast={moduleToast} />
+          ? <UsersPage offline={offline} onToast={moduleToast} onNavigate={navigate} />
           : activePage === 'Devices'
             ? <DevicesPage offline={offline} onToast={moduleToast} />
             : <AuditLogPage offline={offline} onToast={moduleToast} />
