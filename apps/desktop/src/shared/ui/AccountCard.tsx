@@ -1,15 +1,17 @@
 import { KeyRound, Play, RotateCcw, Trash2, UploadCloud, Zap } from 'lucide-react'
 
-interface AccountCardProps {
+export interface AccountCardProps {
   id: string
   name: string
   region: string
   lastUsedText?: string | null
   hasSession?: boolean
-  status?: 'Available' | 'Leased' | 'Maintenance' | 'Disabled'
+  status?: string
+  isSelected?: boolean
   isCloud?: boolean
   canManage?: boolean
   busy?: boolean
+  onSelect?: () => void
   onLaunch: () => void
   onSync?: () => void
   onPushToCloud?: () => void
@@ -24,9 +26,11 @@ export function AccountCard({
   lastUsedText,
   hasSession = true,
   status = 'Available',
+  isSelected = false,
   isCloud = false,
   canManage = false,
   busy = false,
+  onSelect,
   onLaunch,
   onSync,
   onPushToCloud,
@@ -38,7 +42,18 @@ export function AccountCard({
   const isLeased = isCloud && status === 'Leased'
 
   return (
-    <div className={`roster-card ${hasSession && !isLeased ? 'roster-card-ready' : 'roster-card-unsynced'}`}>
+    <div
+      className={`roster-card ${isSelected ? 'roster-card-selected' : ''}`}
+      onClick={() => onSelect?.()}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onSelect?.()
+        }
+      }}
+    >
       {/* Top Banner & Status */}
       <div className="card-top-row">
         <div className="card-identity">
@@ -59,7 +74,7 @@ export function AccountCard({
                 </span>
               ) : hasSession ? (
                 <span className="status-indicator status-indicator-ready">
-                  <span className="status-beacon status-beacon-teal" />
+                  <span className="status-beacon status-beacon-ready" />
                   Ready to Launch
                 </span>
               ) : (
@@ -76,11 +91,11 @@ export function AccountCard({
         </div>
 
         {/* Quick Card Context Actions */}
-        <div className="card-secondary-actions">
+        <div className="card-secondary-actions" onClick={(e) => e.stopPropagation()}>
           {canManage && isCloud && onSync ? (
             <button
               type="button"
-              className="action-icon-btn action-icon-btn-sync"
+              className="action-icon-btn"
               onClick={onSync}
               disabled={busy}
               title="Sync Login Session"
@@ -92,7 +107,7 @@ export function AccountCard({
           {canManage && isCloud && hasSession && onRevokeSession ? (
             <button
               type="button"
-              className="action-icon-btn action-icon-btn-sync"
+              className="action-icon-btn"
               onClick={onRevokeSession}
               disabled={busy}
               title="Revoke Stored Login Session"
@@ -104,7 +119,7 @@ export function AccountCard({
           {canManage && !isCloud && onPushToCloud ? (
             <button
               type="button"
-              className="action-icon-btn action-icon-btn-cloud"
+              className="action-icon-btn"
               onClick={onPushToCloud}
               disabled={busy}
               title="Publish to Team Vault"
@@ -128,18 +143,18 @@ export function AccountCard({
       </div>
 
       {/* Primary Action Row */}
-      <div className="card-bottom-row">
+      <div className="card-bottom-row" onClick={(e) => e.stopPropagation()}>
         {isLeased ? (
           canManage && onForceRelease ? (
             <button
               type="button"
               className="btn-launch-primary"
-              style={{ background: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.4)', color: '#fca5a5' }}
+              style={{ background: 'rgba(239, 68, 68, 0.2)', borderColor: 'rgba(239, 68, 68, 0.4)', color: '#fca5a5' }}
               onClick={onForceRelease}
               disabled={busy}
-              title="Release account from teammate"
+              title="Force release account from teammate"
             >
-              <RotateCcw size={14} />
+              <RotateCcw size={13} />
               <span>Force Release</span>
             </button>
           ) : (
@@ -158,7 +173,7 @@ export function AccountCard({
             onClick={onLaunch}
             disabled={busy}
           >
-            <Play size={14} fill="currentColor" />
+            <Play size={13} fill="currentColor" />
             <span>{isCloud ? 'Claim & Launch' : 'Play Game'}</span>
           </button>
         )}

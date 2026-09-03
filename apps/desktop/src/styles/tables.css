@@ -1,0 +1,142 @@
+.table-wrapper {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.roster-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.roster-table th {
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-divider);
+}
+
+.table-actions-header {
+  text-align: right;
+}
+
+.roster-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-divider);
+  font-size: 12px;
+}
+
+.roster-table tr:hover td {
+  background: var(--bg-card-hover);
+}
+
+.table-profile-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.table-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  font-weight: 700;
+  font-size: 10px;
+  color: var(--gold-light);
+  display: grid;
+  place-items: center;
+}
+
+.table-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: #FFFFFF;
+}
+
+.table-region-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+}
+
+.table-status-pill {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.table-status-ready {
+  background: var(--status-ready-bg);
+  color: var(--status-ready);
+}
+
+.table-status-warn {
+  background: var(--status-leased-bg);
+  color: var(--status-leased);
+}
+
+.table-date-cell {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.table-actions-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.btn-table-play {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 5px;
+  background: linear-gradient(135deg, #C8AA6E, #A0824B);
+  color: #090B10;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #E4C88E;
+}
+
+.btn-table-play:hover {
+  background: linear-gradient(135deg, #D8BA7E, #B0925B);
+}
+
+.btn-table-play:disabled {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: transparent;
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.table-icon-btn {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  color: var(--text-muted);
+}
+
+.table-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.table-icon-btn-danger:hover {
+  background: var(--status-danger-bg);
+  color: var(--status-danger);
+}

@@ -1,4 +1,4 @@
-export { TeamVaultView } from '../../views/TeamVaultView'
-export { useCloudAccounts } from '../../hooks/useCloudAccounts'
-export { SyncAccountModal } from '../../components/modals/SyncAccountModal'
-export { ActiveLeaseBanner } from '../../components/accounts/ActiveLeaseBanner'
+export { TeamVaultView } from './TeamVaultView'
+export { useCloudAccounts } from './useCloudAccounts'
+export { SyncAccountModal } from './SyncAccountModal'
+export { ActiveLeaseBanner } from './ActiveLeaseBanner'

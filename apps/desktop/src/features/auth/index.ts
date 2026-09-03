@@ -1,2 +1,2 @@
-export { LoginView } from '../../components/auth/LoginView'
-export { useAuth } from '../../hooks/useAuth'
+export { LoginView } from './LoginView'
+export { useAuth } from './useAuth'

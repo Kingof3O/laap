@@ -2,7 +2,7 @@ import { LayoutGrid, List, Plus, Search, X } from 'lucide-react'
 import { AVAILABLE_REGIONS } from '../../lib/constants'
 import type { Region, ViewMode } from '../../lib/types'
 
-interface SubNavbarProps {
+export interface SubNavbarProps {
   searchQuery: string
   onSearchChange: (query: string) => void
   selectedRegion: Region
@@ -23,19 +23,18 @@ export function SubNavbar({
   onViewModeChange,
   onAddAccount,
   addButtonLabel = 'Add Profile',
-  totalCount,
 }: SubNavbarProps) {
   return (
     <div className="sub-navbar">
       {/* Search & Region Filters */}
       <div className="filter-controls">
-        {/* Instant Search Box */}
+        {/* Search Box */}
         <div className="search-box">
           <Search size={14} className="search-icon" />
           <input
             type="text"
             className="search-input"
-            placeholder="Filter summoners or riot IDs…"
+            placeholder="Search profiles or regions…"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
           />
@@ -44,12 +43,11 @@ export function SubNavbar({
               type="button"
               className="search-clear-btn"
               onClick={() => onSearchChange('')}
+              aria-label="Clear search"
             >
               <X size={12} />
             </button>
-          ) : (
-            <span className="search-shortcut">⌘K</span>
-          )}
+          ) : null}
         </div>
 
         {/* Region Pills */}
@@ -67,35 +65,33 @@ export function SubNavbar({
         </div>
       </div>
 
-      {/* Right Controls: View Mode Switcher + Add Action */}
-      <div className="action-controls">
-        <div className="view-mode-toggle">
+      {/* View Switcher & Add Action */}
+      <div className="view-action-controls">
+        <div className="view-mode-toggle" aria-label="Layout view switcher">
           <button
             type="button"
-            className={`view-btn ${viewMode === 'grid' ? 'view-btn-active' : ''}`}
+            className={`view-toggle-btn ${viewMode === 'grid' ? 'view-toggle-btn-active' : ''}`}
             onClick={() => onViewModeChange('grid')}
-            title="Tactical Grid View"
+            title="Grid View"
+            aria-label="Grid View"
           >
             <LayoutGrid size={14} />
           </button>
           <button
             type="button"
-            className={`view-btn ${viewMode === 'list' ? 'view-btn-active' : ''}`}
+            className={`view-toggle-btn ${viewMode === 'list' ? 'view-toggle-btn-active' : ''}`}
             onClick={() => onViewModeChange('list')}
-            title="High-Density Table View"
+            title="List View"
+            aria-label="List View"
           >
             <List size={14} />
           </button>
         </div>
 
-        <span className="count-tag">
-          {totalCount} {totalCount === 1 ? 'Profile' : 'Profiles'}
-        </span>
-
         {onAddAccount ? (
           <button
             type="button"
-            className="btn-gold-action"
+            className="btn-add-primary"
             onClick={onAddAccount}
           >
             <Plus size={14} />

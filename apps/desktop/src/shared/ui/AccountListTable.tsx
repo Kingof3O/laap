@@ -1,19 +1,21 @@
 import { KeyRound, Play, RotateCcw, Trash2, UploadCloud, Zap } from 'lucide-react'
 
-interface TableItem {
+export interface TableItem {
   id: string
   name: string
   region: string
   hasSession: boolean
   lastUsedText?: string | null
-  status?: 'Available' | 'Leased' | 'Maintenance' | 'Disabled'
+  status?: string
 }
 
-interface AccountListTableProps {
+export interface AccountListTableProps {
   items: TableItem[]
+  selectedId?: string | null
   isCloud?: boolean
   canManage?: boolean
   busy?: boolean
+  onSelect?: (id: string) => void
   onLaunch: (id: string) => void
   onSync?: (id: string) => void
   onPushToCloud?: (id: string) => void
@@ -24,9 +26,11 @@ interface AccountListTableProps {
 
 export function AccountListTable({
   items,
+  selectedId,
   isCloud = false,
   canManage = false,
   busy = false,
+  onSelect,
   onLaunch,
   onSync,
   onPushToCloud,
@@ -49,9 +53,17 @@ export function AccountListTable({
         <tbody>
           {items.map((item) => {
             const isLeased = isCloud && item.status === 'Leased'
+            const isSelected = selectedId === item.id
 
             return (
-              <tr key={item.id}>
+              <tr
+                key={item.id}
+                onClick={() => onSelect?.(item.id)}
+                style={{
+                  cursor: 'pointer',
+                  background: isSelected ? 'var(--bg-card-selected)' : undefined,
+                }}
+              >
                 <td>
                   <div className="table-profile-cell">
                     <div className="table-avatar">{item.name.slice(0, 2).toUpperCase()}</div>
@@ -74,18 +86,18 @@ export function AccountListTable({
                   {item.lastUsedText || 'Never played'}
                 </td>
                 <td>
-                  <div className="table-actions-cell">
+                  <div className="table-actions-cell" onClick={(e) => e.stopPropagation()}>
                     {isLeased ? (
                       canManage && onForceRelease ? (
                         <button
                           type="button"
                           className="btn-table-play"
-                          style={{ background: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.4)', color: '#fca5a5' }}
+                          style={{ background: 'rgba(239, 68, 68, 0.2)', borderColor: 'rgba(239, 68, 68, 0.4)', color: '#fca5a5' }}
                           onClick={() => onForceRelease(item.id)}
                           disabled={busy}
                           title="Force Release / Kick active session"
                         >
-                          <RotateCcw size={12} />
+                          <RotateCcw size={11} />
                           <span>Kick</span>
                         </button>
                       ) : (
@@ -104,7 +116,7 @@ export function AccountListTable({
                         onClick={() => onLaunch(item.id)}
                         disabled={busy}
                       >
-                        <Play size={12} fill="currentColor" />
+                        <Play size={11} fill="currentColor" />
                         <span>Play</span>
                       </button>
                     )}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { apiRequest, getStoredToken, getStoredUser, saveStoredAuth, setRuntimeToken } from '../lib/api'
-import type { User } from '../lib/types'
+import { apiRequest, getStoredToken, getStoredUser, saveStoredAuth, setRuntimeToken } from '../../lib/api'
+import type { User } from '../../lib/types'
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(getStoredUser)
@@ -72,6 +72,7 @@ export function useAuth() {
       setRuntimeToken(null)
       saveStoredAuth(null, null)
       setUser(null)
+      setError(null)
     }
   }
 
@@ -79,7 +80,6 @@ export function useAuth() {
     user,
     loading,
     error,
-    setError,
     login,
     logout,
     checkSession,

@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { EmptyState } from '../components/accounts/EmptyState'
-import { AccountRosterDisplay } from '../components/accounts/AccountRosterDisplay'
-import { AddAccountModal } from '../components/modals/AddAccountModal'
-import { DeleteConfirmModal } from '../components/modals/DeleteConfirmModal'
-import { useLocalAccounts } from '../hooks/useLocalAccounts'
-import { useProvisioningSandbox } from '../hooks/useProvisioningSandbox'
-import { useToast } from '../context/ToastContext'
-import type { Region, ViewMode } from '../lib/types'
+import { EmptyState, AccountRosterDisplay, DeleteConfirmModal } from '../../shared/ui'
+import { AddAccountModal } from './AddAccountModal'
+import { useLocalAccounts } from './useLocalAccounts'
+import { useProvisioningSandbox } from '../../shared/hooks/useProvisioningSandbox'
+import { useToast } from '../../context/ToastContext'
+import type { Region, ViewMode } from '../../lib/types'
 
 interface PersonalRosterViewProps {
   searchQuery: string
@@ -64,7 +62,6 @@ export function PersonalRosterView({
     onError: (err) => showError(err.message),
   })
 
-  // Filter accounts by region and search query
   const filteredAccounts = useMemo(() => {
     return localAccounts.filter((acc) => {
       const matchRegion = selectedRegion === 'ALL' || acc.region.toUpperCase() === selectedRegion
@@ -81,10 +78,10 @@ export function PersonalRosterView({
 
   const handleLaunch = async (id: string) => {
     setBusy(true)
-    showSuccess('Launching League of Legends…')
+    showSuccess('Injecting session and booting League of Legends…')
     try {
       await launchAccount(id)
-      showSuccess('Game started!')
+      showSuccess('League of Legends launched!')
     } catch (cause) {
       showError(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -94,14 +91,45 @@ export function PersonalRosterView({
 
   const handleCaptureActive = async (name: string, region: string) => {
     setBusy(true)
+    showSuccess('Inspecting local Riot settings…')
     try {
-      const activeSession = await captureActive()
-      if (!activeSession) {
-        throw new Error('No active Riot login found. Please sign into League or Riot Client first.')
+      const sessionBlob = await captureActive()
+      if (!sessionBlob) {
+        throw new Error('No active login session detected in Riot Client.')
       }
-      await saveAccount(name, region, activeSession)
+      await saveAccount(name, region, sessionBlob)
       onCloseAddModal()
-      showSuccess(`Profile "${name}" registered successfully!`)
+      showSuccess(`Account "${name}" registered successfully!`)
+      await loadAccounts()
+    } catch (cause) {
+      showError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleStartSandbox = async (_name: string, _region: string) => {
+    setBusy(true)
+    showSuccess('Opening Riot Client in isolated sandbox…')
+    try {
+      await startSandbox()
+      showSuccess('Sandbox ready! Please sign in with "Stay signed in" enabled.')
+    } catch (cause) {
+      showError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return
+    setBusy(true)
+    showSuccess(`Removing "${deleteTarget.name}"…`)
+    try {
+      await deleteAccount(deleteTarget.id)
+      showSuccess(`Profile "${deleteTarget.name}" deleted.`)
+      setDeleteTarget(null)
+      await loadAccounts()
     } catch (cause) {
       showError(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -127,27 +155,13 @@ export function PersonalRosterView({
     }
   }
 
-  const handleConfirmDelete = async () => {
-    if (!deleteTarget) return
-    setBusy(true)
-    showSuccess(`Removing "${deleteTarget.name}"…`)
-    try {
-      await deleteAccount(deleteTarget.id)
-      showSuccess(`Profile "${deleteTarget.name}" removed.`)
-      setDeleteTarget(null)
-    } catch (cause) {
-      showError(cause instanceof Error ? cause.message : String(cause))
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
     <div>
       {filteredAccounts.length === 0 ? (
         <EmptyState
+          isCloud={false}
           searchActive={Boolean(searchQuery || selectedRegion !== 'ALL')}
-          onAddAccount={onOpenAddModal}
+          onAction={onOpenAddModal}
         />
       ) : (
         <AccountRosterDisplay
@@ -155,14 +169,22 @@ export function PersonalRosterView({
             id: acc.id,
             name: acc.name,
             region: acc.region,
-            hasSession: acc.has_session,
-            lastUsedText: acc.last_used_at ? `Played ${new Date(acc.last_used_at).toLocaleDateString()}` : null,
+            hasSession: true,
+            lastUsedText: acc.last_used_at
+              ? new Date(acc.last_used_at).toLocaleDateString([], {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+              : null,
           }))}
           viewMode={viewMode}
+          isCloud={false}
           canManage={true}
           busy={busy}
           onLaunch={handleLaunch}
-          onPushToCloud={isAdmin ? handlePush : undefined}
+          onPushToCloud={isAdmin && onPushToCloud ? handlePush : undefined}
           onDelete={(id, name) => setDeleteTarget({ id, name })}
         />
       )}
@@ -172,12 +194,8 @@ export function PersonalRosterView({
         isOpen={showAddModal}
         onClose={onCloseAddModal}
         onCaptureActive={handleCaptureActive}
-        onStartSandbox={async () => {
-          await startSandbox()
-        }}
-        onCancelSandbox={async () => {
-          await cancelSandbox()
-        }}
+        onStartSandbox={handleStartSandbox}
+        onCancelSandbox={cancelSandbox}
         provisioning={provisioning}
         busy={busy}
       />

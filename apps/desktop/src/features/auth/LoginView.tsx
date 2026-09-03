@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { LogIn, ShieldCheck, Zap } from 'lucide-react'
+import { LogIn, ShieldCheck } from 'lucide-react'
 
 interface LoginViewProps {
   onLogin: (email: string, pass: string, remember: boolean) => Promise<void>
@@ -20,29 +20,23 @@ export function LoginView({ onLogin, busy, error }: LoginViewProps) {
 
   return (
     <div className="login-stage">
-      <div className="hextech-card login-box">
-        {/* Hextech Corner Ornaments */}
-        <div className="corner-accent corner-tl" />
-        <div className="corner-accent corner-tr" />
-        <div className="corner-accent corner-bl" />
-        <div className="corner-accent corner-br" />
-
+      <div className="login-box">
         <div className="login-crest">
-          <ShieldCheck size={26} />
+          <ShieldCheck size={24} />
         </div>
 
-        <h1 className="login-heading">TEAM VAULT</h1>
+        <h1 className="login-heading">Team Vault</h1>
         <p className="login-caption">
-          Sign in with your team credentials to unlock shared League profiles.
+          Sign in with your organization credentials to access shared tournament profiles.
         </p>
 
         <form onSubmit={handleSubmit} className="login-form">
           <div className="field-block">
-            <label className="field-label">EMAIL ADDRESS</label>
+            <label className="field-label">Email Address</label>
             <input
               type="email"
               className="hextech-input"
-              placeholder="summoner@team.gg"
+              placeholder="analyst@esports.org"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={busy}
@@ -51,7 +45,7 @@ export function LoginView({ onLogin, busy, error }: LoginViewProps) {
           </div>
 
           <div className="field-block">
-            <label className="field-label">PASSWORD</label>
+            <label className="field-label">Password</label>
             <input
               type="password"
               className="hextech-input"
@@ -70,22 +64,23 @@ export function LoginView({ onLogin, busy, error }: LoginViewProps) {
               onChange={(e) => setRememberMe(e.target.checked)}
               disabled={busy}
             />
-            <span>Remember me on this PC</span>
+            <span>Remember me on this computer</span>
           </label>
 
           {error ? (
-            <div className="login-error-pill">
-              <span>{error}</span>
+            <div style={{ padding: '8px 12px', borderRadius: '6px', background: 'var(--status-danger-bg)', border: '1px solid var(--status-danger-border)', color: '#fca5a5', fontSize: '12px' }}>
+              {error}
             </div>
           ) : null}
 
           <button
             type="submit"
-            className="btn-hextech-submit"
+            className="btn-modal-primary"
+            style={{ width: '100%', height: '36px', marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
             disabled={busy || !email || !password}
           >
-            <LogIn size={15} />
-            <span>{busy ? 'AUTHENTICATING…' : 'SIGN IN TO VAULT'}</span>
+            <LogIn size={14} />
+            <span>{busy ? 'Authenticating…' : 'Sign In to Vault'}</span>
           </button>
         </form>
       </div>

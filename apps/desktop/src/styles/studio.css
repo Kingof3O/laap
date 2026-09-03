@@ -1,0 +1,139 @@
+.studio-viewport {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 20px;
+  padding: 20px 24px;
+  align-items: start;
+}
+
+@media (max-width: 980px) {
+  .studio-viewport {
+    grid-template-columns: 1fr;
+  }
+  .tactical-overview-rail {
+    display: none;
+  }
+}
+
+.studio-roster-stage {
+  min-width: 0;
+}
+
+/* Tactical Overview Rail */
+.tactical-overview-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 80px;
+}
+
+.overview-pod {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pod-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pod-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.pod-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 12px;
+  background: var(--status-ready-bg);
+  border: 1px solid var(--status-ready-border);
+  color: var(--status-ready);
+}
+
+.pod-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pod-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.pod-field-label {
+  color: var(--text-muted);
+}
+
+.pod-field-value {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.pod-field-value-mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.inspector-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-divider);
+}
+
+.inspector-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+.inspector-tag {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.inspector-launch-btn {
+  width: 100%;
+  height: 36px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #C8AA6E, #A0824B);
+  color: #090B10;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #E4C88E;
+  box-shadow: 0 4px 12px rgba(200, 170, 110, 0.2);
+}
+
+.inspector-launch-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #D8BA7E, #B0925B);
+  transform: translateY(-1px);
+}
+
+.inspector-launch-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}

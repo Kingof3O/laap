@@ -28,14 +28,9 @@ export function AddAccountModal({
 
   return (
     <div className="modal-backdrop">
-      <div className="hextech-card modal-panel">
-        <div className="corner-accent corner-tl" />
-        <div className="corner-accent corner-tr" />
-        <div className="corner-accent corner-bl" />
-        <div className="corner-accent corner-br" />
-
+      <div className="modal-panel">
         <div className="modal-head">
-          <h2 className="modal-title">REGISTER SUMMONER PROFILE</h2>
+          <h2 className="modal-title">Register Summoner Profile</h2>
           <button
             type="button"
             className="modal-close-btn"
@@ -50,7 +45,7 @@ export function AddAccountModal({
 
         <div className="modal-body">
           <div className="field-block">
-            <label className="field-label">SUMMONER NAME / RIOT ID</label>
+            <label className="field-label">Summoner Name / Riot ID</label>
             <input
               type="text"
               className="hextech-input"
@@ -58,13 +53,14 @@ export function AddAccountModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={provisioning || busy}
+              required
             />
           </div>
 
           <div className="field-block">
-            <label className="field-label">SERVER REGION</label>
+            <label className="field-label">Server Region</label>
             <select
-              className="hextech-input"
+              className="hextech-select"
               value={region}
               onChange={(e) => setRegion(e.target.value)}
               disabled={provisioning || busy}
@@ -78,50 +74,49 @@ export function AddAccountModal({
           </div>
 
           {provisioning ? (
-            <div className="provisioning-callout">
-              <div className="callout-indicator">
-                <Zap size={16} className="callout-icon" />
-                <span>Riot Client opened. Sign in once with &quot;Stay signed in&quot; checked.</span>
-              </div>
-              <button
-                type="button"
-                className="btn-modal-secondary"
-                onClick={() => void onCancelSandbox()}
-                style={{ width: '100%', marginTop: '12px' }}
-              >
-                Cancel Sandbox
-              </button>
-            </div>
-          ) : (
-            <div className="modal-button-stack">
-              <button
-                type="button"
-                className="btn-hextech-submit"
-                onClick={() => void onCaptureActive(name, region)}
-                disabled={busy || !name.trim()}
-              >
+            <div style={{ padding: '16px', background: 'rgba(200, 170, 110, 0.08)', borderRadius: '8px', border: '1px solid rgba(200, 170, 110, 0.25)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--gold-light)', fontSize: '13px', fontWeight: 600 }}>
                 <Zap size={15} />
-                <span>CAPTURE ACTIVE RIOT LOGIN</span>
-              </button>
+                <span>Riot Sign-In Sandbox Active</span>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                Log in via the official Riot Client window and ensure &quot;Stay signed in&quot; is checked. LAAP will automatically detect your session.
+              </p>
+            </div>
+          ) : null}
+        </div>
 
+        <div className="modal-foot">
+          {provisioning ? (
+            <button
+              type="button"
+              className="btn-modal-secondary"
+              onClick={() => void onCancelSandbox()}
+              disabled={busy}
+            >
+              Cancel Sandbox
+            </button>
+          ) : (
+            <>
               <button
                 type="button"
                 className="btn-modal-secondary"
-                onClick={() => void onStartSandbox(name, region)}
-                disabled={busy || !name.trim()}
+                onClick={() => void onCaptureActive(name, region)}
+                disabled={!name.trim() || busy}
+                title="Save current logged-in Riot account without re-entering credentials"
               >
-                <Play size={14} />
-                <span>OPEN RIOT SIGN-IN SANDBOX</span>
+                Capture Active Login
               </button>
-
               <button
                 type="button"
-                className="btn-modal-tertiary"
-                onClick={onClose}
+                className="btn-modal-primary"
+                onClick={() => void onStartSandbox(name, region)}
+                disabled={!name.trim() || busy}
               >
-                Cancel
+                <Play size={12} fill="currentColor" />
+                <span>Launch Sandbox Login</span>
               </button>
-            </div>
+            </>
           )}
         </div>
       </div>

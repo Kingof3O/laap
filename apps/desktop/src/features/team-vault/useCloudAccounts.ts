@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { apiRequest, hasTauri, invokeTauri } from '../lib/api'
-import { useDevice } from '../features/device'
-import type { Account, User } from '../lib/types'
+import { apiRequest, hasTauri, invokeTauri } from '../../lib/api'
+import { useDevice } from '../device'
+import type { Account, User } from '../../lib/types'
 
 export function useCloudAccounts(user: User | null) {
   const [accounts, setAccounts] = useState<Account[]>([])

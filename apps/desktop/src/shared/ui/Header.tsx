@@ -1,7 +1,7 @@
 import { Gamepad2, RefreshCw, Settings, Users, Zap } from 'lucide-react'
 import type { AppMode, User } from '../../lib/types'
 
-interface HeaderProps {
+export interface HeaderProps {
   appMode: AppMode
   onModeChange: (mode: AppMode) => void
   user: User | null
@@ -21,22 +21,22 @@ export function Header({
       {/* Brand Identity */}
       <div className="brand-zone">
         <div className="brand-crest">
-          <Zap size={16} fill="currentColor" />
+          <Zap size={15} fill="currentColor" />
         </div>
         <div className="brand-text-block">
           <span className="brand-name">LAAP</span>
-          <span className="brand-tag">TACTICAL</span>
+          <span className="brand-tag">Esports</span>
         </div>
       </div>
 
       {/* Mode Navigation Switcher */}
-      <nav className="mode-nav">
+      <nav className="mode-nav" aria-label="Launcher Modes">
         <button
           type="button"
           className={`mode-pill ${appMode === 'local' ? 'mode-pill-active' : ''}`}
           onClick={() => onModeChange('local')}
         >
-          <Gamepad2 size={15} />
+          <Gamepad2 size={14} />
           <span>Personal Roster</span>
         </button>
         <button
@@ -44,7 +44,7 @@ export function Header({
           className={`mode-pill ${appMode === 'cloud' ? 'mode-pill-active' : ''}`}
           onClick={() => onModeChange('cloud')}
         >
-          <Users size={15} />
+          <Users size={14} />
           <span>Team Vault</span>
         </button>
       </nav>
@@ -56,16 +56,14 @@ export function Header({
             <div className="profile-avatar">
               {user.displayName.slice(0, 2).toUpperCase()}
             </div>
-            <div className="profile-info">
-              <span className="profile-name">{user.displayName}</span>
-              <span className="profile-role">{user.role}</span>
-            </div>
+            <span className="profile-name">{user.displayName}</span>
+            <span className="profile-role-tag">{user.role}</span>
           </div>
         ) : null}
 
         <button
           type="button"
-          className="utility-btn"
+          className="header-icon-btn"
           onClick={onRefresh}
           title="Refresh Accounts"
           aria-label="Refresh Accounts"
@@ -75,7 +73,7 @@ export function Header({
 
         <button
           type="button"
-          className="utility-btn"
+          className="header-icon-btn"
           onClick={onOpenSettings}
           title="Settings"
           aria-label="Settings"

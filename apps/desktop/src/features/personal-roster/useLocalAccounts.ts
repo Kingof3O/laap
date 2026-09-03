@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { hasTauri, invokeTauri } from '../lib/api'
-import type { LocalAccountFull, LocalAccountSummary } from '../lib/types'
+import { hasTauri, invokeTauri } from '../../lib/api'
+import type { LocalAccountFull, LocalAccountSummary } from '../../lib/types'
 
 export function useLocalAccounts() {
   const [localAccounts, setLocalAccounts] = useState<LocalAccountSummary[]>([])
