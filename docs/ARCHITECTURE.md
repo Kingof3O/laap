@@ -19,8 +19,9 @@ LAAP enforces strict separation of concerns between presentation, domain contrac
                                            ▼
 ┌───────────────────────────────────────────────────────────────────────────────────────┐
 │              LAAP Core API (Node HTTP / Cloudflare Worker: laap-api)                  │
-│               - SQL.js Adapter (Local Development Persistence)                        │
-│               - Supabase Adapter (Production PostgreSQL & RLS Engine)                 │
+│               - Domain Interfaces: IAuth, IAccount, ILease, IDevice, IAdmin           │
+│               - SQL.js / SQLite Modular Domain Services                               │
+│               - Supabase PostgreSQL & RLS Modular Domain Services                     │
 └──────────────────────────────────────────┬────────────────────────────────────────────┘
                                            │
                                            ▼
@@ -47,7 +48,7 @@ LAAP operates exclusively at the **authenticated session layer**:
 2. **One-Time Capture (Sandbox Mode):**
    - **Local Capture:** The user clicks *"Capture Active Riot Login"* (which grabs the current active session without asking for credentials) or *"Open Riot Sign-In Sandbox"*.
    - In Sandbox mode, LAAP opens a fresh, isolated Riot Client process. The user enters their credentials once.
-   - LAAP detects the newly generated session token, stores it in the encrypted local vault (or uploads it to the Team Vault if performed by an admin), and closes the sandbox.
+   - LAAP detects the newly generated session token, stores it in the local standalone vault (or uploads it to the Team Vault if performed by an admin), and closes the sandbox.
 3. **1-Click Launch (Session Injection):**
    - When launching an account, LAAP backs up the user's personal `RiotClientPrivateSettings.yaml`.
    - It injects the account's authenticated session YAML.
@@ -61,8 +62,8 @@ LAAP operates exclusively at the **authenticated session layer**:
 
 In **Team Vault (Cloud Mode)**, account access is strictly regulated:
 
-1. **Atomic Postgres RPCs:**
-   Lease acquisitions execute inside a serialized PostgreSQL transaction (`acquire_lease_for_user`).
+1. **Atomic Lease Acquisition:**
+   Lease acquisitions execute inside a serialized transaction (`acquireLease`).
    - Verifies user role or active operator assignment.
    - Confirms the account is currently `available`.
    - Creates an active lease row with a duration timestamp.
@@ -70,42 +71,81 @@ In **Team Vault (Cloud Mode)**, account access is strictly regulated:
 2. **Partial Unique Indexing:**
    A partial unique index (`WHERE status IN ('starting', 'active')`) guarantees that **no account can ever have more than one active lease concurrently**.
 3. **Cryptographic Device Challenge-Response:**
-   - Every desktop client creates an Ed25519 keypair stored in the native OS keychain (`keyring-rs`).
+   - Every desktop client creates an Ed25519 keypair stored in the native OS keychain.
    - When acquiring a lease, the client signs a server nonce (`${timestamp}:${accountId}`) with its private key.
    - The API verifies this signature against the registered device public key before returning the session blob.
 
 ---
 
-## 4. Desktop Client Architecture (`apps/desktop`)
+## 4. Super Deep Modular Monorepo Architecture
 
-The desktop application is built with Tauri v2, Rust, and React 19, following a modular architecture:
+### Desktop Client Architecture (`apps/desktop`)
+The desktop frontend is organized using **Feature-Sliced Architecture (Vertical Slices)**:
 
 ```text
 apps/desktop/
 ├── src/
-│   ├── components/
-│   │   ├── layout/       # Header, SubNavbar, Brand Crest, Window Drag Region
-│   │   ├── accounts/     # AccountCard (Hextech design), AccountListTable (dense), EmptyState
-│   │   ├── auth/         # LoginView (Team Vault sign-in, Remember Me)
-│   │   └── modals/       # AddAccountModal, SyncAccountModal, DeleteConfirmModal, SettingsModal
-│   ├── hooks/
-│   │   ├── useAuth.ts          # Persistent auth, JWT storage, automatic session restore
-│   │   ├── useLocalAccounts.ts # Standalone local vault CRUD and sandbox polling
-│   │   └── useCloudAccounts.ts # Cloud team accounts, lease acquisition, session sync
+│   ├── features/
+│   │   ├── personal-roster/    # Isolated local accounts slice (CRUD, sandbox poller, modals)
+│   │   ├── team-vault/         # Isolated team pool slice (lease claim, sync, held banner)
+│   │   ├── device/             # Dedicated hardware identity & key registration hook (useDevice)
+│   │   └── auth/               # Login view, persistent JWT auth hook (useAuth)
+│   ├── shared/
+│   │   └── ui/                 # Reusable UI kit (Header, SubNavbar, Cards, Modals, Tables)
+│   ├── context/
+│   │   └── ToastContext.tsx    # Centralized HUD notification toasts
 │   ├── lib/
-│   │   ├── api.ts        # Typed API client, token handling, Tauri invoke wrapper
-│   │   ├── constants.ts  # Supported regions (EUW, NA, KR, etc.), storage keys
-│   │   └── types.ts      # Domain interfaces and component contracts
-│   ├── styles/
-│   │   └── index.css     # Bespoke Hextech Tactical design system stylesheet
-│   └── App.tsx           # High-level state coordinator (< 400 lines)
+│   │   ├── api.ts              # Typed fetch client and Tauri invoke bridge
+│   │   ├── constants.ts        # Region enums & local storage keys
+│   │   └── types.ts            # Frontend domain contracts
+│   └── App.tsx                 # Lean coordinator shell (< 140 lines)
 └── src-tauri/
-    ├── src/
-    │   ├── commands.rs   # Tauri IPC command entrypoints
-    │   ├── session.rs    # Session token capture, injection, and backup logic
-    │   ├── local_store.rs# Local encrypted SQLite profile store
-    │   └── lib.rs        # Tauri application initialization and capability registration
-    └── Cargo.toml        # Rust dependencies (keyring, ed25519-dalek, rusqlite, serde)
+    └── src/
+        ├── riot/               # Decoupled Riot Client subsystem
+        │   ├── paths.rs        # Platform settings directory resolution
+        │   ├── process.rs      # Sysinfo process inspection and termination
+        │   ├── session_manager.rs # YAML token backup, injection, and restore
+        │   ├── provisioner.rs  # Isolated sandbox credential poller
+        │   └── mod.rs          # Re-exports & unit tests
+        ├── local_store/        # Decoupled standalone account store
+        │   ├── models.rs       # LocalAccount and LocalAccountSummary DTOs
+        │   ├── storage.rs      # OS filesystem storage paths and JSON serialization
+        │   ├── manager.rs      # LocalStore CRUD operations & 1-click launcher
+        │   └── mod.rs          # Re-exports & unit tests
+        ├── commands/           # Modular Tauri IPC command handlers
+        │   ├── device.rs       # device_public_key, device_platform, sign_device_nonce
+        │   ├── local_accounts.rs # list_local_accounts, save_local_account, delete, launch
+        │   ├── session.rs      # inject_account_session, launch_riot_client, sandbox commands
+        │   └── mod.rs          # IPC command router & tests
+        ├── device.rs           # Ed25519 identity generation & signing
+        └── lib.rs              # Application bootstrap & handler registration
+```
+
+### Backend API Architecture (`apps/api`)
+The backend is structured into **Segregated Domain Services**:
+
+```text
+apps/api/
+├── src/
+│   ├── routes/                 # Focused HTTP route handlers
+│   │   ├── auth.routes.ts      # Session check, login, demo, logout
+│   │   ├── accounts.routes.ts  # Account CRUD, session blob upload
+│   │   ├── leases.routes.ts    # Lease acquire, session blob fetch, release
+│   │   ├── devices.routes.ts   # Device registration, list, revocation
+│   │   └── admin.routes.ts     # Dashboard snapshot, metrics, audit logs, users, assignments
+│   ├── services/
+│   │   ├── domain/             # ISP-compliant domain interfaces
+│   │   │   ├── auth.ts         # IAuthService
+│   │   │   ├── accounts.ts     # IAccountService
+│   │   │   ├── leases.ts       # ILeaseService
+│   │   │   ├── devices.ts      # IDeviceService
+│   │   │   └── admin.ts        # IAdminService
+│   │   ├── sqlite/             # SQLite domain implementations
+│   │   ├── supabase/           # Supabase domain implementations
+│   │   ├── laap-service.ts     # SQLite composite facade (75 lines)
+│   │   └── supabase-service.ts # Supabase composite facade (80 lines)
+│   ├── router.ts               # Master route dispatcher
+│   └── server.ts               # Lean HTTP server coordinator
 ```
 
 ---
@@ -116,7 +156,7 @@ apps/desktop/
 | :--- | :--- |
 | **No Password Storage** | Architecture completely lacks password fields; only encrypted session blobs are handled. |
 | **Private Key Security** | Ed25519 private keys are stored in the macOS Keychain / Windows Credential Vault; only public keys cross the network. |
-| **Lease Exclusivity** | PostgreSQL row-locking + partial unique index prevents concurrent duplicate leases. |
+| **Lease Exclusivity** | Database row-locking + partial unique index prevents concurrent duplicate leases. |
 | **Role-Based Access Control** | Operators only see assigned accounts and their own devices. Account creation, session syncing, and deletion require `admin` role. |
 | **Client Cleanliness** | Automatic backup and rollback ensures personal player settings are never permanently overwritten. |
 | **No Process Hooking** | Zero DLL injection, zero memory scanning, and zero reading of Riot lockfiles. |
