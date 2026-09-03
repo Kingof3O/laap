@@ -67,7 +67,7 @@ export function EmptyState({
                 className="btn-modal-primary"
                 onClick={onAction}
               >
-                <Plus size={15} />
+                <Plus size={15} style={{ marginRight: '6px', flexShrink: 0 }} />
                 <span>{isCloud ? 'Add Shared Account' : 'Register New Profile'}</span>
               </button>
             ) : null}
@@ -79,7 +79,7 @@ export function EmptyState({
                 onClick={onQuickImport}
                 title="Automatically detect and save the account currently logged in Riot Client"
               >
-                <Zap size={14} style={{ color: 'var(--gold-primary)' }} />
+                <Zap size={14} style={{ color: 'var(--gold-primary)', marginRight: '6px', flexShrink: 0 }} />
                 <span>Import from Riot Client</span>
               </button>
             ) : null}
@@ -89,18 +89,18 @@ export function EmptyState({
         {/* Feature Trust Anchors */}
         <div className="empty-trust-row">
           <div className="trust-item">
-            <ShieldCheck size={14} style={{ color: 'var(--status-ready)' }} />
+            <ShieldCheck size={14} style={{ color: 'var(--status-ready)', marginRight: '4px', flexShrink: 0 }} />
             <span>0% Anti-Ban Risk</span>
           </div>
           <div className="trust-divider" />
           <div className="trust-item">
-            <Zap size={14} style={{ color: 'var(--gold-primary)' }} />
+            <Zap size={14} style={{ color: 'var(--gold-primary)', marginRight: '4px', flexShrink: 0 }} />
             <span>1-Click Launch</span>
           </div>
           <div className="trust-divider" />
           <div className="trust-item">
-            <KeyRound size={14} style={{ color: 'var(--text-muted)' }} />
-            <span>Ed25519 Keychain Safe</span>
+            <KeyRound size={14} style={{ color: 'var(--text-muted)', marginRight: '4px', flexShrink: 0 }} />
+            <span>Hardware Identity Safe</span>
           </div>
         </div>
       </div>

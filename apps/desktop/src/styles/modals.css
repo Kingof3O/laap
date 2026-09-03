@@ -144,6 +144,12 @@
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
 }
 
 .btn-modal-secondary:hover:not(:disabled) {
