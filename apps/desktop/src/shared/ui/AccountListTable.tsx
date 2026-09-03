@@ -151,7 +151,7 @@ export function AccountListTable({
                         className="table-icon-btn"
                         onClick={() => onPushToCloud(item.id)}
                         disabled={busy}
-                        title="Publish to Team Vault"
+                        title="Publish to Shared Vault"
                       >
                         <UploadCloud size={13} />
                       </button>

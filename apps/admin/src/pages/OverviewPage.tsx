@@ -45,7 +45,7 @@ export function OverviewPage({ metrics, sessions, activity, accounts, onNavigate
         <MetricCard label="Ready accounts" value={String(metrics.availableAccounts)} supporting={`of ${metrics.totalAccounts} total`} icon={Boxes} tone="violet" />
         <MetricCard label="In use now" value={String(metrics.activeLeases)} supporting="People using an account" icon={ShieldCheck} tone="cyan" />
         <MetricCard label="Connected computers" value={String(metrics.boundDevices)} supporting={`${metrics.healthyDevices} ready to use`} icon={LaptopMinimal} tone="green" />
-        <MetricCard label={isAdmin ? 'Team members' : 'Your accounts'} value={String(isAdmin ? metrics.authorizedUsers : metrics.totalAccounts)} supporting={isAdmin ? `${metrics.activeUsers} active recently` : 'Assigned to you'} icon={isAdmin ? UsersRound : Boxes} tone="amber" />
+        <MetricCard label={isAdmin ? 'Authorized users' : 'Your accounts'} value={String(isAdmin ? metrics.authorizedUsers : metrics.totalAccounts)} supporting={isAdmin ? `${metrics.activeUsers} active recently` : 'Assigned to you'} icon={isAdmin ? UsersRound : Boxes} tone="amber" />
       </section>
 
       <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(330px,.75fr)]"><LeaseActivityChart metrics={metrics} sessions={sessions} /><SecurityPostureCard /></section>

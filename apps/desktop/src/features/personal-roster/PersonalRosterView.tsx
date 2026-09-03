@@ -140,14 +140,14 @@ export function PersonalRosterView({
   const handlePush = async (localId: string) => {
     if (!isAdmin || !onPushToCloud) return
     setBusy(true)
-    showSuccess('Publishing account to Team Vault…')
+    showSuccess('Publishing account to Shared Vault…')
     try {
       const full = await getFullAccount(localId)
       if (!full || !full.session_blob) {
         throw new Error('No valid session stored in this profile.')
       }
       await onPushToCloud(full.name, full.region, full.session_blob)
-      showSuccess(`Account "${full.name}" published to Team Vault!`)
+      showSuccess(`Account "${full.name}" published to Shared Vault!`)
     } catch (cause) {
       showError(cause instanceof Error ? cause.message : String(cause))
     } finally {

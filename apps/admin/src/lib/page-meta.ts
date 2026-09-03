@@ -16,7 +16,7 @@ export const pageMeta = {
   },
   Users: {
     eyebrow: 'PEOPLE',
-    title: 'Your team.',
+    title: 'Authorized users.',
     description: 'Add people to LAAP and choose what they are allowed to do.',
   },
   Devices: {

@@ -1,4 +1,4 @@
-import { Gamepad2, RefreshCw, Settings, Users, Zap } from 'lucide-react'
+import { Database, Gamepad2, RefreshCw, Settings, Zap } from 'lucide-react'
 import type { AppMode, User } from '../../lib/types'
 
 export interface HeaderProps {
@@ -42,8 +42,8 @@ export function Header({
           className={`mode-pill ${appMode === 'cloud' ? 'mode-pill-active' : ''}`}
           onClick={() => onModeChange('cloud')}
         >
-          <Users size={14} />
-          <span>Team Vault</span>
+          <Database size={14} />
+          <span>Shared Vault</span>
         </button>
       </nav>
 

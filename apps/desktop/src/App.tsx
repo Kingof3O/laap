@@ -112,7 +112,7 @@ function AppContent() {
                 method: 'PUT',
                 body: JSON.stringify({ sessionBlob }),
               })
-              showSuccess(`Account "${name}" published to Team Vault!`)
+              showSuccess(`Account "${name}" published to Shared Vault!`)
             }}
             onCountChange={setLocalCount}
           />

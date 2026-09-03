@@ -19,8 +19,8 @@ export function LoginPage({ onSubmit, error, demoAvailable }: LoginPageProps) {
         <div className="absolute -right-20 bottom-0 h-64 w-64 rounded-full bg-cyan-300/10 blur-3xl" aria-hidden="true" />
         <div className="relative w-full max-w-xl">
           <img src="/logo.webp" alt="LAAP" className="h-16 w-auto max-w-sm sm:h-20 lg:h-24 object-contain" />
-          <div className="mt-7 max-w-md sm:mt-10 lg:mt-12"><p className="text-lg font-medium tracking-[-0.02em] text-slate-200 sm:text-xl">Account access, made simple.</p><p className="mt-3 text-sm leading-6 text-slate-500 sm:text-base">Keep your team moving with one clear place to manage accounts and sessions.</p></div>
-          <div className="mt-8 hidden items-center gap-2 text-[11px] text-slate-600 lg:flex"><span className="h-px w-8 bg-amber-400/30" />Built for focused teams</div>
+          <div className="mt-7 max-w-md sm:mt-10 lg:mt-12"><p className="text-lg font-medium tracking-[-0.02em] text-slate-200 sm:text-xl">Account access, made simple.</p><p className="mt-3 text-sm leading-6 text-slate-500 sm:text-base">One clear place to manage shared accounts and active sessions.</p></div>
+          <div className="mt-8 hidden items-center gap-2 text-[11px] text-slate-600 lg:flex"><span className="h-px w-8 bg-amber-400/30" />Fast, secure, seamless access</div>
         </div>
       </section>
       <section className="relative flex min-h-[62dvh] items-center justify-center px-5 py-10 sm:px-8 lg:min-h-dvh lg:px-12">

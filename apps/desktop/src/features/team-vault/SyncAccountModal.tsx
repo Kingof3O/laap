@@ -40,7 +40,7 @@ export function SyncAccountModal({
 
         <div className="modal-body">
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            Link an authenticated Riot session to this shared team profile:
+            Link an authenticated Riot session to this shared profile:
           </p>
 
           {/* Option 1: Saved Local Profiles */}

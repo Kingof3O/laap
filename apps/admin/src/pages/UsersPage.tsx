@@ -29,7 +29,7 @@ export function UsersPage({ offline, onToast }: UsersPageProps) {
   return (
     <div className="mx-auto max-w-[1600px] px-5 py-7 sm:px-8 sm:py-9 lg:px-10 lg:py-10">
       <p className="eyebrow">People</p>
-      <h1 className="display-title mt-3">Your team.</h1>
+      <h1 className="display-title mt-3">Authorized users.</h1>
       <p className="mt-4 max-w-xl text-sm leading-6 text-slate-400">Add people to LAAP and choose what they are allowed to do.</p>
 
       <GlassCard className="mt-7 p-5 sm:p-6">
@@ -45,8 +45,8 @@ export function UsersPage({ offline, onToast }: UsersPageProps) {
       </GlassCard>
 
       <GlassCard className="mt-5 overflow-hidden">
-        <div className="flex items-center gap-2 border-b border-white/[0.06] px-5 py-5 sm:px-6"><span className="section-icon section-icon-violet"><ShieldCheck aria-hidden="true" size={16} /></span><div><h2 className="section-title">Team members <span className="font-mono text-[11px] text-slate-600">{users.length}</span></h2><p className="mt-1 text-xs text-slate-500">Everyone who can sign in to LAAP.</p></div></div>
-        <div className="divide-y divide-white/[0.05]">{users.map((user) => <div key={user.id} className="flex flex-wrap items-center gap-4 px-5 py-4 sm:px-6"><div className="avatar avatar-indigo">{user.displayName.slice(0, 2).toUpperCase()}</div><div className="min-w-[180px] flex-1"><p className="text-xs font-medium text-slate-200">{user.displayName}</p><p className="mt-1 text-[11px] text-slate-500">{user.email}</p></div><StatusBadge value={user.role === 'admin' ? 'Administrator' : 'Operator'} compact /><StatusBadge value={user.status === 'active' ? 'Active' : user.status} compact /></div>)}{!users.length ? <p className="px-6 py-10 text-center text-xs text-slate-500">No team members have been added yet.</p> : null}</div>
+        <div className="flex items-center gap-2 border-b border-white/[0.06] px-5 py-5 sm:px-6"><span className="section-icon section-icon-violet"><ShieldCheck aria-hidden="true" size={16} /></span><div><h2 className="section-title">Authorized users <span className="font-mono text-[11px] text-slate-600">{users.length}</span></h2><p className="mt-1 text-xs text-slate-500">Everyone who can sign in to LAAP.</p></div></div>
+        <div className="divide-y divide-white/[0.05]">{users.map((user) => <div key={user.id} className="flex flex-wrap items-center gap-4 px-5 py-4 sm:px-6"><div className="avatar avatar-indigo">{user.displayName.slice(0, 2).toUpperCase()}</div><div className="min-w-[180px] flex-1"><p className="text-xs font-medium text-slate-200">{user.displayName}</p><p className="mt-1 text-[11px] text-slate-500">{user.email}</p></div><StatusBadge value={user.role === 'admin' ? 'Administrator' : 'Operator'} compact /><StatusBadge value={user.status === 'active' ? 'Active' : user.status} compact /></div>)}{!users.length ? <p className="px-6 py-10 text-center text-xs text-slate-500">No users have been added yet.</p> : null}</div>
       </GlassCard>
     </div>
   )

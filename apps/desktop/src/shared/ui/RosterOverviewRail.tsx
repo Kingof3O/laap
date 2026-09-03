@@ -186,7 +186,7 @@ export function RosterOverviewRail({
           </div>
           {isCloud ? (
             <div className="pod-field">
-              <span className="pod-field-label">In Use by Teammates</span>
+              <span className="pod-field-label">Currently In Use</span>
               <span className="pod-field-value" style={{ color: 'var(--status-leased)' }}>{leasedCount}</span>
             </div>
           ) : null}

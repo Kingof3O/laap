@@ -70,7 +70,7 @@ export function AccountCard({
               {isLeased ? (
                 <span className="status-indicator status-indicator-warn">
                   <span className="status-beacon status-beacon-amber" />
-                  In Use by Teammate
+                  Currently In Use
                 </span>
               ) : hasSession ? (
                 <span className="status-indicator status-indicator-ready">
@@ -122,7 +122,7 @@ export function AccountCard({
               className="action-icon-btn"
               onClick={onPushToCloud}
               disabled={busy}
-              title="Publish to Team Vault"
+              title="Publish to Shared Vault"
             >
               <UploadCloud size={14} />
             </button>
@@ -152,7 +152,7 @@ export function AccountCard({
               style={{ background: 'rgba(239, 68, 68, 0.2)', borderColor: 'rgba(239, 68, 68, 0.4)', color: '#fca5a5' }}
               onClick={onForceRelease}
               disabled={busy}
-              title="Force release account from teammate"
+              title="Force release active session"
             >
               <RotateCcw size={13} />
               <span>Force Release</span>

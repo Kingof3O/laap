@@ -45,7 +45,7 @@ export function ActiveLeaseBanner({
           className="btn-lease-release"
           onClick={onRelease}
           disabled={busy}
-          title="Release account back to the team pool"
+          title="Release account back to the shared pool"
         >
           <RotateCcw size={12} />
           <span>Release Account</span>

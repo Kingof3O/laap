@@ -46,7 +46,7 @@ export function Sidebar({ items, activePage, onNavigate, mobileOpen, onClose, cu
 
         <div className="mt-5 flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-3">
           <div className="avatar avatar-indigo">{initials(currentUser?.displayName ?? 'LAAP')}</div>
-          <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-slate-200">{currentUser?.displayName ?? 'Your account'}</p><p className="truncate text-[11px] text-slate-500">{currentUser ? roleLabel(currentUser.role) : 'Team member'}</p></div>
+          <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium text-slate-200">{currentUser?.displayName ?? 'Your account'}</p><p className="truncate text-[11px] text-slate-500">{currentUser ? roleLabel(currentUser.role) : 'Member'}</p></div>
           {onLogout ? <button type="button" onClick={onLogout} className="icon-button h-9 w-9" aria-label="Sign out" title="Sign out"><LogOut aria-hidden="true" size={15} /></button> : null}
         </div>
       </aside>

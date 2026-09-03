@@ -60,7 +60,7 @@ export function TeamVaultView({
     pollFn: pollSandbox,
     onCapture: async (captured) => {
       if (syncTarget) {
-        showSuccess('Session captured! Uploading to team profile…')
+        showSuccess('Session captured! Uploading to profile…')
         await uploadSessionBlob(syncTarget.id, captured)
         await finishSandbox()
         setSyncTarget(null)
@@ -107,7 +107,7 @@ export function TeamVaultView({
     setBusy(true)
     try {
       await releaseLease()
-      showSuccess('Account released back to Team Vault.')
+      showSuccess('Account released back to Shared Vault.')
       await reloadCloud()
     } catch (cause) {
       showError(cause instanceof Error ? cause.message : String(cause))
@@ -154,7 +154,7 @@ export function TeamVaultView({
       }
       await uploadSessionBlob(cloudAccountId, full.session_blob)
       setSyncTarget(null)
-      showSuccess('Team account synced and ready to play!')
+      showSuccess('Account synced and ready to play!')
       await reloadCloud()
     } catch (cause) {
       showError(cause instanceof Error ? cause.message : String(cause))
@@ -173,7 +173,7 @@ export function TeamVaultView({
       }
       await uploadSessionBlob(cloudAccountId, activeSession)
       setSyncTarget(null)
-      showSuccess('Team account synced and ready to play!')
+      showSuccess('Account synced and ready to play!')
       await reloadCloud()
     } catch (cause) {
       showError(cause instanceof Error ? cause.message : String(cause))

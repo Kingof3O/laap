@@ -29,9 +29,9 @@ export function LoginView({ onLogin, busy, error }: LoginViewProps) {
           />
         </div>
 
-        <h1 className="login-heading">Team Vault</h1>
+        <h1 className="login-heading">Shared Vault</h1>
         <p className="login-caption">
-          Sign in with your organization credentials to access shared tournament profiles.
+          Sign in to access your shared account pool.
         </p>
 
         <form onSubmit={handleSubmit} className="login-form">
@@ -40,7 +40,7 @@ export function LoginView({ onLogin, busy, error }: LoginViewProps) {
             <input
               type="email"
               className="hextech-input"
-              placeholder="analyst@esports.org"
+              placeholder="user@laap.local"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={busy}
