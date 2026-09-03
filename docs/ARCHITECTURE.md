@@ -86,14 +86,16 @@ The desktop frontend is organized using **Feature-Sliced Architecture (Vertical 
 apps/desktop/
 ├── src/
 │   ├── features/
-│   │   ├── personal-roster/    # Isolated local accounts slice (CRUD, sandbox poller, modals)
-│   │   ├── team-vault/         # Isolated team pool slice (lease claim, sync, held banner)
+│   │   ├── personal-roster/    # Standalone local accounts slice (CRUD, sandbox poller, modals)
+│   │   ├── team-vault/         # Cloud Shared Accounts slice (lease claim, sync, held banner)
 │   │   ├── device/             # Dedicated hardware identity & key registration hook (useDevice)
-│   │   └── auth/               # Login view, persistent JWT auth hook (useAuth)
+│   │   └── auth/               # Shared accounts login view, persistent JWT auth hook (useAuth)
 │   ├── shared/
-│   │   └── ui/                 # Reusable UI kit (Header, SubNavbar, Cards, Modals, Tables)
+│   │   └── ui/                 # Reusable UI kit (Header, SubNavbar, Cards, Modals, Tables, UpdateModal)
+│   ├── hooks/
+│   │   └── useUpdateChecker.ts # In-app GitHub release poller and semver comparator
 │   ├── context/
-│   │   └── ToastContext.tsx    # Centralized HUD notification toasts
+│   │   └── ToastContext.tsx    # Centralized floating HUD glassmorphism toasts
 │   ├── lib/
 │   │   ├── api.ts              # Typed fetch client and Tauri invoke bridge
 │   │   ├── constants.ts        # Region enums & local storage keys

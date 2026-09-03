@@ -6,13 +6,16 @@
 
 **High-performance tactical account control plane and desktop launcher for League of Legends.**
 
+[![Latest Release](https://img.shields.io/github/v/release/Kingof3O/laap?style=for-the-badge&logo=github&color=0AC8B9&label=Latest%20Release)](https://github.com/Kingof3O/laap/releases/latest)
 [![CI Status](https://img.shields.io/github/actions/workflow/status/Kingof3O/laap/test-and-lint.yml?branch=main&style=for-the-badge&logo=github&label=CI)](https://github.com/Kingof3O/laap/actions)
 [![Platform: Windows & macOS](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-0078D6?style=for-the-badge&logo=windows&logoColor=white)](docs/ARCHITECTURE.md)
-[![Tauri v2](https://img.shields.io/badge/Tauri-v2.0-24C8D8?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
+[![Tauri v2](https://img.shields.io/badge/Tauri-v2.2-24C8D8?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
 [![Rust](https://img.shields.io/badge/Rust-2021-DEA584?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Anti-Cheat: 100% Safe](https://img.shields.io/badge/Anti--Cheat-Vanguard%20Safe-0AC8B9?style=for-the-badge)](docs/ANTI_BAN_VERIFICATION.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-C89B3C?style=for-the-badge)](LICENSE)
+
+[**Download for macOS (.dmg)**](https://github.com/Kingof3O/laap/releases/latest) • [**Download for Windows (.exe / .msi)**](https://github.com/Kingof3O/laap/releases/latest)
 
 [Architecture](docs/ARCHITECTURE.md) • [Anti-Ban Proofs](docs/ANTI_BAN_VERIFICATION.md) • [Security Model](docs/SECURITY_MODEL.md) • [API Reference](docs/API.md) • [Developer Guide](docs/DEVELOPMENT.md) • [Production Guide](docs/PRODUCTION.md)
 

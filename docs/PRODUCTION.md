@@ -140,8 +140,8 @@ jobs:
           args: ''
 ```
 
-When a tag (e.g. `v0.2.0`) is published:
-1. `macos-latest` compiles the universal Apple Silicon & Intel `.dmg` and `.app`.
-2. `windows-latest` compiles the Windows 64-bit `.msi` installer and `.exe`.
-3. The artifacts are automatically attached to the GitHub Release draft where end users can download them directly.
-4. Installed LAAP Desktop clients automatically query `https://api.github.com/repos/Kingof3O/laap/releases/latest`, popping up the Hextech update notification modal with a direct download CTA.
+When a release tag (e.g. `v0.2.0`) is published:
+1. `macos-latest` compiles the universal Apple Silicon & Intel `.dmg` installer and `.app` bundle.
+2. `windows-latest` compiles the Windows 64-bit WiX `.msi` installer and NSIS `.exe` standalone setup.
+3. The artifacts are automatically attached to the official GitHub Release for public download, and archived in the GitHub Actions run.
+4. Installed LAAP Desktop clients automatically query `https://api.github.com/repos/Kingof3O/laap/releases/latest`, displaying the in-app Hextech update modal with a 1-click download CTA.

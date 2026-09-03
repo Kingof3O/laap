@@ -35,7 +35,9 @@ We will acknowledge receipt within **48 hours** and coordinate a fix and coordin
 - Authentication relies solely on ephemeral session tokens written by the official Riot Client into local YAML configuration files.
 
 ### 2. Ed25519 Hardware Device Authentication
-- Every physical desktop client generates a unique Ed25519 cryptographic keypair stored in the OS secure storage.
+- Every physical desktop client generates a unique Ed25519 cryptographic keypair stored in native OS hardware-backed storage:
+  - **Windows**: Windows Credential Manager (`windows-native`)
+  - **macOS**: Apple Keychain Services (`apple-native`)
 - Claiming an account lease requires signing a time-bound server nonce (`timestamp:accountId`). Replay attacks or forged claims from unauthorized machines fail verification.
 
 ### 3. Mutual Single-Active Lease Enforcement

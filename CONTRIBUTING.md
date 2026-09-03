@@ -13,7 +13,7 @@ LAAP is designed with strict architectural boundaries to guarantee safety, zero 
    - All session handling uses token injection into temporary private settings YAML files.
 2. **Strict Domain Modularity**:
    - **Backend (`apps/api`)**: Follows the Interface Segregation Principle with discrete domain services (`auth`, `accounts`, `leases`, `devices`, `admin`). Never create monolithic God objects.
-   - **Frontend (`apps/desktop/src`)**: Follows Feature-Sliced Design (`features/personal-roster/`, `features/team-vault/`, `features/device/`, `features/auth/`). Shared UI primitives belong in `src/shared/ui/`.
+   - **Frontend (`apps/desktop/src`)**: Follows Feature-Sliced Design (`features/personal-roster/`, `features/team-vault/` [Shared Accounts], `features/device/`, `features/auth/`). Shared UI primitives belong in `src/shared/ui/`.
    - **Native Core (`apps/desktop/src-tauri`)**: Organized into `riot/`, `local_store/`, and `commands/`. Never place IPC handlers, storage logic, and process control in one file.
 
 ---

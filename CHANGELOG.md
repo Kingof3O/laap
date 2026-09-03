@@ -18,7 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Quick server region filter pills (`ALL`, `EUW`, `EUNE`, `NA`, `KR`, `BR`).
 - Layout view density switcher between **Tactical Grid** and **Compact Table**.
 - Replaced browser WebKit dialogs (`confirm`, `alert`) with custom Hextech React modal overlays.
-- Generated complete native icon bundle (`icon.icns`, `icon.ico`, all PNG sizes) and automated `.dmg` packaging.
+- Built **In-App GitHub Release Update System**: automatic semver polling on launch, Hextech update modal with highlights, and manual "Check for Updates" trigger in Settings.
+- Designed **Floating HUD Glassmorphism Toaster**: translucent dark emerald notifications anchored to viewport bottom-right with smooth entrance animations.
+- Expanded summoner portfolio to 22 authentic competitive profiles across 5 major regions (`KR`, `EUW`, `NA`, `EUNE`, `BR`).
+- Generated complete native icon bundle (`icon.icns`, `icon.ico`, all PNG sizes) and automated multi-platform `.dmg`, `.msi`, and `.exe` packaging.
 
 ### 🏛️ Super Deep Modular Architecture
 - **Backend API (`apps/api`)**:
