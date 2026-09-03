@@ -9,5 +9,6 @@ export interface ILeaseService {
     options?: { nonce?: string; signature?: string }
   ): Promise<{ success: true; sessionId: string; isReconnect: boolean }>
   releaseLease(actor: ApiUser, sessionId: string, reason: string): Promise<{ success: true }>
+  forceReleaseAccount(actor: ApiUser, accountId: string): MaybePromise<{ success: true }>
   reapStaleSessions(persist?: boolean): MaybePromise<number>
 }

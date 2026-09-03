@@ -9,7 +9,6 @@ import { TopBar } from './components/TopBar'
 import { api, ApiError } from './lib/api'
 import { LoginPage } from './pages/LoginPage'
 import { OverviewPage } from './pages/OverviewPage'
-import { PlaceholderPage } from './pages/PlaceholderPage'
 import { AccountsPage } from './pages/AccountsPage'
 import { AssignmentsPage } from './pages/AssignmentsPage'
 import { DevicesPage } from './pages/DevicesPage'
@@ -150,10 +149,8 @@ export default function App() {
           ? <AssignmentsPage initialAccounts={activeSnapshot.accounts} offline={offline} onToast={moduleToast} />
         : activePage === 'Users'
           ? <UsersPage offline={offline} onToast={moduleToast} />
-        : activePage === 'Devices'
-          ? <DevicesPage offline={offline} onToast={moduleToast} />
-          : activePage === 'Audit log'
-            ? <AuditLogPage offline={offline} onToast={moduleToast} />
-            : <PlaceholderPage page={activePage} />
+          : activePage === 'Devices'
+            ? <DevicesPage offline={offline} onToast={moduleToast} />
+            : <AuditLogPage offline={offline} onToast={moduleToast} />
   return <div className="min-h-dvh overflow-x-clip bg-canvas text-ink"><div className="ambient ambient-one" aria-hidden="true" /><div className="ambient ambient-two" aria-hidden="true" /><div className="ambient ambient-three" aria-hidden="true" /><div className="app-shell"><Sidebar items={sidebarItems} activePage={activePage} onNavigate={navigate} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} currentUser={currentUser ?? activeSnapshot.user} onLogout={logout} isAdmin={isAdmin} /><div className="min-w-0 flex-1 lg:pl-[260px]"><TopBar activePage={activePage} onMenu={() => setMobileOpen(true)} /><main id="main-content" tabIndex={-1}>{content}</main></div></div><ActivityToast message={toast} onDismiss={() => setToast(null)} /></div>
 }

@@ -101,6 +101,25 @@ export class SupabaseLeaseService implements ILeaseService {
     return { success: true as const }
   }
 
+  async forceReleaseAccount(actor: ApiUser, accountId: string) {
+    if (actor.role !== 'admin') throw new ServiceError('FORBIDDEN', 403)
+    const sessions = await executeQuery<Row[]>(
+      this.data.from('account_sessions').select('id').eq('account_id', accountId).in('status', ['starting', 'active', 'stopping'])
+    )
+    if (sessions.length) {
+      await executeQuery(
+        this.data
+          .from('account_sessions')
+          .update({ status: 'ended', ended_at: new Date().toISOString(), release_reason: 'admin_force_release' })
+          .in('id', sessions.map((s) => s.id))
+      )
+    }
+    await executeQuery(
+      this.data.from('accounts').update({ status: 'available', updated_at: new Date().toISOString() }).eq('id', accountId)
+    )
+    return { success: true as const }
+  }
+
   async reapStaleSessions() {
     const cutoff = new Date(Date.now() - 90_000).toISOString()
     const stale = await executeQuery<Row[]>(

@@ -102,6 +102,18 @@ export function useCloudAccounts(user: User | null) {
     })
   }
 
+  const forceReleaseCloudAccount = async (id: string) => {
+    setError(null)
+    await apiRequest(`/api/accounts/${id}/release`, { method: 'POST' })
+    await loadAccounts()
+  }
+
+  const revokeCloudSessionBlob = async (id: string) => {
+    setError(null)
+    await apiRequest(`/api/accounts/${id}/session-blob`, { method: 'DELETE' })
+    await loadAccounts()
+  }
+
   const startSandbox = async () => {
     if (!hasTauri) return
     setError(null)
@@ -150,6 +162,8 @@ export function useCloudAccounts(user: User | null) {
     releaseLease,
     deleteCloudAccount,
     uploadSessionBlob,
+    forceReleaseCloudAccount,
+    revokeCloudSessionBlob,
     startSandbox,
     pollSandbox,
     finishSandbox,

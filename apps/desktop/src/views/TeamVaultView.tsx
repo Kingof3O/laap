@@ -7,6 +7,7 @@ import { SyncAccountModal } from '../components/modals/SyncAccountModal'
 import { DeleteConfirmModal } from '../components/modals/DeleteConfirmModal'
 import { useCloudAccounts } from '../hooks/useCloudAccounts'
 import { useLocalAccounts } from '../hooks/useLocalAccounts'
+import { useProvisioningSandbox } from '../hooks/useProvisioningSandbox'
 import { useToast } from '../context/ToastContext'
 import type { Account, Region, User, ViewMode } from '../lib/types'
 
@@ -43,12 +44,36 @@ export function TeamVaultView({
     releaseLease,
     deleteCloudAccount,
     uploadSessionBlob,
+    forceReleaseCloudAccount,
+    revokeCloudSessionBlob,
     sessionId: cloudSessionId,
     activeAccountId: cloudActiveAccountId,
     startSandbox: startCloudSandbox,
+    pollSandbox,
+    finishSandbox,
+    provisioning,
   } = useCloudAccounts(user)
 
   const { localAccounts, getFullAccount, captureActive: captureActiveLocal } = useLocalAccounts()
+
+  // Automatic background poller for the Riot sign-in sandbox
+  useProvisioningSandbox({
+    active: provisioning,
+    pollFn: pollSandbox,
+    onCapture: async (captured) => {
+      if (syncTarget) {
+        showSuccess('Session captured! Uploading to team profile…')
+        await uploadSessionBlob(syncTarget.id, captured)
+        await finishSandbox()
+        setSyncTarget(null)
+        showSuccess(`Profile "${syncTarget.name}" synced and ready to play!`)
+        await reloadCloud()
+      } else {
+        await finishSandbox()
+      }
+    },
+    onError: (err) => showError(err.message),
+  })
 
   const filteredAccounts = useMemo(() => {
     return cloudAccounts.filter((acc) => {
@@ -85,6 +110,34 @@ export function TeamVaultView({
     try {
       await releaseLease()
       showSuccess('Account released back to Team Vault.')
+      await reloadCloud()
+    } catch (cause) {
+      showError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleForceRelease = async (id: string) => {
+    setBusy(true)
+    showSuccess('Force releasing account…')
+    try {
+      await forceReleaseCloudAccount(id)
+      showSuccess('Account has been force-released and is now available.')
+      await reloadCloud()
+    } catch (cause) {
+      showError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleRevokeSession = async (id: string) => {
+    setBusy(true)
+    showSuccess('Revoking stored session token…')
+    try {
+      await revokeCloudSessionBlob(id)
+      showSuccess('Session token removed. Profile requires sync before play.')
       await reloadCloud()
     } catch (cause) {
       showError(cause instanceof Error ? cause.message : String(cause))
@@ -186,6 +239,7 @@ export function TeamVaultView({
             region: acc.region,
             hasSession: Boolean(acc.hasSessionBlob),
             lastUsedText: acc.lastUsed || null,
+            status: acc.status,
           }))}
           viewMode={viewMode}
           isCloud={true}
@@ -196,6 +250,8 @@ export function TeamVaultView({
             const acc = filteredAccounts.find((a) => a.id === id)
             if (acc) setSyncTarget(acc)
           }}
+          onForceRelease={handleForceRelease}
+          onRevokeSession={handleRevokeSession}
           onDelete={(id, name) => setDeleteTarget({ id, name })}
         />
       )}

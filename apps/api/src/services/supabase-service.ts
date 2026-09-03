@@ -56,6 +56,7 @@ export class SupabaseLaapService implements LaapServicePort {
   // Lease delegation
   acquireLease = (userId: string, accountId: string, deviceId: string, options?: any) => this.leases.acquireLease(userId, accountId, deviceId, options)
   releaseLease = (actor: any, sessionId: string, reason: string) => this.leases.releaseLease(actor, sessionId, reason)
+  forceReleaseAccount = (actor: any, accountId: string) => this.leases.forceReleaseAccount(actor, accountId)
   reapStaleSessions = () => this.leases.reapStaleSessions()
 
   // Device delegation

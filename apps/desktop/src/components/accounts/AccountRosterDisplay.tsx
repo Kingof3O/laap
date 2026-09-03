@@ -8,6 +8,7 @@ export interface RosterItem {
   region: string
   hasSession: boolean
   lastUsedText?: string | null
+  status?: 'Available' | 'Leased' | 'Maintenance' | 'Disabled'
 }
 
 interface AccountRosterDisplayProps {
@@ -19,6 +20,8 @@ interface AccountRosterDisplayProps {
   onLaunch: (id: string) => void
   onSync?: (id: string) => void
   onPushToCloud?: (id: string) => void
+  onForceRelease?: (id: string) => void
+  onRevokeSession?: (id: string) => void
   onDelete: (id: string, name: string) => void
 }
 
@@ -31,6 +34,8 @@ export function AccountRosterDisplay({
   onLaunch,
   onSync,
   onPushToCloud,
+  onForceRelease,
+  onRevokeSession,
   onDelete,
 }: AccountRosterDisplayProps) {
   if (viewMode === 'grid') {
@@ -44,12 +49,15 @@ export function AccountRosterDisplay({
             region={item.region}
             hasSession={item.hasSession}
             lastUsedText={item.lastUsedText}
+            status={item.status}
             isCloud={isCloud}
             canManage={canManage}
             busy={busy}
             onLaunch={() => onLaunch(item.id)}
             onSync={onSync ? () => onSync(item.id) : undefined}
             onPushToCloud={onPushToCloud ? () => onPushToCloud(item.id) : undefined}
+            onForceRelease={onForceRelease ? () => onForceRelease(item.id) : undefined}
+            onRevokeSession={onRevokeSession ? () => onRevokeSession(item.id) : undefined}
             onDelete={() => onDelete(item.id, item.name)}
           />
         ))}
@@ -66,6 +74,8 @@ export function AccountRosterDisplay({
       onLaunch={onLaunch}
       onSync={onSync}
       onPushToCloud={onPushToCloud}
+      onForceRelease={onForceRelease}
+      onRevokeSession={onRevokeSession}
       onDelete={onDelete}
     />
   )

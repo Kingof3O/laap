@@ -5,7 +5,7 @@ import { PersonalRosterView } from './features/personal-roster'
 import { TeamVaultView } from './features/team-vault'
 import { useAuth } from './features/auth'
 import { VIEW_MODE_KEY } from './lib/constants'
-import { hasTauri, invokeTauri } from './lib/api'
+import { apiRequest, hasTauri, invokeTauri } from './lib/api'
 import type { AppMode, Region, ViewMode } from './lib/types'
 
 function AppContent() {
@@ -98,6 +98,22 @@ function AppContent() {
             showAddModal={showAddModal}
             onCloseAddModal={() => setShowAddModal(false)}
             onOpenAddModal={() => setShowAddModal(true)}
+            onPushToCloud={async (name, region, sessionBlob) => {
+              const result = await apiRequest<{ accountId: string }>('/api/accounts', {
+                method: 'POST',
+                body: JSON.stringify({
+                  displayName: name,
+                  externalId: `riot-${Date.now()}`,
+                  region,
+                  status: 'available',
+                }),
+              })
+              await apiRequest(`/api/accounts/${result.accountId}/session-blob`, {
+                method: 'PUT',
+                body: JSON.stringify({ sessionBlob }),
+              })
+              showSuccess(`Account "${name}" published to Team Vault!`)
+            }}
             onCountChange={setLocalCount}
           />
         ) : (

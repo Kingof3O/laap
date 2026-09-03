@@ -121,4 +121,25 @@ export class SqliteLeaseService implements ILeaseService {
       return { success: true as const }
     })
   }
+
+  forceReleaseAccount(actor: ApiUser, accountId: string) {
+    if (actor.role !== 'admin') throw new ServiceError('FORBIDDEN', 403)
+    return this.database.transactionSync(() => {
+      const session = this.database.get<{ id: string }>(
+        `SELECT id FROM account_sessions WHERE account_id = ? AND status IN ('starting', 'active', 'stopping')`,
+        [accountId]
+      )
+      const timestamp = new Date().toISOString()
+      if (session) {
+        this.database.run(
+          `UPDATE account_sessions SET status = 'ended', ended_at = ?, release_reason = 'admin_force_release' WHERE id = ?`,
+          [timestamp, session.id]
+        )
+      }
+      this.database.run(`UPDATE accounts SET status = 'available', updated_at = ? WHERE id = ?`, [timestamp, accountId])
+      this.addAuditFn(actor.id, 'SESSION_ENDED', 'accounts', accountId, { releaseReason: 'admin_force_release' })
+      return { success: true as const }
+    })
+  }
 }
+

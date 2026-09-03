@@ -59,5 +59,11 @@ export async function handleAccountRoutes(ctx: RouteContext): Promise<void> {
     return sendJson(response, 200, { success: true })
   }
 
+  if (parts.length === 4 && parts[3] === 'release' && method === 'POST') {
+    await requireAdmin(request, runtime.jwtSecret)
+    await service.forceReleaseAccount(user, routeUuid(parts[2], 'INVALID_ACCOUNT_ID'))
+    return sendJson(response, 200, { success: true })
+  }
+
   throw new HttpError(404, 'NOT_FOUND')
 }
