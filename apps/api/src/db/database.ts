@@ -100,7 +100,18 @@ export class AppDatabase {
 
   private constructor(private readonly raw: SqlDatabase, readonly filePath: string) {}
 
-  static async open(filePath: string) {
+  static async open(targetPath: string) {
+    let filePath = targetPath
+    try {
+      const stat = await fs.stat(targetPath)
+      if (stat.isDirectory()) {
+        filePath = path.join(targetPath, 'laap.sqlite')
+      }
+    } catch {
+      if (!path.extname(targetPath)) {
+        filePath = path.join(targetPath, 'laap.sqlite')
+      }
+    }
     await fs.mkdir(path.dirname(filePath), { recursive: true })
     const SQL = await initSqlJs({ locateFile: (file) => path.join(sqlJsPackageDir, file) })
     let raw: SqlDatabase

@@ -18,7 +18,7 @@ export const config = {
   vaultKey: requiredSecret('LAAP_VAULT_KEY', 'laap-local-vault-key-change-me-32'),
   adminPassword: process.env.LAAP_ADMIN_PASSWORD ?? 'ChangeMe!2026',
   enableDemoAuth: !isProduction && process.env.ENABLE_DEMO_AUTH !== 'false',
-  allowedOrigin: process.env.ALLOWED_ORIGIN ?? 'http://localhost:5173',
+  allowedOrigin: process.env.ALLOWED_ORIGIN ?? 'http://localhost:5173,http://localhost:1420,tauri://localhost',
   nodeEnv: process.env.NODE_ENV ?? 'development',
   logRequests: process.env.LOG_REQUESTS !== 'false',
   storageDriver: process.env.LAAP_STORAGE_DRIVER ?? 'local',
