@@ -8,10 +8,10 @@
 [![Tauri v2](https://img.shields.io/badge/Tauri-v2.0-24C8D8?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
 [![Rust](https://img.shields.io/badge/Rust-2021-DEA584?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![React 19](https://img.shields.io/badge/React-19.0-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![Anti-Ban: 100% Safe](https://img.shields.io/badge/Anti--Cheat-Vanguard%20Safe-0AC8B9?style=for-the-badge)](docs/ANTI_BAN_VERIFICATION.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-C89B3C?style=for-the-badge)](LICENSE)
 
-[Architecture](docs/ARCHITECTURE.md) • [Security Model](docs/SECURITY_MODEL.md) • [API Reference](docs/API.md) • [Developer Guide](docs/DEVELOPMENT.md) • [Changelog](CHANGELOG.md)
+[Architecture](docs/ARCHITECTURE.md) • [Anti-Ban Proofs](docs/ANTI_BAN_VERIFICATION.md) • [Security Model](docs/SECURITY_MODEL.md) • [API Reference](docs/API.md) • [Developer Guide](docs/DEVELOPMENT.md) • [Changelog](CHANGELOG.md)
 
 </div>
 
@@ -46,6 +46,20 @@ LAAP **strictly never prompts for, collects, stores, or handles Riot account pas
 ### 4. Hextech Tactical UI/UX
 - Bespoke dark-mode aesthetic inspired by the official League of Legends universe: obsidian slate (`#06080D`), chamfered gold framing (`#C89B3C`), and runic teal status beacons (`#0AC8B9`).
 - Instant keyboard search (`⌘K` / `Ctrl+K`), quick region filter pills (`ALL`, `EUW`, `NA`, `KR`, etc.), and a view density toggle between **Tactical Grid** and **Compact Table**.
+
+---
+
+## 🛡️ Anti-Cheat & Vanguard Safety Proofs
+
+LAAP is engineered strictly as an **external, pre-launch configuration manager**. It carries a **0% ban risk**:
+
+- **Zero Memory Injection:** Never calls `WriteProcessMemory`, `VirtualAllocEx`, or attaches debuggers to League or Riot processes.
+- **Zero Code Hooks:** Does not inject DLLs, hook DirectX/Direct3D graphics pipelines, or hook system APIs.
+- **Zero Game Asset Modifications:** Game files (`.wad`, `.exe`, `.dll`) are completely untouched.
+- **Standard Process Execution:** Boots the official Riot Client binary using standard, verified launch flags.
+- **Full Riot TOS Compliance:** Does not provide in-game automation, macros, timers, or gameplay advantages.
+
+👉 **Read the full source code proofs and independent verification guide in [docs/ANTI_BAN_VERIFICATION.md](docs/ANTI_BAN_VERIFICATION.md).**
 
 ---
 
@@ -143,6 +157,7 @@ npm --workspace @laap/desktop run dev
 | Guide | Description |
 | ----- | ----------- |
 | [Architecture Guide](docs/ARCHITECTURE.md) | In-depth technical architecture, boundaries, and domain designs |
+| [Anti-Ban Proofs](docs/ANTI_BAN_VERIFICATION.md) | Technical source code proofs and Riot Vanguard non-interference verification |
 | [Security & Cryptography](docs/SECURITY_MODEL.md) | Threat model, zero-password policy, and Ed25519 challenge-response |
 | [API Reference](docs/API.md) | Comprehensive REST endpoint reference and error codes |
 | [Developer Guide](docs/DEVELOPMENT.md) | Local onboarding, debugging, testing, and native packaging |

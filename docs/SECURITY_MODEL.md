@@ -82,3 +82,6 @@ sequenceDiagram
 - LAAP writes configuration files **before** the Riot Client or League processes start.
 - LAAP does **not** hook Direct3D, does not use DLL injection, does not modify game executable memory, and does not inspect game packets.
 - This ensures 100% compliance with Riot's Terms of Service and Vanguard integrity requirements.
+
+👉 **For comprehensive technical source code proofs, Windows/macOS API audits, and independent verification steps, see [Anti-Ban Verification](ANTI_BAN_VERIFICATION.md).**
+
