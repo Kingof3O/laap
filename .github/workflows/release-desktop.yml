@@ -39,7 +39,7 @@ jobs:
           projectPath: apps/desktop
           tagName: ${{ github.ref_name }}
           releaseName: 'LAAP Desktop ${{ github.ref_name }}'
-          releaseBody: 'Signed LAAP Desktop release.'
-          releaseDraft: true
+          releaseBody: 'Official LAAP Desktop release.'
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "tauri": "tauri",
     "test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "check": "cargo check --manifest-path src-tauri/Cargo.toml"
   },
