@@ -296,3 +296,64 @@
   color: var(--text-muted);
   line-height: 1.3;
 }
+
+/* Global Floating HUD Toaster */
+.hud-toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 999999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.hud-toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65), 0 0 1px rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  animation: hudToastSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
+}
+
+@keyframes hudToastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.hud-toast-success {
+  background: rgba(8, 26, 18, 0.94);
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  color: #ecfdf5;
+}
+
+.hud-toast-success svg {
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+.hud-toast-error {
+  background: rgba(32, 10, 14, 0.94);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  color: #fef2f2;
+}
+
+.hud-toast-error svg {
+  color: #ef4444;
+  flex-shrink: 0;
+}
+

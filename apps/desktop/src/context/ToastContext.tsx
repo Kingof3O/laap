@@ -39,20 +39,22 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={{ showSuccess, showError }}>
       {children}
 
-      {/* Global Bottom HUD Toasts */}
-      {successMsg ? (
-        <div className="hud-toast hud-toast-success">
-          <CheckCircle2 size={16} />
-          <span>{successMsg}</span>
-        </div>
-      ) : null}
+      {/* Global Bottom-Right HUD Toaster */}
+      <div className="hud-toast-container" aria-live="polite">
+        {successMsg ? (
+          <div className="hud-toast hud-toast-success">
+            <CheckCircle2 size={16} />
+            <span>{successMsg}</span>
+          </div>
+        ) : null}
 
-      {errorMsg ? (
-        <div className="hud-toast hud-toast-error">
-          <X size={16} />
-          <span>{errorMsg}</span>
-        </div>
-      ) : null}
+        {errorMsg ? (
+          <div className="hud-toast hud-toast-error">
+            <X size={16} />
+            <span>{errorMsg}</span>
+          </div>
+        ) : null}
+      </div>
     </ToastContext.Provider>
   )
 }

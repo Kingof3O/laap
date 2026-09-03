@@ -48,14 +48,17 @@ pub fn launch_riot_client() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         let candidates = [
-            std::env::var("PROGRAMFILES").ok().map(|root| format!("{root}\\Riot Games\\Riot Client\\RiotClientServices.exe")),
-            std::env::var("LOCALAPPDATA").ok().map(|root| format!("{root}\\Riot Games\\Riot Client\\RiotClientServices.exe")),
+            Some(r"C:\Riot Games\Riot Client\RiotClientServices.exe".to_string()),
+            Some(r"D:\Riot Games\Riot Client\RiotClientServices.exe".to_string()),
+            std::env::var("PROGRAMFILES").ok().map(|root| format!(r"{root}\Riot Games\Riot Client\RiotClientServices.exe")),
+            std::env::var("ProgramFiles(x86)").ok().map(|root| format!(r"{root}\Riot Games\Riot Client\RiotClientServices.exe")),
+            std::env::var("LOCALAPPDATA").ok().map(|root| format!(r"{root}\Riot Games\Riot Client\RiotClientServices.exe")),
         ];
         let path = candidates
             .into_iter()
             .flatten()
             .find(|candidate| std::path::Path::new(candidate).exists())
-            .ok_or_else(|| "Riot Client was not found".to_string())?;
+            .ok_or_else(|| "Riot Client was not found on this system. Please verify Riot Games is installed.".to_string())?;
         Command::new(path)
             .args(LEAGUE_LAUNCH_ARGS)
             .spawn()
@@ -138,7 +141,7 @@ pub fn open_external_url(url: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         Command::new("cmd")
-            .args(["/C", "start", &url])
+            .args(["/C", "start", "", &url])
             .spawn()
             .map(|_| ())
             .map_err(|e| e.to_string())
