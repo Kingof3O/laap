@@ -10,12 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2026-09-03
 
 ### 🎨 Hextech Tactical UI/UX Overhaul
-- Bespoke Riot/Hextech dark theme design system featuring obsidian slate (`#06080D`), chamfered gold borders (`#C89B3C`), and runic teal pips (`#0AC8B9`).
-- Added instant keyboard search (`⌘K` / `Ctrl+K`) for rapid account lookup.
-- Added quick server region filter pills (`ALL`, `EUW`, `EUNE`, `NA`, `KR`, `BR`).
-- Added layout view mode switcher between **Tactical Grid** and **Compact Table**.
-- Added persistent "Remember me on this PC" session persistence across client restarts.
-- Completely replaced browser WebKit dialogs (`confirm`, `alert`) with custom Hextech React modal overlays (`DeleteConfirmModal`, `SettingsModal`, `AddAccountModal`, `SyncAccountModal`).
+- Official Hextech branding integration (`logo.webp` horizontal banner and `favicon.webp` squircle emblem).
+- Redesigned studio overview rail: replaced technical jargon (`Ed25519 Keychain`, `0% Anti-Cheat Risk`) with **Quick Launch**, **Roster Breakdown** with visual readiness and server distribution charts, and a clean **Riot Vanguard Safe** seal.
+- Polished **Shared Accounts** login flow with natural placeholders, `Keep me signed in`, and clean actions.
+- Universal terminology alignment: cleanly structured around **Personal Roster** and **Shared Accounts**.
+- Instant keyboard search (`⌘K` / `Ctrl+K`) for rapid account lookup.
+- Quick server region filter pills (`ALL`, `EUW`, `EUNE`, `NA`, `KR`, `BR`).
+- Layout view density switcher between **Tactical Grid** and **Compact Table**.
+- Replaced browser WebKit dialogs (`confirm`, `alert`) with custom Hextech React modal overlays.
+- Generated complete native icon bundle (`icon.icns`, `icon.ico`, all PNG sizes) and automated `.dmg` packaging.
 
 ### 🏛️ Super Deep Modular Architecture
 - **Backend API (`apps/api`)**:

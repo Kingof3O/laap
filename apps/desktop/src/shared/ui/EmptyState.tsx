@@ -51,7 +51,7 @@ export function EmptyState({
 
         <div className="empty-content-block">
           <h2 className="empty-state-title">
-            {isCloud ? 'Shared Pool is Empty' : 'Your Personal Roster is Empty'}
+            {isCloud ? 'Shared Accounts is Empty' : 'Your Personal Roster is Empty'}
           </h2>
           <p className="empty-state-text">
             {isCloud

@@ -9,7 +9,24 @@ export function useLocalAccounts() {
   const [provisioning, setProvisioning] = useState(false)
 
   const loadAccounts = useCallback(async () => {
-    if (!hasTauri) return
+    if (!hasTauri) {
+      const stored = localStorage.getItem('laap_browser_accounts')
+      if (stored) {
+        try {
+          setLocalAccounts(JSON.parse(stored))
+        } catch {}
+      } else {
+        const samples: LocalAccountSummary[] = [
+          { id: 'acc-1', name: 'Hide on bush', region: 'KR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 3).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-2', name: 'Caps', region: 'EUW', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 18).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-3', name: 'Agurin', region: 'EUW', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 42).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-4', name: 'Doublelift', region: 'NA', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 72).toISOString(), created_at: new Date().toISOString() },
+        ]
+        localStorage.setItem('laap_browser_accounts', JSON.stringify(samples))
+        setLocalAccounts(samples)
+      }
+      return
+    }
     setLoading(true)
     try {
       const list = await invokeTauri<LocalAccountSummary[]>('list_local_accounts')
@@ -26,7 +43,20 @@ export function useLocalAccounts() {
   }, [loadAccounts])
 
   const saveAccount = async (name: string, region: string, sessionBlob: string) => {
-    if (!hasTauri) return
+    if (!hasTauri) {
+      const newAcc: LocalAccountSummary = {
+        id: `acc-${Date.now()}`,
+        name: name.trim(),
+        region,
+        has_session: true,
+        last_used_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      }
+      const updated = [...localAccounts, newAcc]
+      localStorage.setItem('laap_browser_accounts', JSON.stringify(updated))
+      setLocalAccounts(updated)
+      return newAcc
+    }
     const result = await invokeTauri<LocalAccountSummary>('save_local_account', {
       name: name.trim(),
       region,
@@ -37,7 +67,12 @@ export function useLocalAccounts() {
   }
 
   const deleteAccount = async (id: string) => {
-    if (!hasTauri) return
+    if (!hasTauri) {
+      const updated = localAccounts.filter((a) => a.id !== id)
+      localStorage.setItem('laap_browser_accounts', JSON.stringify(updated))
+      setLocalAccounts(updated)
+      return
+    }
     await invokeTauri('delete_local_account', { id })
     await loadAccounts()
   }

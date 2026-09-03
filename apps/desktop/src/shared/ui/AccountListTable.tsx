@@ -151,7 +151,7 @@ export function AccountListTable({
                         className="table-icon-btn"
                         onClick={() => onPushToCloud(item.id)}
                         disabled={busy}
-                        title="Publish to Shared Pool"
+                        title="Publish to Shared Accounts"
                       >
                         <UploadCloud size={13} />
                       </button>

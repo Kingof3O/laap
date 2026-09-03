@@ -1,8 +1,10 @@
-import { KeyRound, Laptop, Play, RotateCcw, ShieldCheck, Zap } from 'lucide-react'
+import { useMemo } from 'react'
+import { BarChart3, KeyRound, Play, RotateCcw, ShieldCheck, Zap } from 'lucide-react'
 import type { RosterItem } from './AccountRosterDisplay'
 
 export interface RosterOverviewRailProps {
   selectedItem: RosterItem | null
+  items: RosterItem[]
   totalCount: number
   readyCount: number
   leasedCount: number
@@ -17,6 +19,7 @@ export interface RosterOverviewRailProps {
 
 export function RosterOverviewRail({
   selectedItem,
+  items,
   totalCount,
   readyCount,
   leasedCount,
@@ -30,18 +33,32 @@ export function RosterOverviewRail({
 }: RosterOverviewRailProps) {
   const isLeased = isCloud && selectedItem?.status === 'Leased'
 
+  // Calculate Region Distribution for the visual mini-chart
+  const regionCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const item of items) {
+      counts[item.region] = (counts[item.region] || 0) + 1
+    }
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])
+  }, [items])
+
+  const unsyncedCount = Math.max(0, totalCount - readyCount - leasedCount)
+  const readyPercent = totalCount > 0 ? (readyCount / totalCount) * 100 : 0
+  const leasedPercent = totalCount > 0 ? (leasedCount / totalCount) * 100 : 0
+  const unsyncedPercent = totalCount > 0 ? (unsyncedCount / totalCount) * 100 : 0
+
   return (
     <aside className="tactical-overview-rail" aria-label="Roster Overview">
-      {/* Pod 1: Selected Account Inspector */}
+      {/* Pod 1: Selected Account Quick Launch */}
       <div className="overview-pod">
         <div className="pod-header">
           <div className="pod-title-row">
             <Zap size={14} className="text-gold-primary" />
-            <span>Profile Dossier</span>
+            <span>Quick Launch</span>
           </div>
           {selectedItem ? (
             <span className={`pod-badge ${selectedItem.hasSession && !isLeased ? '' : 'text-amber-400 bg-amber-400/10 border-amber-400/20'}`}>
-              {isLeased ? 'In Use' : selectedItem.hasSession ? 'Ready' : 'Needs Sync'}
+              {isLeased ? 'In Use' : selectedItem.hasSession ? 'Ready to Play' : 'Needs Login'}
             </span>
           ) : null}
         </div>
@@ -65,9 +82,9 @@ export function RosterOverviewRail({
             </div>
 
             <div className="pod-field">
-              <span className="pod-field-label">Session Status</span>
-              <span className="pod-field-value">
-                {isLeased ? 'Active Lease' : selectedItem.hasSession ? 'Token Verified' : 'Unsynced'}
+              <span className="pod-field-label">Status</span>
+              <span className="pod-field-value" style={{ color: isLeased ? 'var(--status-leased)' : selectedItem.hasSession ? 'var(--status-ready)' : 'var(--text-muted)' }}>
+                {isLeased ? 'In Use' : selectedItem.hasSession ? 'Ready to Play' : 'Needs Login'}
               </span>
             </div>
 
@@ -83,7 +100,7 @@ export function RosterOverviewRail({
                     disabled={busy}
                   >
                     <RotateCcw size={14} />
-                    <span>Force Release Account</span>
+                    <span>Force Release Session</span>
                   </button>
                 ) : (
                   <button type="button" className="inspector-launch-btn" disabled>
@@ -103,7 +120,7 @@ export function RosterOverviewRail({
               )}
             </div>
 
-            {/* Secondary actions */}
+            {/* Secondary admin actions */}
             {canManage && isCloud ? (
               <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
                 {onSync ? (
@@ -127,7 +144,7 @@ export function RosterOverviewRail({
                     disabled={busy}
                   >
                     <KeyRound size={12} />
-                    <span>Wipe Token</span>
+                    <span>Wipe Session</span>
                   </button>
                 ) : null}
               </div>
@@ -135,61 +152,93 @@ export function RosterOverviewRail({
           </div>
         ) : (
           <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
-            Click an account profile in the roster to view launch details.
+            Select an account from the roster to launch League of Legends.
           </div>
         )}
       </div>
 
-      {/* Pod 2: Hardware Security & Anti-Cheat Pod */}
+      {/* Pod 2: Roster Breakdown & Distribution Chart */}
       <div className="overview-pod">
         <div className="pod-header">
           <div className="pod-title-row">
-            <ShieldCheck size={14} className="text-emerald-400" />
-            <span>Hardware Security</span>
+            <BarChart3 size={14} className="text-gold-primary" />
+            <span>Roster Breakdown</span>
           </div>
-          <span className="pod-badge">Vanguard Safe</span>
+          <span className="pod-badge">
+            {totalCount} {totalCount === 1 ? 'Profile' : 'Profiles'}
+          </span>
         </div>
 
         <div className="pod-body">
-          <div className="pod-field">
-            <span className="pod-field-label">Machine Identity</span>
-            <span className="pod-field-value pod-field-value-mono">Ed25519 Keychain</span>
-          </div>
-          <div className="pod-field">
-            <span className="pod-field-label">Anti-Cheat Risk</span>
-            <span className="pod-field-value" style={{ color: 'var(--status-ready)' }}>0% (No Memory Injection)</span>
-          </div>
-          <div className="pod-field">
-            <span className="pod-field-label">Settings Rollback</span>
-            <span className="pod-field-value">Auto-Restore Active</span>
+          <div className="pod-chart-container">
+            {/* Visual Multi-Segment Readiness Bar */}
+            <div className="chart-bar-track" title={`${Math.round(readyPercent)}% Ready to Launch`}>
+              <div className="chart-bar-segment chart-bar-ready" style={{ width: `${readyPercent}%` }} />
+              {isCloud && leasedPercent > 0 ? (
+                <div className="chart-bar-segment chart-bar-leased" style={{ width: `${leasedPercent}%` }} />
+              ) : null}
+              {unsyncedPercent > 0 ? (
+                <div className="chart-bar-segment chart-bar-unsynced" style={{ width: `${unsyncedPercent}%` }} />
+              ) : null}
+            </div>
+
+            {/* Status Legend Row */}
+            <div className="chart-legend-row">
+              <div className="chart-legend-item">
+                <span className="legend-dot" style={{ background: '#10B981' }} />
+                <span>{readyCount} Ready</span>
+              </div>
+              {isCloud ? (
+                <div className="chart-legend-item">
+                  <span className="legend-dot" style={{ background: '#F59E0B' }} />
+                  <span>{leasedCount} In Use</span>
+                </div>
+              ) : null}
+              {unsyncedCount > 0 ? (
+                <div className="chart-legend-item">
+                  <span className="legend-dot" style={{ background: 'rgba(255,255,255,0.3)' }} />
+                  <span>{unsyncedCount} Needs Login</span>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Region Distribution Mini-Bars */}
+            {regionCounts.length > 0 ? (
+              <div className="region-distribution-list">
+                <div className="region-distribution-title">
+                  <span>Server Distribution</span>
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{regionCounts.length} {regionCounts.length === 1 ? 'region' : 'regions'}</span>
+                </div>
+                {regionCounts.map(([region, count]) => (
+                  <div key={region} className="region-stat-row">
+                    <span className="region-tag-mini">{region}</span>
+                    <div className="region-bar-track">
+                      <div
+                        className="region-bar-fill"
+                        style={{ width: `${totalCount > 0 ? (count / totalCount) * 100 : 0}%` }}
+                      />
+                    </div>
+                    <span className="region-stat-count">{count}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
 
-      {/* Pod 3: Roster Metrics */}
-      <div className="overview-pod">
-        <div className="pod-header">
-          <div className="pod-title-row">
-            <Laptop size={14} />
-            <span>Roster Pulse</span>
+      {/* Pod 3: Riot Vanguard Protection Trust Seal */}
+      <div className="overview-pod pod-security-trust">
+        <div className="security-trust-content">
+          <div className="security-trust-icon">
+            <ShieldCheck size={18} className="text-emerald-400" />
           </div>
-        </div>
-
-        <div className="pod-body">
-          <div className="pod-field">
-            <span className="pod-field-label">Total Profiles</span>
-            <span className="pod-field-value">{totalCount}</span>
-          </div>
-          <div className="pod-field">
-            <span className="pod-field-label">Ready to Launch</span>
-            <span className="pod-field-value" style={{ color: 'var(--status-ready)' }}>{readyCount}</span>
-          </div>
-          {isCloud ? (
-            <div className="pod-field">
-              <span className="pod-field-label">Currently In Use</span>
-              <span className="pod-field-value" style={{ color: 'var(--status-leased)' }}>{leasedCount}</span>
+          <div className="security-trust-text">
+            <div className="security-trust-title">Riot Vanguard Safe</div>
+            <div className="security-trust-desc">
+              Credential-free session switching with zero memory injection or ban risk.
             </div>
-          ) : null}
+          </div>
         </div>
       </div>
     </aside>

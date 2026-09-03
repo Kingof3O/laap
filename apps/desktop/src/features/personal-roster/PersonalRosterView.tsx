@@ -140,14 +140,14 @@ export function PersonalRosterView({
   const handlePush = async (localId: string) => {
     if (!isAdmin || !onPushToCloud) return
     setBusy(true)
-    showSuccess('Publishing account to Shared Pool…')
+    showSuccess('Publishing account to Shared Accounts…')
     try {
       const full = await getFullAccount(localId)
       if (!full || !full.session_blob) {
         throw new Error('No valid session stored in this profile.')
       }
       await onPushToCloud(full.name, full.region, full.session_blob)
-      showSuccess(`Account "${full.name}" published to Shared Pool!`)
+      showSuccess(`Account "${full.name}" published to Shared Accounts!`)
     } catch (cause) {
       showError(cause instanceof Error ? cause.message : String(cause))
     } finally {

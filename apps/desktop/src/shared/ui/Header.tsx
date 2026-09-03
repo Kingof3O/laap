@@ -43,7 +43,7 @@ export function Header({
           onClick={() => onModeChange('cloud')}
         >
           <Database size={14} />
-          <span>Shared Pool</span>
+          <span>Shared Accounts</span>
         </button>
       </nav>
 

@@ -60,8 +60,9 @@ Terminates the current session and clears cookies.
 ## 2. Account Management
 
 ### `GET /api/accounts`
-Lists accounts in the Team Vault.
-- **Access:** Authenticated. Admins see all accounts; operators see assigned accounts.
+Lists accounts in the shared pool.
+- Operators only see accounts assigned to them.
+- Admins see all accounts.
 - **Response (200 OK):**
   ```json
   {

@@ -44,7 +44,7 @@ sequenceDiagram
 
 ## 3. Cryptographic Hardware Challenge Protocol
 
-When operating in **Team Vault (Cloud Mode)**, an operator cannot claim an account lease using just a user token. The hardware machine itself must be authenticated.
+When operating in **Shared Accounts (Cloud Mode)**, an operator cannot claim an account lease using just a user token. The hardware machine itself must be authenticated.
 
 ```mermaid
 sequenceDiagram

@@ -122,7 +122,7 @@ export function AccountCard({
               className="action-icon-btn"
               onClick={onPushToCloud}
               disabled={busy}
-              title="Publish to Shared Pool"
+              title="Publish to Shared Accounts"
             >
               <UploadCloud size={14} />
             </button>

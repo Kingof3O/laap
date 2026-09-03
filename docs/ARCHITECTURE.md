@@ -48,7 +48,7 @@ LAAP operates exclusively at the **authenticated session layer**:
 2. **One-Time Capture (Sandbox Mode):**
    - **Local Capture:** The user clicks *"Capture Active Riot Login"* (which grabs the current active session without asking for credentials) or *"Open Riot Sign-In Sandbox"*.
    - In Sandbox mode, LAAP opens a fresh, isolated Riot Client process. The user enters their credentials once.
-   - LAAP detects the newly generated session token, stores it in the local standalone vault (or uploads it to the Team Vault if performed by an admin), and closes the sandbox.
+   - LAAP detects the newly generated session token, stores it in the local standalone roster (or uploads it to Shared Accounts if performed by an admin), and closes the sandbox.
 3. **1-Click Launch (Session Injection):**
    - When launching an account, LAAP backs up the user's personal `RiotClientPrivateSettings.yaml`.
    - It injects the account's authenticated session YAML.
@@ -60,7 +60,7 @@ LAAP operates exclusively at the **authenticated session layer**:
 
 ## 3. Atomic Lease Brokering & Concurrency Control
 
-In **Team Vault (Cloud Mode)**, account access is strictly regulated:
+In **Shared Accounts (Cloud Mode)**, account access is strictly regulated:
 
 1. **Atomic Lease Acquisition:**
    Lease acquisitions execute inside a serialized transaction (`acquireLease`).

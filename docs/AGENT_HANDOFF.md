@@ -31,19 +31,19 @@ Because `/Volumes/Shared` is a shared network/external volume, macOS creates App
 | **Web Admin Dashboard** | [https://laap-control-center.pages.dev](https://laap-control-center.pages.dev) | Cloudflare Pages |
 | **Core API Worker** | [https://laap-api.hussiensalah100.workers.dev](https://laap-api.hussiensalah100.workers.dev) | Cloudflare Workers |
 | **PostgreSQL Database** | Supabase Project: `rlhkkszeagixqmvtmknx` | Supabase Cloud |
-| **macOS Desktop App** | Local: `/Applications/LAAP Desktop.app`<br/>DMG: `.artifacts/LAAP Desktop_0.1.0_aarch64.dmg` | Tauri v2 + Rust |
+| **macOS Desktop App** | Local: `/tmp/laap-target/release/bundle/macos/LAAP Desktop.app`<br/>DMG: `release-dmg/LAAP Desktop_0.2.0_aarch64.dmg` | Tauri v2 + Rust |
 
 ---
 
 ## 3. Key Subsystems & State
 
 ### Desktop App (`apps/desktop`)
-- **Theme:** Hextech Tactical (deep obsidian slate `#06080D`, chamfered Hextech gold `#C89B3C`, runic teal `#0AC8B9`, `Rajdhani` typography).
-- **Architecture:** Fully modularized into `src/components/`, `src/hooks/`, `src/lib/`, and `src/styles/`.
+- **Theme:** Hextech Tactical (deep obsidian slate `#06080D`, vibrant Hextech gold `#F5CC70`, runic teal `#0AC8B9`).
+- **Architecture:** Feature-Sliced Architecture (`src/features/`, `src/shared/`, `src/styles/`).
 - **Modes:**
-  - **Personal Roster:** Standalone local account switcher backed by native SQLite (`local_store.rs`). Zero cloud dependency.
-  - **Team Vault:** Cloud account pool backed by the API Worker and Supabase PostgreSQL.
-- **Persistent Auth:** Stores JWT and user info in `localStorage` under `laap_client_token_v1` and `laap_client_user_v1`. "Remember me on this PC" keeps operators permanently signed in across restarts.
+  - **Personal Roster:** Standalone local account switcher backed by native SQLite (`local_store`). Zero cloud dependency.
+  - **Shared Accounts:** Cloud account pool backed by the API Worker and Supabase PostgreSQL.
+- **Persistent Auth:** Stores JWT and user info in `localStorage`. "Keep me signed in" keeps users signed in across restarts.
 - **Dialogs & Modals:** Native WebKit `window.confirm` is blocked in macOS Tauri webviews; all dialogs use custom React modals (`DeleteConfirmModal.tsx`, `AddAccountModal.tsx`, etc.).
 
 ### Core API (`apps/api`)

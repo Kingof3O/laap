@@ -29,9 +29,9 @@ export function LoginView({ onLogin, busy, error }: LoginViewProps) {
           />
         </div>
 
-        <h1 className="login-heading">Shared Pool</h1>
+        <h1 className="login-heading">Shared Accounts</h1>
         <p className="login-caption">
-          Sign in to access your shared account pool.
+          Sign in to access accounts shared with you.
         </p>
 
         <form onSubmit={handleSubmit} className="login-form">
@@ -40,7 +40,7 @@ export function LoginView({ onLogin, busy, error }: LoginViewProps) {
             <input
               type="email"
               className="hextech-input"
-              placeholder="user@laap.local"
+              placeholder="name@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={busy}
@@ -68,7 +68,7 @@ export function LoginView({ onLogin, busy, error }: LoginViewProps) {
               onChange={(e) => setRememberMe(e.target.checked)}
               disabled={busy}
             />
-            <span>Remember me on this computer</span>
+            <span>Keep me signed in</span>
           </label>
 
           {error ? (
@@ -84,7 +84,7 @@ export function LoginView({ onLogin, busy, error }: LoginViewProps) {
             disabled={busy || !email || !password}
           >
             <LogIn size={14} />
-            <span>{busy ? 'Authenticating…' : 'Sign In to Pool'}</span>
+            <span>{busy ? 'Signing in…' : 'Sign In'}</span>
           </button>
         </form>
       </div>

@@ -141,3 +141,158 @@
   transform: none;
   box-shadow: none;
 }
+
+/* Roster Chart & Breakdown Styles */
+.pod-chart-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chart-bar-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  display: flex;
+  overflow: hidden;
+  gap: 2px;
+}
+
+.chart-bar-segment {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.chart-bar-ready {
+  background: #10B981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.35);
+}
+
+.chart-bar-leased {
+  background: #F59E0B;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.35);
+}
+
+.chart-bar-unsynced {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.chart-legend-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.region-distribution-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-divider);
+}
+
+.region-distribution-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.region-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.region-tag-mini {
+  width: 36px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gold-secondary);
+}
+
+.region-bar-track {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.region-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #DCA43B 0%, #F5CC70 100%);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.region-stat-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  width: 14px;
+  text-align: right;
+}
+
+/* Security Trust Seal Pod */
+.pod-security-trust {
+  padding: 12px 14px;
+  background: rgba(16, 185, 129, 0.04);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+}
+
+.security-trust-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.security-trust-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.security-trust-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.security-trust-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #34D399;
+}
+
+.security-trust-desc {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.3;
+}

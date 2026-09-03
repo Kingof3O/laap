@@ -1,17 +1,19 @@
 <div align="center">
 
-# ⚡ LAAP: League Account Access Platform
+<img src="docs/assets/logo.webp" alt="LAAP - League Account Access Platform" width="460" />
 
-**Esports-grade tactical account control plane and desktop launcher for League of Legends.**
+<br />
+
+**High-performance tactical account control plane and desktop launcher for League of Legends.**
 
 [![CI Status](https://img.shields.io/github/actions/workflow/status/Kingof3O/laap/test-and-lint.yml?branch=main&style=for-the-badge&logo=github&label=CI)](https://github.com/Kingof3O/laap/actions)
 [![Tauri v2](https://img.shields.io/badge/Tauri-v2.0-24C8D8?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
 [![Rust](https://img.shields.io/badge/Rust-2021-DEA584?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Anti-Ban: 100% Safe](https://img.shields.io/badge/Anti--Cheat-Vanguard%20Safe-0AC8B9?style=for-the-badge)](docs/ANTI_BAN_VERIFICATION.md)
+[![Anti-Cheat: 100% Safe](https://img.shields.io/badge/Anti--Cheat-Vanguard%20Safe-0AC8B9?style=for-the-badge)](docs/ANTI_BAN_VERIFICATION.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-C89B3C?style=for-the-badge)](LICENSE)
 
-[Architecture](docs/ARCHITECTURE.md) • [Anti-Ban Proofs](docs/ANTI_BAN_VERIFICATION.md) • [Security Model](docs/SECURITY_MODEL.md) • [API Reference](docs/API.md) • [Developer Guide](docs/DEVELOPMENT.md) • [Changelog](CHANGELOG.md)
+[Architecture](docs/ARCHITECTURE.md) • [Anti-Ban Proofs](docs/ANTI_BAN_VERIFICATION.md) • [Security Model](docs/SECURITY_MODEL.md) • [API Reference](docs/API.md) • [Developer Guide](docs/DEVELOPMENT.md) • [Production Guide](docs/PRODUCTION.md)
 
 </div>
 
@@ -19,33 +21,63 @@
 
 ## 🌟 Overview
 
-**LAAP** (League Account Access Platform) is a secure, high-performance tactical control plane and desktop launcher engineered for competitive teams, scrim partners, esports organizations, and power users who need seamless, instantaneous account switching without compromising account safety.
+**LAAP** (League Account Access Platform) is a credential-free, high-performance tactical control plane and desktop launcher designed for seamless, instantaneous account switching without compromising account security or triggering anti-cheat flags.
 
-It pairs an authentic **Hextech Tactical Desktop Launcher** (built with Tauri v2 + Rust + React 19) with a centralized **Web Control Center** (built with Cloudflare Pages + Workers + Supabase).
+It pairs a native **Hextech Tactical Desktop Launcher** (built with Tauri v2, Rust, and React 19) with a centralized **Web Control Center** (Cloudflare Pages + Workers + Supabase).
+
+---
+
+## 📸 Interface Preview
+
+### 🎮 Personal Roster & Quick Launch
+Manage your entire summoner portfolio with 1-click credential-free launching, live session health, and real-time server distribution analytics.
+
+<div align="center">
+  <img src="docs/assets/launcher-grid.png" alt="LAAP Tactical Launcher - Personal Roster" width="100%" />
+</div>
+
+<br />
+
+### 🌐 Shared Accounts
+Access shared accounts with atomic single-active session locking, instant release mechanics, and hardware verification.
+
+<div align="center">
+  <img src="docs/assets/launcher-shared-accounts.png" alt="LAAP Shared Accounts Login" width="100%" />
+</div>
+
+<br />
+
+### 📋 High-Density Compact Table View
+Quickly filter, sort, and launch across dozens of accounts with keyboard shortcuts (`⌘K` / `Ctrl+K`) and regional filters (`EUW`, `NA`, `KR`, `EUNE`, `BR`).
+
+<div align="center">
+  <img src="docs/assets/launcher-table.png" alt="LAAP Tactical Launcher - Table View" width="100%" />
+</div>
 
 ---
 
 ## 🛡️ Core Pillars
 
-### 1. Passwordless Session Sandboxing
+### 1. Passwordless Session Switching
 LAAP **strictly never prompts for, collects, stores, or handles Riot account passwords**.
-- Instead, LAAP operates directly at the authenticated token layer.
-- Users authenticate once via the official Riot Client with *"Stay signed in"* enabled.
-- LAAP captures the ephemeral token from `RiotClientPrivateSettings.yaml`, sandboxes it, and injects it upon launch.
-- When an account is released or switched, personal settings and configurations are cleanly restored.
+- Operates directly at the authenticated session token layer.
+- Authenticate once via the official Riot Client with *"Stay signed in"* enabled.
+- LAAP captures the ephemeral session token, secures it in the local OS keychain, and injects it upon launch.
+- When switching accounts, personal client settings and configurations are safely preserved and restored.
 
 ### 2. Ed25519 Hardware Device Authentication
 - Every physical installation generates a unique **Ed25519 cryptographic keypair** stored in the native OS keychain (macOS Keychain / Windows Credential Manager).
-- Account leases require signing a time-bound cryptographic challenge (`${timestamp}:${accountId}`).
-- Replay attacks, spoofed requests, or unauthorized machines are rejected at the edge.
+- Shared account sessions require signing a time-bound cryptographic challenge (`${timestamp}:${accountId}`).
+- Replay attacks, spoofed requests, and unauthorized machines are rejected at the edge.
 
 ### 3. Dual Operation Modes
 - **🎮 Personal Roster (Local Mode):** Completely standalone 1-click account switching on your local machine. Zero cloud dependency, zero network requirements, zero passwords.
-- **🌐 Team Vault (Cloud Mode):** Centralized team account pool with atomic single-active lease enforcement, role-based access control (Admins & Operators), and real-time audit logging.
+- **🌐 Shared Accounts (Cloud Mode):** Shared account pool with atomic single-active lease enforcement, role-based access control, and real-time activity auditing.
 
-### 4. Hextech Tactical UI/UX
-- Bespoke dark-mode aesthetic inspired by the official League of Legends universe: obsidian slate (`#06080D`), chamfered gold framing (`#C89B3C`), and runic teal status beacons (`#0AC8B9`).
-- Instant keyboard search (`⌘K` / `Ctrl+K`), quick region filter pills (`ALL`, `EUW`, `NA`, `KR`, etc.), and a view density toggle between **Tactical Grid** and **Compact Table**.
+### 4. Visual Roster Breakdown & Health Analytics
+- **Readiness Distribution Bar:** Real-time visual progress bar tracking available, in-use, and unsynced accounts.
+- **Server Distribution:** Proportional breakdown across competitive server regions (`EUW`, `NA`, `KR`, `BR`, `EUNE`).
+- **Quick Launch Dossier:** Instant inspection of selected profiles, last-played timestamps, and one-click game launch.
 
 ---
 
@@ -59,7 +91,7 @@ LAAP is engineered strictly as an **external, pre-launch configuration manager**
 - **Standard Process Execution:** Boots the official Riot Client binary using standard, verified launch flags.
 - **Full Riot TOS Compliance:** Does not provide in-game automation, macros, timers, or gameplay advantages.
 
-👉 **Read the full source code proofs and independent verification guide in [docs/ANTI_BAN_VERIFICATION.md](docs/ANTI_BAN_VERIFICATION.md).**
+👉 **Read the full source code proofs and verification guide in [docs/ANTI_BAN_VERIFICATION.md](docs/ANTI_BAN_VERIFICATION.md).**
 
 ---
 
@@ -68,7 +100,7 @@ LAAP is engineered strictly as an **external, pre-launch configuration manager**
 ```text
 ┌────────────────────────────────────────┐       ┌──────────────────────────────────────┐
 │       LAAP Desktop Launcher            │       │       Web Control Center             │
-│   (Tauri + Rust + Hextech React 19)    │       │     (React 19 + Tailwind CSS)        │
+│   (Tauri v2 + Rust + React 19)         │       │     (React 19 + Tailwind CSS)        │
 └──────────────────┬─────────────────────┘       └──────────────────┬───────────────────┘
                    │                                                │
                    │ typed DTOs & Zod contracts                     │ typed DTOs
@@ -81,8 +113,7 @@ LAAP is engineered strictly as an **external, pre-launch configuration manager**
 ┌───────────────────────────────────────────────────────────────────────────────────────┐
 │              LAAP Core API (Node HTTP / Cloudflare Worker: laap-api)                  │
 │               - Domain Interfaces: IAuth, IAccount, ILease, IDevice, IAdmin           │
-│               - SQLite / SQL.js Modular Domain Services                               │
-│               - Supabase PostgreSQL & RLS Modular Domain Services                     │
+│               - Modular Domain Services (SQLite & Supabase PostgreSQL)                │
 └──────────────────────────────────────────┬────────────────────────────────────────────┘
                                            │
                                            ▼
@@ -90,7 +121,7 @@ LAAP is engineered strictly as an **external, pre-launch configuration manager**
 │            Supabase Cloud Infrastructure (PostgreSQL, Vault, Auth, RLS)               │
 │               - Atomic lease acquisition functions (Postgres RPC)                     │
 │               - Row Level Security (RLS) enforcement on all tables                    │
-│               - Encrypted session blob storage & admin bypass policies                │
+│               - Encrypted session blob storage & access policies                      │
 └───────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -98,80 +129,34 @@ Detailed architectural diagrams and domain breakdowns are available in [docs/ARC
 
 ---
 
-## 📂 Monorepo Structure
-
-```text
-├── apps/
-│   ├── desktop/          # Tauri v2 + React 19 Desktop Launcher
-│   │   ├── src/
-│   │   │   ├── features/ # Vertical Slices (personal-roster, team-vault, device, auth)
-│   │   │   ├── shared/   # Reusable UI primitives (Header, SubNavbar, Cards, Modals)
-│   │   │   └── context/  # Centralized Toast HUD provider
-│   │   └── src-tauri/    # Native Rust Core (riot process control, Ed25519 identity, local store)
-│   ├── api/              # Domain-Driven Node HTTP Server + Cloudflare Worker
-│   │   ├── src/routes/   # Focused HTTP route handlers
-│   │   └── src/services/ # Segregated domain interfaces (IAuth, IAccount, ILease, etc.)
-│   └── admin/            # Executive Web Control Center (React 19 + Tailwind)
-├── packages/
-│   ├── types/            # Shared TypeScript contracts & DTOs
-│   └── validation/       # Zod schemas enforcing data integrity across boundaries
-├── supabase/             # PostgreSQL migrations, RLS policies, and SQL seed scripts
-└── docs/                 # Architecture, security model, API, and developer guides
-```
-
----
-
-## 🚀 Quick Start
+## 🚀 Quick Start (Development)
 
 ### Prerequisites
-- **Node.js**: `>= 22.0.0`
-- **Rust Toolchain**: `stable` with `cargo`
-- **C++ Build Tools**: Xcode Command Line Tools (macOS) or Visual Studio Build Tools (Windows)
+- **Node.js**: v20 or v22 LTS
+- **Rust**: 1.80+ (`rustc` & `cargo`)
 
-### Installation
+### Setup
 ```bash
 # 1. Clone repository
 git clone https://github.com/Kingof3O/laap.git
 cd laap
 
-# 2. Install workspace dependencies
+# 2. Install dependencies
 npm install
 
-# 3. Start API and Web Admin Dashboard
+# 3. Start local development
 npm run dev
 ```
 
-- **Web Admin Dashboard:** `http://localhost:5173`
-- **Local API Server:** `http://127.0.0.1:4170`
-- **Default Admin Credentials:** `admin@laap.local` / `ChangeMe!2026`
-
-### Running the Desktop App
+### Building Native Desktop Application
 ```bash
-npm --workspace @laap/desktop run dev
+# Build native macOS App and DMG
+npm --workspace @laap/desktop run build
+npx --workspace @laap/desktop tauri build --bundles app,dmg
 ```
 
 ---
 
-## 📚 Documentation Index
+## 📜 License
 
-| Guide | Description |
-| ----- | ----------- |
-| [Architecture Guide](docs/ARCHITECTURE.md) | In-depth technical architecture, boundaries, and domain designs |
-| [Anti-Ban Proofs](docs/ANTI_BAN_VERIFICATION.md) | Technical source code proofs and Riot Vanguard non-interference verification |
-| [Security & Cryptography](docs/SECURITY_MODEL.md) | Threat model, zero-password policy, and Ed25519 challenge-response |
-| [API Reference](docs/API.md) | Comprehensive REST endpoint reference and error codes |
-| [Developer Guide](docs/DEVELOPMENT.md) | Local onboarding, debugging, testing, and native packaging |
-| [Production Runbook](docs/PRODUCTION.md) | Cloudflare Pages, Workers, Supabase deployment checklist |
-| [Changelog](CHANGELOG.md) | Complete release notes and version history |
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct, architectural rules, and the pull request process.
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Distributed under the MIT License. See [LICENSE](LICENSE) for details.

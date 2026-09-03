@@ -103,6 +103,7 @@ export function AccountRosterDisplay({
 
       <RosterOverviewRail
         selectedItem={selectedItem}
+        items={items}
         totalCount={items.length}
         readyCount={readyCount}
         leasedCount={leasedCount}
