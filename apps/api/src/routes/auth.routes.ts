@@ -21,12 +21,7 @@ export async function handleAuthRoutes(ctx: RouteContext): Promise<void> {
     if (!publicUser) throw new HttpError(500, 'DEMO_USER_MISSING')
     const accessToken = await createAccessToken(publicUser, runtime.jwtSecret)
     setAccessCookie(response, accessToken, runtime.nodeEnv === 'production')
-    const responseBody: { user: typeof publicUser; accessToken?: string } = { user: publicUser }
-    const origin = String(request.headers.origin ?? '').toLowerCase()
-    const tauriOrigin = ['tauri://localhost', 'https://tauri.localhost', 'http://tauri.localhost', 'http://localhost:1420'].includes(origin)
-    if (tauriOrigin || String(request.headers['x-laap-client'] ?? '').toLowerCase() === 'tauri' || url.searchParams.get('client') === 'tauri') {
-      responseBody.accessToken = accessToken
-    }
+    const responseBody = { user: publicUser, accessToken }
     return sendJson(response, 200, responseBody)
   }
 
@@ -41,12 +36,7 @@ export async function handleAuthRoutes(ctx: RouteContext): Promise<void> {
       loginLimiter.reset(key)
       const accessToken = await createAccessToken(user, runtime.jwtSecret)
       setAccessCookie(response, accessToken, runtime.nodeEnv === 'production')
-      const responseBody: { user: typeof user; accessToken?: string } = { user }
-      const origin = String(request.headers.origin ?? '').toLowerCase()
-      const tauriOrigin = ['tauri://localhost', 'https://tauri.localhost', 'http://tauri.localhost', 'http://localhost:1420'].includes(origin)
-      if (tauriOrigin || String(request.headers['x-laap-client'] ?? '').toLowerCase() === 'tauri' || url.searchParams.get('client') === 'tauri') {
-        responseBody.accessToken = accessToken
-      }
+      const responseBody = { user, accessToken }
       return sendJson(response, 200, responseBody)
     } catch (error) {
       throw serviceErrorToHttp(error)

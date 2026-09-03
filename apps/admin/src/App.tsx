@@ -115,9 +115,9 @@ export default function App() {
   }, [authState, offline, loadDashboard])
 
   const navigate = (page: PageName) => { setActivePage(page); setMobileOpen(false) }
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, remember = true) => {
     try {
-      const result = await api.login(email, password)
+      const result = await api.login(email, password, remember)
       if (!result.user) throw new ApiError(401, 'UNAUTHENTICATED', 'Sign in is required')
       await loadDashboard()
       setCurrentUser(result.user)

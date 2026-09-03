@@ -2,7 +2,7 @@ import type { ApiUser, DashboardSnapshot } from '@laap/types'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
-type SessionResponse = { user: ApiUser | null }
+type SessionResponse = { user: ApiUser | null; accessToken?: string }
 export type AuditEntry = { id: string; action: string; entityType: string; entityId: string; payload: Record<string, unknown>; createdAt: string; actor: string }
 export type AuditPage = { audit: AuditEntry[]; pagination: { limit: number; offset: number; hasMore: boolean } }
 
@@ -15,6 +15,13 @@ export class ApiError extends Error {
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+  
+  // Attach persistent access token from localStorage or sessionStorage
+  const token = localStorage.getItem('laap_access_token') || sessionStorage.getItem('laap_access_token')
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+
   const controller = new AbortController()
   const timeout = window.setTimeout(() => controller.abort(), 12_000)
   let response: Response
@@ -33,9 +40,33 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   getSession: () => request<SessionResponse>('/auth/session'),
-  demoLogin: () => request<SessionResponse>('/auth/demo', { method: 'POST' }),
-  login: (email: string, password: string) => request<SessionResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-  logout: () => request<{ success: true }>('/auth/logout', { method: 'POST' }),
+  demoLogin: async () => {
+    const res = await request<SessionResponse>('/auth/demo', { method: 'POST' })
+    if (res.accessToken) localStorage.setItem('laap_access_token', res.accessToken)
+    return res
+  },
+  login: async (email: string, password: string, remember = true) => {
+    const res = await request<SessionResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
+    if (res.accessToken) {
+      if (remember) {
+        localStorage.setItem('laap_access_token', res.accessToken)
+        sessionStorage.removeItem('laap_access_token')
+      } else {
+        sessionStorage.setItem('laap_access_token', res.accessToken)
+        localStorage.removeItem('laap_access_token')
+      }
+    }
+    return res
+  },
+  logout: async () => {
+    try {
+      await request<{ success: true }>('/auth/logout', { method: 'POST' })
+    } finally {
+      localStorage.removeItem('laap_access_token')
+      sessionStorage.removeItem('laap_access_token')
+    }
+    return { success: true as const }
+  },
   getDashboard: () => request<DashboardSnapshot>('/dashboard'),
   releaseLease: (sessionId: string, reason = 'admin_force_release') => request<{ success: true }>(`/leases/${sessionId}/release`, { method: 'POST', body: JSON.stringify({ reason }) }),
   getAccounts: () => request<{ accounts: DashboardSnapshot['accounts'] }>('/accounts'),

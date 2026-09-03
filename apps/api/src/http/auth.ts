@@ -16,18 +16,19 @@ function cookieOptions(name: string, maxAge: number, secure: boolean) {
   return `${name}=VALUE; HttpOnly; SameSite=${secure ? 'None' : 'Lax'}; Path=/; Max-Age=${maxAge}${secure ? '; Secure' : ''}`
 }
 
-export async function createAccessToken(user: ApiUser, secret: string) {
+export async function createAccessToken(user: ApiUser, secret: string, expiresIn = '30d') {
   return new SignJWT({ email: user.email, displayName: user.displayName, role: user.role })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setSubject(user.id)
     .setIssuedAt()
-    .setExpirationTime('8h')
+    .setExpirationTime(expiresIn)
     .sign(encoder.encode(secret))
 }
 
 export function setAccessCookie(response: ServerResponse, token: string, secure = process.env.NODE_ENV === 'production') {
   const name = secure ? productionCookieName : developmentCookieName
-  response.setHeader('Set-Cookie', cookieOptions(name, 8 * 60 * 60, secure).replace('VALUE', token))
+  // 30 days session persistence (2,592,000 seconds)
+  response.setHeader('Set-Cookie', cookieOptions(name, 30 * 24 * 60 * 60, secure).replace('VALUE', token))
 }
 
 export function clearAccessCookie(response: ServerResponse, secure = process.env.NODE_ENV === 'production') {

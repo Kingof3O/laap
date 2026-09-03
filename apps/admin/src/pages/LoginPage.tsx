@@ -2,13 +2,18 @@ import { useState, type FormEvent } from 'react'
 import { ArrowRight, KeyRound } from 'lucide-react'
 import { GlassCard } from '../components/GlassCard'
 
-type LoginPageProps = { onSubmit: (email: string, password: string) => Promise<void>; error: string | null; demoAvailable: boolean }
+type LoginPageProps = { onSubmit: (email: string, password: string, remember: boolean) => Promise<void>; error: string | null; demoAvailable: boolean }
 
 export function LoginPage({ onSubmit, error, demoAvailable }: LoginPageProps) {
   const [email, setEmail] = useState(import.meta.env.DEV ? 'admin@laap.local' : '')
   const [password, setPassword] = useState('')
+  const [remember, setRemember] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); setSubmitting(true); try { await onSubmit(email, password) } finally { setSubmitting(false) } }
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setSubmitting(true)
+    try { await onSubmit(email, password, remember) } finally { setSubmitting(false) }
+  }
 
   return (
     <div className="relative flex min-h-dvh flex-col overflow-hidden bg-canvas lg:grid lg:grid-cols-2">
@@ -31,6 +36,17 @@ export function LoginPage({ onSubmit, error, demoAvailable }: LoginPageProps) {
           <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
             <div><label className="mb-2 block text-xs font-medium text-slate-300" htmlFor="email">Email</label><input id="email" value={email} onChange={(event) => setEmail(event.target.value)} className="input-base h-12 w-full px-3 text-sm" type="email" autoComplete="username" required /></div>
             <div><label className="mb-2 block text-xs font-medium text-slate-300" htmlFor="password">Password</label><div className="relative"><KeyRound aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={15} /><input id="password" value={password} onChange={(event) => setPassword(event.target.value)} className="input-base h-12 w-full px-3 pl-9 text-sm" type="password" autoComplete="current-password" required /></div></div>
+            <div className="flex items-center justify-between text-xs">
+              <label className="flex cursor-pointer items-center gap-2 text-slate-400 select-none hover:text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                  className="h-4 w-4 rounded border-white/10 bg-white/5 text-cyan-400 focus:ring-cyan-400 focus:ring-offset-0"
+                />
+                <span>Remember me on this computer (30 days)</span>
+              </label>
+            </div>
             {error ? <p className="rounded-xl border border-rose-400/20 bg-rose-400/10 px-3 py-2.5 text-xs text-rose-200" role="alert">{error}</p> : null}
             <button type="submit" disabled={submitting} className="inline-flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 text-sm font-medium text-cyan-100 transition hover:bg-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80">{submitting ? 'Signing in…' : 'Sign in'}{!submitting ? <ArrowRight aria-hidden="true" size={16} /> : null}</button>
           </form>
