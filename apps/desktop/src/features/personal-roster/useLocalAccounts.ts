@@ -17,10 +17,28 @@ export function useLocalAccounts() {
         } catch {}
       } else {
         const samples: LocalAccountSummary[] = [
-          { id: 'acc-1', name: 'Hide on bush', region: 'KR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 3).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-2', name: 'Caps', region: 'EUW', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 18).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-3', name: 'Agurin', region: 'EUW', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 42).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-4', name: 'Doublelift', region: 'NA', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 72).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-1', name: 'Hide on bush', region: 'KR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 2).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-2', name: 'Caps', region: 'EUW', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 5).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-3', name: 'Agurin', region: 'EUW', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 14).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-4', name: 'Doublelift', region: 'NA', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 26).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-5', name: 'T1 Gumayusi', region: 'KR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 32).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-6', name: 'Jojopyun', region: 'NA', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 48).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-7', name: 'ShowMaker', region: 'KR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 54).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-8', name: 'Bo', region: 'EUW', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 70).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-9', name: 'Bwipo', region: 'NA', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 85).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-10', name: 'Chovy', region: 'KR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 96).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-11', name: 'Nemesis', region: 'KR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 120).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-12', name: 'Upset', region: 'EUW', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 132).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-13', name: 'Inspired', region: 'NA', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 150).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-14', name: 'Jankos', region: 'EUNE', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 168).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-15', name: 'Faker Mid', region: 'KR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 190).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-16', name: 'Hans Sama', region: 'EUW', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 210).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-17', name: 'Perkz', region: 'EUNE', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 240).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-18', name: 'Sniper', region: 'NA', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 260).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-19', name: 'Robo', region: 'BR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 280).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-20', name: 'Tinowns', region: 'BR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 320).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-21', name: 'Caliste', region: 'EUW', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 350).toISOString(), created_at: new Date().toISOString() },
+          { id: 'acc-22', name: 'Rekkles', region: 'KR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 400).toISOString(), created_at: new Date().toISOString() },
         ]
         localStorage.setItem('laap_browser_accounts', JSON.stringify(samples))
         setLocalAccounts(samples)

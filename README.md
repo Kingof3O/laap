@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/logo.webp" alt="LAAP - League Account Access Platform" width="460" />
+<img src="docs/assets/logo.webp" alt="LAAP - League Account Access Platform" width="420" />
 
 <br />
 
@@ -21,9 +21,9 @@
 
 ## 🌟 Overview
 
-**LAAP** (League Account Access Platform) is a credential-free, high-performance tactical control plane and desktop launcher designed for seamless, instantaneous account switching without compromising account security or triggering anti-cheat flags.
+**LAAP** (League Account Access Platform) is an esports-grade, credential-free tactical desktop launcher and account management control plane. Engineered specifically for competitive players, organizations, and scrim rosters, LAAP eliminates the friction of multi-account management without storing plaintext passwords or triggering Riot Vanguard anti-cheat heuristics.
 
-It pairs a native **Hextech Tactical Desktop Launcher** (built with Tauri v2, Rust, and React 19) with a centralized **Web Control Center** (Cloudflare Pages + Workers + Supabase).
+The platform couples a native **Hextech Tactical Desktop Launcher** (built with Tauri v2, Rust, and React 19) with a centralized **Web Control Center** (Cloudflare Pages + Workers + Supabase).
 
 ---
 
@@ -33,32 +33,59 @@ It pairs a native **Hextech Tactical Desktop Launcher** (built with Tauri v2, Ru
 Manage your entire summoner portfolio with 1-click credential-free launching, live session health, and real-time server distribution analytics.
 
 <div align="center">
-  <img src="docs/assets/launcher-grid.png" alt="LAAP Tactical Launcher - Personal Roster" width="100%" />
-</div>
-
-<br />
-
-### 🌐 Shared Accounts
-Access shared accounts with atomic single-active session locking, instant release mechanics, and hardware verification.
-
-<div align="center">
-  <img src="docs/assets/launcher-shared-accounts.png" alt="LAAP Shared Accounts Login" width="100%" />
+  <img src="docs/assets/launcher-grid.png" alt="LAAP Tactical Launcher - Personal Roster" width="84%" />
 </div>
 
 <br />
 
 ### 📋 High-Density Compact Table View
-Quickly filter, sort, and launch across dozens of accounts with keyboard shortcuts (`⌘K` / `Ctrl+K`) and regional filters (`EUW`, `NA`, `KR`, `EUNE`, `BR`).
+Quickly filter, sort, and launch across dozens of accounts with instant search (`⌘K` / `Ctrl+K`) and regional filters (`EUW`, `NA`, `KR`, `EUNE`, `BR`).
 
 <div align="center">
-  <img src="docs/assets/launcher-table.png" alt="LAAP Tactical Launcher - Table View" width="100%" />
+  <img src="docs/assets/launcher-table.png" alt="LAAP Tactical Launcher - Table View" width="84%" />
+</div>
+
+<br />
+
+### 🌐 Shared Accounts Access
+Access shared accounts with atomic single-active session locking, hardware signature verification, and instant release mechanics.
+
+<div align="center">
+  <img src="docs/assets/launcher-shared-accounts.png" alt="LAAP Shared Accounts Login" width="84%" />
 </div>
 
 ---
 
-## 🛡️ Core Pillars
+## ⚔️ Why LAAP? (Comparison Matrix)
 
-### 1. Passwordless Session Switching
+| Feature / Guarantee | Traditional Account Launchers | Browser Password Managers | LAAP Tactical Platform |
+|:---|:---:|:---:|:---:|
+| **Password Storage** | Plaintext / Weak AES on disk | Encrypted vault (requires master pass) | **Zero Passwords Handled** (Session-based) |
+| **Vanguard Anti-Cheat Safety** | ⚠️ High ban risk (keystrokes / memory) | N/A | **100% Safe** (External config sandboxing) |
+| **1-Click Game Launch** | ❌ (Prompts for 2FA / CAPTCHA) | ❌ (Manual copy-paste) | **Instant** (Direct authenticated boot) |
+| **Multi-Server Organization** | ❌ Flat list | ❌ Flat list | **Built-in Filters** (`EUW`, `NA`, `KR`, `BR`) |
+| **Hardware Binding** | ❌ None | ❌ None | **Ed25519 OS Keychain Keypair** |
+| **Shared Account Protection** | ⚠️ Concurrent collision conflicts | ⚠️ Password leaks & desyncs | **Atomic Single-Active Lease Locking** |
+
+---
+
+## 🛡️ Anti-Cheat & Vanguard Safety Proofs
+
+LAAP is built from the ground up to operate strictly as an **external pre-launch configuration manager**. It guarantees a **0% ban risk**:
+
+- **Zero Memory Injection:** Never calls `WriteProcessMemory`, `VirtualAllocEx`, or attaches debuggers to League or Riot processes.
+- **Zero Code Hooks:** Does not inject DLLs, hook DirectX/Direct3D graphics pipelines, or alter operating system APIs.
+- **Zero Game Asset Modifications:** Game binaries and archives (`.wad`, `.exe`, `.dll`) remain bit-for-bit identical.
+- **Standard Process Execution:** Boots the official Riot Client using standard, verified launch flags (`--launch-product=league_of_legends --launch-patchline=live`).
+- **Full Riot TOS Compliance:** Does not provide in-game automation, macros, overlay advantages, or cooldown timers.
+
+👉 **Read the complete source code proofs and verification guide in [docs/ANTI_BAN_VERIFICATION.md](docs/ANTI_BAN_VERIFICATION.md).**
+
+---
+
+## 🛡️ Core Pillars & Architecture
+
+### 1. Passwordless Session Sandboxing
 LAAP **strictly never prompts for, collects, stores, or handles Riot account passwords**.
 - Operates directly at the authenticated session token layer.
 - Authenticate once via the official Riot Client with *"Stay signed in"* enabled.
@@ -74,24 +101,21 @@ LAAP **strictly never prompts for, collects, stores, or handles Riot account pas
 - **🎮 Personal Roster (Local Mode):** Completely standalone 1-click account switching on your local machine. Zero cloud dependency, zero network requirements, zero passwords.
 - **🌐 Shared Accounts (Cloud Mode):** Shared account pool with atomic single-active lease enforcement, role-based access control, and real-time activity auditing.
 
-### 4. Visual Roster Breakdown & Health Analytics
-- **Readiness Distribution Bar:** Real-time visual progress bar tracking available, in-use, and unsynced accounts.
+### 4. Real-Time Roster Analytics & Health
+- **Segmented Readiness Bar:** Real-time visual tracking of ready, in-use, and unsynced accounts.
 - **Server Distribution:** Proportional breakdown across competitive server regions (`EUW`, `NA`, `KR`, `BR`, `EUNE`).
 - **Quick Launch Dossier:** Instant inspection of selected profiles, last-played timestamps, and one-click game launch.
 
 ---
 
-## 🛡️ Anti-Cheat & Vanguard Safety Proofs
+## ⌨️ Tactical Controls & Hotkeys
 
-LAAP is engineered strictly as an **external, pre-launch configuration manager**. It carries a **0% ban risk**:
-
-- **Zero Memory Injection:** Never calls `WriteProcessMemory`, `VirtualAllocEx`, or attaches debuggers to League or Riot processes.
-- **Zero Code Hooks:** Does not inject DLLs, hook DirectX/Direct3D graphics pipelines, or hook system APIs.
-- **Zero Game Asset Modifications:** Game files (`.wad`, `.exe`, `.dll`) are completely untouched.
-- **Standard Process Execution:** Boots the official Riot Client binary using standard, verified launch flags.
-- **Full Riot TOS Compliance:** Does not provide in-game automation, macros, timers, or gameplay advantages.
-
-👉 **Read the full source code proofs and verification guide in [docs/ANTI_BAN_VERIFICATION.md](docs/ANTI_BAN_VERIFICATION.md).**
+| Shortcut | Action | Scope |
+|:---|:---|:---|
+| `⌘K` / `Ctrl+K` | Focus instant summoner search | Global |
+| `Esc` | Clear search query / Dismiss open modal | Global |
+| `Tab` | Cycle through account cards and launch actions | Roster View |
+| `Enter` | Launch selected summoner profile | Quick Launch |
 
 ---
 
@@ -129,13 +153,13 @@ Detailed architectural diagrams and domain breakdowns are available in [docs/ARC
 
 ---
 
-## 🚀 Quick Start (Development)
+## 🚀 Development & Build Guide
 
 ### Prerequisites
 - **Node.js**: v20 or v22 LTS
 - **Rust**: 1.80+ (`rustc` & `cargo`)
 
-### Setup
+### Local Setup
 ```bash
 # 1. Clone repository
 git clone https://github.com/Kingof3O/laap.git
@@ -148,11 +172,23 @@ npm install
 npm run dev
 ```
 
-### Building Native Desktop Application
+### Building Native Desktop Releases
 ```bash
-# Build native macOS App and DMG
+# Build native macOS App bundle & DMG installer
 npm --workspace @laap/desktop run build
 npx --workspace @laap/desktop tauri build --bundles app,dmg
+
+# Build native Windows installer (.msi / .exe)
+npx --workspace @laap/desktop tauri build --bundles msi,nsis
+```
+
+### Verification & Testing
+```bash
+# Run unit and integration tests across monorepo
+npm run test
+
+# Run native Rust desktop core tests
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 ```
 
 ---
