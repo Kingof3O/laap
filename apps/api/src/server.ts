@@ -9,7 +9,7 @@ import { applySecurityHeaders, sendError, sendJson } from './http/response.js'
 import { SupabaseLaapService } from './services/supabase-service.js'
 import type { LaapServicePort } from './services/service-port.js'
 import { routeRequest } from './router.js'
-import { serviceErrorToHttp, type RuntimeConfig } from './routes/types.js'
+import { isTrustedDesktopOrigin, serviceErrorToHttp, type RuntimeConfig } from './routes/types.js'
 
 export type AppHandle = {
   server: http.Server
@@ -20,13 +20,25 @@ export type AppHandle = {
 
 function originAllowed(request: IncomingMessage, runtime: RuntimeConfig): boolean {
   const origin = request.headers.origin
-  return !origin || runtime.allowedOrigin.split(',').map((value) => value.trim()).includes(origin)
+  if (!origin) return true
+  const normalized = origin.toLowerCase()
+  if (runtime.nodeEnv === 'production' && /^(https?:\/\/)(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalized)) return false
+  return runtime.allowedOrigin.split(',').map((value) => value.trim()).includes(origin) || isTrustedDesktopOrigin(normalized, runtime.nodeEnv)
 }
 
 function responseOrigin(request: IncomingMessage, runtime: RuntimeConfig): string {
   return request.headers.origin && originAllowed(request, runtime)
     ? request.headers.origin
     : runtime.allowedOrigin.split(',')[0].trim()
+}
+
+function configureServer(server: http.Server) {
+  // Bound request lifetimes keep an abandoned upload from holding a worker
+  // or local API connection open indefinitely.
+  server.requestTimeout = 15_000
+  server.headersTimeout = 10_000
+  server.keepAliveTimeout = 5_000
+  return server
 }
 
 export async function createApp(overrides: Partial<RuntimeConfig> & { dataDir?: string } = {}): Promise<AppHandle> {
@@ -40,13 +52,16 @@ export async function createApp(overrides: Partial<RuntimeConfig> & { dataDir?: 
   if (runtime.storageDriver !== 'local') {
     throw new Error('The Supabase/Postgres adapter is deployed through Supabase migrations; local API requires storageDriver=local')
   }
+  if (runtime.nodeEnv === 'production' && (runtime.jwtSecret.length < 32 || runtime.vaultKey.length < 32)) {
+    throw new Error('LAAP_JWT_SECRET and LAAP_VAULT_KEY must each contain at least 32 characters in production')
+  }
 
   const database = await AppDatabase.open(overrides.dataDir ?? runtime.dataDir)
   await seedDatabase(database, runtime.adminPassword)
-  const service = new LaapService(database)
+  const service = new LaapService(database, runtime.vaultKey)
   const loginLimiter = new FixedWindowRateLimiter(8, 5 * 60_000)
 
-  const server = http.createServer(async (request, response) => {
+  const server = configureServer(http.createServer(async (request, response) => {
     const requestId = randomUUID()
     const startedAt = Date.now()
     response.setHeader('X-Request-ID', requestId)
@@ -84,10 +99,12 @@ export async function createApp(overrides: Partial<RuntimeConfig> & { dataDir?: 
     } catch (error) {
       sendError(response, serviceErrorToHttp(error), requestId)
     }
-  })
+  }))
 
   const reaper = runtime.reaperEnabled === false ? undefined : setInterval(() => {
-    service.reapStaleSessions()
+    void Promise.resolve(service.reapStaleSessions()).catch((error) => {
+      if (runtime.logRequests) console.error(JSON.stringify({ event: 'session_reaper_failed', error: error instanceof Error ? error.message : String(error) }))
+    })
     loginLimiter.sweep()
   }, 60_000)
   reaper?.unref()
@@ -108,18 +125,19 @@ export async function createApp(overrides: Partial<RuntimeConfig> & { dataDir?: 
 
 export async function createSupabaseApp(overrides: Partial<RuntimeConfig> = {}): Promise<AppHandle> {
   const runtime: RuntimeConfig = { ...defaultConfig, ...overrides, storageDriver: 'supabase' }
-  if (!runtime.supabaseUrl || !runtime.supabaseAnonKey || !runtime.supabaseServiceRoleKey) {
-    throw new Error('SUPABASE_URL, SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY are required for the Supabase storage driver')
+  if (!runtime.supabaseUrl || !runtime.supabaseAnonKey || !runtime.supabaseServiceRoleKey || runtime.jwtSecret.length < 32 || runtime.vaultKey.length < 32) {
+    throw new Error('SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, a 32+ character LAAP_JWT_SECRET, and a 32+ character LAAP_VAULT_KEY are required for the Supabase storage driver')
   }
 
   const service = new SupabaseLaapService({
     url: runtime.supabaseUrl,
     anonKey: runtime.supabaseAnonKey,
     serviceRoleKey: runtime.supabaseServiceRoleKey,
+    vaultKey: runtime.vaultKey,
   })
   const loginLimiter = new FixedWindowRateLimiter(8, 5 * 60_000)
 
-  const server = http.createServer(async (request, response) => {
+  const server = configureServer(http.createServer(async (request, response) => {
     const requestId = randomUUID()
     const startedAt = Date.now()
     response.setHeader('X-Request-ID', requestId)
@@ -154,10 +172,12 @@ export async function createSupabaseApp(overrides: Partial<RuntimeConfig> = {}):
     } catch (error) {
       sendError(response, serviceErrorToHttp(error), requestId)
     }
-  })
+  }))
 
   const reaper = runtime.reaperEnabled === false ? undefined : setInterval(() => {
-    void service.reapStaleSessions()
+    void service.reapStaleSessions().catch((error) => {
+      if (runtime.logRequests) console.error(JSON.stringify({ event: 'session_reaper_failed', error: error instanceof Error ? error.message : String(error) }))
+    })
   }, 60_000)
   reaper?.unref()
 

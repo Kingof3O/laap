@@ -56,7 +56,7 @@ export function EmptyState({
           <p className="empty-state-text">
             {isCloud
               ? 'No shared accounts have been added to the pool yet. Publish accounts from your local roster or add cloud accounts.'
-              : 'Add your League of Legends profiles to enable 1-click credential-free account switching with zero Vanguard ban risk.'}
+              : 'Add a profile to launch League through the official Riot Client with one click.'}
           </p>
 
           {/* Grounded Action Buttons */}
@@ -90,7 +90,7 @@ export function EmptyState({
         <div className="empty-trust-row">
           <div className="trust-item">
             <ShieldCheck size={14} style={{ color: 'var(--status-ready)', marginRight: '4px', flexShrink: 0 }} />
-            <span>0% Anti-Ban Risk</span>
+            <span>No memory injection</span>
           </div>
           <div className="trust-divider" />
           <div className="trust-item">
@@ -100,7 +100,7 @@ export function EmptyState({
           <div className="trust-divider" />
           <div className="trust-item">
             <KeyRound size={14} style={{ color: 'var(--text-muted)', marginRight: '4px', flexShrink: 0 }} />
-            <span>Hardware Identity Safe</span>
+            <span>Device identity</span>
           </div>
         </div>
       </div>

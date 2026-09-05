@@ -4,7 +4,7 @@ pub mod provisioner;
 pub mod session_manager;
 
 pub use paths::{detect_riot_data_dir, RIOT_SETTINGS_FILENAMES};
-pub use process::{is_riot_running, terminate_riot_processes};
+pub use process::{is_riot_running, runtime_snapshot, terminate_riot_processes, RuntimeSnapshot};
 pub use provisioner::RiotProvisioner;
 pub use session_manager::RiotSessionManager;
 
@@ -55,6 +55,28 @@ mod tests {
         assert!(polled.unwrap().is_some());
 
         assert!(provisioner.finish_and_restore().is_ok());
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_recover_orphaned_session_restores_original_settings() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("riot_recover_test_{}", std::process::id()));
+        let _ = fs::create_dir_all(&temp_dir);
+        let manager = RiotSessionManager::with_custom_dir(temp_dir.clone());
+        let target_file = temp_dir.join("RiotClientPrivateSettings.yaml");
+        fs::write(&target_file, "original: true\n").unwrap();
+        manager.inject_session("rso_token: temporary\n").unwrap();
+        assert!(fs::read_to_string(&target_file)
+            .unwrap()
+            .contains("temporary"));
+        let recovered = manager.recover_orphaned_session().unwrap();
+        assert!(recovered);
+        assert_eq!(
+            fs::read_to_string(&target_file).unwrap(),
+            "original: true\n"
+        );
+        assert!(!manager.backup_file_paths().iter().any(|path| path.exists()));
         let _ = fs::remove_dir_all(&temp_dir);
     }
 }

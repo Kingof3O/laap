@@ -71,9 +71,14 @@ describe('LAAP lease service', () => {
     expect(login.status).toBe(200)
     const cookie = login.headers.get('set-cookie')?.split(';')[0]
     expect(cookie).toMatch(/^laap_access=/)
-    const tauriLogin = await fetch(`${baseUrl}/api/auth/login?client=tauri`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'admin@laap.local', password: 'ChangeMe!2026' }) })
+    expect((await login.clone().json() as { accessToken?: string }).accessToken).toBeUndefined()
+    const tauriLogin = await fetch(`${baseUrl}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://tauri.localhost' }, body: JSON.stringify({ email: 'admin@laap.local', password: 'ChangeMe!2026' }) })
     const tauriLoginPayload = await tauriLogin.json() as { accessToken?: string }
     expect(tauriLoginPayload.accessToken).toEqual(expect.any(String))
+    expect(tauriLogin.headers.get('access-control-allow-origin')).toBe('https://tauri.localhost')
+    expect(tauriLogin.headers.get('set-cookie')).toBeNull()
+    const spoofedTauriLogin = await fetch(`${baseUrl}/api/auth/login?client=tauri`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'admin@laap.local', password: 'ChangeMe!2026' }) })
+    expect((await spoofedTauriLogin.json() as { accessToken?: string }).accessToken).toBeUndefined()
     const dashboard = await fetch(`${baseUrl}/api/dashboard`, { headers: { cookie: cookie! } })
     expect(dashboard.status).toBe(200)
     const payload = await dashboard.json() as { metrics: { totalAccounts: number } }
@@ -104,7 +109,10 @@ describe('LAAP lease service', () => {
     const adminDevice = (await instance.service.listDevices()).find((row) => row.user === 'Alex Kim')!
     const acquire = await fetch(`${baseUrl}/api/leases/acquire`, { method: 'POST', headers: { cookie: cookie!, 'content-type': 'application/json' }, body: JSON.stringify({ accountId: freeAccount.id, deviceId: adminDevice.id }) })
     expect(acquire.status).toBe(200)
-    expect((await acquire.json() as { success: boolean }).success).toBe(true)
+    const acquirePayload = await acquire.json() as { success: boolean; sessionId: string }
+    expect(acquirePayload.success).toBe(true)
+    const heartbeat = await fetch(`${baseUrl}/api/leases/${acquirePayload.sessionId}/heartbeat`, { method: 'POST', headers: { cookie: cookie!, 'content-type': 'application/json' }, body: JSON.stringify({ runtimeState: 'IN_GAME' }) })
+    expect(heartbeat.status).toBe(200)
   })
 
   it('allows acquiring and releasing leases cleanly without heartbeat dependency', async () => {
@@ -118,6 +126,63 @@ describe('LAAP lease service', () => {
     const release = await fetch(`${baseUrl}/api/leases/${session.id}/release`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'manual' }) })
     expect(release.status).toBe(200)
     expect((await instance.service.listSessions()).find((row) => row.id === session.id)).toBeUndefined()
+  })
+
+  it('ends a lease when the desktop reports that Riot and League have exited', async () => {
+    const instance = await createTestApp()
+    const maya = (await instance.service.listUsers()).find((user) => user.email === 'maya@laap.local')!
+    const account = (await instance.service.listAccounts(maya.id)).find((row) => row.name === 'Nova#EUW')!
+    const device = (await instance.service.listDevices(maya.id))[0]
+    const existing = (await instance.service.listSessions()).find((session) => session.account === 'Nova#EUW')!
+    const seededOwner = (await instance.service.listUsers()).find((user) => user.displayName === existing.user)!
+    await instance.service.releaseLease(seededOwner, existing.id, 'manual')
+    const lease = await instance.service.acquireLease(maya.id, account.id, device.id)
+    await instance.service.heartbeatLease(maya.id, lease.sessionId, 'EXITED')
+    expect((await instance.service.listSessions()).some((session) => session.id === lease.sessionId)).toBe(false)
+    expect((await instance.service.listAudit(20)).some((entry) => entry.entityId === lease.sessionId && entry.action === 'SESSION_ENDED')).toBe(true)
+  })
+
+  it('releases a lease when its operator assignment expires during a heartbeat', async () => {
+    const instance = await createTestApp()
+    const maya = (await instance.service.listUsers()).find((user) => user.email === 'maya@laap.local')!
+    const account = (await instance.service.listAccounts(maya.id)).find((row) => row.name === 'Nova#EUW')!
+    const device = (await instance.service.listDevices(maya.id))[0]
+    const existing = (await instance.service.listSessions()).find((session) => session.account === 'Nova#EUW')!
+    const seededOwner = (await instance.service.listUsers()).find((user) => user.displayName === existing.user)!
+    await instance.service.releaseLease(seededOwner, existing.id, 'manual')
+    const lease = await instance.service.acquireLease(maya.id, account.id, device.id)
+    instance.database!.run(
+      `UPDATE account_assignments SET expires_at = ? WHERE account_id = ? AND user_id = ?`,
+      [new Date(Date.now() - 1_000).toISOString(), account.id, maya.id]
+    )
+    await expect(instance.service.heartbeatLease(maya.id, lease.sessionId, 'IN_CLIENT')).rejects.toMatchObject({ code: 'ASSIGNMENT_EXPIRED' })
+    expect((await instance.service.listSessions()).some((session) => session.id === lease.sessionId)).toBe(false)
+  })
+
+  it('does not allow an account to enter maintenance while it is leased', async () => {
+    const instance = await createTestApp()
+    const admin = (await instance.service.listUsers()).find((user) => user.role === 'admin')!
+    const account = (await instance.service.listAccounts()).find((row) => row.name === 'Lumen#EUNE')!
+    const device = (await instance.service.listDevices()).find((row) => row.userId === admin.id)!
+    const lease = await instance.service.acquireLease(admin.id, account.id, device.id)
+    await expect(Promise.resolve().then(() => instance.service.updateAccount(admin.id, account.id, { status: 'maintenance' }))).rejects.toMatchObject({ code: 'ACCOUNT_BUSY' })
+    await instance.service.releaseLease(admin, lease.sessionId, 'manual')
+    await instance.service.updateAccount(admin.id, account.id, { status: 'maintenance' })
+    expect((await instance.service.listAccounts()).find((row) => row.id === account.id)?.status).toBe('Maintenance')
+  })
+
+  it('ends active leases when an operator is suspended', async () => {
+    const instance = await createTestApp()
+    const admin = (await instance.service.listUsers()).find((user) => user.role === 'admin')!
+    const maya = (await instance.service.listUsers()).find((user) => user.email === 'maya@laap.local')!
+    const account = (await instance.service.listAccounts()).find((row) => row.name === 'Nova#EUW')!
+    const seeded = (await instance.service.listSessions()).find((session) => session.account === 'Nova#EUW')!
+    const seededOwner = (await instance.service.listUsers()).find((user) => user.displayName === seeded.user)!
+    await instance.service.releaseLease(seededOwner, seeded.id, 'manual')
+    const device = (await instance.service.listDevices(maya.id))[0]
+    const lease = await instance.service.acquireLease(maya.id, account.id, device.id)
+    await Promise.resolve().then(() => instance.service.updateUser(admin.id, maya.id, { status: 'suspended' }))
+    expect((await instance.service.listSessions()).some((session) => session.id === lease.sessionId)).toBe(false)
   })
 
   it('requires a signed device challenge in production mode', async () => {
@@ -155,6 +220,9 @@ describe('LAAP lease service', () => {
       body: JSON.stringify({ sessionBlob: sampleYaml }),
     })
     expect(saveRes.status).toBe(200)
+    const storedSession = instance.database!.get<{ session_blob: string }>('SELECT session_blob FROM accounts WHERE id = ?', [account.id])
+    expect(storedSession?.session_blob).toMatch(/^laap:v1:/)
+    expect(storedSession?.session_blob).not.toContain('test-puuid')
 
     // Verify account list now reflects hasSessionBlob = true
     const updatedAccounts = await instance.service.listAccounts()

@@ -75,20 +75,82 @@ export class SupabaseAuthService implements IAuthService {
       password: input.password,
       email_confirm: true,
       user_metadata: { display_name: input.displayName },
+      app_metadata: { role: input.role },
     })
     if (error || !data.user) {
       throw new ServiceError('USER_CREATE_FAILED', 400, error?.message ?? 'Could not create auth user')
     }
-    await executeQuery(
-      this.data
-        .from('profiles')
-        .upsert({ id: data.user.id, email: input.email, display_name: input.displayName, status: 'active' }),
-      'PROFILE_CREATE_FAILED'
-    )
-    await executeQuery(
-      this.data.from('user_roles').upsert({ user_id: data.user.id, role: input.role }),
-      'ROLE_ASSIGN_FAILED'
-    )
+    try {
+      await executeQuery(
+        this.data
+          .from('profiles')
+          .upsert({ id: data.user.id, email: input.email, display_name: input.displayName, status: 'active' }),
+        'PROFILE_CREATE_FAILED'
+      )
+      await executeQuery(
+        this.data.from('user_roles').upsert({ user_id: data.user.id, role: input.role }),
+        'ROLE_ASSIGN_FAILED'
+      )
+    } catch (cause) {
+      await this.data.auth.admin.deleteUser(data.user.id).catch(() => undefined)
+      throw cause
+    }
+    await this.recordAudit(actorId, 'USER_CREATED', 'users', data.user.id, { email: input.email, role: input.role })
     return { id: data.user.id, email: input.email, displayName: input.displayName, role: input.role, status: 'active' }
+  }
+
+  async updateUser(actorId: string, userId: string, input: { displayName?: string; role?: 'admin' | 'operator'; status?: ApiUser['status'] }) {
+    const current = await this.findUserById(userId)
+    if (!current) throw new ServiceError('USER_NOT_FOUND', 404)
+    if (actorId === userId && input.status && input.status !== 'active') throw new ServiceError('SELF_LOCKOUT', 409)
+    if (
+      current.role === 'admin' &&
+      current.status === 'active' &&
+      (input.role === 'operator' || (input.status !== undefined && input.status !== 'active'))
+    ) {
+      const admins = await executeQuery<Row[]>(this.data.from('profiles').select('id,user_roles!inner(role)').eq('status', 'active').eq('user_roles.role', 'admin'), 'ROLE_LOOKUP_FAILED')
+      if (admins.length <= 1) throw new ServiceError('LAST_ADMIN_REQUIRED', 409)
+    }
+    const profilePatch: Row = {}
+    if (input.displayName !== undefined) profilePatch.display_name = input.displayName
+    if (input.status !== undefined) profilePatch.status = input.status
+    if (Object.keys(profilePatch).length) await executeQuery(this.data.from('profiles').update(profilePatch).eq('id', userId), 'PROFILE_UPDATE_FAILED')
+    if (input.role !== undefined) {
+      await executeQuery(this.data.from('user_roles').upsert({ user_id: userId, role: input.role }), 'ROLE_UPDATE_FAILED')
+      const { error } = await this.data.auth.admin.updateUserById(userId, { app_metadata: { role: input.role } })
+      if (error) throw new ServiceError('ROLE_UPDATE_FAILED', 400, error.message)
+    }
+    if (input.status && input.status !== 'active') {
+      const sessions = await executeQuery<Row[]>(
+        this.data.from('account_sessions').select('id,account_id').eq('user_id', userId).in('status', ['starting', 'active', 'stopping']),
+        'SESSION_LOOKUP_FAILED'
+      )
+      if (sessions.length) {
+        await executeQuery(
+          this.data
+            .from('account_sessions')
+            .update({ status: 'ended', runtime_state: 'EXITED', ended_at: new Date().toISOString(), release_reason: 'error' })
+            .in('id', sessions.map((session) => String(session.id))),
+          'SESSION_REVOKE_FAILED'
+        )
+        for (const session of sessions) {
+          await this.recordAudit(actorId, 'SESSION_ENDED', 'account_sessions', String(session.id), { accountId: String(session.account_id), releaseReason: 'user_deactivated' })
+        }
+      }
+    }
+    await this.recordAudit(actorId, 'USER_UPDATED', 'users', userId, { fields: Object.keys({ ...profilePatch, role: input.role }).filter((key) => key !== 'role' || input.role !== undefined) })
+    return (await this.findUserById(userId))!
+  }
+
+  async resetUserPassword(actorId: string, userId: string, password: string) {
+    const current = await this.findUserById(userId)
+    if (!current) throw new ServiceError('USER_NOT_FOUND', 404)
+    const { error } = await this.data.auth.admin.updateUserById(userId, { password })
+    if (error) throw new ServiceError('PASSWORD_RESET_FAILED', 400, error.message)
+    await this.recordAudit(actorId, 'USER_PASSWORD_RESET', 'users', userId, {})
+  }
+
+  private async recordAudit(actorId: string, action: string, entityType: string, entityId: string, payload: Record<string, unknown>) {
+    await executeQuery(this.data.from('audit_logs').insert({ actor_id: actorId, action, entity_type: entityType, entity_id: entityId, payload }), 'AUDIT_INSERT_FAILED')
   }
 }

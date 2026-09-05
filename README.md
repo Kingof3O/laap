@@ -12,7 +12,7 @@
 [![Tauri v2](https://img.shields.io/badge/Tauri-v2.2-24C8D8?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
 [![Rust](https://img.shields.io/badge/Rust-2021-DEA584?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Anti-Cheat: 100% Safe](https://img.shields.io/badge/Anti--Cheat-Vanguard%20Safe-0AC8B9?style=for-the-badge)](docs/ANTI_BAN_VERIFICATION.md)
+[![No Memory or Code Injection](https://img.shields.io/badge/Runtime-No%20memory%20or%20code%20injection-0AC8B9?style=for-the-badge)](docs/ANTI_BAN_VERIFICATION.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-C89B3C?style=for-the-badge)](LICENSE)
 
 [**Download for macOS (.dmg)**](https://github.com/Kingof3O/laap/releases/latest) • [**Download for Windows (.exe / .msi)**](https://github.com/Kingof3O/laap/releases/latest)
@@ -25,7 +25,9 @@
 
 ## 🌟 Overview
 
-**LAAP** (League Account Access Platform) is an esports-grade, credential-free tactical desktop launcher and account management control plane. Engineered specifically for competitive players, organizations, and scrim rosters, LAAP eliminates the friction of multi-account management without storing plaintext passwords or triggering Riot Vanguard anti-cheat heuristics.
+**LAAP** (League Account Access Platform) is an esports-grade account access control plane with a native desktop launcher. Engineered for teams and scrim rosters, LAAP centralizes assignments, device trust, and exclusive session leases without accepting Riot passwords.
+
+> **Deferred Riot boundary:** The current build still contains the existing local session capture/injection path requested for this milestone. It is not an official Riot authentication API, and LAAP makes no ban, compatibility, or Riot-approval guarantee. Use it only where you have explicit authorization; replacing it with a supported Riot flow is separate work.
 
 The platform couples a native **Hextech Tactical Desktop Launcher** (built with Tauri v2, Rust, and React 19) with a centralized **Web Control Center** (Cloudflare Pages + Workers + Supabase).
 
@@ -81,7 +83,7 @@ Access shared accounts with atomic single-active session locking, hardware signa
 | Feature / Guarantee | Traditional Account Launchers | Browser Password Managers | LAAP Tactical Platform |
 |:---|:---:|:---:|:---:|
 | **Password Storage** | Plaintext / Weak AES on disk | Encrypted vault (requires master pass) | **Zero Passwords Handled** (Session-based) |
-| **Vanguard Anti-Cheat Safety** | ⚠️ High ban risk (keystrokes / memory) | N/A | **100% Safe** (External config sandboxing) |
+| **Runtime behavior** | ⚠️ Keystrokes / memory hooks | N/A | **No memory or code injection** (not a ban guarantee) |
 | **1-Click Game Launch** | ❌ (Prompts for 2FA / CAPTCHA) | ❌ (Manual copy-paste) | **Instant** (Direct authenticated boot) |
 | **Multi-Server Organization** | ❌ Flat list | ❌ Flat list | **Built-in Filters** (`EUW`, `NA`, `KR`, `BR`) |
 | **Hardware Binding** | ❌ None | ❌ None | **Ed25519 OS Keychain Keypair** |
@@ -92,13 +94,13 @@ Access shared accounts with atomic single-active session locking, hardware signa
 
 ## 🛡️ Anti-Cheat & Vanguard Safety Proofs
 
-LAAP is built from the ground up to operate strictly as an **external pre-launch configuration manager**. It guarantees a **0% ban risk**:
+LAAP is built to operate as an **external pre-launch configuration manager**. The following are implementation facts, not a promise that Riot will approve or tolerate every integration:
 
 - **Zero Memory Injection:** Never calls `WriteProcessMemory`, `VirtualAllocEx`, or attaches debuggers to League or Riot processes.
 - **Zero Code Hooks:** Does not inject DLLs, hook DirectX/Direct3D graphics pipelines, or alter operating system APIs.
 - **Zero Game Asset Modifications:** Game binaries and archives (`.wad`, `.exe`, `.dll`) remain bit-for-bit identical.
 - **Standard Process Execution:** Boots the official Riot Client using standard, verified launch flags (`--launch-product=league_of_legends --launch-patchline=live`).
-- **Full Riot TOS Compliance:** Does not provide in-game automation, macros, overlay advantages, or cooldown timers.
+- **No in-game automation:** Does not provide macros, overlay advantages, or cooldown timers.
 
 👉 **Read the complete source code proofs and verification guide in [docs/ANTI_BAN_VERIFICATION.md](docs/ANTI_BAN_VERIFICATION.md).**
 
@@ -106,11 +108,10 @@ LAAP is built from the ground up to operate strictly as an **external pre-launch
 
 ## 🛡️ Core Pillars & Architecture
 
-### 1. Passwordless Session Sandboxing
-LAAP **strictly never prompts for, collects, stores, or handles Riot account passwords**.
-- Operates directly at the authenticated session token layer.
-- Authenticate once via the official Riot Client with *"Stay signed in"* enabled.
-- LAAP captures the ephemeral session token, secures it in the local OS keychain, and injects it upon launch.
+### 1. Passwordless Session Sandboxing (deferred Riot integration)
+LAAP **never prompts for or accepts Riot account passwords**. The current deferred integration operates at the authenticated session-material layer:
+- Authenticate via the official Riot Client with *"Stay signed in"* enabled.
+- The existing build captures the local session material, encrypts it at rest, and injects it before launch.
 - When switching accounts, personal client settings and configurations are safely preserved and restored.
 
 ### 2. Ed25519 Hardware Device Authentication

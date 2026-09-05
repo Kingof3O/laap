@@ -13,7 +13,7 @@ export class LaapService implements LaapServicePort {
   public readonly devices: SqliteDeviceService
   public readonly admin: SqliteAdminService
 
-  constructor(private readonly database: AppDatabase) {
+  constructor(private readonly database: AppDatabase, vaultKey: string) {
     const addAuditFn = (
       actorId: string,
       action: string,
@@ -25,7 +25,7 @@ export class LaapService implements LaapServicePort {
     }
 
     this.auth = new SqliteAuthService(this.database, addAuditFn)
-    this.accounts = new SqliteAccountService(this.database, addAuditFn)
+    this.accounts = new SqliteAccountService(this.database, addAuditFn, vaultKey)
     this.leases = new SqliteLeaseService(this.database, addAuditFn)
     this.devices = new SqliteDeviceService(this.database, addAuditFn)
     this.admin = new SqliteAdminService(this.database, this.auth, this.accounts, this.leases)
@@ -37,6 +37,8 @@ export class LaapService implements LaapServicePort {
   authenticate = (email: string, pass: string) => this.auth.authenticate(email, pass)
   listUsers = () => this.auth.listUsers()
   createUser = (actorId: string, input: any) => this.auth.createUser(actorId, input)
+  updateUser = (actorId: string, userId: string, input: any) => this.auth.updateUser(actorId, userId, input)
+  resetUserPassword = (actorId: string, userId: string, password: string) => this.auth.resetUserPassword(actorId, userId, password)
 
   // Account delegation
   listAccounts = (userId?: string) => this.accounts.listAccounts(userId)
@@ -50,6 +52,7 @@ export class LaapService implements LaapServicePort {
   // Lease delegation
   acquireLease = (userId: string, accountId: string, deviceId: string, options?: any) => this.leases.acquireLease(userId, accountId, deviceId, options)
   releaseLease = (actor: any, sessionId: string, reason: string) => this.leases.releaseLease(actor, sessionId, reason)
+  heartbeatLease = (userId: string, sessionId: string, runtimeState: any) => this.leases.heartbeatLease(userId, sessionId, runtimeState)
   forceReleaseAccount = (actor: any, accountId: string) => this.leases.forceReleaseAccount(actor, accountId)
   reapStaleSessions = (persist?: boolean) => this.leases.reapStaleSessions(persist)
 
@@ -57,6 +60,8 @@ export class LaapService implements LaapServicePort {
   listDevices = (userId?: string) => this.devices.listDevices(userId)
   registerDevice = (userId: string, input: any) => this.devices.registerDevice(userId, input)
   revokeDevice = (actorId: string, deviceId: string) => this.devices.revokeDevice(actorId, deviceId)
+  approveDevice = (actorId: string, deviceId: string) => this.devices.approveDevice(actorId, deviceId)
+  touchDevice = (userId: string, deviceId: string, appVersion?: string) => this.devices.touchDevice(userId, deviceId, appVersion)
   verifyDeviceChallenge = (userId: string, deviceId: string, accountId: string, nonce: string, sig: string) =>
     this.devices.verifyDeviceChallenge(userId, deviceId, accountId, nonce, sig)
 

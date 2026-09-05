@@ -1,7 +1,9 @@
+use super::paths::{detect_riot_data_dir, RIOT_SETTINGS_FILENAMES};
+use super::process::{
+    is_riot_running, runtime_snapshot, terminate_riot_processes, RuntimeSnapshot,
+};
 use std::fs;
 use std::path::PathBuf;
-use super::paths::{detect_riot_data_dir, RIOT_SETTINGS_FILENAMES};
-use super::process::{is_riot_running, terminate_riot_processes};
 
 /// Manages Riot Client session token files for isolated 1-click launch and teardown.
 #[derive(Debug, Clone)]
@@ -48,6 +50,10 @@ impl RiotSessionManager {
         terminate_riot_processes()
     }
 
+    pub fn runtime_snapshot() -> RuntimeSnapshot {
+        runtime_snapshot()
+    }
+
     pub fn inject_session(&self, session_yaml: &str) -> Result<(), String> {
         Self::terminate_riot_processes()?;
 
@@ -86,6 +92,26 @@ impl RiotSessionManager {
         }
 
         Ok(())
+    }
+
+    /// Restores configuration left behind by a crashed LAAP process without
+    /// touching a currently running Riot or League process. The next launch
+    /// can then start from the user's original settings again.
+    pub fn recover_orphaned_session(&self) -> Result<bool, String> {
+        if Self::is_riot_running() {
+            return Ok(false);
+        }
+        let backups = self.backup_file_paths();
+        if !backups.iter().any(|path| path.exists()) {
+            return Ok(false);
+        }
+        for (settings_path, backup_path) in self.settings_file_paths().iter().zip(backups.iter()) {
+            if backup_path.exists() {
+                fs::copy(backup_path, settings_path).map_err(|e| e.to_string())?;
+                fs::remove_file(backup_path).map_err(|e| e.to_string())?;
+            }
+        }
+        Ok(true)
     }
 
     pub fn read_active_session(&self) -> Option<String> {

@@ -8,7 +8,7 @@ This document outlines the security architecture, cryptographic verification pro
 
 | Threat | Impact | Mitigation Strategy |
 | ------ | ------ | ------------------- |
-| **Credential Theft** | Loss of account access or password leaks | **Zero Plaintext Passwords**: Passwords are never collected, hashed, or stored. Only short-lived Riot session tokens are handled. |
+| **Credential Theft** | Loss of account access or password leaks | **No Riot password handling**: Riot passwords are never collected or stored. The deferred session-blob path is encrypted at rest and remains a separate, non-official integration boundary. |
 | **Session Hijacking** | Unauthorized user steals an account lease | **Ed25519 Hardware Nonces**: All lease claims must be cryptographically signed by the requesting machine's private key. |
 | **Concurrent Play** | Two users sign into the same account simultaneously | **Exclusive DB Locks**: Atomic transactions enforce single-active lease constraints at the database level. |
 | **Data Leakage on Shared PCs** | Subsequent PC users inherit previous sessions | **Automatic Teardown**: Releasing an account scrubs injected YAML files and restores original settings. |
@@ -16,7 +16,12 @@ This document outlines the security architecture, cryptographic verification pro
 
 ---
 
-## 2. Passwordless Session Architecture
+## 2. Passwordless Session Architecture (deferred Riot boundary)
+
+The current session-material capture/injection path is retained for this
+milestone at the user's request. It is not an official Riot authentication API,
+and it must not be represented as Riot approval or a ban guarantee. Replacing
+it with a supported Riot flow is separate work.
 
 Traditional account switchers prompt users for their Riot username and password, storing them in plain text or reversible encryption. **LAAP strictly forbids this pattern.**
 
@@ -81,7 +86,6 @@ sequenceDiagram
 - LAAP acts strictly as an **external orchestrator**.
 - LAAP writes configuration files **before** the Riot Client or League processes start.
 - LAAP does **not** hook Direct3D, does not use DLL injection, does not modify game executable memory, and does not inspect game packets.
-- This ensures 100% compliance with Riot's Terms of Service and Vanguard integrity requirements.
+- This avoids memory/code injection and in-game automation, but it does not establish Riot approval or guarantee an anti-cheat outcome.
 
 👉 **For comprehensive technical source code proofs, Windows/macOS API audits, and independent verification steps, see [Anti-Ban Verification](ANTI_BAN_VERIFICATION.md).**
-

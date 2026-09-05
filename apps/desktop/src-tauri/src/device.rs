@@ -24,11 +24,16 @@ pub struct DeviceIdentity {
 
 impl DeviceIdentity {
     pub fn load_or_create() -> Result<Self, DeviceError> {
-        let entry = Entry::new(KEYRING_SERVICE, KEYRING_ACCOUNT).map_err(|error| DeviceError::Keychain(error.to_string()))?;
+        let entry = Entry::new(KEYRING_SERVICE, KEYRING_ACCOUNT)
+            .map_err(|error| DeviceError::Keychain(error.to_string()))?;
         let secret = match entry.get_password() {
             Ok(encoded) => {
-                let bytes = STANDARD_NO_PAD.decode(encoded).map_err(|_| DeviceError::InvalidKey)?;
-                if bytes.len() != 32 { return Err(DeviceError::InvalidKey); }
+                let bytes = STANDARD_NO_PAD
+                    .decode(encoded)
+                    .map_err(|_| DeviceError::InvalidKey)?;
+                if bytes.len() != 32 {
+                    return Err(DeviceError::InvalidKey);
+                }
                 let mut value = [0u8; 32];
                 value.copy_from_slice(&bytes);
                 value
@@ -37,12 +42,16 @@ impl DeviceIdentity {
                 let mut rng = OsRng;
                 let signing = SigningKey::generate(&mut rng);
                 let value = signing.to_bytes();
-                entry.set_password(&STANDARD_NO_PAD.encode(value)).map_err(|error| DeviceError::Keychain(error.to_string()))?;
+                entry
+                    .set_password(&STANDARD_NO_PAD.encode(value))
+                    .map_err(|error| DeviceError::Keychain(error.to_string()))?;
                 value
             }
             Err(error) => return Err(DeviceError::Keychain(error.to_string())),
         };
-        Ok(Self { secret: Zeroizing::new(secret) })
+        Ok(Self {
+            secret: Zeroizing::new(secret),
+        })
     }
 
     pub fn public_key(&self) -> String {

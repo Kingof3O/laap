@@ -7,6 +7,9 @@ export const sessionStatuses = [
 
 export type SessionStatus = (typeof sessionStatuses)[number]
 
+export const sessionRuntimeStates = ['LAUNCHING', 'IN_CLIENT', 'IN_GAME', 'RECONNECTING', 'EXITED'] as const
+export type SessionRuntimeState = (typeof sessionRuntimeStates)[number]
+
 export type Platform = 'windows' | 'macos'
 
 export interface Account {
@@ -24,6 +27,7 @@ export interface AccountSession {
   userId: string
   deviceId: string
   status: SessionStatus
+  runtimeState?: SessionRuntimeState
   startedAt: string
   endedAt?: string | null
   releaseReason?: string | null
@@ -79,12 +83,16 @@ export interface DashboardActivity {
 export interface DashboardAccount {
   id: string
   name: string
+  externalId?: string
   region: string
   status: 'Available' | 'Leased' | 'Maintenance' | 'Disabled'
   lastUsed: string
   level: number
   accent: 'violet' | 'cyan' | 'lime' | 'orange' | 'rose'
   hasSessionBlob?: boolean
+  activeUser?: string
+  activeDevice?: string
+  sessionStarted?: string
 }
 
 export interface DashboardSnapshot {

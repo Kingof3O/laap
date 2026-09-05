@@ -60,6 +60,12 @@ export function useLocalAccounts() {
     void loadAccounts()
   }, [loadAccounts])
 
+  useEffect(() => {
+    const handleRefresh = () => { void loadAccounts() }
+    window.addEventListener('laap:refresh', handleRefresh)
+    return () => window.removeEventListener('laap:refresh', handleRefresh)
+  }, [loadAccounts])
+
   const saveAccount = async (name: string, region: string, sessionBlob: string) => {
     if (!hasTauri) {
       const newAcc: LocalAccountSummary = {

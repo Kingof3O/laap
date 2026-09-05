@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
-import { Boxes, KeyRound, Plus, RotateCcw, Search, SlidersHorizontal, Trash2 } from 'lucide-react'
+import { ArrowRight, Boxes, KeyRound, Pencil, Plus, RotateCcw, Search, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import type { DashboardAccount } from '@laap/types'
 import { api, ApiError } from '../lib/api'
 import { accountStatusLabel } from '../lib/labels'
@@ -16,6 +16,8 @@ export function AccountsPage({ initialAccounts, offline, canManageAccounts, onTo
   const [form, setForm] = useState({ displayName: '', externalId: '', region: 'EUW', status: 'available' as 'available' | 'maintenance' | 'disabled' })
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [editing, setEditing] = useState<DashboardAccount | null>(null)
+  const [editForm, setEditForm] = useState({ displayName: '', externalId: '', region: 'EUW', status: 'available' as 'available' | 'maintenance' | 'disabled' })
 
   const refresh = async () => {
     if (offline) return
@@ -77,6 +79,27 @@ export function AccountsPage({ initialAccounts, offline, canManageAccounts, onTo
     }
   }
 
+  const openEdit = (account: DashboardAccount) => {
+    setEditing(account)
+    setEditForm({ displayName: account.name, externalId: account.externalId ?? account.name, region: account.region, status: account.status === 'Maintenance' ? 'maintenance' : account.status === 'Disabled' ? 'disabled' : 'available' })
+  }
+
+  const saveEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!editing) return
+    setSaving(true)
+    try {
+      await api.updateAccount(editing.id, editForm)
+      onToast(`Account ${editForm.displayName} updated`)
+      setEditing(null)
+      await refresh()
+    } catch (error) {
+      onToast(error instanceof ApiError ? error.message : 'Unable to update account')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-[1600px] px-5 py-7 sm:px-8 sm:py-9 lg:px-10 lg:py-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -131,7 +154,7 @@ export function AccountsPage({ initialAccounts, offline, canManageAccounts, onTo
               <div className={`account-glyph account-glyph-${row.accent}`}>{row.name.slice(0, 1)}</div>
               <div>
                 <p className="font-mono text-xs font-medium text-slate-200">{row.name}</p>
-                <p className="mt-1 text-[11px] text-slate-500">{row.region} · Level {row.level}</p>
+                <p className="mt-1 text-[11px] text-slate-500">{row.activeUser ? `In use by ${row.activeUser}${row.activeDevice ? ` · ${row.activeDevice}` : ''}` : `${row.region} · Level ${row.level}`}</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -140,6 +163,11 @@ export function AccountsPage({ initialAccounts, offline, canManageAccounts, onTo
                 <p className="mt-1 text-[10px] text-slate-600">Last used {row.lastUsed}</p>
               </div>
               <div className="flex items-center gap-1.5">
+                {canManageAccounts ? (
+                  <button type="button" onClick={() => openEdit(row)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.03] text-slate-400 transition hover:border-cyan-400/20 hover:bg-cyan-400/10 hover:text-cyan-300" title="Edit account">
+                    <Pencil size={13} />
+                  </button>
+                ) : null}
                 {canManageAccounts && row.status === 'Leased' ? (
                   <button
                     type="button"
@@ -176,6 +204,7 @@ export function AccountsPage({ initialAccounts, offline, canManageAccounts, onTo
           </div>
         ))}{filtered.length === 0 ? <p className="px-6 py-10 text-center text-xs text-slate-500">No accounts match your search.</p> : null}</div>
       </GlassCard>
+      {editing ? <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/80 p-5 backdrop-blur-sm"><GlassCard className="w-full max-w-lg p-6" role="dialog" aria-modal="true" aria-labelledby="edit-account-title"><div className="flex items-start justify-between gap-4"><div><p className="eyebrow">Accounts</p><h2 id="edit-account-title" className="mt-2 text-xl font-semibold tracking-[-0.03em] text-slate-100">Edit {editing.name}</h2><p className="mt-2 text-xs leading-5 text-slate-500">Update the details your team sees.</p></div><button type="button" className="icon-button h-9 w-9" onClick={() => setEditing(null)} aria-label="Close edit account"><X aria-hidden="true" size={16} /></button></div><form className="mt-6 space-y-4" onSubmit={saveEdit}><Field label="Display name"><input className="input-base h-11 w-full px-3 text-sm" value={editForm.displayName} onChange={(event) => setEditForm({ ...editForm, displayName: event.target.value })} required /></Field><Field label="Riot ID"><input className="input-base h-11 w-full px-3 text-sm" value={editForm.externalId} onChange={(event) => setEditForm({ ...editForm, externalId: event.target.value })} required /></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="Region"><select className="input-base h-11 w-full cursor-pointer px-3 text-sm" value={editForm.region} onChange={(event) => setEditForm({ ...editForm, region: event.target.value })}><option value="EUW">EU West</option><option value="EUNE">EU Nordic & East</option><option value="NA">North America</option><option value="KR">Korea</option><option value="BR">Brazil</option></select></Field><Field label="Status"><select className="input-base h-11 w-full cursor-pointer px-3 text-sm" value={editForm.status} onChange={(event) => setEditForm({ ...editForm, status: event.target.value as typeof editForm.status })}><option value="available">Available</option><option value="maintenance">Maintenance</option><option value="disabled">Disabled</option></select></Field></div><div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setEditing(null)} className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.035] px-4 text-xs font-medium text-slate-300 transition hover:bg-white/[0.06]">Cancel</button><button type="submit" disabled={saving || offline} className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-4 text-xs font-medium text-cyan-100 transition hover:bg-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-50">{saving ? 'Saving…' : 'Save changes'}<ArrowRight aria-hidden="true" size={14} /></button></div></form></GlassCard></div> : null}
     </div>
   )
 }

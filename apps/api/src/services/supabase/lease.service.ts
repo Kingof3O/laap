@@ -1,142 +1,90 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { ApiUser } from '@laap/types'
+import type { ApiUser, SessionRuntimeState } from '@laap/types'
 import { releaseLeaseSchema } from '@laap/validation'
 import { ServiceError } from '../service-error.js'
 import type { ILeaseService } from '../domain/leases.js'
-import { activeStatuses, executeQuery, type Row } from './shared.js'
+import { executeQuery, type Row } from './shared.js'
 
 export class SupabaseLeaseService implements ILeaseService {
   constructor(private readonly data: SupabaseClient) {}
 
-  async acquireLease(
-    userId: string,
-    accountId: string,
-    deviceId: string,
-    _options: { nonce?: string; signature?: string } = {}
-  ) {
-    const roleRow = await executeQuery<Row | null>(
-      this.data.from('user_roles').select('role').eq('user_id', userId).maybeSingle()
+  async acquireLease(userId: string, accountId: string, deviceId: string, options: { nonce?: string; signature?: string } = {}) {
+    const result = await executeQuery<unknown>(
+      this.data.rpc('acquire_account_lease_for_user', {
+        p_user_id: userId,
+        p_account_id: accountId,
+        p_device_id: deviceId,
+        p_nonce: options.nonce ?? null,
+        p_signature: options.signature ?? null,
+      }),
+      'LEASE_ACQUIRE_FAILED'
     )
-    const isAdmin = roleRow?.role === 'admin'
-    if (!isAdmin) {
-      const assignment = await executeQuery<Row | null>(
-        this.data
-          .from('account_assignments')
-          .select('id, expires_at')
-          .eq('account_id', accountId)
-          .eq('user_id', userId)
-          .eq('status', 'active')
-          .maybeSingle()
-      )
-      if (!assignment || (assignment.expires_at && new Date(String(assignment.expires_at)).getTime() <= Date.now())) {
-        throw new ServiceError('NO_ACTIVE_ASSIGNMENT', 403)
-      }
+    const payload = result as Row
+    if (!payload.success) {
+      const code = String(payload.code ?? 'LEASE_ACQUIRE_FAILED')
+      throw new ServiceError(code, code === 'ACCOUNT_BUSY' ? 409 : 403)
     }
+    return { success: true as const, sessionId: String(payload.session_id), isReconnect: Boolean(payload.is_reconnect) }
+  }
 
-    const device = await executeQuery<Row | null>(
-      this.data.from('user_devices').select('id').eq('id', deviceId).eq('user_id', userId).eq('status', 'active').maybeSingle()
+  async heartbeatLease(userId: string, sessionId: string, runtimeState: SessionRuntimeState) {
+    const result = await executeQuery<unknown>(
+      this.data.rpc('heartbeat_account_session_for_user', {
+        p_user_id: userId,
+        p_session_id: sessionId,
+        p_runtime_state: runtimeState,
+      }),
+      'SESSION_HEARTBEAT_FAILED'
     )
-    if (!device) throw new ServiceError('DEVICE_NOT_AUTHORIZED', 403)
-
-    const account = await executeQuery<Row | null>(
-      this.data.from('accounts').select('id, status').eq('id', accountId).maybeSingle()
-    )
-    if (!account || account.status !== 'available') throw new ServiceError('ACCOUNT_UNAVAILABLE', 409)
-
-    const active = await executeQuery<Row[]>(
-      this.data.from('account_sessions').select('id, user_id, device_id, started_at').eq('account_id', accountId).in('status', activeStatuses)
-    )
-    if (active.length) {
-      const current = active[0]
-      if (new Date(String(current.started_at)).getTime() < Date.now() - 4 * 3600_000) {
-        await executeQuery(
-          this.data
-            .from('account_sessions')
-            .update({ status: 'stale', ended_at: new Date().toISOString(), release_reason: 'lease_timeout' })
-            .eq('id', current.id)
-        )
-      } else if (current.user_id === userId && current.device_id === deviceId) {
-        return { success: true as const, sessionId: String(current.id), isReconnect: true }
-      } else {
-        throw new ServiceError('ACCOUNT_BUSY', 409)
-      }
+    const payload = result as Row
+    if (!payload.success) {
+      const code = String(payload.code ?? 'SESSION_NOT_FOUND')
+      throw new ServiceError(code, code === 'ASSIGNMENT_EXPIRED' || code === 'DEVICE_NOT_AUTHORIZED' ? 403 : 404)
     }
-
-    const timestamp = new Date().toISOString()
-    const inserted = await executeQuery<Row>(
-      this.data
-        .from('account_sessions')
-        .insert({
-          account_id: accountId,
-          user_id: userId,
-          device_id: deviceId,
-          status: 'active',
-          runtime_state: 'LAUNCHING',
-          started_at: timestamp,
-          last_heartbeat_at: timestamp,
-        })
-        .select('id')
-        .single(),
-      'SESSION_CREATE_FAILED'
-    )
-    return { success: true as const, sessionId: String(inserted.id), isReconnect: false }
+    return { success: true as const }
   }
 
   async releaseLease(actor: ApiUser, sessionId: string, reason: string) {
     const parsed = releaseLeaseSchema.safeParse({ sessionId, reason })
     if (!parsed.success) throw new ServiceError('INVALID_RELEASE_REASON', 400)
-    const session = await executeQuery<Row | null>(
-      this.data.from('account_sessions').select('id, user_id').eq('id', sessionId).maybeSingle()
+    const result = await executeQuery<unknown>(
+      this.data.rpc('release_account_lease_for_user', {
+        p_actor_id: actor.id,
+        p_session_id: sessionId,
+        p_reason: reason,
+        p_is_admin: actor.role === 'admin',
+      }),
+      'LEASE_RELEASE_FAILED'
     )
-    if (!session) throw new ServiceError('SESSION_NOT_FOUND', 404)
-    if (session.user_id !== actor.id && actor.role !== 'admin') throw new ServiceError('FORBIDDEN', 403)
-    const releaseReason = actor.role === 'admin' && session.user_id !== actor.id ? 'admin_force_release' : reason
-    await executeQuery(
-      this.data
-        .from('account_sessions')
-        .update({ status: 'ended', ended_at: new Date().toISOString(), release_reason: releaseReason })
-        .eq('id', sessionId),
-      'SESSION_UPDATE_FAILED'
-    )
+    const payload = result as Row
+    if (!payload.success) throw new ServiceError(String(payload.code ?? 'LEASE_RELEASE_FAILED'), payload.code === 'FORBIDDEN' ? 403 : 404)
     return { success: true as const }
   }
 
   async forceReleaseAccount(actor: ApiUser, accountId: string) {
     if (actor.role !== 'admin') throw new ServiceError('FORBIDDEN', 403)
     const sessions = await executeQuery<Row[]>(
-      this.data.from('account_sessions').select('id').eq('account_id', accountId).in('status', ['starting', 'active', 'stopping'])
+      this.data.from('account_sessions').select('id').eq('account_id', accountId).in('status', ['starting', 'active', 'stopping']),
+      'SESSION_LOOKUP_FAILED'
     )
-    if (sessions.length) {
-      await executeQuery(
-        this.data
-          .from('account_sessions')
-          .update({ status: 'ended', ended_at: new Date().toISOString(), release_reason: 'admin_force_release' })
-          .in('id', sessions.map((s) => s.id))
+    for (const session of sessions) {
+      const result = await executeQuery<unknown>(
+        this.data.rpc('release_account_lease_for_user', {
+          p_actor_id: actor.id,
+          p_session_id: String(session.id),
+          p_reason: 'admin_force_release',
+          p_is_admin: true,
+        }),
+        'LEASE_RELEASE_FAILED'
       )
+      const payload = result as Row
+      if (!payload.success) throw new ServiceError(String(payload.code ?? 'LEASE_RELEASE_FAILED'), 409)
     }
-    await executeQuery(
-      this.data.from('accounts').update({ status: 'available', updated_at: new Date().toISOString() }).eq('id', accountId)
-    )
     return { success: true as const }
   }
 
   async reapStaleSessions() {
-    const cutoff = new Date(Date.now() - 90_000).toISOString()
-    const stale = await executeQuery<Row[]>(
-      this.data
-        .from('account_sessions')
-        .select('id')
-        .in('status', ['starting', 'active'])
-        .lt('last_heartbeat_at', cutoff)
-    )
-    if (stale.length) {
-      await executeQuery(
-        this.data
-          .from('account_sessions')
-          .update({ status: 'stale', ended_at: new Date().toISOString(), release_reason: 'heartbeat_timeout' })
-          .in('id', stale.map((s) => s.id))
-      )
-    }
-    return stale.length
+    const result = await executeQuery<unknown>(this.data.rpc('reap_stale_account_sessions'), 'REAPER_FAILED')
+    return Number(result ?? 0)
   }
 }

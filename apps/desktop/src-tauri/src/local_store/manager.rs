@@ -1,28 +1,24 @@
-use std::path::PathBuf;
-use chrono::Utc;
-use crate::riot::RiotSessionManager;
-use crate::commands::launch_riot_client;
 use super::models::{LocalAccount, LocalAccountSummary};
 use super::storage::LocalAccountStorage;
+use crate::commands::launch_riot_client;
+use crate::riot::RiotSessionManager;
+use chrono::Utc;
+#[cfg(test)]
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub struct LocalStore {
     storage: LocalAccountStorage,
 }
 
-impl Default for LocalStore {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl LocalStore {
-    pub fn new() -> Self {
-        Self {
-            storage: LocalAccountStorage::new(),
-        }
+    pub fn new() -> Result<Self, String> {
+        Ok(Self {
+            storage: LocalAccountStorage::new()?,
+        })
     }
 
+    #[cfg(test)]
     pub fn with_custom_dir(storage_dir: PathBuf) -> Self {
         Self {
             storage: LocalAccountStorage::with_custom_dir(storage_dir),

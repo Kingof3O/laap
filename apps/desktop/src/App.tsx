@@ -53,6 +53,15 @@ function AppContent() {
     } catch {}
   }
 
+  // Recover settings left behind if the previous desktop process crashed.
+  useEffect(() => {
+    if (!hasTauri) return
+    const recover = () => { void invokeTauri('recover_orphaned_account_session').catch(() => {}) }
+    recover()
+    const timer = window.setInterval(recover, 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
   // Keyboard shortcut listener (Cmd+K / Ctrl+K)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -86,7 +95,7 @@ function AppContent() {
         appMode={appMode}
         onModeChange={setAppMode}
         user={user}
-        onRefresh={() => setSelectedRegion((prev) => prev)}
+        onRefresh={() => window.dispatchEvent(new Event('laap:refresh'))}
         onOpenSettings={() => setShowSettingsModal(true)}
       />
 

@@ -31,36 +31,60 @@ export class SupabaseAdminService implements IAdminService {
       account: String((row.accounts as Row | undefined)?.display_name ?? 'Unknown'),
       user: String((row.profiles as Row | undefined)?.display_name ?? 'Unknown'),
       email: String((row.profiles as Row | undefined)?.email ?? ''),
-      status: String(row.status),
+      status: String(row.status) === 'active' && row.expires_at && new Date(String(row.expires_at)).getTime() <= Date.now() ? 'expired' : String(row.status),
       assignedAt: String(row.assigned_at),
       expiresAt: row.expires_at ? String(row.expires_at) : null,
     })) satisfies AssignmentView[]
   }
 
   async addAssignment(_actorId: string, accountId: string, userId: string, expiresAt: string | null) {
+    const account = await executeQuery<Row | null>(this.data.from('accounts').select('id,status').eq('id', accountId).maybeSingle(), 'ACCOUNT_LOOKUP_FAILED')
+    if (!account) throw new ServiceError('ACCOUNT_NOT_FOUND', 404)
+    if (account.status !== 'available') throw new ServiceError('ACCOUNT_UNAVAILABLE', 409)
+    const targetUser = await executeQuery<Row | null>(
+      this.data.from('profiles').select('id,status,user_roles(role)').eq('id', userId).maybeSingle(),
+      'USER_LOOKUP_FAILED'
+    )
+    if (!targetUser || targetUser.status !== 'active') throw new ServiceError('USER_NOT_FOUND', 404)
+    const nestedRole = targetUser.user_roles
+    const targetRole = Array.isArray(nestedRole)
+      ? (nestedRole[0] as Row | undefined)?.role
+      : (nestedRole as Row | undefined)?.role
+    if (targetRole === 'admin') throw new ServiceError('INVALID_ASSIGNMENT', 400, 'Only operators can receive account assignments')
     const inserted = await executeQuery<Row>(
       this.data
         .from('account_assignments')
-        .upsert({ account_id: accountId, user_id: userId, status: 'active', expires_at: expiresAt, assigned_at: new Date().toISOString() })
+        .upsert(
+          { account_id: accountId, user_id: userId, status: 'active', expires_at: expiresAt, assigned_at: new Date().toISOString() },
+          { onConflict: 'account_id,user_id' }
+        )
         .select('id')
         .single(),
       'ASSIGNMENT_UPSERT_FAILED'
     )
+    await this.recordAudit(_actorId, 'ASSIGNMENT_UPDATED', 'account_assignments', String(inserted.id), { accountId, userId })
     return String(inserted.id)
   }
 
   async revokeAssignment(_actorId: string, accountId: string, userId: string) {
-    await executeQuery(
-      this.data.from('account_assignments').update({ status: 'revoked' }).eq('account_id', accountId).eq('user_id', userId),
+    const revoked = await executeQuery<Row | null>(
+      this.data.from('account_assignments').update({ status: 'revoked' }).eq('account_id', accountId).eq('user_id', userId).select('id').maybeSingle(),
       'ASSIGNMENT_REVOKE_FAILED'
     )
+    if (!revoked) throw new ServiceError('ASSIGNMENT_NOT_FOUND', 404)
+    await this.recordAudit(_actorId, 'ASSIGNMENT_REVOKED', 'account_assignments', accountId, { accountId, userId })
+    const sessions = await executeQuery<Row[]>(this.data.from('account_sessions').select('id').eq('account_id', accountId).eq('user_id', userId).in('status', activeStatuses), 'SESSION_LOOKUP_FAILED')
+    if (sessions.length) {
+      await executeQuery(this.data.from('account_sessions').update({ status: 'ended', runtime_state: 'EXITED', ended_at: new Date().toISOString(), release_reason: 'admin_force_release' }).in('id', sessions.map((session) => session.id)), 'SESSION_REVOKE_FAILED')
+      for (const session of sessions) await this.recordAudit(_actorId, 'SESSION_ENDED', 'account_sessions', String(session.id), { releaseReason: 'admin_force_release', assignmentRevoked: true })
+    }
   }
 
   async listAudit(limit = 100, offset = 0) {
     const rows = await executeQuery<Row[]>(
       this.data
         .from('audit_logs')
-        .select('id,action,entity_type,entity_id,payload_json,created_at,profiles(display_name)')
+        .select('id,action,entity_type,entity_id,payload,created_at,profiles(display_name)')
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1),
       'AUDIT_LOOKUP_FAILED'
@@ -70,7 +94,7 @@ export class SupabaseAdminService implements IAdminService {
       action: String(row.action),
       entityType: String(row.entity_type),
       entityId: String(row.entity_id),
-      payload: (row.payload_json ?? {}) as Record<string, unknown>,
+      payload: (row.payload ?? {}) as Record<string, unknown>,
       createdAt: String(row.created_at),
       actor: String((row.profiles as Row | undefined)?.display_name ?? 'System'),
     })) satisfies AuditView[]
@@ -78,7 +102,7 @@ export class SupabaseAdminService implements IAdminService {
 
   async recordAudit(actorId: string, action: string, entityType: string, entityId: string, payload: Record<string, unknown>) {
     await executeQuery(
-      this.data.from('audit_logs').insert({ actor_id: actorId, action, entity_type: entityType, entity_id: entityId, payload_json: payload }),
+      this.data.from('audit_logs').insert({ actor_id: actorId, action, entity_type: entityType, entity_id: entityId, payload }),
       'AUDIT_INSERT_FAILED'
     )
   }
@@ -144,11 +168,11 @@ export class SupabaseAdminService implements IAdminService {
   }
 
   async listActivity(userId?: string): Promise<DashboardActivity[]> {
-    let query = this.data.from('audit_logs').select('id,action,payload_json,created_at,profiles(display_name)').order('created_at', { ascending: false }).limit(6)
+    let query = this.data.from('audit_logs').select('id,action,payload,created_at,profiles(display_name)').order('created_at', { ascending: false }).limit(6)
     if (userId) query = query.eq('actor_id', userId)
     const rows = await executeQuery<Row[]>(query, 'ACTIVITY_LOOKUP_FAILED')
     return rows.map((row, index) => {
-      const payload = (row.payload_json ?? {}) as { account?: string }
+      const payload = (row.payload ?? {}) as { account?: string }
       const action = String(row.action)
       const actionMap: Record<string, { title: string; tone: DashboardActivity['tone'] }> = {
         SESSION_STARTED: { title: 'Lease acquired', tone: 'success' },

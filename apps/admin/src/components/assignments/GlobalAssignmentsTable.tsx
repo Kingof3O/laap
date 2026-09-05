@@ -27,12 +27,12 @@ export function GlobalAssignmentsTable({
         </span>
         <div>
           <h2 className="section-title">
-            All Workspace Access Grants{' '}
+            Everyone's access{' '}
             <span className="font-mono text-[11px] text-slate-500">
               ({activeCount} active)
             </span>
           </h2>
-          <p className="mt-1 text-xs text-slate-500">Global overview of all account-user permissions.</p>
+          <p className="mt-1 text-xs text-slate-500">See which accounts each person can use.</p>
         </div>
       </div>
       <div className="divide-y divide-white/[0.04]">

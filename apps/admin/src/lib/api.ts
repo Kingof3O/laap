@@ -16,12 +16,6 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
   
-  // Attach persistent access token from localStorage or sessionStorage
-  const token = localStorage.getItem('laap_access_token') || sessionStorage.getItem('laap_access_token')
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`)
-  }
-
   const controller = new AbortController()
   const timeout = window.setTimeout(() => controller.abort(), 12_000)
   let response: Response
@@ -40,37 +34,16 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   getSession: () => request<SessionResponse>('/auth/session'),
-  demoLogin: async () => {
-    const res = await request<SessionResponse>('/auth/demo', { method: 'POST' })
-    if (res.accessToken) localStorage.setItem('laap_access_token', res.accessToken)
-    return res
-  },
+  demoLogin: () => request<SessionResponse>('/auth/demo', { method: 'POST' }),
   login: async (email: string, password: string, remember = true) => {
-    const res = await request<SessionResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
-    if (res.accessToken) {
-      if (remember) {
-        localStorage.setItem('laap_access_token', res.accessToken)
-        sessionStorage.removeItem('laap_access_token')
-      } else {
-        sessionStorage.setItem('laap_access_token', res.accessToken)
-        localStorage.removeItem('laap_access_token')
-      }
-    }
-    return res
+    return request<SessionResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, remember }) })
   },
-  logout: async () => {
-    try {
-      await request<{ success: true }>('/auth/logout', { method: 'POST' })
-    } finally {
-      localStorage.removeItem('laap_access_token')
-      sessionStorage.removeItem('laap_access_token')
-    }
-    return { success: true as const }
-  },
+  logout: () => request<{ success: true }>('/auth/logout', { method: 'POST' }),
   getDashboard: () => request<DashboardSnapshot>('/dashboard'),
   releaseLease: (sessionId: string, reason = 'admin_force_release') => request<{ success: true }>(`/leases/${sessionId}/release`, { method: 'POST', body: JSON.stringify({ reason }) }),
   getAccounts: () => request<{ accounts: DashboardSnapshot['accounts'] }>('/accounts'),
   createAccount: (input: { displayName: string; externalId: string; region: string; status: 'available' | 'maintenance' | 'disabled' }) => request<{ accountId: string }>('/accounts', { method: 'POST', body: JSON.stringify(input) }),
+  updateAccount: (accountId: string, input: { displayName?: string; externalId?: string; region?: string; status?: 'available' | 'maintenance' | 'disabled' }) => request<{ success: true }>(`/accounts/${accountId}`, { method: 'PATCH', body: JSON.stringify(input) }),
   deleteAccount: (accountId: string) => request<{ success: true }>(`/accounts/${accountId}`, { method: 'DELETE' }),
   deleteSessionBlob: (accountId: string) => request<{ success: true }>(`/accounts/${accountId}/session-blob`, { method: 'DELETE' }),
   forceReleaseAccount: (accountId: string) => request<{ success: true }>(`/accounts/${accountId}/release`, { method: 'POST' }),
@@ -79,7 +52,10 @@ export const api = {
   revokeAssignment: (accountId: string, userId: string) => request<{ success: true }>(`/assignments/${accountId}/${userId}`, { method: 'DELETE' }),
   getUsers: () => request<{ users: ApiUser[] }>('/users'),
   createUser: (input: { email: string; displayName: string; password: string; role: 'admin' | 'operator' }) => request<{ user: ApiUser }>('/users', { method: 'POST', body: JSON.stringify(input) }),
+  updateUser: (userId: string, input: { displayName?: string; role?: 'admin' | 'operator'; status?: ApiUser['status'] }) => request<{ user: ApiUser }>(`/users/${userId}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  resetUserPassword: (userId: string, password: string) => request<{ success: true }>(`/users/${userId}/reset-password`, { method: 'POST', body: JSON.stringify({ password }) }),
   getDevices: () => request<{ devices: Array<{ id: string; userId: string; deviceName: string; platform: string; appVersion: string; status: string; lastSeenAt: string; user: string; publicKeyPresent: boolean }> }>('/devices'),
   revokeDevice: (deviceId: string) => request<{ success: true }>(`/devices/${deviceId}`, { method: 'DELETE' }),
+  approveDevice: (deviceId: string) => request<{ success: true }>(`/devices/${deviceId}/approve`, { method: 'POST' }),
   getAudit: ({ limit = 10, offset = 0 }: { limit?: number; offset?: number } = {}) => request<AuditPage>(`/audit?limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}`),
 }

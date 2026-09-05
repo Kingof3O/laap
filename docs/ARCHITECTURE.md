@@ -35,18 +35,25 @@ LAAP enforces strict separation of concerns between presentation, domain contrac
 
 ---
 
-## 2. Passwordless Session Sandboxing Architecture
+## 2. Managed Riot Session Material (Deferred Boundary)
+
+The account session capture/injection path is intentionally still present for
+the current product milestone, but it is a deferred integration boundary—not an
+official Riot authentication API and not a guarantee of compatibility or
+anti-cheat safety. LAAP must never collect Riot passwords, and this path should
+only be enabled for accounts and environments where the operator has explicit
+authorization. Replacing it with a supported Riot flow remains separate work.
 
 ### The Problem with Password Injection
 Traditional account management tools store plaintext or weakly encrypted Riot account passwords and attempt to inject them using keystroke simulation or memory scraping. This approach introduces major security vulnerabilities, triggers anti-cheat flags, fails on multi-factor authentication, and exposes player accounts to credential theft.
 
-### The LAAP Session Token Solution
+### Current LAAP Session Flow
 LAAP operates exclusively at the **authenticated session layer**:
 
 1. **How Riot Client Maintains Sessions:**
    When a user signs into Riot Client with *"Stay signed in"* enabled, Riot writes an authenticated session token into the client configuration file (`RiotClientPrivateSettings.yaml`).
 2. **One-Time Capture (Sandbox Mode):**
-   - **Local Capture:** The user clicks *"Capture Active Riot Login"* (which grabs the current active session without asking for credentials) or *"Open Riot Sign-In Sandbox"*.
+   - **Local Capture:** The user clicks *"Capture Active Riot Login"* (which reads the current local Riot settings) or *"Open Riot Sign-In Sandbox"*.
    - In Sandbox mode, LAAP opens a fresh, isolated Riot Client process. The user enters their credentials once.
    - LAAP detects the newly generated session token, stores it in the local standalone roster (or uploads it to Shared Accounts if performed by an admin), and closes the sandbox.
 3. **1-Click Launch (Session Injection):**
@@ -69,11 +76,24 @@ In **Shared Accounts (Cloud Mode)**, account access is strictly regulated:
    - Creates an active lease row with a duration timestamp.
    - Atomically transitions the account status to `leased`.
 2. **Partial Unique Indexing:**
-   A partial unique index (`WHERE status IN ('starting', 'active')`) guarantees that **no account can ever have more than one active lease concurrently**.
+   A partial unique index (`WHERE status IN ('starting', 'active', 'stopping')`) guarantees that **no account can ever have more than one active lease concurrently**.
 3. **Cryptographic Device Challenge-Response:**
    - Every desktop client creates an Ed25519 keypair stored in the native OS keychain.
    - When acquiring a lease, the client signs a server nonce (`${timestamp}:${accountId}`) with its private key.
-   - The API verifies this signature against the registered device public key before returning the session blob.
+   - The API verifies this signature against the registered device public key before returning the encrypted-at-rest session blob.
+
+4. **Lease liveness and recovery:** The desktop reports `LAUNCHING`, `IN_CLIENT`,
+   `IN_GAME`, `RECONNECTING`, or `EXITED` every 20 seconds. The API ends an
+   `EXITED` session immediately and reaps missing heartbeats after 120 seconds;
+   a startup recovery command restores any settings backup left by a crashed
+   desktop process when Riot is not running.
+
+The desktop deliberately does **not** infer an authenticated Riot account from
+the existence of a Riot process. Riot does not expose a documented, stable
+native-client signal for the signed-in account. Until a supported integration is
+approved, the UI reports *Waiting for Riot login* while the client is present
+and *League running* when the game process is present; it never claims
+`Authenticated` or `Account verified` from process presence alone.
 
 ---
 
@@ -156,7 +176,7 @@ apps/api/
 
 | Invariant | Enforcement Mechanism |
 | :--- | :--- |
-| **No Password Storage** | Architecture completely lacks password fields; only encrypted session blobs are handled. |
+| **No Riot password handling** | Riot passwords are not accepted by LAAP. The deferred session-blob path is encrypted at rest with an application vault key. |
 | **Private Key Security** | Ed25519 private keys are stored in the macOS Keychain / Windows Credential Vault; only public keys cross the network. |
 | **Lease Exclusivity** | Database row-locking + partial unique index prevents concurrent duplicate leases. |
 | **Role-Based Access Control** | Operators only see assigned accounts and their own devices. Account creation, session syncing, and deletion require `admin` role. |

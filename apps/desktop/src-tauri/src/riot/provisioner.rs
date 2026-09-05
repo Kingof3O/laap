@@ -1,6 +1,6 @@
+use super::session_manager::RiotSessionManager;
 use std::fs;
 use std::time::Instant;
-use super::session_manager::RiotSessionManager;
 
 /// Orchestrates Riot Client login capture in a sandboxed, clean session.
 #[derive(Debug)]

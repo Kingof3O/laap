@@ -46,6 +46,7 @@ export function TeamVaultView({
     revokeCloudSessionBlob,
     sessionId: cloudSessionId,
     activeAccountId: cloudActiveAccountId,
+    leaseState: cloudLeaseState,
     startSandbox: startCloudSandbox,
     pollSandbox,
     finishSandbox,
@@ -220,6 +221,7 @@ export function TeamVaultView({
           onRelaunch={() => void handleLaunch(activeAccount.id)}
           onRelease={() => void handleRelease()}
           busy={busy}
+          leaseState={cloudLeaseState}
         />
       ) : null}
 

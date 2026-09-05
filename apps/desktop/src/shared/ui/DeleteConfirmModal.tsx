@@ -34,7 +34,7 @@ export function DeleteConfirmModal({
 
         <div className="modal-body">
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            Are you sure you want to remove <strong>{target.name}</strong>? Stored session credentials and cached configuration for this profile will be removed.
+            Are you sure you want to remove <strong>{target.name}</strong>? Its stored session material and cached configuration will be removed.
           </p>
         </div>
 

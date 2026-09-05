@@ -35,11 +35,12 @@ export class SqliteDeviceService implements IDeviceService {
     input: { publicKey: string; platform: 'windows' | 'macos'; deviceName: string; appVersion: string }
   ) {
     return this.database.transactionSync(() => {
-      const existing = this.database.get<{ id: string }>(
-        'SELECT id FROM user_devices WHERE user_id = ? AND public_key = ?',
+      const existing = this.database.get<{ id: string; status: string }>(
+        'SELECT id, status FROM user_devices WHERE user_id = ? AND public_key = ?',
         [userId, input.publicKey]
       )
       if (existing) {
+        if (existing.status === 'revoked') throw new ServiceError('DEVICE_REVOKED', 403)
         this.database.run(
           `UPDATE user_devices SET device_name = ?, app_version = ?, status = 'active', last_seen_at = ? WHERE id = ?`,
           [input.deviceName, input.appVersion, new Date().toISOString(), existing.id]
@@ -64,7 +65,32 @@ export class SqliteDeviceService implements IDeviceService {
       }
       this.database.run(`UPDATE user_devices SET status = 'revoked' WHERE id = ?`, [deviceId])
       this.addAuditFn(actorId, 'DEVICE_REVOKED', 'user_devices', deviceId, {})
+      const sessions = this.database.all<{ id: string }>(`SELECT id FROM account_sessions WHERE device_id = ? AND status IN ('starting', 'active', 'stopping')`, [deviceId])
+      for (const session of sessions) {
+        this.database.run(`UPDATE account_sessions SET status = 'ended', runtime_state = 'EXITED', ended_at = ?, release_reason = 'error' WHERE id = ?`, [new Date().toISOString(), session.id])
+        this.addAuditFn(actorId, 'SESSION_ENDED', 'account_sessions', session.id, { releaseReason: 'device_revoked' })
+      }
     })
+  }
+
+  approveDevice(actorId: string, deviceId: string) {
+    this.database.transactionSync(() => {
+      if (!this.database.get<{ id: string }>('SELECT id FROM user_devices WHERE id = ?', [deviceId])) {
+        throw new ServiceError('DEVICE_NOT_FOUND', 404)
+      }
+      this.database.run(`UPDATE user_devices SET status = 'active', last_seen_at = ? WHERE id = ?`, [new Date().toISOString(), deviceId])
+      this.addAuditFn(actorId, 'DEVICE_APPROVED', 'user_devices', deviceId, {})
+    })
+  }
+
+  touchDevice(userId: string, deviceId: string, appVersion?: string) {
+    if (!this.database.get<{ id: string }>(`SELECT id FROM user_devices WHERE id = ? AND user_id = ? AND status = 'active'`, [deviceId, userId])) {
+      throw new ServiceError('DEVICE_NOT_AUTHORIZED', 403)
+    }
+    this.database.run(
+      `UPDATE user_devices SET last_seen_at = ?, app_version = COALESCE(?, app_version) WHERE id = ? AND user_id = ? AND status = 'active'`,
+      [new Date().toISOString(), appVersion ?? null, deviceId, userId]
+    )
   }
 
   verifyDeviceChallenge(userId: string, deviceId: string, accountId: string, nonce: string, signature: string) {

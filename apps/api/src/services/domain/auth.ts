@@ -10,4 +10,6 @@ export interface IAuthService {
     actorId: string,
     input: { email: string; displayName: string; password: string; role: 'admin' | 'operator' }
   ): MaybePromise<ApiUser>
+  updateUser(actorId: string, userId: string, input: { displayName?: string; role?: 'admin' | 'operator'; status?: ApiUser['status'] }): MaybePromise<ApiUser>
+  resetUserPassword(actorId: string, userId: string, password: string): MaybePromise<void>
 }

@@ -77,7 +77,7 @@ export class SqliteAdminService implements IAdminService {
         account: String(row.account),
         user: String(row.user),
         email: String(row.email),
-        status: String(row.status),
+        status: String(row.status) === 'active' && row.expires_at && new Date(String(row.expires_at)).getTime() <= Date.now() ? 'expired' : String(row.status),
         assignedAt: String(row.assigned_at),
         expiresAt: row.expires_at ? String(row.expires_at) : null,
       }))
@@ -85,12 +85,14 @@ export class SqliteAdminService implements IAdminService {
 
   addAssignment(actorId: string, accountId: string, userId: string, expiresAt: string | null) {
     return this.database.transactionSync(() => {
-      if (!this.database.get<{ id: string }>('SELECT id FROM accounts WHERE id = ?', [accountId])) {
-        throw new ServiceError('ACCOUNT_NOT_FOUND', 404)
-      }
-      if (!this.database.get<{ id: string }>(`SELECT id FROM users WHERE id = ? AND status = 'active'`, [userId])) {
+      const account = this.database.get<{ id: string; status: string }>('SELECT id, status FROM accounts WHERE id = ?', [accountId])
+      if (!account) throw new ServiceError('ACCOUNT_NOT_FOUND', 404)
+      if (account.status !== 'available') throw new ServiceError('ACCOUNT_UNAVAILABLE', 409)
+      const targetUser = this.database.get<{ id: string; role: string }>(`SELECT id, role FROM users WHERE id = ? AND status = 'active'`, [userId])
+      if (!targetUser) {
         throw new ServiceError('USER_NOT_FOUND', 404)
       }
+      if (targetUser.role === 'admin') throw new ServiceError('INVALID_ASSIGNMENT', 400, 'Only operators can receive account assignments')
       const existing = this.database.get<{ id: string }>(
         'SELECT id FROM account_assignments WHERE account_id = ? AND user_id = ?',
         [accountId, userId]
@@ -122,6 +124,11 @@ export class SqliteAdminService implements IAdminService {
       if (!assignment) throw new ServiceError('ASSIGNMENT_NOT_FOUND', 404)
       this.database.run(`UPDATE account_assignments SET status = 'revoked' WHERE id = ?`, [assignment.id])
       this.addAudit(actorId, 'ASSIGNMENT_REVOKED', 'account_assignments', assignment.id, { accountId, userId })
+      const session = this.database.get<{ id: string }>(`SELECT id FROM account_sessions WHERE account_id = ? AND user_id = ? AND status IN ('starting', 'active', 'stopping')`, [accountId, userId])
+      if (session) {
+        this.database.run(`UPDATE account_sessions SET status = 'ended', runtime_state = 'EXITED', ended_at = ?, release_reason = 'admin_force_release' WHERE id = ?`, [new Date().toISOString(), session.id])
+        this.addAudit(actorId, 'SESSION_ENDED', 'account_sessions', session.id, { releaseReason: 'admin_force_release', assignmentRevoked: true })
+      }
     })
   }
 

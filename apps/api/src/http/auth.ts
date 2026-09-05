@@ -10,13 +10,10 @@ const productionCookieName = '__Host-laap_access'
 export type AuthClaims = { sub: string; email: string; displayName: string; role: ApiUser['role'] }
 
 function cookieOptions(name: string, maxAge: number, secure: boolean) {
-  // The production dashboard and API use different Cloudflare domains. A
-  // cross-site fetch therefore requires SameSite=None; the API's strict
-  // Origin allowlist remains the CSRF boundary.
-  return `${name}=VALUE; HttpOnly; SameSite=${secure ? 'None' : 'Lax'}; Path=/; Max-Age=${maxAge}${secure ? '; Secure' : ''}`
+  return `${name}=VALUE; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${secure ? '; Secure' : ''}`
 }
 
-export async function createAccessToken(user: ApiUser, secret: string, expiresIn = '30d') {
+export async function createAccessToken(user: ApiUser, secret: string, expiresIn = '15m') {
   return new SignJWT({ email: user.email, displayName: user.displayName, role: user.role })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setSubject(user.id)
@@ -25,10 +22,9 @@ export async function createAccessToken(user: ApiUser, secret: string, expiresIn
     .sign(encoder.encode(secret))
 }
 
-export function setAccessCookie(response: ServerResponse, token: string, secure = process.env.NODE_ENV === 'production') {
+export function setAccessCookie(response: ServerResponse, token: string, secure = process.env.NODE_ENV === 'production', maxAge = 15 * 60) {
   const name = secure ? productionCookieName : developmentCookieName
-  // 30 days session persistence (2,592,000 seconds)
-  response.setHeader('Set-Cookie', cookieOptions(name, 30 * 24 * 60 * 60, secure).replace('VALUE', token))
+  response.setHeader('Set-Cookie', cookieOptions(name, maxAge, secure).replace('VALUE', token))
 }
 
 export function clearAccessCookie(response: ServerResponse, secure = process.env.NODE_ENV === 'production') {
@@ -61,11 +57,5 @@ export async function readAuth(request: { headers: { authorization?: string; coo
 export async function requireAuth(request: { headers: { authorization?: string; cookie?: string } }, secret: string) {
   const claims = await readAuth(request, secret)
   if (!claims) throw new HttpError(401, 'UNAUTHENTICATED', 'Sign in is required')
-  return claims
-}
-
-export async function requireAdmin(request: { headers: { authorization?: string; cookie?: string } }, secret: string) {
-  const claims = await requireAuth(request, secret)
-  if (claims.role !== 'admin') throw new HttpError(403, 'ADMIN_REQUIRED', 'Administrator access is required')
   return claims
 }

@@ -1,6 +1,6 @@
+use crate::riot::{RiotProvisioner, RiotSessionManager};
 use std::process::Command;
 use std::sync::Mutex;
-use crate::riot::{RiotProvisioner, RiotSessionManager};
 
 pub const LEAGUE_LAUNCH_ARGS: [&str; 2] = [
     "--launch-product=league_of_legends",
@@ -12,6 +12,11 @@ static PROVISIONER: Mutex<Option<RiotProvisioner>> = Mutex::new(None);
 #[tauri::command]
 pub fn is_riot_running() -> bool {
     RiotSessionManager::is_riot_running()
+}
+
+#[tauri::command]
+pub fn runtime_snapshot() -> crate::riot::RuntimeSnapshot {
+    RiotSessionManager::runtime_snapshot()
 }
 
 /// Forcefully closes all running Riot Client and League processes.
@@ -34,13 +39,27 @@ pub fn cleanup_account_session() -> Result<(), String> {
     manager.cleanup_session()
 }
 
+/// Restores settings left behind by a crashed LAAP process when Riot is not
+/// running. It never overwrites a live Riot/League process.
+#[tauri::command]
+pub fn recover_orphaned_account_session() -> Result<bool, String> {
+    let manager = RiotSessionManager::new();
+    manager.recover_orphaned_session()
+}
+
 /// Opens Riot Client without credentials or launch arguments.
 #[tauri::command]
 pub fn launch_riot_client() -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         Command::new("open")
-            .args(["-a", "Riot Client", "--args", LEAGUE_LAUNCH_ARGS[0], LEAGUE_LAUNCH_ARGS[1]])
+            .args([
+                "-a",
+                "Riot Client",
+                "--args",
+                LEAGUE_LAUNCH_ARGS[0],
+                LEAGUE_LAUNCH_ARGS[1],
+            ])
             .spawn()
             .map(|_| ())
             .map_err(|error| error.to_string())
@@ -50,15 +69,24 @@ pub fn launch_riot_client() -> Result<(), String> {
         let candidates = [
             Some(r"C:\Riot Games\Riot Client\RiotClientServices.exe".to_string()),
             Some(r"D:\Riot Games\Riot Client\RiotClientServices.exe".to_string()),
-            std::env::var("PROGRAMFILES").ok().map(|root| format!(r"{root}\Riot Games\Riot Client\RiotClientServices.exe")),
-            std::env::var("ProgramFiles(x86)").ok().map(|root| format!(r"{root}\Riot Games\Riot Client\RiotClientServices.exe")),
-            std::env::var("LOCALAPPDATA").ok().map(|root| format!(r"{root}\Riot Games\Riot Client\RiotClientServices.exe")),
+            std::env::var("PROGRAMFILES")
+                .ok()
+                .map(|root| format!(r"{root}\Riot Games\Riot Client\RiotClientServices.exe")),
+            std::env::var("ProgramFiles(x86)")
+                .ok()
+                .map(|root| format!(r"{root}\Riot Games\Riot Client\RiotClientServices.exe")),
+            std::env::var("LOCALAPPDATA")
+                .ok()
+                .map(|root| format!(r"{root}\Riot Games\Riot Client\RiotClientServices.exe")),
         ];
         let path = candidates
             .into_iter()
             .flatten()
             .find(|candidate| std::path::Path::new(candidate).exists())
-            .ok_or_else(|| "Riot Client was not found on this system. Please verify Riot Games is installed.".to_string())?;
+            .ok_or_else(|| {
+                "Riot Client was not found on this system. Please verify Riot Games is installed."
+                    .to_string()
+            })?;
         Command::new(path)
             .args(LEAGUE_LAUNCH_ARGS)
             .spawn()
@@ -130,6 +158,14 @@ pub fn cancel_provisioning_session() -> Result<(), String> {
 /// Opens an external URL in the user's default system browser.
 #[tauri::command]
 pub fn open_external_url(url: String) -> Result<(), String> {
+    if !(url.starts_with("https://github.com/Kingof3O/laap/")
+        || url == "https://github.com/Kingof3O/laap")
+        || url
+            .chars()
+            .any(|character| matches!(character, '\r' | '\n' | '&' | '|' | '<' | '>' | '^' | '%'))
+    {
+        return Err("External URL is not allowed".to_string());
+    }
     #[cfg(target_os = "macos")]
     {
         Command::new("open")

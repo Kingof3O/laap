@@ -1,7 +1,7 @@
 import { readJson } from '../http/body.js'
 import { HttpError } from '../http/errors.js'
 import { sendJson } from '../http/response.js'
-import { leaseAcquireSchema } from '@laap/validation'
+import { leaseAcquireSchema, leaseHeartbeatSchema } from '@laap/validation'
 import { currentUser, routeUuid, serviceErrorToHttp, type RouteContext } from './types.js'
 
 export async function handleLeaseRoutes(ctx: RouteContext): Promise<void> {
@@ -32,6 +32,16 @@ export async function handleLeaseRoutes(ctx: RouteContext): Promise<void> {
     const input = await readJson<{ reason?: string }>(request)
     try {
       return sendJson(response, 200, await service.releaseLease(user, routeUuid(parts[2], 'INVALID_SESSION_ID'), input.reason ?? 'manual'))
+    } catch (error) {
+      throw serviceErrorToHttp(error)
+    }
+  }
+
+  if (parts.length === 4 && parts[3] === 'heartbeat' && method === 'POST') {
+    const input = leaseHeartbeatSchema.safeParse(await readJson(request))
+    if (!input.success) throw new HttpError(400, 'INVALID_HEARTBEAT', 'Runtime state is invalid')
+    try {
+      return sendJson(response, 200, await service.heartbeatLease(user.id, routeUuid(parts[2], 'INVALID_SESSION_ID'), input.data.runtimeState))
     } catch (error) {
       throw serviceErrorToHttp(error)
     }

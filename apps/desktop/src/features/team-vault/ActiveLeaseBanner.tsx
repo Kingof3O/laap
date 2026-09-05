@@ -1,11 +1,13 @@
 import { Play, RotateCcw, ShieldCheck } from 'lucide-react'
 import type { Account } from '../../lib/types'
+import type { LeaseUiState } from './useCloudAccounts'
 
 interface ActiveLeaseBannerProps {
   account: Account
   onRelaunch: () => void
   onRelease: () => void
   busy: boolean
+  leaseState: LeaseUiState
 }
 
 export function ActiveLeaseBanner({
@@ -13,7 +15,17 @@ export function ActiveLeaseBanner({
   onRelaunch,
   onRelease,
   busy,
+  leaseState,
 }: ActiveLeaseBannerProps) {
+  const stateLabel: Record<LeaseUiState, string> = {
+    IDLE: 'No active lease',
+    LEASE_ACQUIRED: 'Lease acquired',
+    RIOT_CLIENT_STARTING: 'Riot Client starting',
+    WAITING_FOR_RIOT_LOGIN: 'Waiting for Riot login',
+    LEAGUE_RUNNING: 'League running',
+    LEASE_LOST: 'Lease lost',
+    RIOT_CLIENT_CLOSED: 'Riot Client closed',
+  }
   return (
     <div className="active-lease-hud">
       <div className="lease-hud-left">
@@ -21,7 +33,7 @@ export function ActiveLeaseBanner({
           <ShieldCheck size={18} />
         </div>
         <div>
-          <div className="lease-hud-title">Active Pool Session</div>
+          <div className="lease-hud-title">{stateLabel[leaseState]}</div>
           <div className="lease-hud-name">
             {account.name} · {account.region}
           </div>

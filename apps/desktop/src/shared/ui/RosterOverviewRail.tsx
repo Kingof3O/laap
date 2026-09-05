@@ -227,16 +227,16 @@ export function RosterOverviewRail({
         </div>
       </div>
 
-      {/* Pod 3: Riot Vanguard Protection Trust Seal */}
+      {/* Pod 3: Runtime boundary */}
       <div className="overview-pod pod-security-trust">
         <div className="security-trust-content">
           <div className="security-trust-icon">
             <ShieldCheck size={18} className="text-emerald-400" />
           </div>
           <div className="security-trust-text">
-            <div className="security-trust-title">Riot Vanguard Safe</div>
+            <div className="security-trust-title">External launcher</div>
             <div className="security-trust-desc">
-              Credential-free session switching with zero memory injection or ban risk.
+              LAAP does not read game memory or automate inputs. Riot controls authentication.
             </div>
           </div>
         </div>

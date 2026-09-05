@@ -46,7 +46,7 @@ export function SettingsModal({
             <div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>Hardware Identity Verified</div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Ed25519 device keypair verified and linked to Riot session injection.
+                Ed25519 device keypair verified and linked to your LAAP account.
               </div>
             </div>
           </div>

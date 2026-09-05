@@ -18,7 +18,7 @@ This guide details the deployment process, required secrets, verification steps,
 ┌─────────────────────────────────────────────────────────────┐
 │       Cloudflare Worker: laap-api (apps/api/worker.ts)       │
 │        - Ed25519 Nonce Verification                         │
-│        - Session Token Sandboxing API                       │
+│        - Managed session-blob API (deferred Riot boundary)   │
 │        - JWT Verification & Rate Limiting                   │
 └─────────────────────────────┬───────────────────────────────┘
                               │
@@ -28,7 +28,7 @@ This guide details the deployment process, required secrets, verification steps,
 │              Supabase Cloud (PostgreSQL 15+)                │
 │        - Row Level Security (RLS) on all tables             │
 │        - Atomic lease acquisition stored procedures (RPC)   │
-│        - Encrypted session token storage                    │
+│        - Application-encrypted session-blob storage         │
 │        - Health check Edge Function                         │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -45,13 +45,23 @@ Configure these secrets via `npx wrangler secret put`:
 | `LAAP_WORKER_SUPABASE_ANON_KEY` | Public Supabase anon key for client-scoped operations. |
 | `LAAP_WORKER_SUPABASE_SERVICE_ROLE_KEY` | High-privilege key used exclusively server-side for lease RPCs. |
 | `LAAP_WORKER_JWT_SECRET` | 32+ byte cryptographic secret for signing LAAP access tokens. |
-| `LAAP_WORKER_ADMIN_PASSWORD` | Initial admin password bootstrap. |
+| `LAAP_WORKER_VAULT_KEY` | 32+ character secret used for AES-256-GCM encryption of stored session blobs. Keep stable for existing data and rotate with a re-encryption plan. |
+
+Example (enter each value interactively and keep the values in your secret
+manager):
+
+```bash
+npx wrangler secret put LAAP_WORKER_SUPABASE_ANON_KEY
+npx wrangler secret put LAAP_WORKER_SUPABASE_SERVICE_ROLE_KEY
+npx wrangler secret put LAAP_WORKER_JWT_SECRET
+npx wrangler secret put LAAP_WORKER_VAULT_KEY
+```
 
 Configure public variables in `apps/api/wrangler.toml`:
 ```toml
 [vars]
 SUPABASE_URL = "https://<project-ref>.supabase.co"
-ALLOWED_ORIGIN = "https://laap-control-center.pages.dev"
+ALLOWED_ORIGIN = "https://laap-control-center.pages.dev,https://tauri.localhost,http://tauri.localhost,tauri://localhost"
 ```
 
 ### Cloudflare Pages (`laap-control-center`)
@@ -77,10 +87,21 @@ npx supabase db push --linked
 ### Applied Migrations:
 1. `20260831000000_init.sql`: Core tables, initial RLS policies, audit log triggers.
 2. `20260901000000_remove_password_credential_paths.sql`: Deprecates password injection paths.
-3. `20260901100000_session_token_sandboxing.sql`: Encrypted session token storage and RPCs.
-4. `20260901110000_remove_telemetry_and_heartbeat.sql`: Eliminates heartbeat overhead.
+3. `20260901100000_session_token_sandboxing.sql`: Session-blob storage and RPC compatibility boundary.
+4. `20260901110000_remove_telemetry_and_heartbeat.sql`: Historical compatibility migration; the hardening migration below restores lease liveness.
 5. `20260901120000_admin_lease_bypass.sql`: Allows administrators to claim leases directly.
 6. `20260901121000_fix_admin_lease_role.sql`: Corrects Supabase metadata role check.
+7. `20260904000000_production_hardening.sql`: Adds database-backed roles, encrypted blob compatibility, secure RPC grants, 20-second lease liveness, stale-session reaping, and lifecycle indexes.
+
+The initial Supabase migration schedules the reaper with `pg_cron`; the Worker
+also runs it when building a dashboard and lease acquisition reaps stale rows
+transactionally. Keep the Supabase cron job enabled for cleanup while the API
+is idle.
+
+The hardening migration intentionally does not delete legacy `vault_secret_id`
+rows. Inventory and remove those secrets through a reviewed Supabase/Vault
+cleanup procedure after confirming they are no longer needed; the old write/read
+RPCs are already revoked.
 
 ---
 

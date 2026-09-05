@@ -6,7 +6,7 @@
 [![Tauri v2](https://img.shields.io/badge/Tauri-v2.2-24C8D8?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
 [![Rust](https://img.shields.io/badge/Rust-2021-DEA584?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![React 19](https://img.shields.io/badge/React-19.0-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
-[![Anti-Cheat: 100% Safe](https://img.shields.io/badge/Anti--Cheat-Vanguard%20Safe-0AC8B9?style=for-the-badge)](../../docs/ANTI_BAN_VERIFICATION.md)
+[![No Memory or Code Injection](https://img.shields.io/badge/Runtime-No%20memory%20or%20code%20injection-0AC8B9?style=for-the-badge)](../../docs/ANTI_BAN_VERIFICATION.md)
 
 </div>
 
@@ -14,7 +14,7 @@
 
 ## 📖 Overview
 
-The **LAAP Desktop Client** is a high-performance, credential-free tactical account launcher engineered with **Tauri v2**, **Rust**, and **React 19**. It provides competitive League of Legends players and esports organizations with instant 1-click account switching without storing plaintext passwords or triggering Riot Vanguard anti-cheat heuristics.
+The **LAAP Desktop Client** is a high-performance account access launcher engineered with **Tauri v2**, **Rust**, and **React 19**. It manages LAAP identity, device trust, account leases, and native Riot/League process launch without accepting Riot passwords. The current session-material capture/injection path is deferred, non-official integration work and carries no ban-safety guarantee.
 
 ---
 
@@ -98,19 +98,23 @@ The native Rust backend exposes strongly typed IPC commands to the React fronten
 ### Device & Cryptography
 - `device_public_key() -> Result<String, String>`: Returns the device's Base64 Ed25519 public key.
 - `device_platform() -> &'static str`: Returns `"windows"` or `"macos"`.
+- `device_info() -> DeviceInfo`: Returns the platform, host label, and desktop version used during registration.
 - `sign_device_nonce(nonce: String) -> Result<String, String>`: Cryptographically signs a server challenge.
+- `load_access_token()`, `store_access_token()`, `clear_access_token()`: Keep the optional LAAP bearer token in the OS keychain.
 
 ### Standalone Personal Roster
 - `list_local_accounts() -> Result<Vec<LocalAccountSummary>, String>`: Lists local portfolio accounts.
-- `save_local_account(account: LocalAccount) -> Result<(), String>`: Saves or updates an account.
-- `delete_local_account(id: String) -> Result<bool, String>`: Deletes an account profile.
-- `launch_local_account(id: String) -> Result<(), String>`: Injects session YAML and launches the game.
+- `save_local_account(name, region, session_blob) -> Result<LocalAccountSummary, String>`: Stores a local profile with encrypted session material.
+- `delete_local_account(id: String) -> Result<(), String>`: Deletes an account profile.
+- `launch_local_account(id: String) -> Result<(), String>`: Launches a local profile through the deferred session boundary.
 
 ### Riot Session Orchestration
-- `start_login_sandbox() -> Result<(), String>`: Prepares a clean sandbox for credential capture.
-- `poll_login_sandbox() -> Result<Option<String>, String>`: Detects newly generated session tokens.
-- `cancel_login_sandbox() -> Result<(), String>`: Restores user configuration and aborts capture.
-- `clean_riot_session() -> Result<(), String>`: Cleans active sessions and resets to clean state.
+- `start_provisioning_session() -> Result<(), String>`: Starts the deferred local session-material sandbox.
+- `poll_provisioning_session() -> Result<Option<String>, String>`: Polls the sandbox for newly written session material.
+- `cancel_provisioning_session() -> Result<(), String>`: Restores user configuration and aborts capture.
+- `finish_provisioning_session() -> Result<(), String>`: Finishes provisioning and restores user configuration.
+- `runtime_snapshot() -> RuntimeSnapshot`: Reports Riot Client, League Client, and game process presence without inspecting memory or lockfile credentials.
+- `recover_orphaned_account_session() -> Result<bool, String>`: Restores a backup left by a crashed desktop process when Riot is not running.
 - `open_external_url(url: String) -> Result<(), String>`: Safely opens URLs in the default system browser.
 
 ---

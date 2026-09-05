@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { LaptopMinimal, ShieldCheck, Trash2 } from 'lucide-react'
+import { CheckCircle2, LaptopMinimal, ShieldCheck, Trash2 } from 'lucide-react'
 import { api, ApiError } from '../lib/api'
 import { GlassCard } from '../components/GlassCard'
 import { StatusBadge } from '../components/StatusBadge'
@@ -37,6 +37,19 @@ export function DevicesPage({ offline, onToast }: DevicesPageProps) {
     }
   }
 
+  const handleApprove = async (deviceId: string, deviceName: string) => {
+    setRevokingId(deviceId)
+    try {
+      await api.approveDevice(deviceId)
+      onToast(`Computer "${deviceName}" approved`)
+      await refresh()
+    } catch (error) {
+      onToast(error instanceof ApiError ? error.message : 'Unable to approve computer')
+    } finally {
+      setRevokingId(null)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-[1600px] px-5 py-7 sm:px-8 sm:py-9 lg:px-10 lg:py-10">
       <p className="eyebrow">Computers</p>
@@ -54,7 +67,8 @@ export function DevicesPage({ offline, onToast }: DevicesPageProps) {
         </div>
         <div className="divide-y divide-white/[0.05]">
           {devices.map((device) => {
-            const ready = device.status === 'active' && device.publicKeyPresent
+            const healthy = Number.isFinite(Date.parse(device.lastSeenAt)) && Date.now() - Date.parse(device.lastSeenAt) < 5 * 60_000
+            const ready = device.status === 'active' && device.publicKeyPresent && healthy
             const isRevoking = revokingId === device.id
 
             return (
@@ -76,12 +90,12 @@ export function DevicesPage({ offline, onToast }: DevicesPageProps) {
                 <button
                   type="button"
                   className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-transparent px-2.5 text-xs text-slate-400 transition hover:border-rose-400/20 hover:bg-rose-400/10 hover:text-rose-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/80 disabled:opacity-50"
-                  onClick={() => void handleRevoke(device.id, device.deviceName)}
+                  onClick={() => void (device.status === 'active' ? handleRevoke(device.id, device.deviceName) : handleApprove(device.id, device.deviceName))}
                   disabled={offline || isRevoking}
-                  title="Revoke and unlink this computer"
+                  title={device.status === 'active' ? 'Revoke and unlink this computer' : 'Approve this computer'}
                 >
-                  <Trash2 size={13} />
-                  <span>{isRevoking ? 'Revoking…' : 'Revoke'}</span>
+                  {device.status === 'active' ? <Trash2 size={13} /> : <CheckCircle2 size={13} />}
+                  <span>{isRevoking ? 'Saving…' : device.status === 'active' ? 'Revoke' : 'Approve'}</span>
                 </button>
               </div>
             )

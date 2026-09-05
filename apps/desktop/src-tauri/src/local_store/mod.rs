@@ -1,3 +1,4 @@
+pub mod crypto;
 pub mod manager;
 pub mod models;
 pub mod storage;
@@ -40,6 +41,9 @@ mod tests {
         assert_eq!(list.len(), 2);
         assert_eq!(list[0].name, "Test#EUW");
         assert_eq!(list[1].name, "Test#NA");
+        let raw = fs::read_to_string(test_dir.join(super::storage::LOCAL_STORE_FILENAME)).unwrap();
+        assert!(!raw.contains("yaml-data-1"));
+        assert!(raw.contains("laap-local:v1:"));
 
         // 3. Summaries
         let summaries = store.list_summaries().unwrap();

@@ -4,7 +4,7 @@ import { isHttpError } from './errors.js'
 export function applySecurityHeaders(response: ServerResponse, allowedOrigin: string, secure = false) {
   response.setHeader('Access-Control-Allow-Origin', allowedOrigin)
   response.setHeader('Access-Control-Allow-Credentials', 'true')
-  response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-LAAP-Client')
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   response.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
   response.setHeader('Vary', 'Origin')
   response.setHeader('X-Content-Type-Options', 'nosniff')

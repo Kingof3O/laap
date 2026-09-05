@@ -74,7 +74,7 @@ export function AssignmentsPage({ initialAccounts, offline, onToast }: Assignmen
     const assignedIds = new Set(
       userAssignments.filter((r) => r.status === 'active').map((r) => r.accountId)
     )
-    return accounts.filter((a) => !assignedIds.has(a.id))
+    return accounts.filter((a) => a.status === 'Available' && !assignedIds.has(a.id))
   }, [accounts, userAssignments])
 
   // Grant account access
@@ -117,10 +117,10 @@ export function AssignmentsPage({ initialAccounts, offline, onToast }: Assignmen
       {/* Header & Controls */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="eyebrow">ACCESS CONTROL</p>
-          <h1 className="display-title mt-3">User Account Assignments</h1>
+          <p className="eyebrow">ACCESS</p>
+          <h1 className="display-title mt-3">Who can use which accounts.</h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-slate-400">
-            Inspect assigned accounts per operator, grant new permissions, and revoke access instantly.
+            Choose a person, give them access to an account, or remove access instantly.
           </p>
         </div>
 
@@ -135,7 +135,7 @@ export function AssignmentsPage({ initialAccounts, offline, onToast }: Assignmen
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            By User (Operator Dossier)
+            By person
           </button>
           <button
             type="button"
@@ -146,7 +146,7 @@ export function AssignmentsPage({ initialAccounts, offline, onToast }: Assignmen
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            All Assignments ({rows.filter((r) => r.status === 'active').length})
+            Everyone ({rows.filter((r) => r.status === 'active').length})
           </button>
         </div>
       </div>
@@ -189,7 +189,7 @@ export function AssignmentsPage({ initialAccounts, offline, onToast }: Assignmen
             </div>
           ) : (
             <GlassCard className="p-12 text-center text-slate-500">
-              <p className="text-sm">Select an operator from the left to view and manage their account access.</p>
+              <p className="text-sm">Select a person from the left to view and manage their account access.</p>
             </GlassCard>
           )}
         </div>

@@ -43,7 +43,7 @@ Because `/Volumes/Shared` is a shared network/external volume, macOS creates App
 - **Modes:**
   - **Personal Roster:** Standalone local account switcher backed by native SQLite (`local_store`). Zero cloud dependency.
   - **Shared Accounts:** Cloud account pool backed by the API Worker and Supabase PostgreSQL.
-- **Persistent Auth:** Stores JWT and user info in `localStorage`. "Keep me signed in" keeps users signed in across restarts.
+- **Persistent Auth:** The desktop keeps its LAAP bearer token in the OS keychain only when "Keep me signed in" is enabled. Browser sessions use an HttpOnly cookie; no auth token is stored in `localStorage`.
 - **Dialogs & Modals:** Native WebKit `window.confirm` is blocked in macOS Tauri webviews; all dialogs use custom React modals (`DeleteConfirmModal.tsx`, `AddAccountModal.tsx`, etc.).
 
 ### Core API (`apps/api`)
@@ -52,17 +52,19 @@ Because `/Volumes/Shared` is a shared network/external volume, macOS creates App
 - Validates requests using Zod schemas from `@laap/validation`.
 
 ### Database (`supabase/`)
-- All migrations are applied up to `20260901121000_fix_admin_lease_role.sql`.
-- Admin users are detected using `auth.users.raw_app_meta_data->>'role' = 'admin'`.
+- The production hardening migration is `20260904000000_production_hardening.sql`; apply it after the earlier migrations with `supabase db push --linked`.
+- Admin access is resolved from `public.user_roles` on every API request (with JWT metadata only as a legacy backstop), so role changes take effect without waiting for an old JWT to expire.
 
 ---
 
 ## 4. Immutable Security Invariants
 
-1. **No Password Storage:** The application intentionally has no password-handling paths for Riot accounts. Only authenticated session blobs are captured and injected.
-2. **Keyring Private Keys:** Ed25519 private keys remain strictly in the native OS keychain (`keyring-rs`).
-3. **No Process Scraping:** Zero DLL injection, zero process memory hooking, zero reading of League lockfile credentials.
-4. **Clean Restores:** Player personal settings in `RiotClientPrivateSettings.yaml` are always backed up before injection and restored upon release.
+1. **LAAP credentials:** LAAP passwords are hashed server-side; browser auth uses HttpOnly cookies and the desktop uses the OS keychain for an optional LAAP bearer token.
+2. **Riot boundary (deferred):** The current account session capture/injection path is intentionally unchanged for now. It is not an official Riot API and must not be described as ban-proof or Riot-approved.
+3. **Keyring Private Keys:** Ed25519 private keys remain strictly in the native OS keychain (`keyring-rs`).
+4. **No Process Scraping:** Zero DLL injection, zero process memory hooking, zero reading of League lockfile credentials.
+5. **Clean Restores:** Player personal settings in `RiotClientPrivateSettings.yaml` are backed up before a managed launch and restored on release or crash recovery when Riot is not running.
+6. **Lease liveness:** Desktop heartbeats run every 20 seconds; the API reaper marks sessions stale after 120 seconds without a heartbeat (subject to reconnect grace).
 
 ---
 

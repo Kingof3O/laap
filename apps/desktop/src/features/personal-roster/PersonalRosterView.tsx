@@ -31,6 +31,7 @@ export function PersonalRosterView({
 }: PersonalRosterViewProps) {
   const { showSuccess, showError } = useToast()
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+  const [pendingSandboxProfile, setPendingSandboxProfile] = useState<{ name: string; region: string } | null>(null)
   const [busy, setBusy] = useState(false)
 
   const {
@@ -53,9 +54,16 @@ export function PersonalRosterView({
     active: provisioning,
     pollFn: pollSandbox,
     onCapture: async (captured) => {
+      const profile = pendingSandboxProfile
+      if (!profile) {
+        await finishSandbox()
+        throw new Error('No profile details were provided for this login.')
+      }
       showSuccess('Session captured! Saving profile…')
+      await saveAccount(profile.name, profile.region, captured)
       await finishSandbox()
       onCloseAddModal()
+      setPendingSandboxProfile(null)
       showSuccess('Account saved successfully!')
       await loadAccounts()
     },
@@ -110,6 +118,7 @@ export function PersonalRosterView({
 
   const handleStartSandbox = async (_name: string, _region: string) => {
     setBusy(true)
+    setPendingSandboxProfile({ name: _name.trim(), region: _region })
     showSuccess('Opening Riot Client in isolated sandbox…')
     try {
       await startSandbox()
@@ -119,6 +128,11 @@ export function PersonalRosterView({
     } finally {
       setBusy(false)
     }
+  }
+
+  const handleCancelSandbox = async () => {
+    await cancelSandbox()
+    setPendingSandboxProfile(null)
   }
 
   const handleConfirmDelete = async () => {
@@ -198,7 +212,7 @@ export function PersonalRosterView({
         onClose={onCloseAddModal}
         onCaptureActive={handleCaptureActive}
         onStartSandbox={handleStartSandbox}
-        onCancelSandbox={cancelSandbox}
+        onCancelSandbox={handleCancelSandbox}
         provisioning={provisioning}
         busy={busy}
       />

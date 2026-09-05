@@ -34,7 +34,7 @@ export function AssignedAccountsList({
               Accounts Accessible by {userName}
             </h3>
             <p className="text-xs text-slate-500">
-              The operator can switch into these accounts via the LAAP Desktop Launcher.
+              This person can use these accounts in LAAP Desktop.
             </p>
           </div>
         </div>

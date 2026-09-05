@@ -1,18 +1,17 @@
-import { requireAdmin } from '../http/auth.js'
 import { readJson } from '../http/body.js'
 import { HttpError } from '../http/errors.js'
 import { sendJson } from '../http/response.js'
 import { accountCreateSchema, accountUpdateSchema, sessionBlobSchema } from '@laap/validation'
-import { currentUser, routeUuid, type RouteContext } from './types.js'
+import { currentUser, requireCurrentAdmin, routeUuid, type RouteContext } from './types.js'
 
 export async function handleAccountRoutes(ctx: RouteContext): Promise<void> {
   const { request, response, service, runtime, method, parts } = ctx
 
   if (parts.length === 4 && parts[3] === 'credential-status' && method === 'GET') {
-    throw new HttpError(410, 'RIOT_RSO_REQUIRED', 'Riot accounts must be linked through the approved Riot Sign On flow')
+    throw new HttpError(410, 'RIOT_CREDENTIALS_DISABLED', 'LAAP does not manage Riot credentials. Sign in through the official Riot Client.')
   }
   if (parts.length === 4 && parts[3] === 'credentials' && method === 'POST') {
-    throw new HttpError(410, 'RIOT_RSO_REQUIRED', 'Riot credentials are never accepted by LAAP; use Riot Sign On')
+    throw new HttpError(410, 'RIOT_CREDENTIALS_DISABLED', 'LAAP does not accept Riot credentials. Sign in through the official Riot Client.')
   }
 
   const user = await currentUser(request, service, runtime)
@@ -24,7 +23,7 @@ export async function handleAccountRoutes(ctx: RouteContext): Promise<void> {
   }
 
   if (parts.length === 2 && method === 'POST') {
-    await requireAdmin(request, runtime.jwtSecret)
+    requireCurrentAdmin(user)
     const input = accountCreateSchema.safeParse(await readJson(request))
     if (!input.success) throw new HttpError(400, 'INVALID_ACCOUNT', 'Account fields are invalid')
     const accountId = await service.createAccount(user.id, input.data)
@@ -32,7 +31,7 @@ export async function handleAccountRoutes(ctx: RouteContext): Promise<void> {
   }
 
   if (parts.length === 3 && method === 'PATCH') {
-    await requireAdmin(request, runtime.jwtSecret)
+    requireCurrentAdmin(user)
     const input = accountUpdateSchema.safeParse(await readJson(request))
     if (!input.success) throw new HttpError(400, 'INVALID_ACCOUNT', 'Account fields are invalid')
     await service.updateAccount(user.id, routeUuid(parts[2], 'INVALID_ACCOUNT_ID'), input.data)
@@ -40,13 +39,13 @@ export async function handleAccountRoutes(ctx: RouteContext): Promise<void> {
   }
 
   if (parts.length === 3 && method === 'DELETE') {
-    await requireAdmin(request, runtime.jwtSecret)
+    requireCurrentAdmin(user)
     await service.deleteAccount(user.id, routeUuid(parts[2], 'INVALID_ACCOUNT_ID'))
     return sendJson(response, 200, { success: true })
   }
 
   if (parts.length === 4 && parts[3] === 'session-blob' && (method === 'PUT' || method === 'POST')) {
-    await requireAdmin(request, runtime.jwtSecret)
+    requireCurrentAdmin(user)
     const input = sessionBlobSchema.safeParse(await readJson(request))
     if (!input.success) throw new HttpError(400, 'INVALID_SESSION_BLOB', 'Session blob is invalid')
     await service.saveAccountSessionBlob(user.id, routeUuid(parts[2], 'INVALID_ACCOUNT_ID'), input.data.sessionBlob)
@@ -54,13 +53,13 @@ export async function handleAccountRoutes(ctx: RouteContext): Promise<void> {
   }
 
   if (parts.length === 4 && parts[3] === 'session-blob' && method === 'DELETE') {
-    await requireAdmin(request, runtime.jwtSecret)
+    requireCurrentAdmin(user)
     await service.deleteAccountSessionBlob(user.id, routeUuid(parts[2], 'INVALID_ACCOUNT_ID'))
     return sendJson(response, 200, { success: true })
   }
 
   if (parts.length === 4 && parts[3] === 'release' && method === 'POST') {
-    await requireAdmin(request, runtime.jwtSecret)
+    requireCurrentAdmin(user)
     await service.forceReleaseAccount(user, routeUuid(parts[2], 'INVALID_ACCOUNT_ID'))
     return sendJson(response, 200, { success: true })
   }

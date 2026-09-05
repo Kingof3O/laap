@@ -25,7 +25,7 @@ export function OperatorSelector({
       <div className="border-b border-white/[0.06] p-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-            Operators ({users.length})
+            People ({users.length})
           </h2>
           <span className="text-[11px] text-slate-500">Select to view</span>
         </div>
@@ -81,7 +81,7 @@ export function OperatorSelector({
 
         {!users.length ? (
           <div className="p-6 text-center text-xs text-slate-500">
-            No operators found.
+            No people found.
           </div>
         ) : null}
       </div>

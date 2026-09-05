@@ -114,6 +114,12 @@ export default function App() {
     return () => window.clearInterval(refreshTimer)
   }, [authState, offline, loadDashboard])
 
+  useEffect(() => {
+    if (snapshot?.user.role !== 'admin' && ['Assignments', 'Users', 'Audit log'].includes(activePage)) {
+      setActivePage('Overview')
+    }
+  }, [activePage, snapshot?.user.role])
+
   const navigate = (page: PageName) => { setActivePage(page); setMobileOpen(false) }
   const login = async (email: string, password: string, remember = true) => {
     try {
@@ -148,7 +154,7 @@ export default function App() {
       : activePage === 'Assignments'
           ? <AssignmentsPage initialAccounts={activeSnapshot.accounts} offline={offline} onToast={moduleToast} />
         : activePage === 'Users'
-          ? <UsersPage offline={offline} onToast={moduleToast} onNavigate={navigate} />
+          ? <UsersPage offline={offline} onToast={moduleToast} />
           : activePage === 'Devices'
             ? <DevicesPage offline={offline} onToast={moduleToast} />
             : <AuditLogPage offline={offline} onToast={moduleToast} />

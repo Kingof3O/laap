@@ -1,9 +1,8 @@
-import { requireAdmin } from '../http/auth.js'
 import { readJson } from '../http/body.js'
 import { HttpError } from '../http/errors.js'
 import { sendJson } from '../http/response.js'
-import { deviceRegistrationSchema } from '@laap/validation'
-import { currentUser, routeUuid, type RouteContext } from './types.js'
+import { deviceHeartbeatSchema, deviceRegistrationSchema } from '@laap/validation'
+import { currentUser, requireCurrentAdmin, routeUuid, type RouteContext } from './types.js'
 
 export async function handleDeviceRoutes(ctx: RouteContext): Promise<void> {
   const { request, response, service, runtime, method, parts } = ctx
@@ -22,8 +21,21 @@ export async function handleDeviceRoutes(ctx: RouteContext): Promise<void> {
     return sendJson(response, 201, { deviceId })
   }
 
+  if (parts.length === 4 && parts[3] === 'heartbeat' && method === 'POST') {
+    const input = deviceHeartbeatSchema.safeParse(await readJson(request))
+    if (!input.success) throw new HttpError(400, 'INVALID_DEVICE_HEARTBEAT', 'Device heartbeat is invalid')
+    await service.touchDevice(user.id, routeUuid(parts[2], 'INVALID_DEVICE_ID'), input.data.appVersion)
+    return sendJson(response, 200, { success: true })
+  }
+
+  if (parts.length === 4 && parts[3] === 'approve' && method === 'POST') {
+    requireCurrentAdmin(user)
+    await service.approveDevice(user.id, routeUuid(parts[2], 'INVALID_DEVICE_ID'))
+    return sendJson(response, 200, { success: true })
+  }
+
   if (parts.length === 3 && method === 'DELETE') {
-    await requireAdmin(request, runtime.jwtSecret)
+    requireCurrentAdmin(user)
     await service.revokeDevice(user.id, routeUuid(parts[2], 'INVALID_DEVICE_ID'))
     return sendJson(response, 200, { success: true })
   }

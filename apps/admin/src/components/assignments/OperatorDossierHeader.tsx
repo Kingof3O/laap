@@ -27,7 +27,7 @@ export function OperatorDossierHeader({ user, activeAssignmentsCount }: Operator
       <div className="flex items-center gap-3">
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-2 text-right">
           <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
-            Assigned Accounts
+            Assigned accounts
           </p>
           <p className="font-mono text-lg font-bold text-cyan-200">{activeAssignmentsCount}</p>
         </div>
