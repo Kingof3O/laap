@@ -36,11 +36,7 @@ export function Sidebar({ items, activePage, onNavigate, mobileOpen, onClose, cu
           </ul>
           <p className="mt-7 px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-600">Manage</p>
           <ul className="mt-3 space-y-1">
-            {items.slice(1, 4).map((item) => <NavLink key={item.label} item={item} active={activePage === item.label} onNavigate={onNavigate} />)}
-          </ul>
-          {isAdmin ? <p className="mt-7 px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-600">Workspace</p> : null}
-          <ul className="mt-3 space-y-1">
-            {items.slice(4).map((item) => <NavLink key={item.label} item={item} active={activePage === item.label} onNavigate={onNavigate} />)}
+            {items.slice(1).map((item) => <NavLink key={item.label} item={item} active={activePage === item.label} onNavigate={onNavigate} />)}
           </ul>
         </nav>
 

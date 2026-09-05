@@ -20,8 +20,6 @@ const baseNavItems: NavItem[] = [
   { label: 'Account pool', icon: Gamepad2 },
   { label: 'Assignments', icon: UsersRound },
   { label: 'Users', icon: UserRoundPlus },
-  { label: 'Devices', icon: LaptopMinimal },
-  { label: 'Audit log', icon: ClipboardList },
 ]
 
 const demoUser: ApiUser = { id: 'demo-admin', email: 'admin@laap.local', displayName: 'Alex Kim', role: 'admin', status: 'active' }

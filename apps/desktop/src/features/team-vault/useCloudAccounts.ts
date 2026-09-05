@@ -3,20 +3,12 @@ import { ApiError, apiRequest, hasTauri, invokeTauri } from '../../lib/api'
 import { useDevice } from '../device'
 import type { Account, User } from '../../lib/types'
 
-export type LeaseUiState =
-  | 'IDLE'
-  | 'LEASE_ACQUIRED'
-  | 'RIOT_CLIENT_STARTING'
-  | 'WAITING_FOR_RIOT_LOGIN'
-  | 'LEAGUE_RUNNING'
-  | 'LEASE_LOST'
-  | 'RIOT_CLIENT_CLOSED'
+export type LeaseUiState = 'IDLE' | 'ACTIVE' | 'LEASE_LOST'
 
 const ACTIVE_LEASE_KEY = 'laap_active_lease_v1'
-const HEARTBEAT_INTERVAL_MS = 20_000
+const HEARTBEAT_INTERVAL_MS = 60_000
 
-type RuntimeSnapshot = { riot_client: boolean; league_client: boolean; league_game: boolean }
-type PersistedLease = { userId: string; deviceId: string; sessionId: string; accountId: string }
+type PersistedLease = { userId: string; deviceId?: string; sessionId: string; accountId: string }
 
 function clearPersistedLease() {
   try { localStorage.removeItem(ACTIVE_LEASE_KEY) } catch {}
@@ -30,7 +22,6 @@ export function useCloudAccounts(user: User | null) {
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null)
   const [provisioning, setProvisioning] = useState(false)
   const [leaseState, setLeaseState] = useState<LeaseUiState>('IDLE')
-  const [runtimeState, setRuntimeState] = useState<RuntimeSnapshot | null>(null)
   const missedHeartbeats = useRef(0)
 
   const { deviceId, error: deviceError } = useDevice(user)
@@ -67,7 +58,6 @@ export function useCloudAccounts(user: User | null) {
     setSessionId(null)
     setActiveAccountId(null)
     setLeaseState('IDLE')
-    setRuntimeState(null)
     clearPersistedLease()
     if (hasTauri) await invokeTauri('cleanup_account_session').catch(() => {})
     await loadAccounts()
@@ -100,32 +90,29 @@ export function useCloudAccounts(user: User | null) {
   const persistLease = (nextSessionId: string, accountId: string) => {
     setSessionId(nextSessionId)
     setActiveAccountId(accountId)
-    if (!user || !deviceId) return
-    try { localStorage.setItem(ACTIVE_LEASE_KEY, JSON.stringify({ userId: user.id, deviceId, sessionId: nextSessionId, accountId } satisfies PersistedLease)) } catch {}
+    if (!user) return
+    try { localStorage.setItem(ACTIVE_LEASE_KEY, JSON.stringify({ userId: user.id, deviceId: deviceId ?? undefined, sessionId: nextSessionId, accountId } satisfies PersistedLease)) } catch {}
   }
 
   const acquireAndLaunch = async (accId: string, onStepChange?: (step: string) => void) => {
-    if (!deviceId || !hasTauri) throw new Error(deviceError || 'Device is initializing. Please wait a moment.')
+    if (!hasTauri) throw new Error(deviceError || 'Desktop environment not detected.')
     setError(null)
     let acquiredSessionId: string | null = null
     try {
       onStepChange?.('Securing account lease…')
-      const nonce = `${Date.now()}:${accId}`
-      const signature = await invokeTauri<string>('sign_device_nonce', { nonce })
       const result = await apiRequest<{ sessionId: string }>('/api/leases/acquire', {
         method: 'POST',
-        body: JSON.stringify({ accountId: accId, deviceId, nonce, signature }),
+        body: JSON.stringify({ accountId: accId, deviceId: deviceId ?? undefined }),
       })
       acquiredSessionId = result.sessionId
       persistLease(result.sessionId, accId)
-      setLeaseState('LEASE_ACQUIRED')
+      setLeaseState('ACTIVE')
 
       onStepChange?.('Preparing Riot Client…')
       const sessionRes = await apiRequest<{ sessionBlob: string }>(`/api/leases/${result.sessionId}/session-blob`)
       await invokeTauri('inject_account_session', { sessionYaml: sessionRes.sessionBlob })
 
       onStepChange?.('Launching League of Legends…')
-      setLeaseState('RIOT_CLIENT_STARTING')
       await invokeTauri('launch_riot_client')
       await loadAccounts()
     } catch (cause) {
@@ -140,79 +127,68 @@ export function useCloudAccounts(user: User | null) {
     }
   }
 
-  // Restore a lease after a normal app restart and verify it with a heartbeat.
+  // Restore a lease after a normal app restart
   useEffect(() => {
-    if (!user || !deviceId || sessionId) return
+    if (!user || sessionId) return
     try {
       const stored = JSON.parse(localStorage.getItem(ACTIVE_LEASE_KEY) ?? 'null') as PersistedLease | null
-      if (!stored || stored.userId !== user.id || stored.deviceId !== deviceId) return
+      if (!stored || stored.userId !== user.id) return
       setSessionId(stored.sessionId)
       setActiveAccountId(stored.accountId)
-      setLeaseState('LEASE_ACQUIRED')
+      setLeaseState('ACTIVE')
       void apiRequest(`/api/leases/${stored.sessionId}/heartbeat`, { method: 'POST', body: JSON.stringify({ runtimeState: 'IN_CLIENT' }) }).catch(() => { void clearLocalLease() })
     } catch { clearPersistedLease() }
-  }, [clearLocalLease, deviceId, sessionId, user])
+  }, [clearLocalLease, sessionId, user])
 
-  // Keep the server lease alive and release it when both Riot and League exit.
+  // Simple, relaxed liveness check (every 60s)
   useEffect(() => {
     if (!sessionId || !hasTauri) return
     let disposed = false
-    let closedChecks = 0
-    let launchChecks = 0
-    let runtimeStarted = false
+    let riotWasSeen = false
+    let consecutiveClosedChecks = 0
     missedHeartbeats.current = 0
+
     const tick = async () => {
       if (disposed) return
       try {
-        const runtime = await invokeTauri<RuntimeSnapshot>('runtime_snapshot')
-        setRuntimeState(runtime)
-        const runtimeState = runtime.league_game ? 'IN_GAME' : runtime.league_client || runtime.riot_client ? 'IN_CLIENT' : 'EXITED'
-        setLeaseState(runtime.league_game ? 'LEAGUE_RUNNING' : runtime.league_client || runtime.riot_client ? 'WAITING_FOR_RIOT_LOGIN' : 'RIOT_CLIENT_STARTING')
-        if (runtimeState === 'EXITED') {
-          if (!runtimeStarted) {
-            launchChecks += 1
-          } else {
-            closedChecks += 1
-          }
-          // Allow a cold Riot Client launch up to two minutes. Once the
-          // client has appeared, two consecutive closed checks end the lease.
-          if ((!runtimeStarted && launchChecks >= 6) || (runtimeStarted && closedChecks >= 2)) {
-            setLeaseState('RIOT_CLIENT_CLOSED')
+        const isRunning = await invokeTauri<boolean>('is_riot_running').catch(() => false)
+        if (isRunning) {
+          riotWasSeen = true
+          consecutiveClosedChecks = 0
+        } else if (riotWasSeen) {
+          consecutiveClosedChecks += 1
+          // If Riot Client was closed for 2 consecutive checks (~2 minutes), release lease
+          if (consecutiveClosedChecks >= 2) {
             await releaseLease('process_exit')
             return
           }
-        } else {
-          runtimeStarted = true
-          launchChecks = 0
-          closedChecks = 0
         }
-        await apiRequest(`/api/leases/${sessionId}/heartbeat`, { method: 'POST', body: JSON.stringify({ runtimeState }) })
+
+        await apiRequest(`/api/leases/${sessionId}/heartbeat`, { method: 'POST', body: JSON.stringify({ runtimeState: 'IN_CLIENT' }) })
         missedHeartbeats.current = 0
       } catch (cause) {
         missedHeartbeats.current += 1
         const message = cause instanceof Error ? cause.message : String(cause)
-        if ((cause instanceof ApiError && ['SESSION_NOT_FOUND', 'ASSIGNMENT_EXPIRED', 'DEVICE_NOT_AUTHORIZED', 'UNAUTHENTICATED'].includes(cause.code)) || /SESSION_NOT_FOUND|ASSIGNMENT_EXPIRED|DEVICE_NOT_AUTHORIZED|UNAUTHENTICATED/i.test(message)) {
+        if ((cause instanceof ApiError && ['SESSION_NOT_FOUND', 'ASSIGNMENT_EXPIRED', 'UNAUTHENTICATED'].includes(cause.code)) || /SESSION_NOT_FOUND|ASSIGNMENT_EXPIRED|UNAUTHENTICATED/i.test(message)) {
           setLeaseState('LEASE_LOST')
           setError(message)
           await clearLocalLease()
           return
         }
-        // Allow short network interruptions. The server reaper remains the
-        // authority and will mark the lease stale if heartbeats truly stop.
-        if (missedHeartbeats.current >= 7) {
+        if (missedHeartbeats.current >= 4) {
           setLeaseState('LEASE_LOST')
           setError(message)
           await clearLocalLease()
         }
       }
     }
+
     void tick()
     const timer = window.setInterval(() => { void tick() }, HEARTBEAT_INTERVAL_MS)
     return () => { disposed = true; window.clearInterval(timer) }
   }, [clearLocalLease, releaseLease, sessionId])
 
-  // Give the desktop app a chance to release its lease before the native
-  // window closes. Crash recovery is still handled by the server reaper.
+  // Release lease when the desktop window is closed
   useEffect(() => {
     if (!sessionId || !hasTauri) return
     let unlisten: (() => void) | undefined
@@ -239,5 +215,5 @@ export function useCloudAccounts(user: User | null) {
   const finishSandbox = async () => { if (!hasTauri) return; try { await invokeTauri('finish_provisioning_session') } finally { setProvisioning(false) } }
   const cancelSandbox = async () => { if (!hasTauri) return; try { await invokeTauri('cancel_provisioning_session') } finally { setProvisioning(false) } }
 
-  return { accounts, loading, error: error || deviceError, sessionId, activeAccountId, leaseState, runtimeState, provisioning, deviceId, loadAccounts, acquireAndLaunch, releaseLease, deleteCloudAccount, uploadSessionBlob, forceReleaseCloudAccount, revokeCloudSessionBlob, startSandbox, pollSandbox, finishSandbox, cancelSandbox }
+  return { accounts, loading, error: error || deviceError, sessionId, activeAccountId, leaseState, provisioning, deviceId, loadAccounts, acquireAndLaunch, releaseLease, deleteCloudAccount, uploadSessionBlob, forceReleaseCloudAccount, revokeCloudSessionBlob, startSandbox, pollSandbox, finishSandbox, cancelSandbox }
 }

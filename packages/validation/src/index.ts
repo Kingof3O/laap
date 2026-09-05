@@ -58,13 +58,13 @@ export const accountUpdateSchema = accountCreateSchema.partial().refine((value) 
 
 export const leaseAcquireSchema = z.object({
   accountId: z.string().uuid(),
-  deviceId: z.string().uuid(),
+  deviceId: z.string().optional(),
   nonce: z.string().min(16).max(256).optional(),
   signature: z.string().regex(/^[A-Za-z0-9+/]{86}$/, 'Signature must be a 64-byte base64 value').optional(),
 })
 
 export const leaseHeartbeatSchema = z.object({
-  runtimeState: z.enum(['LAUNCHING', 'IN_CLIENT', 'IN_GAME', 'RECONNECTING', 'EXITED']).default('IN_CLIENT'),
+  runtimeState: z.enum(['LAUNCHING', 'IN_CLIENT', 'IN_GAME', 'RECONNECTING', 'EXITED']).optional().default('IN_CLIENT'),
 })
 
 export const sessionBlobSchema = z.object({

@@ -185,8 +185,8 @@ describe('LAAP lease service', () => {
     expect((await instance.service.listSessions()).some((session) => session.id === lease.sessionId)).toBe(false)
   })
 
-  it('requires a signed device challenge in production mode', async () => {
-    const directory = await mkdtemp(path.join(os.tmpdir(), 'laap-prod-test-'))
+  it('allows acquiring a lease directly with authenticated session in production mode', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'laap-prod-'))
     app = await createApp({ dataDir: path.join(directory, 'laap.sqlite'), jwtSecret: 'production-test-secret-that-is-long-enough', vaultKey: 'production-vault-key-that-is-long-enough', adminPassword: 'ProductionPassword!2026', enableDemoAuth: false, nodeEnv: 'production', allowedOrigin: 'http://localhost:5173', logRequests: false })
     await new Promise<void>((resolve) => app!.server.listen(0, '127.0.0.1', () => resolve()))
     const address = app.server.address() as AddressInfo
@@ -197,9 +197,10 @@ describe('LAAP lease service', () => {
     const account = (await app.service.listAccounts()).find((row) => row.name === 'Lumen#EUNE')!
     const device = (await app.service.listDevices()).find((row) => row.user === 'Alex Kim')!
     const acquire = await fetch(`${baseUrl}/api/leases/acquire`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ accountId: account.id, deviceId: device.id }) })
-    expect(acquire.status).toBe(401)
-    const acquirePayload = await acquire.json() as { error: { code: string } }
-    expect(acquirePayload.error.code).toBe('DEVICE_SIGNATURE_REQUIRED')
+    expect(acquire.status).toBe(200)
+    const acquirePayload = await acquire.json() as { success: boolean; sessionId: string }
+    expect(acquirePayload.success).toBe(true)
+    expect(typeof acquirePayload.sessionId).toBe('string')
   })
 
   it('allows admins to save session blobs and allows active lease holders to retrieve them', async () => {

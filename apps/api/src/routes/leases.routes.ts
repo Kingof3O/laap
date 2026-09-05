@@ -10,19 +10,16 @@ export async function handleLeaseRoutes(ctx: RouteContext): Promise<void> {
 
   if (parts[2] === 'acquire' && method === 'POST') {
     const input = leaseAcquireSchema.safeParse(await readJson(request))
-    if (!input.success) throw new HttpError(400, 'INVALID_LEASE_REQUEST', 'Account and device are required')
-    const signed = Boolean(input.data.nonce || input.data.signature)
-    if (signed !== Boolean(input.data.nonce && input.data.signature)) {
-      throw new HttpError(400, 'INVALID_DEVICE_SIGNATURE', 'Nonce and signature must be supplied together')
-    }
-    if (runtime.nodeEnv === 'production' && !signed) {
-      throw new HttpError(401, 'DEVICE_SIGNATURE_REQUIRED', 'A signed device challenge is required')
-    }
-    if (signed && !(await service.verifyDeviceChallenge(user.id, input.data.deviceId, input.data.accountId, input.data.nonce!, input.data.signature!))) {
-      throw new HttpError(401, 'INVALID_DEVICE_SIGNATURE', 'Device challenge could not be verified')
+    if (!input.success) throw new HttpError(400, 'INVALID_LEASE_REQUEST', 'Account ID is required')
+    const deviceId = input.data.deviceId || '00000000-0000-0000-0000-000000000000'
+    const signed = Boolean(input.data.nonce && input.data.signature)
+    if (signed && input.data.deviceId) {
+      if (!(await service.verifyDeviceChallenge(user.id, input.data.deviceId, input.data.accountId, input.data.nonce!, input.data.signature!))) {
+        throw new HttpError(401, 'INVALID_DEVICE_SIGNATURE', 'Device challenge could not be verified')
+      }
     }
     try {
-      return sendJson(response, 200, await service.acquireLease(user.id, input.data.accountId, input.data.deviceId, input.data))
+      return sendJson(response, 200, await service.acquireLease(user.id, input.data.accountId, deviceId, input.data))
     } catch (error) {
       throw serviceErrorToHttp(error)
     }

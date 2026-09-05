@@ -17,23 +17,18 @@ export function ActiveLeaseBanner({
   busy,
   leaseState,
 }: ActiveLeaseBannerProps) {
-  const stateLabel: Record<LeaseUiState, string> = {
-    IDLE: 'No active lease',
-    LEASE_ACQUIRED: 'Lease acquired',
-    RIOT_CLIENT_STARTING: 'Riot Client starting',
-    WAITING_FOR_RIOT_LOGIN: 'Waiting for Riot login',
-    LEAGUE_RUNNING: 'League running',
-    LEASE_LOST: 'Lease lost',
-    RIOT_CLIENT_CLOSED: 'Riot Client closed',
-  }
+  const isLost = leaseState === 'LEASE_LOST'
+
   return (
-    <div className="active-lease-hud">
+    <div className={`active-lease-hud ${isLost ? 'active-lease-hud-warning' : ''}`}>
       <div className="lease-hud-left">
         <div className="lease-icon-pulse">
           <ShieldCheck size={18} />
         </div>
         <div>
-          <div className="lease-hud-title">{stateLabel[leaseState]}</div>
+          <div className="lease-hud-title">
+            {isLost ? 'Lease Session Interrupted' : 'Account In Use'}
+          </div>
           <div className="lease-hud-name">
             {account.name} · {account.region}
           </div>
