@@ -17,7 +17,7 @@ path = "src/main.rs"
 
 [dependencies]
 aes-gcm = "0.10"
-base64 = "0.22"
+base64 = "0.23"
 chrono = { version = "0.4", features = ["clock", "serde"] }
 directories = "6"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
