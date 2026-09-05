@@ -1,5 +1,6 @@
 import { LogOut, RotateCcw, ShieldCheck, X } from 'lucide-react'
 import type { User } from '../../lib/types'
+import { APP_VERSION } from '../../hooks/useUpdateChecker'
 
 export interface SettingsModalProps {
   user: User | null
@@ -71,7 +72,7 @@ export function SettingsModal({
                 disabled={busy || checkingUpdates}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', height: '36px' }}
               >
-                <span>{checkingUpdates ? 'Checking for updates…' : 'Check for Updates (v0.2.0)'}</span>
+                <span>{checkingUpdates ? 'Checking for updates…' : `Check for Updates (v${APP_VERSION})`}</span>
               </button>
             ) : null}
 

@@ -7,16 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [0.3.0] - 2026-09-05
 
-### Production hardening
-- Encrypted session blobs at rest for both API storage drivers and the desktop local vault, with legacy-data migration.
-- Current-role RBAC checks, admin user lifecycle actions, account editing, device approval/revocation, assignment expiry validation, and audit coverage.
-- Restored 20-second lease heartbeats, runtime-state reporting, stale-session reaping, assignment/user deactivation cleanup, and crash-recovery of orphaned Riot settings backups.
-- Trusted-origin desktop authentication, HttpOnly browser cookies, bounded request timeouts, stricter device/signature validation, and production secret checks.
-- Documented the deferred Riot session-material boundary without making unsupported anti-cheat or Riot-approval claims.
+### ⚡ Simplified Architecture & Robust Online Engine
+- **Streamlined Status**: Replaced granular process state machines (`IN_GAME` vs `IN_CLIENT`) with clean binary status (`Ready` / `Available` vs `In Use`).
+- **Instant Game Launches**: Dropped hardware Ed25519 nonce challenge ceremony from lease acquisition; launches now authenticate directly with verified JWT tokens with zero key mismatch errors.
+- **Relaxed Liveness Heartbeat**: Reduced heartbeat network churn to a lightweight 60s ping without heavy telemetry payloads.
+- **30-Day Session Persistence**: 30-day token lifetime with dual-layer storage in OS keychain and localStorage; added "Remember me on this computer (30 days)" option.
+- **Modular Operator Access Control**: Added user-centric account assignment and instant 1-click revocation dossier under `Access`.
+- **Streamlined Navigation**: Removed compliance clutter (`Devices` and `Audit log`) from admin navigation, focusing on `Home`, `Accounts`, `Access`, and `People`.
+- **Windows Subsystem Fix**: Fixed console window popup on Windows release builds using `windows_subsystem = "windows"`.
 
 ---
+
 
 ## [0.2.0] - 2026-09-03
 

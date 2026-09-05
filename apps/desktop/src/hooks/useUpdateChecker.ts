@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { openExternalUrl } from '../lib/api'
 
-export const APP_VERSION = '0.2.0'
+export const APP_VERSION = '0.3.0'
 export const GITHUB_REPO = 'Kingof3O/laap'
 const DISMISSED_KEY = 'laap_dismissed_update_version'
 
