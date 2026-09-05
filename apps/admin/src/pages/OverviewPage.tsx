@@ -49,7 +49,7 @@ export function OverviewPage({ metrics, sessions, activity, accounts, onNavigate
       </section>
 
       <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(330px,.75fr)]"><LeaseActivityChart metrics={metrics} sessions={sessions} /><SecurityPostureCard /></section>
-      <section className="mt-5"><ActivityFeed items={activity} onOpenHistory={() => onNavigate('Audit log')} /></section>
+      <section className="mt-5"><ActivityFeed items={activity} /></section>
       <section className="mt-5"><AccountsPreview accounts={accounts} onOpenAccounts={() => onNavigate('Account pool')} /></section>
     </div>
   )

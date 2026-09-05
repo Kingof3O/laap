@@ -1,4 +1,4 @@
-import { ClipboardList, Gamepad2, LayoutDashboard, LaptopMinimal, UserRoundPlus, UsersRound } from 'lucide-react'
+import { Gamepad2, LayoutDashboard, UserRoundPlus, UsersRound } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import type { ApiUser, DashboardSnapshot } from '@laap/types'
 import type { PageName } from './lib/data'
@@ -11,8 +11,6 @@ import { LoginPage } from './pages/LoginPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { AccountsPage } from './pages/AccountsPage'
 import { AssignmentsPage } from './pages/AssignmentsPage'
-import { DevicesPage } from './pages/DevicesPage'
-import { AuditLogPage } from './pages/AuditLogPage'
 import { UsersPage } from './pages/UsersPage'
 
 const baseNavItems: NavItem[] = [
@@ -140,21 +138,15 @@ export default function App() {
   const activeSnapshot = snapshot ?? (import.meta.env.DEV ? fallbackSnapshot : null)
   if (!activeSnapshot) return <div className="grid min-h-dvh place-items-center bg-canvas text-slate-400"><p className="text-sm">Workspace data is unavailable. Please sign in again.</p></div>
   const isAdmin = activeSnapshot.user.role === 'admin'
-  const sidebarItems = baseNavItems.filter((item) => isAdmin || !['Assignments', 'Users', 'Audit log'].includes(item.label)).map((item) => item.label === 'Account pool'
+  const sidebarItems = baseNavItems.filter((item) => isAdmin || !['Assignments', 'Users'].includes(item.label)).map((item) => item.label === 'Account pool'
     ? { ...item, badge: String(activeSnapshot.metrics.totalAccounts) }
-    : item.label === 'Devices'
-      ? { ...item, badge: String(activeSnapshot.metrics.boundDevices) }
-      : item)
+    : item)
   const content = activePage === 'Overview'
     ? <OverviewPage metrics={activeSnapshot.metrics} sessions={activeSnapshot.sessions} activity={activeSnapshot.activity} accounts={activeSnapshot.accounts} onNavigate={navigate} userName={activeSnapshot.user.displayName} offline={offline} isAdmin={isAdmin} />
     : activePage === 'Account pool'
       ? <AccountsPage initialAccounts={activeSnapshot.accounts} offline={offline} canManageAccounts={activeSnapshot.user.role === 'admin'} onToast={moduleToast} />
       : activePage === 'Assignments'
           ? <AssignmentsPage initialAccounts={activeSnapshot.accounts} offline={offline} onToast={moduleToast} />
-        : activePage === 'Users'
-          ? <UsersPage offline={offline} onToast={moduleToast} />
-          : activePage === 'Devices'
-            ? <DevicesPage offline={offline} onToast={moduleToast} />
-            : <AuditLogPage offline={offline} onToast={moduleToast} />
+          : <UsersPage offline={offline} onToast={moduleToast} />
   return <div className="min-h-dvh overflow-x-clip bg-canvas text-ink"><div className="ambient ambient-one" aria-hidden="true" /><div className="ambient ambient-two" aria-hidden="true" /><div className="ambient ambient-three" aria-hidden="true" /><div className="app-shell"><Sidebar items={sidebarItems} activePage={activePage} onNavigate={navigate} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} currentUser={currentUser ?? activeSnapshot.user} onLogout={logout} isAdmin={isAdmin} /><div className="min-w-0 flex-1 lg:pl-[260px]"><TopBar activePage={activePage} onMenu={() => setMobileOpen(true)} /><main id="main-content" tabIndex={-1}>{content}</main></div></div><ActivityToast message={toast} onDismiss={() => setToast(null)} /></div>
 }

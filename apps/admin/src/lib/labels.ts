@@ -10,8 +10,6 @@ export const pageLabels: Record<PageName, string> = {
   'Account pool': 'Accounts',
   Assignments: 'Access',
   Users: 'People',
-  Devices: 'Computers',
-  'Audit log': 'History',
 }
 
 export function navigationLabel(page: PageName) {

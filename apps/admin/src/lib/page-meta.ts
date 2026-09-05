@@ -19,16 +19,6 @@ export const pageMeta = {
     title: 'Authorized users.',
     description: 'Add people to LAAP and choose what they are allowed to do.',
   },
-  Devices: {
-    eyebrow: 'COMPUTERS',
-    title: 'Connected computers.',
-    description: 'See which computers are ready to start an account session.',
-  },
-  'Audit log': {
-    eyebrow: 'HISTORY',
-    title: 'Recent activity.',
-    description: 'Review the important changes made in your workspace.',
-  },
 } as const
 
 export type PageName = keyof typeof pageMeta

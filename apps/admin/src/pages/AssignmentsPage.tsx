@@ -8,6 +8,7 @@ import { OperatorDossierHeader } from '../components/assignments/OperatorDossier
 import { GrantAccessForm } from '../components/assignments/GrantAccessForm'
 import { AssignedAccountsList } from '../components/assignments/AssignedAccountsList'
 import { GlobalAssignmentsTable } from '../components/assignments/GlobalAssignmentsTable'
+import { fallbackAssignments, fallbackUsers } from '../lib/mocks'
 
 type AssignmentsPageProps = {
   initialAccounts: DashboardAccount[]
@@ -26,7 +27,15 @@ export function AssignmentsPage({ initialAccounts, offline, onToast }: Assignmen
   const [revokingKey, setRevokingKey] = useState<string | null>(null)
 
   const refresh = async () => {
-    if (offline) return
+    if (offline) {
+      setRows(fallbackAssignments as AssignmentRow[])
+      const nonAdmin = (fallbackUsers as unknown as ApiUser[]).filter((u) => u.role !== 'admin')
+      setUsers(nonAdmin)
+      if (!selectedUserId && nonAdmin.length > 0) {
+        setSelectedUserId(nonAdmin[0].id)
+      }
+      return
+    }
     try {
       const [assignmentResult, accountResult, userResult] = await Promise.all([
         api.getAssignments(),
