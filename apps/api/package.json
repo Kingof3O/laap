@@ -18,7 +18,7 @@
     "bcryptjs": "^2.4.3",
     "jose": "^6.0.8",
     "sql.js": "^1.12.0",
-    "zod": "^3.24.1"
+    "zod": "^4.5.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
