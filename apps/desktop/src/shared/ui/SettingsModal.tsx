@@ -89,6 +89,15 @@ export function SettingsModal({
               </button>
             ) : null}
           </div>
+
+          {/* About Section */}
+          <div style={{ marginTop: '12px', padding: '10px 14px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: '#F0E6D2' }}>LAAP Tactical Launcher</div>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Developed by Hussien Salah</div>
+            </div>
+            <div style={{ fontSize: '11px', color: '#C89B3C', fontWeight: 600 }}>v{APP_VERSION}</div>
+          </div>
         </div>
 
         <div className="modal-foot">
