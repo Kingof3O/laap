@@ -15,7 +15,7 @@
 [![No Memory or Code Injection](https://img.shields.io/badge/Runtime-No%20memory%20or%20code%20injection-0AC8B9?style=for-the-badge)](docs/ANTI_BAN_VERIFICATION.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-C89B3C?style=for-the-badge)](LICENSE)
 
-[**Download for macOS (.dmg)**](https://github.com/Kingof3O/laap/releases/latest) • [**Download for Windows (.exe / .msi)**](https://github.com/Kingof3O/laap/releases/latest)
+[**Download LAAP Desktop (Team Edition)**](https://github.com/Kingof3O/laap/releases/latest) • [**Download LAAP Offline (Solo Edition)**](https://github.com/Kingof3O/laap/releases/latest)
 
 [Architecture](docs/ARCHITECTURE.md) • [Anti-Ban Proofs](docs/ANTI_BAN_VERIFICATION.md) • [Security Model](docs/SECURITY_MODEL.md) • [API Reference](docs/API.md) • [Developer Guide](docs/DEVELOPMENT.md) • [Production Guide](docs/PRODUCTION.md)
 
@@ -23,13 +23,27 @@
 
 ---
 
-## 🌟 Overview
+## 🌟 Overview & Product Philosophy
 
-**LAAP** (League Account Access Platform) is an esports-grade account access control plane with a native desktop launcher. Engineered for teams and scrim rosters, LAAP centralizes assignments, device trust, and exclusive session leases without accepting Riot passwords.
+**LAAP** (League Account Access Platform) is an esports-grade account access control plane and native desktop launcher for League of Legends.
 
-> **Deferred Riot boundary:** The current build still contains the existing local session capture/injection path requested for this milestone. It is not an official Riot authentication API, and LAAP makes no ban, compatibility, or Riot-approval guarantee. Use it only where you have explicit authorization; replacing it with a supported Riot flow is separate work.
+> **Simple, Fast, and Obvious:**
+> **Pick account → Play → Riot launches → Play.**
+> 
+> LAAP is an operator tool designed for players and competitive rosters—not an enterprise telemetry or monitoring system. It exposes only what you need to jump straight into the Rift. Zero Riot passwords handled, zero keystroke injection, and zero memory hooks.
 
-The platform couples a native **Hextech Tactical Desktop Launcher** (built with Tauri v2, Rust, and React 19) with a centralized **Web Control Center** (Cloudflare Pages + Workers + Supabase).
+> **Deferred Riot boundary:** The current build contains the local session capture/injection path requested for this milestone. It is not an official Riot authentication API, and LAAP makes no ban, compatibility, or Riot-approval guarantee. Use it only where you have explicit authorization; replacing it with a supported Riot flow is separate work.
+
+---
+
+## 📦 Two Release Editions
+
+LAAP is distributed in two distinct flavors to suit your use case:
+
+| Edition | Intended Audience | Features | Network Footprint | Download Artifacts |
+|:---|:---|:---|:---:|:---|
+| **LAAP Desktop**<br>*(Team Edition)* | Competitive teams, scrim rosters, and groups of friends | • **Personal Roster** (Local)<br>• **Shared Accounts** (Cloud Leases)<br>• Atomic single-active locking<br>• Ed25519 hardware key storage | Authenticates against private team backend via JWT | • `LAAP-Setup.exe` (Windows)<br>• `LAAP-Desktop.dmg` (macOS) |
+| **LAAP Offline**<br>*(Community Edition)* | Solo players, streamers, and open-source users | • **Personal Roster** (Local Only)<br>• Unlimited 1-click accounts<br>• Instant search & regional filters<br>• 100% offline & private | **Zero Network Access**<br>(CSP: `connect-src 'none'`) | • `LAAP-Offline-Setup.exe` (Windows)<br>• `LAAP-Offline.dmg` (macOS) |
 
 ---
 
@@ -39,13 +53,14 @@ LAAP provides 100% feature parity and native OS integration on both **Windows** 
 
 | Component / Subsystem | Windows (10 & 11 64-bit) | macOS (Apple Silicon & Intel) |
 |:---|:---|:---|
+| **Installer Experience** | **Zero UAC Elevation Prompt** (installs to `%LOCALAPPDATA%\Programs\LAAP`) with Hextech Dark theme | Native drag-and-drop Apple Disk Image (`.dmg`) & App Bundle (`.app`) |
 | **Hardware Key Storage** | Windows Credential Manager (`windows-native`) | Apple Keychain (`apple-native`) |
 | **Riot Data Directory** | `%LOCALAPPDATA%\Riot Games\Riot Client\Data` | `~/Library/Application Support/Riot Games/Riot Client/Data` |
 | **Local Store Directory** | `%APPDATA%\LAAP\` | `~/Library/Application Support/LAAP/` |
 | **Process Execution** | Spawns `RiotClientServices.exe` directly | Dispatches via `/Applications/Riot Client.app` |
 | **Process Inspection** | Native Windows sysinfo PID & handle polling | Darwin sysinfo PID & process inspection |
 | **Tactical Hotkeys** | `Ctrl+K` (Search), `Esc`, `Tab`, `Enter` | `⌘K` (Search), `Esc`, `Tab`, `Enter` |
-| **Distribution Packages** | Windows Installer (`.msi`) & NSIS (`.exe`) | Apple Disk Image (`.dmg`) & App Bundle (`.app`) |
+| **Distribution Packages** | Windows NSIS Setup (`.exe`) & Windows Installer (`.msi`) | Apple Disk Image (`.dmg`) & App Bundle (`.app`) |
 
 ---
 
@@ -203,18 +218,28 @@ npm run dev
 
 ### Building Native Desktop Releases
 
-#### On macOS
+#### 1. Building LAAP Desktop (Team Edition)
+
 ```bash
-# Build native macOS universal App bundle & DMG installer
+# On macOS (generates LAAP Desktop.dmg & .app)
 npm --workspace @laap/desktop run build
 npx --workspace @laap/desktop tauri build --bundles app,dmg
-```
 
-#### On Windows (PowerShell)
-```powershell
-# Build native Windows installer (.msi & .exe)
+# On Windows (generates LAAP-Setup.exe & .msi)
 npm --workspace @laap/desktop run build
 npx --workspace @laap/desktop tauri build --bundles msi,nsis
+```
+
+#### 2. Building LAAP Offline (Community Edition)
+
+```bash
+# On macOS (generates LAAP Offline.dmg & .app)
+npm --workspace @laap/desktop run build:offline
+npx --workspace @laap/desktop tauri build --config src-tauri/tauri.offline.conf.json --bundles app,dmg
+
+# On Windows (generates LAAP-Offline-Setup.exe & .msi)
+npm --workspace @laap/desktop run build:offline
+npx --workspace @laap/desktop tauri build --config src-tauri/tauri.offline.conf.json --bundles msi,nsis
 ```
 
 ### Verification & Testing

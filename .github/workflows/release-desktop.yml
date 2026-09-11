@@ -15,10 +15,20 @@ jobs:
       matrix:
         include:
           - platform: macos-latest
+            edition: team
             args: '--target universal-apple-darwin'
             targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
+          - platform: macos-latest
+            edition: offline
+            args: '--target universal-apple-darwin --config src-tauri/tauri.offline.conf.json'
+            targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
           - platform: windows-latest
+            edition: team
             args: ''
+            targets: ''
+          - platform: windows-latest
+            edition: offline
+            args: '--config src-tauri/tauri.offline.conf.json'
             targets: ''
     runs-on: ${{ matrix.platform }}
     defaults:
@@ -45,7 +55,11 @@ jobs:
           projectPath: apps/desktop
           tagName: ${{ github.ref_name }}
           releaseName: 'LAAP Desktop ${{ github.ref_name }}'
-          releaseBody: 'Official LAAP Desktop release.'
+          releaseBody: |
+            Official LAAP Desktop release.
+            
+            - **LAAP Desktop**: Full Team Edition (Shared Accounts + Personal Roster).
+            - **LAAP Offline**: Community Standalone Edition (100% local Personal Roster, zero network).
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
@@ -54,7 +68,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.platform }}-bundles
+          name: ${{ matrix.platform }}-${{ matrix.edition }}-bundles
           path: |
             apps/desktop/src-tauri/target/release/bundle/msi/*.msi
             apps/desktop/src-tauri/target/release/bundle/nsis/*.exe

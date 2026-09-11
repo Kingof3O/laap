@@ -87,17 +87,20 @@ export function AssignmentsPage({ initialAccounts, offline, onToast }: Assignmen
   }, [accounts, userAssignments])
 
   // Grant account access
-  const handleGrantAccess = async (accountId: string, expiresAt: string | null) => {
-    if (!selectedUser) return
+  const handleGrantAccess = async (accountIds: string[], expiresAt: string | null) => {
+    if (!selectedUser || accountIds.length === 0) return
     setSaving(true)
     try {
-      await api.addAssignment({
-        accountId,
-        userId: selectedUser.id,
-        expiresAt,
-      })
-      const targetAccount = accounts.find((a) => a.id === accountId)
-      onToast(`Granted access to ${targetAccount?.name ?? 'account'} for ${selectedUser.displayName}`)
+      await Promise.all(
+        accountIds.map((accountId) =>
+          api.addAssignment({
+            accountId,
+            userId: selectedUser.id,
+            expiresAt,
+          })
+        )
+      )
+      onToast(`Granted access to ${accountIds.length} account${accountIds.length > 1 ? 's' : ''} for ${selectedUser.displayName}`)
       await refresh()
     } catch (error) {
       onToast(error instanceof ApiError ? error.message : 'Unable to grant access')

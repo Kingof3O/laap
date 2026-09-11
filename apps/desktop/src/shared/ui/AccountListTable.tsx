@@ -1,4 +1,4 @@
-import { KeyRound, Play, RotateCcw, Trash2, UploadCloud, Zap } from 'lucide-react'
+import { KeyRound, Loader2, Play, RotateCcw, Trash2, UploadCloud, Zap } from 'lucide-react'
 
 export interface TableItem {
   id: string
@@ -15,6 +15,8 @@ export interface AccountListTableProps {
   isCloud?: boolean
   canManage?: boolean
   busy?: boolean
+  launchingId?: string | null
+  failedLaunchId?: string | null
   onSelect?: (id: string) => void
   onLaunch: (id: string) => void
   onSync?: (id: string) => void
@@ -30,6 +32,8 @@ export function AccountListTable({
   isCloud = false,
   canManage = false,
   busy = false,
+  launchingId,
+  failedLaunchId,
   onSelect,
   onLaunch,
   onSync,
@@ -109,6 +113,26 @@ export function AccountListTable({
                           <span>In Use</span>
                         </button>
                       )
+                    ) : item.id === launchingId ? (
+                      <button
+                        type="button"
+                        className="btn-table-play"
+                        disabled
+                      >
+                        <Loader2 size={11} className="animate-spin" />
+                        <span>Preparing…</span>
+                      </button>
+                    ) : item.id === failedLaunchId ? (
+                      <button
+                        type="button"
+                        className="btn-table-play"
+                        style={{ background: 'rgba(239, 68, 68, 0.2)', borderColor: 'rgba(239, 68, 68, 0.4)', color: '#fca5a5' }}
+                        onClick={() => onLaunch(item.id)}
+                        disabled={busy && item.id !== failedLaunchId}
+                      >
+                        <RotateCcw size={11} />
+                        <span>Retry</span>
+                      </button>
                     ) : (
                       <button
                         type="button"

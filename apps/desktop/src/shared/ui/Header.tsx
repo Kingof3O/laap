@@ -7,6 +7,7 @@ export interface HeaderProps {
   user: User | null
   onRefresh: () => void
   onOpenSettings: () => void
+  isOfflineOnly?: boolean
 }
 
 export function Header({
@@ -15,6 +16,7 @@ export function Header({
   user,
   onRefresh,
   onOpenSettings,
+  isOfflineOnly = false,
 }: HeaderProps) {
   return (
     <header className="header-bar" data-tauri-drag-region>
@@ -28,28 +30,30 @@ export function Header({
       </div>
 
       {/* Mode Navigation Switcher */}
-      <nav className="mode-nav" aria-label="Launcher Modes">
-        <button
-          type="button"
-          className={`mode-pill ${appMode === 'local' ? 'mode-pill-active' : ''}`}
-          onClick={() => onModeChange('local')}
-        >
-          <Gamepad2 size={14} />
-          <span>Personal Roster</span>
-        </button>
-        <button
-          type="button"
-          className={`mode-pill ${appMode === 'cloud' ? 'mode-pill-active' : ''}`}
-          onClick={() => onModeChange('cloud')}
-        >
-          <Database size={14} />
-          <span>Shared Accounts</span>
-        </button>
-      </nav>
+      {!isOfflineOnly ? (
+        <nav className="mode-nav" aria-label="Launcher Modes">
+          <button
+            type="button"
+            className={`mode-pill ${appMode === 'local' ? 'mode-pill-active' : ''}`}
+            onClick={() => onModeChange('local')}
+          >
+            <Gamepad2 size={14} />
+            <span>Personal Roster</span>
+          </button>
+          <button
+            type="button"
+            className={`mode-pill ${appMode === 'cloud' ? 'mode-pill-active' : ''}`}
+            onClick={() => onModeChange('cloud')}
+          >
+            <Database size={14} />
+            <span>Shared Accounts</span>
+          </button>
+        </nav>
+      ) : null}
 
       {/* Header Utilities & Profile */}
       <div className="header-utilities">
-        {user ? (
+        {!isOfflineOnly && user ? (
           <div className="profile-badge" onClick={onOpenSettings} role="button" tabIndex={0}>
             <div className="profile-avatar">
               {user.displayName.slice(0, 2).toUpperCase()}

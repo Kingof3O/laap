@@ -30,7 +30,7 @@ export function AddAccountModal({
     <div className="modal-backdrop">
       <div className="modal-panel">
         <div className="modal-head">
-          <h2 className="modal-title">Register Summoner Profile</h2>
+          <h2 className="modal-title">Add Account</h2>
           <button
             type="button"
             className="modal-close-btn"
@@ -45,7 +45,7 @@ export function AddAccountModal({
 
         <div className="modal-body">
           <div className="field-block">
-            <label className="field-label">Summoner Name / Riot ID</label>
+            <label className="field-label">Account Name / Riot ID</label>
             <input
               type="text"
               className="hextech-input"
@@ -77,10 +77,10 @@ export function AddAccountModal({
             <div style={{ padding: '16px', background: 'rgba(200, 170, 110, 0.08)', borderRadius: '8px', border: '1px solid rgba(200, 170, 110, 0.25)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--gold-light)', fontSize: '13px', fontWeight: 600 }}>
                 <Zap size={15} />
-                <span>Riot Sign-In Sandbox Active</span>
+                <span>Waiting for Riot Sign-In…</span>
               </div>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                Log in via the official Riot Client window and ensure &quot;Stay signed in&quot; is checked. LAAP will automatically detect your session.
+                Sign into your Riot account in the client window and ensure &quot;Stay signed in&quot; is checked. LAAP will automatically detect your login.
               </p>
             </div>
           ) : null}
@@ -94,7 +94,7 @@ export function AddAccountModal({
               onClick={() => void onCancelSandbox()}
               disabled={busy}
             >
-              Cancel Sandbox
+              Cancel
             </button>
           ) : (
             <>
@@ -105,7 +105,7 @@ export function AddAccountModal({
                 disabled={!name.trim() || busy}
                 title="Save current logged-in Riot account without re-entering credentials"
               >
-                Capture Active Login
+                Import Current Account
               </button>
               <button
                 type="button"
@@ -114,7 +114,7 @@ export function AddAccountModal({
                 disabled={!name.trim() || busy}
               >
                 <Play size={12} fill="currentColor" />
-                <span>Launch Sandbox Login</span>
+                <span>Sign In To Another Account</span>
               </button>
             </>
           )}

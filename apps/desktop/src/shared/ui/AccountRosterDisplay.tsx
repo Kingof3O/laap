@@ -19,6 +19,8 @@ export interface AccountRosterDisplayProps {
   isCloud?: boolean
   canManage?: boolean
   busy?: boolean
+  launchingId?: string | null
+  failedLaunchId?: string | null
   onLaunch: (id: string) => void
   onSync?: (id: string) => void
   onPushToCloud?: (id: string) => void
@@ -33,6 +35,8 @@ export function AccountRosterDisplay({
   isCloud = false,
   canManage = false,
   busy = false,
+  launchingId,
+  failedLaunchId,
   onLaunch,
   onSync,
   onPushToCloud,
@@ -73,6 +77,9 @@ export function AccountRosterDisplay({
                 isCloud={isCloud}
                 canManage={canManage}
                 busy={busy}
+                isLaunching={item.id === launchingId}
+                launchFailed={item.id === failedLaunchId}
+                onRetry={() => onLaunch(item.id)}
                 onSelect={() => setSelectedId(item.id)}
                 onLaunch={() => onLaunch(item.id)}
                 onSync={onSync ? () => onSync(item.id) : undefined}
@@ -90,6 +97,8 @@ export function AccountRosterDisplay({
             isCloud={isCloud}
             canManage={canManage}
             busy={busy}
+            launchingId={launchingId}
+            failedLaunchId={failedLaunchId}
             onSelect={setSelectedId}
             onLaunch={onLaunch}
             onSync={onSync}

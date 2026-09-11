@@ -182,3 +182,45 @@ apps/api/
 | **Role-Based Access Control** | Operators only see assigned accounts and their own devices. Account creation, session syncing, and deletion require `admin` role. |
 | **Client Cleanliness** | Automatic backup and rollback ensures personal player settings are never permanently overwritten. |
 | **No Process Hooking** | Zero DLL injection, zero memory scanning, and zero reading of Riot lockfiles. |
+
+---
+
+## 6. Dual-Edition Architecture & Isolation Model
+
+LAAP is engineered to accommodate both private esports team rosters and the broader open-source gaming community through a decoupled build pipeline:
+
+```text
+                           ┌──────────────────────────┐
+                           │      LAAP Monorepo       │
+                           │     (@laap/desktop)      │
+                           └─────────────┬────────────┘
+                                         │
+                 ┌───────────────────────┴───────────────────────┐
+                 │                                               │
+                 ▼                                               ▼
+   ┌───────────────────────────┐                   ┌───────────────────────────┐
+   │    LAAP Desktop (Team)    │                   │   LAAP Offline (Solo)     │
+   ├───────────────────────────┤                   ├───────────────────────────┤
+   │ • Personal Roster (Local) │                   │ • Personal Roster (Local) │
+   │ • Cloud Shared Accounts   │                   │ • Zero Network Access     │
+   │ • JWT Bearer Auth         │                   │ • Strict CSP: connect 'none'│
+   │ • Ed25519 Hardware Keys   │                   │ • Compile-time decoupling │
+   │ • Bundle: LAAP-Setup.exe  │                   │ • Bundle: LAAP-Offline    │
+   └───────────────────────────┘                   └───────────────────────────┘
+```
+
+### 1. Operator-First Interaction Philosophy
+> **LAAP is an operator tool: Simple, Fast, and Obvious.**
+> **Pick account → Play → Riot launches → Play.**
+
+Backend complexity (leases, database transactions, vault decryption) remains strictly hidden. The UI avoids displaying distracting telemetry, real-time occupancy monitoring, or granular process states. An account is simply **Ready to Play** or **In Use**.
+
+### 2. Compile-Time Decoupling (`VITE_OFFLINE_ONLY`)
+- When built with `npm run build:offline`, the bundler defines `VITE_OFFLINE_ONLY=true`.
+- In `src/lib/api.ts`, all remote network calls (`fetchAccounts`, `fetchActiveLease`, `loginUser`, `logoutUser`, etc.) are stripped or return immediate offline fallbacks.
+- The **Shared Accounts** navigation tabs, login views, and lease banners are completely removed from the DOM.
+- `tauri.offline.conf.json` enforces a strict Content Security Policy:
+  ```json
+  "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'none'; img-src 'self' data: asset: http://asset.localhost;"
+  ```
+- Public community users can inspect the source code and run the application with guaranteed zero-network egress.

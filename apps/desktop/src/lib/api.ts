@@ -1,6 +1,10 @@
 import { AUTH_TOKEN_KEY } from './constants'
 
-export const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '') || 'https://laap-api.hussiensalah100.workers.dev'
+export const IS_OFFLINE_ONLY = import.meta.env.VITE_OFFLINE_ONLY === 'true'
+
+export const API_BASE = IS_OFFLINE_ONLY
+  ? ''
+  : (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '') || 'https://laap-api.hussiensalah100.workers.dev'
 
 export async function invokeTauri<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   const tauri = await import('@tauri-apps/api/core')

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { LogIn, ShieldCheck } from 'lucide-react'
+import { Eye, EyeOff, LogIn } from 'lucide-react'
 
 interface LoginViewProps {
   onLogin: (email: string, pass: string, remember: boolean) => Promise<void>
@@ -8,13 +8,15 @@ interface LoginViewProps {
 }
 
 export function LoginView({ onLogin, busy, error }: LoginViewProps) {
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => localStorage.getItem('laap_desktop_email') || '')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(true)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!email || !password || busy) return
+    localStorage.setItem('laap_desktop_email', email)
     await onLogin(email, password, rememberMe)
   }
 
@@ -50,15 +52,39 @@ export function LoginView({ onLogin, busy, error }: LoginViewProps) {
 
           <div className="field-block">
             <label className="field-label">Password</label>
-            <input
-              type="password"
-              className="hextech-input"
-              placeholder="••••••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={busy}
-              required
-            />
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                className="hextech-input"
+                placeholder="••••••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={busy}
+                style={{ paddingRight: '36px' }}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                disabled={busy}
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-secondary, #94a3b8)',
+                  cursor: 'pointer',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                title={showPassword ? 'Hide password' : 'Show password'}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
           </div>
 
           <label className="checkbox-row">

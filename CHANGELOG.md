@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.0] - 2026-09-11
+
+### 🚀 Dual-Edition Releases & Operator-First Launcher
+- **Dual-Edition Architecture**:
+  - **LAAP Desktop (Team Edition)**: Full client containing Personal Roster and Cloud Shared Accounts pool with atomic lease concurrency control.
+  - **LAAP Offline (Community Edition)**: 100% local-only build with compile-time decoupling (`VITE_OFFLINE_ONLY=true`) and strict local CSP (`connect-src 'none'`), providing zero-network privacy for solo players and the open-source community.
+- **Overhauled Windows Installer Experience**:
+  - Configured NSIS `installMode = "currentUser"`: completely eliminates the Windows UAC elevation warning screen, installing cleanly to `%LOCALAPPDATA%\Programs\LAAP` with standard user rights.
+  - Custom 24-bit uncompressed RGB Hextech dark/gold artwork (`nsis-sidebar.bmp` and `nsis-header.bmp`).
+- **Operator-Centric Flow**:
+  - Simplified interaction loop: **"Pick account → Play → Riot launches → Play"**.
+  - Refreshed high-resolution documentation screenshots for Tactical Grid, Compact Table, and Shared Accounts views.
+- **Automated 4-Way Release Pipeline**:
+  - GitHub Actions matrix compiles macOS Team (`.dmg`), macOS Offline (`.dmg`), Windows Team (`.exe`, `.msi`), and Windows Offline (`.exe`, `.msi`) in parallel on release tags.
+
+---
+
 ## [0.3.0] - 2026-09-05
 
 ### ⚡ Simplified Architecture & Robust Online Engine

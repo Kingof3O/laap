@@ -3,6 +3,7 @@ dist
 .env
 .env.*
 !.env.example
+!apps/desktop/.env.offline
 .DS_Store
 ._*
 *.swp

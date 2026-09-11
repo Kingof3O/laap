@@ -148,21 +148,39 @@ npx --workspace @laap/desktop tauri build --bundles msi,nsis
 
 ## 6. GitHub Actions Automated Multi-Platform Desktop Releases
 
-Desktop release binaries are automatically cross-compiled for **both Windows and macOS** via `.github/workflows/release-desktop.yml`:
+Desktop release binaries are automatically cross-compiled for **both Windows and macOS** in two separate editions via `.github/workflows/release-desktop.yml`:
 
 ```yaml
 jobs:
   release:
-    matrix:
-      include:
-        - platform: macos-latest
-          args: '--target universal-apple-darwin'
-        - platform: windows-latest
-          args: ''
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            edition: team
+            args: '--target universal-apple-darwin'
+            targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
+          - platform: macos-latest
+            edition: offline
+            args: '--target universal-apple-darwin --config src-tauri/tauri.offline.conf.json'
+            targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
+          - platform: windows-latest
+            edition: team
+            args: ''
+            targets: ''
+          - platform: windows-latest
+            edition: offline
+            args: '--config src-tauri/tauri.offline.conf.json'
+            targets: ''
 ```
 
-When a release tag (e.g. `v0.2.0`) is published:
-1. `macos-latest` compiles the universal Apple Silicon & Intel `.dmg` installer and `.app` bundle.
-2. `windows-latest` compiles the Windows 64-bit WiX `.msi` installer and NSIS `.exe` standalone setup.
+When a release tag (e.g. `v0.4.0`) is published:
+1. **Team Edition**:
+   - `macos-latest` compiles `LAAP Desktop.dmg` & universal `.app` (supports Personal Roster + Cloud Shared Accounts).
+   - `windows-latest` compiles `LAAP-Setup.exe` (NSIS with custom Hextech bitmaps & zero-UAC installation) and `LAAP-Setup.msi`.
+2. **Offline Community Edition**:
+   - `macos-latest` compiles `LAAP Offline.dmg` & universal `.app` (`VITE_OFFLINE_ONLY=true`, local CSP `connect-src 'none'`).
+   - `windows-latest` compiles `LAAP-Offline-Setup.exe` (NSIS zero-UAC) and `LAAP-Offline-Setup.msi`.
 3. The artifacts are automatically attached to the official GitHub Release for public download, and archived in the GitHub Actions run.
 4. Installed LAAP Desktop clients automatically query `https://api.github.com/repos/Kingof3O/laap/releases/latest`, displaying the in-app Hextech update modal with a 1-click download CTA.

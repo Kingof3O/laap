@@ -7,7 +7,7 @@ import { TeamVaultView } from './features/team-vault'
 import { useAuth } from './features/auth'
 import { useUpdateChecker } from './hooks/useUpdateChecker'
 import { VIEW_MODE_KEY } from './lib/constants'
-import { apiRequest, hasTauri, invokeTauri } from './lib/api'
+import { apiRequest, hasTauri, invokeTauri, IS_OFFLINE_ONLY } from './lib/api'
 import type { AppMode, Region, ViewMode } from './lib/types'
 
 function AppContent() {
@@ -93,10 +93,13 @@ function AppContent() {
       {/* Top Header */}
       <Header
         appMode={appMode}
-        onModeChange={setAppMode}
-        user={user}
+        onModeChange={(m) => {
+          if (!IS_OFFLINE_ONLY) setAppMode(m)
+        }}
+        user={IS_OFFLINE_ONLY ? null : user}
         onRefresh={() => window.dispatchEvent(new Event('laap:refresh'))}
         onOpenSettings={() => setShowSettingsModal(true)}
+        isOfflineOnly={IS_OFFLINE_ONLY}
       />
 
       {/* Sub Navigation Bar */}
@@ -121,11 +124,11 @@ function AppContent() {
             searchQuery={searchQuery}
             selectedRegion={selectedRegion}
             viewMode={viewMode}
-            isAdmin={user?.role === 'admin'}
+            isAdmin={!IS_OFFLINE_ONLY && user?.role === 'admin'}
             showAddModal={showAddModal}
             onCloseAddModal={() => setShowAddModal(false)}
             onOpenAddModal={() => setShowAddModal(true)}
-            onPushToCloud={async (name, region, sessionBlob) => {
+            onPushToCloud={!IS_OFFLINE_ONLY && user?.role === 'admin' ? async (name, region, sessionBlob) => {
               const result = await apiRequest<{ accountId: string }>('/api/accounts', {
                 method: 'POST',
                 body: JSON.stringify({
@@ -140,7 +143,7 @@ function AppContent() {
                 body: JSON.stringify({ sessionBlob }),
               })
               showSuccess(`Account "${name}" published to Shared Accounts!`)
-            }}
+            } : undefined}
             onCountChange={setLocalCount}
           />
         ) : (
@@ -161,7 +164,7 @@ function AppContent() {
 
       {/* Settings Modal */}
       <SettingsModal
-        user={user}
+        user={IS_OFFLINE_ONLY ? null : user}
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
         onResetRiot={handleResetRiot}

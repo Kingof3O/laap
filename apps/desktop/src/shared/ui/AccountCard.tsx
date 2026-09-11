@@ -1,4 +1,4 @@
-import { KeyRound, Play, RotateCcw, Trash2, UploadCloud, Zap } from 'lucide-react'
+import { KeyRound, Loader2, Play, RotateCcw, Trash2, UploadCloud, Zap } from 'lucide-react'
 
 export interface AccountCardProps {
   id: string
@@ -11,8 +11,11 @@ export interface AccountCardProps {
   isCloud?: boolean
   canManage?: boolean
   busy?: boolean
+  isLaunching?: boolean
+  launchFailed?: boolean
   onSelect?: () => void
   onLaunch: () => void
+  onRetry?: () => void
   onSync?: () => void
   onPushToCloud?: () => void
   onForceRelease?: () => void
@@ -23,15 +26,18 @@ export interface AccountCardProps {
 export function AccountCard({
   name,
   region,
-  lastUsedText,
+  lastUsedText: _lastUsedText,
   hasSession = true,
   status = 'Available',
   isSelected = false,
   isCloud = false,
   canManage = false,
   busy = false,
+  isLaunching = false,
+  launchFailed = false,
   onSelect,
   onLaunch,
+  onRetry,
   onSync,
   onPushToCloud,
   onForceRelease,
@@ -70,22 +76,19 @@ export function AccountCard({
               {isLeased ? (
                 <span className="status-indicator status-indicator-warn">
                   <span className="status-beacon status-beacon-amber" />
-                  Currently In Use
+                  In Use
                 </span>
               ) : hasSession ? (
                 <span className="status-indicator status-indicator-ready">
                   <span className="status-beacon status-beacon-ready" />
-                  Ready to Launch
+                  Ready
                 </span>
               ) : (
                 <span className="status-indicator status-indicator-warn">
                   <span className="status-beacon status-beacon-amber" />
-                  Needs Session Sync
+                  Needs Login
                 </span>
               )}
-              {lastUsedText ? (
-                <span className="last-played-text">· {lastUsedText}</span>
-              ) : null}
             </div>
           </div>
         </div>
@@ -163,9 +166,29 @@ export function AccountCard({
               className="btn-launch-primary"
               disabled
             >
-              <span>Currently In Use</span>
+              <span>In Use</span>
             </button>
           )
+        ) : isLaunching ? (
+          <button
+            type="button"
+            className="btn-launch-primary"
+            disabled
+          >
+            <Loader2 size={13} className="animate-spin" />
+            <span>Preparing…</span>
+          </button>
+        ) : launchFailed ? (
+          <button
+            type="button"
+            className="btn-launch-primary"
+            style={{ background: 'rgba(239, 68, 68, 0.2)', borderColor: 'rgba(239, 68, 68, 0.4)', color: '#fca5a5' }}
+            onClick={onRetry ?? onLaunch}
+            disabled={busy && !isLaunching}
+          >
+            <RotateCcw size={13} />
+            <span>Couldn&apos;t launch · Retry</span>
+          </button>
         ) : (
           <button
             type="button"
@@ -174,7 +197,7 @@ export function AccountCard({
             disabled={busy}
           >
             <Play size={13} fill="currentColor" />
-            <span>{isCloud ? 'Claim & Launch' : 'Play Game'}</span>
+            <span>Play</span>
           </button>
         )}
       </div>

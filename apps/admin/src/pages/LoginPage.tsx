@@ -1,18 +1,24 @@
 import { useState, type FormEvent } from 'react'
-import { ArrowRight, KeyRound } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, KeyRound } from 'lucide-react'
 import { GlassCard } from '../components/GlassCard'
 
 type LoginPageProps = { onSubmit: (email: string, password: string, remember: boolean) => Promise<void>; error: string | null; demoAvailable: boolean }
 
 export function LoginPage({ onSubmit, error, demoAvailable }: LoginPageProps) {
-  const [email, setEmail] = useState(import.meta.env.DEV ? 'admin@laap.local' : '')
+  const [email, setEmail] = useState(() => localStorage.getItem('laap_admin_email') || (import.meta.env.DEV ? 'admin@laap.local' : ''))
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [remember, setRemember] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSubmitting(true)
-    try { await onSubmit(email, password, remember) } finally { setSubmitting(false) }
+    try {
+      localStorage.setItem('laap_admin_email', email)
+      await onSubmit(email, password, remember)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -35,7 +41,31 @@ export function LoginPage({ onSubmit, error, demoAvailable }: LoginPageProps) {
             <p className="eyebrow">Sign in</p><h1 className="mt-2 text-3xl font-semibold tracking-[-0.045em] text-slate-100">Welcome back.</h1><p className="mt-3 text-sm leading-6 text-slate-400">Continue to your LAAP workspace.</p></div>
           <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
             <div><label className="mb-2 block text-xs font-medium text-slate-300" htmlFor="email">Email</label><input id="email" value={email} onChange={(event) => setEmail(event.target.value)} className="input-base h-12 w-full px-3 text-sm" type="email" autoComplete="username" required /></div>
-            <div><label className="mb-2 block text-xs font-medium text-slate-300" htmlFor="password">Password</label><div className="relative"><KeyRound aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={15} /><input id="password" value={password} onChange={(event) => setPassword(event.target.value)} className="input-base h-12 w-full px-3 pl-9 text-sm" type="password" autoComplete="current-password" required /></div></div>
+            <div>
+              <label className="mb-2 block text-xs font-medium text-slate-300" htmlFor="password">Password</label>
+              <div className="relative">
+                <KeyRound aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={15} />
+                <input
+                  id="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="input-base h-12 w-full px-3 pl-9 pr-10 text-sm"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  disabled={submitting}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 focus:outline-none"
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
             <div className="flex items-center justify-between text-xs">
               <label className="flex cursor-pointer items-center gap-2 text-slate-400 select-none hover:text-slate-200">
                 <input

@@ -149,16 +149,35 @@ npm run build
 
 ## 📦 Native Release Packaging
 
-### On macOS
+LAAP supports two distinct build targets via environment configurations and Tauri manifest files:
+
+### 1. LAAP Desktop (Team Edition)
+Includes both Personal Roster and Cloud Shared Accounts pool:
+
 ```bash
+# On macOS (generates LAAP Desktop.dmg & .app)
 npm run build
 npx tauri build --bundles app,dmg
-```
-Generates universal Apple Silicon / Intel `.dmg` and `.app` bundles in `src-tauri/target/release/bundle/`.
 
-### On Windows (PowerShell)
-```powershell
+# On Windows (generates LAAP-Setup.exe & .msi)
 npm run build
 npx tauri build --bundles msi,nsis
 ```
-Generates Windows Installer (`.msi`) and standalone setup executable (`.exe`) in `src-tauri\target\release\bundle\`.
+
+### 2. LAAP Offline (Community Edition)
+Compiles a 100% offline binary with zero cloud API footprint and strict local CSP:
+
+```bash
+# On macOS (generates LAAP Offline.dmg & .app)
+npm run build:offline
+npx tauri build --config src-tauri/tauri.offline.conf.json --bundles app,dmg
+
+# On Windows (generates LAAP-Offline-Setup.exe & .msi)
+npm run build:offline
+npx tauri build --config src-tauri/tauri.offline.conf.json --bundles msi,nsis
+```
+
+### 🛠️ Windows Installer Architecture
+- **Zero UAC Elevation**: Configured with `bundle.windows.nsis.installMode = "currentUser"` to install seamlessly to `%LOCALAPPDATA%\Programs\LAAP` without requiring Administrator privileges or triggering security prompts.
+- **Hextech Visual Styling**: Custom 24-bit uncompressed RGB header (`nsis-header.bmp`) and sidebar (`nsis-sidebar.bmp`) graphics matching the in-app tactical aesthetic.
+- **Fast Clean Uninstallation**: Completely self-contained uninstaller registered cleanly in Windows Apps & Features.

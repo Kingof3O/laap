@@ -84,16 +84,21 @@ export function PersonalRosterView({
     onCountChange?.(filteredAccounts.length)
   }, [filteredAccounts.length, onCountChange])
 
+  const [launchingId, setLaunchingId] = useState<string | null>(null)
+  const [failedLaunchId, setFailedLaunchId] = useState<string | null>(null)
+
   const handleLaunch = async (id: string) => {
     setBusy(true)
-    showSuccess('Injecting session and booting League of Legends…')
+    setLaunchingId(id)
+    setFailedLaunchId(null)
     try {
       await launchAccount(id)
-      showSuccess('League of Legends launched!')
     } catch (cause) {
+      setFailedLaunchId(id)
       showError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setBusy(false)
+      setLaunchingId(null)
     }
   }
 
@@ -200,6 +205,8 @@ export function PersonalRosterView({
           isCloud={false}
           canManage={true}
           busy={busy}
+          launchingId={launchingId}
+          failedLaunchId={failedLaunchId}
           onLaunch={handleLaunch}
           onPushToCloud={isAdmin && onPushToCloud ? handlePush : undefined}
           onDelete={(id, name) => setDeleteTarget({ id, name })}
