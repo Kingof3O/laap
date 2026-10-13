@@ -20,6 +20,8 @@ function AppContent() {
     }
   })
   const [selectedRegion, setSelectedRegion] = useState<Region>('ALL')
+  const [selectedRank, setSelectedRank] = useState('all')
+  const [rankOptions, setRankOptions] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
@@ -38,6 +40,12 @@ function AppContent() {
     dismissUpdate,
     openReleasePage,
   } = useUpdateChecker()
+
+  useEffect(() => {
+    if (selectedRank.startsWith('rank:') && !rankOptions.some((rank) => `rank:${rank.toLowerCase()}` === selectedRank)) {
+      setSelectedRank('all')
+    }
+  }, [rankOptions, selectedRank])
 
   const handleManualCheckUpdates = async () => {
     const release = await checkForUpdates(true)
@@ -109,6 +117,9 @@ function AppContent() {
           onSearchChange={setSearchQuery}
           selectedRegion={selectedRegion}
           onRegionChange={setSelectedRegion}
+          selectedRank={selectedRank}
+          rankOptions={rankOptions}
+          onRankChange={appMode === 'local' ? setSelectedRank : undefined}
           viewMode={viewMode}
           onViewModeChange={handleViewModeChange}
           onAddAccount={appMode === 'local' ? () => setShowAddModal(true) : undefined}
@@ -123,6 +134,8 @@ function AppContent() {
           <PersonalRosterView
             searchQuery={searchQuery}
             selectedRegion={selectedRegion}
+            selectedRank={selectedRank}
+            onRankOptionsChange={setRankOptions}
             viewMode={viewMode}
             isAdmin={!IS_OFFLINE_ONLY && user?.role === 'admin'}
             showAddModal={showAddModal}

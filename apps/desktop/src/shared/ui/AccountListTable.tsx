@@ -4,6 +4,7 @@ export interface TableItem {
   id: string
   name: string
   region: string
+  rank?: string | null
   hasSession: boolean
   lastUsedText?: string | null
   status?: string
@@ -71,7 +72,10 @@ export function AccountListTable({
                 <td>
                   <div className="table-profile-cell">
                     <div className="table-avatar">{item.name.slice(0, 2).toUpperCase()}</div>
-                    <span className="table-name">{item.name}</span>
+                    <div className="table-profile-details">
+                      <span className="table-name">{item.name}</span>
+                      {item.rank ? <span className="account-rank-label" title={`Rank: ${item.rank}`}>{item.rank}</span> : null}
+                    </div>
                   </div>
                 </td>
                 <td>

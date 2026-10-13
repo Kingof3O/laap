@@ -5,8 +5,8 @@ import { SELECTABLE_REGIONS } from '../../lib/constants'
 interface AddAccountModalProps {
   isOpen: boolean
   onClose: () => void
-  onCaptureActive: (name: string, region: string) => Promise<void>
-  onStartSandbox: (name: string, region: string) => Promise<void>
+  onCaptureActive: (name: string, region: string, rank: string) => Promise<void>
+  onStartSandbox: (name: string, region: string, rank: string) => Promise<void>
   onCancelSandbox: () => Promise<void>
   provisioning: boolean
   busy: boolean
@@ -23,6 +23,7 @@ export function AddAccountModal({
 }: AddAccountModalProps) {
   const [name, setName] = useState('')
   const [region, setRegion] = useState('EUW')
+  const [rank, setRank] = useState('')
 
   if (!isOpen) return null
 
@@ -73,6 +74,20 @@ export function AddAccountModal({
             </select>
           </div>
 
+          <div className="field-block">
+            <label className="field-label" htmlFor="account-rank">Rank Label (Optional)</label>
+            <input
+              id="account-rank"
+              type="text"
+              className="hextech-input"
+              placeholder="e.g. Diamond II, Master, Unranked"
+              value={rank}
+              onChange={(e) => setRank(e.target.value)}
+              maxLength={40}
+              disabled={provisioning || busy}
+            />
+          </div>
+
           {provisioning ? (
             <div style={{ padding: '16px', background: 'rgba(200, 170, 110, 0.08)', borderRadius: '8px', border: '1px solid rgba(200, 170, 110, 0.25)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--gold-light)', fontSize: '13px', fontWeight: 600 }}>
@@ -101,7 +116,7 @@ export function AddAccountModal({
               <button
                 type="button"
                 className="btn-modal-secondary"
-                onClick={() => void onCaptureActive(name, region)}
+                onClick={() => void onCaptureActive(name, region, rank.trim())}
                 disabled={!name.trim() || busy}
                 title="Save current logged-in Riot account without re-entering credentials"
               >
@@ -110,7 +125,7 @@ export function AddAccountModal({
               <button
                 type="button"
                 className="btn-modal-primary"
-                onClick={() => void onStartSandbox(name, region)}
+                onClick={() => void onStartSandbox(name, region, rank.trim())}
                 disabled={!name.trim() || busy}
               >
                 <Play size={12} fill="currentColor" />

@@ -140,3 +140,11 @@
   background: var(--status-danger-bg);
   color: var(--status-danger);
 }
+
+.table-profile-details {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}

@@ -43,13 +43,24 @@ impl LocalStore {
         name: String,
         region: String,
         session_blob: String,
+        rank: Option<String>,
     ) -> Result<LocalAccount, String> {
+        let rank = rank
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        if rank
+            .as_ref()
+            .is_some_and(|value| value.chars().count() > 40)
+        {
+            return Err("Rank label must be 40 characters or fewer".to_string());
+        }
         let mut accounts = self.load_accounts()?;
         let id = format!("{:08x}", rand::random::<u32>());
         let account = LocalAccount {
             id,
             name,
             region,
+            rank,
             session_blob,
             created_at: Utc::now().to_rfc3339(),
             last_used_at: None,

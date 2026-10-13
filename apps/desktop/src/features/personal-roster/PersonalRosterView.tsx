@@ -9,6 +9,8 @@ import type { Region, ViewMode } from '../../lib/types'
 interface PersonalRosterViewProps {
   searchQuery: string
   selectedRegion: Region
+  selectedRank: string
+  onRankOptionsChange: (ranks: string[]) => void
   viewMode: ViewMode
   isAdmin: boolean
   showAddModal: boolean
@@ -21,6 +23,8 @@ interface PersonalRosterViewProps {
 export function PersonalRosterView({
   searchQuery,
   selectedRegion,
+  selectedRank,
+  onRankOptionsChange,
   viewMode,
   isAdmin,
   showAddModal,
@@ -31,7 +35,7 @@ export function PersonalRosterView({
 }: PersonalRosterViewProps) {
   const { showSuccess, showError } = useToast()
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
-  const [pendingSandboxProfile, setPendingSandboxProfile] = useState<{ name: string; region: string } | null>(null)
+  const [pendingSandboxProfile, setPendingSandboxProfile] = useState<{ name: string; region: string; rank: string } | null>(null)
   const [busy, setBusy] = useState(false)
 
   const {
@@ -60,7 +64,7 @@ export function PersonalRosterView({
         throw new Error('No profile details were provided for this login.')
       }
       showSuccess('Session captured! Saving profile…')
-      await saveAccount(profile.name, profile.region, captured)
+      await saveAccount(profile.name, profile.region, captured, profile.rank)
       await finishSandbox()
       onCloseAddModal()
       setPendingSandboxProfile(null)
@@ -70,15 +74,30 @@ export function PersonalRosterView({
     onError: (err) => showError(err.message),
   })
 
+  const rankOptions = useMemo(() => {
+    const labels = new Map<string, string>()
+    for (const account of localAccounts) {
+      const rank = account.rank?.trim()
+      if (rank && !labels.has(rank.toLowerCase())) labels.set(rank.toLowerCase(), rank)
+    }
+    return [...labels.values()].sort((a, b) => a.localeCompare(b))
+  }, [localAccounts])
+
+  useEffect(() => {
+    onRankOptionsChange(rankOptions)
+  }, [rankOptions, onRankOptionsChange])
+
   const filteredAccounts = useMemo(() => {
     return localAccounts.filter((acc) => {
       const matchRegion = selectedRegion === 'ALL' || acc.region.toUpperCase() === selectedRegion
+      const rank = acc.rank?.trim().toLowerCase() ?? ''
+      const matchRank = selectedRank === 'all' || (selectedRank === 'unlabeled' ? !rank : selectedRank === `rank:${rank}`)
       const matchSearch =
         !searchQuery.trim() ||
-        `${acc.name} ${acc.region}`.toLowerCase().includes(searchQuery.trim().toLowerCase())
-      return matchRegion && matchSearch
+        `${acc.name} ${acc.region} ${acc.rank ?? ''}`.toLowerCase().includes(searchQuery.trim().toLowerCase())
+      return matchRegion && matchRank && matchSearch
     })
-  }, [localAccounts, selectedRegion, searchQuery])
+  }, [localAccounts, selectedRegion, selectedRank, searchQuery])
 
   useEffect(() => {
     onCountChange?.(filteredAccounts.length)
@@ -102,7 +121,7 @@ export function PersonalRosterView({
     }
   }
 
-  const handleCaptureActive = async (name: string, region: string) => {
+  const handleCaptureActive = async (name: string, region: string, rank = '') => {
     setBusy(true)
     showSuccess('Inspecting local Riot settings…')
     try {
@@ -110,7 +129,7 @@ export function PersonalRosterView({
       if (!sessionBlob) {
         throw new Error('No saved Riot login found. Sign in to Riot Client with "Stay signed in" enabled, then import again.')
       }
-      await saveAccount(name, region, sessionBlob)
+      await saveAccount(name, region, sessionBlob, rank)
       onCloseAddModal()
       showSuccess(`Account "${name}" registered successfully!`)
       await loadAccounts()
@@ -121,9 +140,9 @@ export function PersonalRosterView({
     }
   }
 
-  const handleStartSandbox = async (_name: string, _region: string) => {
+  const handleStartSandbox = async (_name: string, _region: string, rank: string) => {
     setBusy(true)
-    setPendingSandboxProfile({ name: _name.trim(), region: _region })
+    setPendingSandboxProfile({ name: _name.trim(), region: _region, rank })
     showSuccess('Opening Riot Client in isolated sandbox…')
     try {
       await startSandbox()
@@ -179,7 +198,7 @@ export function PersonalRosterView({
       {filteredAccounts.length === 0 ? (
         <EmptyState
           isCloud={false}
-          searchActive={Boolean(searchQuery || selectedRegion !== 'ALL')}
+          searchActive={Boolean(searchQuery || selectedRegion !== 'ALL' || selectedRank !== 'all')}
           onAction={onOpenAddModal}
           onQuickImport={() => {
             void handleCaptureActive('Active Summoner', selectedRegion === 'ALL' ? 'EUW' : selectedRegion)
@@ -191,6 +210,7 @@ export function PersonalRosterView({
             id: acc.id,
             name: acc.name,
             region: acc.region,
+            rank: acc.rank,
             hasSession: true,
             lastUsedText: acc.last_used_at
               ? new Date(acc.last_used_at).toLocaleDateString([], {

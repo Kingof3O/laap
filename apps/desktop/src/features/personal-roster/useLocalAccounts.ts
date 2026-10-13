@@ -66,11 +66,12 @@ export function useLocalAccounts() {
     return () => window.removeEventListener('laap:refresh', handleRefresh)
   }, [loadAccounts])
 
-  const saveAccount = async (name: string, region: string, sessionBlob: string) => {
+  const saveAccount = async (name: string, region: string, sessionBlob: string, rank = '') => {
     if (!hasTauri) {
       const newAcc: LocalAccountSummary = {
         id: `acc-${Date.now()}`,
         name: name.trim(),
+        rank: rank.trim() || null,
         region,
         has_session: true,
         last_used_at: new Date().toISOString(),
@@ -85,6 +86,7 @@ export function useLocalAccounts() {
       name: name.trim(),
       region,
       sessionBlob,
+      rank: rank.trim() || null,
     })
     await loadAccounts()
     return result

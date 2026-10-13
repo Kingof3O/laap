@@ -7,6 +7,9 @@ export interface SubNavbarProps {
   onSearchChange: (query: string) => void
   selectedRegion: Region
   onRegionChange: (region: Region) => void
+  selectedRank?: string
+  rankOptions?: string[]
+  onRankChange?: (rank: string) => void
   viewMode: ViewMode
   onViewModeChange: (mode: ViewMode) => void
   onAddAccount?: () => void
@@ -19,6 +22,9 @@ export function SubNavbar({
   onSearchChange,
   selectedRegion,
   onRegionChange,
+  selectedRank = 'all',
+  rankOptions = [],
+  onRankChange,
   viewMode,
   onViewModeChange,
   onAddAccount,
@@ -64,6 +70,20 @@ export function SubNavbar({
             </button>
           ))}
         </div>
+        {onRankChange ? (
+          <select
+            className="rank-filter"
+            aria-label="Filter by rank"
+            value={selectedRank}
+            onChange={(e) => onRankChange(e.target.value)}
+          >
+            <option value="all">All ranks</option>
+            <option value="unlabeled">No rank label</option>
+            {rankOptions.map((rank) => (
+              <option key={rank.toLowerCase()} value={`rank:${rank.toLowerCase()}`}>{rank}</option>
+            ))}
+          </select>
+        ) : null}
       </div>
 
       {/* View Switcher & Add Action */}

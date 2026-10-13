@@ -24,9 +24,10 @@ pub fn save_local_account(
     name: String,
     region: String,
     session_blob: String,
+    rank: Option<String>,
 ) -> Result<LocalAccountSummary, String> {
     let store = LocalStore::new()?;
-    let account = store.add_account(name, region, session_blob)?;
+    let account = store.add_account(name, region, session_blob, rank)?;
     Ok(LocalAccountSummary::from(&account))
 }
 

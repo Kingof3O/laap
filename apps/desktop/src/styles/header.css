@@ -155,6 +155,7 @@
 /* Sub-Navbar Toolbar */
 .sub-navbar {
   display: flex;
+  gap: 16px;
   align-items: center;
   justify-content: space-between;
   padding: 12px 24px;
@@ -164,6 +165,7 @@
 
 .filter-controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   flex: 1;
@@ -299,4 +301,21 @@
   background: rgba(200, 170, 110, 0.15);
   border-color: var(--gold-primary);
   transform: translateY(-1px);
+}
+
+.rank-filter {
+  height: 32px;
+  max-width: 180px;
+  padding: 0 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  font: inherit;
+  font-size: 12px;
+}
+
+.rank-filter:focus-visible {
+  outline: 1px solid var(--gold-primary);
+  border-color: var(--gold-primary);
 }

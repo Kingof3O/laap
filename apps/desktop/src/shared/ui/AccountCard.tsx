@@ -4,6 +4,7 @@ export interface AccountCardProps {
   id: string
   name: string
   region: string
+  rank?: string | null
   lastUsedText?: string | null
   hasSession?: boolean
   status?: string
@@ -26,6 +27,7 @@ export interface AccountCardProps {
 export function AccountCard({
   name,
   region,
+  rank,
   lastUsedText: _lastUsedText,
   hasSession = true,
   status = 'Available',
@@ -73,6 +75,7 @@ export function AccountCard({
               <span className="card-name" title={name}>{name}</span>
             </div>
             <div className="card-meta">
+              {rank ? <span className="account-rank-label" title={`Rank: ${rank}`}>{rank}</span> : null}
               {isLeased ? (
                 <span className="status-indicator status-indicator-warn">
                   <span className="status-beacon status-beacon-amber" />

@@ -8,6 +8,7 @@ export interface RosterItem {
   id: string
   name: string
   region: string
+  rank?: string | null
   hasSession: boolean
   lastUsedText?: string | null
   status?: string
@@ -70,6 +71,7 @@ export function AccountRosterDisplay({
                 id={item.id}
                 name={item.name}
                 region={item.region}
+                rank={item.rank}
                 hasSession={item.hasSession}
                 lastUsedText={item.lastUsedText}
                 status={item.status}

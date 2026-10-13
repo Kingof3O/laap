@@ -27,6 +27,7 @@ mod tests {
                 "Test#EUW".to_string(),
                 "EUW".to_string(),
                 "yaml-data-1".to_string(),
+                Some(" Diamond II ".to_string()),
             )
             .unwrap();
         let acc2 = store
@@ -34,6 +35,7 @@ mod tests {
                 "Test#NA".to_string(),
                 "NA".to_string(),
                 "yaml-data-2".to_string(),
+                None,
             )
             .unwrap();
 
@@ -41,6 +43,8 @@ mod tests {
         assert_eq!(list.len(), 2);
         assert_eq!(list[0].name, "Test#EUW");
         assert_eq!(list[1].name, "Test#NA");
+        assert_eq!(list[0].rank.as_deref(), Some("Diamond II"));
+        assert_eq!(list[1].rank, None);
         let raw = fs::read_to_string(test_dir.join(super::storage::LOCAL_STORE_FILENAME)).unwrap();
         assert!(!raw.contains("yaml-data-1"));
         assert!(raw.contains("laap-local:v1:"));
@@ -49,6 +53,7 @@ mod tests {
         let summaries = store.list_summaries().unwrap();
         assert_eq!(summaries.len(), 2);
         assert!(summaries[0].has_session);
+        assert_eq!(summaries[0].rank.as_deref(), Some("Diamond II"));
 
         // 4. Delete acc1
         store.delete_account(&acc1.id).unwrap();

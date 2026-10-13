@@ -22,6 +22,7 @@ export interface Account {
 }
 
 export interface LocalAccountSummary {
+  rank?: string | null
   id: string
   name: string
   region: string
@@ -31,6 +32,7 @@ export interface LocalAccountSummary {
 }
 
 export interface LocalAccountFull {
+  rank?: string | null
   id: string
   name: string
   region: string

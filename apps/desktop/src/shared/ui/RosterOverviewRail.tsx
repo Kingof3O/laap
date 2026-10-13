@@ -76,6 +76,13 @@ export function RosterOverviewRail({
               </div>
             </div>
 
+            {selectedItem.rank ? (
+              <div className="pod-field">
+                <span className="pod-field-label">Rank</span>
+                <span className="account-rank-label" title={selectedItem.rank}>{selectedItem.rank}</span>
+              </div>
+            ) : null}
+
             <div className="pod-field">
               <span className="pod-field-label">Last Played</span>
               <span className="pod-field-value">{selectedItem.lastUsedText || 'Never played'}</span>
