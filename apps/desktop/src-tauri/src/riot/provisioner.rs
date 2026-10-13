@@ -1,3 +1,4 @@
+use super::session_format::has_persisted_session;
 use super::session_manager::RiotSessionManager;
 use std::fs;
 use std::time::Instant;
@@ -71,11 +72,7 @@ impl RiotProvisioner {
                     }
                 }
                 if let Ok(content) = fs::read_to_string(&path) {
-                    if content.contains("login_remember_me_tokens:")
-                        || content.contains("rso_token:")
-                        || content.contains("rso_access_token:")
-                        || content.contains("remember_me")
-                    {
+                    if has_persisted_session(&content) {
                         return Ok(Some(content));
                     }
                 }

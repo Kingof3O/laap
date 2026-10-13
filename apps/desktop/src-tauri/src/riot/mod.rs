@@ -1,6 +1,7 @@
 pub mod paths;
 pub mod process;
 pub mod provisioner;
+mod session_format;
 pub mod session_manager;
 
 pub use paths::{detect_riot_data_dir, RIOT_SETTINGS_FILENAMES};
@@ -12,6 +13,41 @@ pub use session_manager::RiotSessionManager;
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn current_session_is_detected_by_import_and_provisioning() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "riot_current_format_test_{}_{}",
+            std::process::id(),
+            rand::random::<u32>()
+        ));
+        fs::create_dir_all(&temp_dir).unwrap();
+        let manager = RiotSessionManager::with_custom_dir(temp_dir.clone());
+        let provisioner = RiotProvisioner::with_manager(manager.clone());
+        let settings = "psl:\n  authorization:\n    riot-client:\n      refresh_token: test-refresh-token\nriot-login:\n  persist: null\n";
+
+        // An empty first candidate must not hide a valid second candidate.
+        fs::write(
+            temp_dir.join(RIOT_SETTINGS_FILENAMES[0]),
+            "remember_me: false\n",
+        )
+        .unwrap();
+        fs::write(temp_dir.join(RIOT_SETTINGS_FILENAMES[1]), settings).unwrap();
+        assert_eq!(manager.read_active_session().as_deref(), Some(settings));
+        assert_eq!(
+            provisioner.poll_captured_session().unwrap().as_deref(),
+            Some(settings)
+        );
+
+        fs::write(
+            temp_dir.join(RIOT_SETTINGS_FILENAMES[1]),
+            "riot-login:\n  persist: null\n",
+        )
+        .unwrap();
+        assert_eq!(manager.read_active_session(), None);
+        assert_eq!(provisioner.poll_captured_session().unwrap(), None);
+        fs::remove_dir_all(temp_dir).unwrap();
+    }
 
     #[test]
     fn test_session_injection_and_cleanup() {

@@ -2,6 +2,7 @@ use super::paths::{detect_riot_data_dir, RIOT_SETTINGS_FILENAMES};
 use super::process::{
     is_riot_running, runtime_snapshot, terminate_riot_processes, RuntimeSnapshot,
 };
+use super::session_format::has_persisted_session;
 use std::fs;
 use std::path::PathBuf;
 
@@ -118,11 +119,7 @@ impl RiotSessionManager {
         for path in self.settings_file_paths() {
             if path.exists() {
                 if let Ok(content) = fs::read_to_string(&path) {
-                    if content.contains("login_remember_me_tokens:")
-                        || content.contains("rso_token:")
-                        || content.contains("rso_access_token:")
-                        || content.contains("remember_me")
-                    {
+                    if has_persisted_session(&content) {
                         return Some(content);
                     }
                 }

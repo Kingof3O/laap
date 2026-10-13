@@ -108,7 +108,7 @@ export function PersonalRosterView({
     try {
       const sessionBlob = await captureActive()
       if (!sessionBlob) {
-        throw new Error('No active login session detected in Riot Client.')
+        throw new Error('No saved Riot login found. Sign in to Riot Client with "Stay signed in" enabled, then import again.')
       }
       await saveAccount(name, region, sessionBlob)
       onCloseAddModal()
