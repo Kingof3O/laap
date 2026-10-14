@@ -1,5 +1,5 @@
 param(
-  [Parameter(Mandatory=$true)][ValidateSet('BuildApplications','BundleInstallers','VerifyInstallers')][string]$Stage,
+  [Parameter(Mandatory=$true)][ValidateSet('BuildApplications','PrepareApplications','BundleInstallers','VerifyInstallers')][string]$Stage,
   [switch]$Signed
 )
 $ErrorActionPreference = 'Stop'
@@ -46,17 +46,35 @@ function Output([string]$Name,[string]$Value) {
   if ($env:GITHUB_OUTPUT) { "$Name=$Value" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8 }
 }
 
-if ($Stage -eq 'BuildApplications') {
+if ($Stage -in @('BuildApplications','PrepareApplications')) {
   $first = $null
   foreach ($edition in $editions) {
-    Run-Tauri (@('build','--ci','--no-bundle') + $edition.Config)
-    $app = Join-Path $repo 'apps/desktop/src-tauri/target/release/laap-desktop-core.exe'
+    if ($Stage -eq 'BuildApplications') {
+      Run-Tauri (@('build','--ci','--no-bundle') + $edition.Config)
+      $app = Join-Path $repo 'apps/desktop/src-tauri/target/release/laap-desktop-core.exe'
+    } else {
+      $app = Join-Path $root "compiled/$($edition.Name)/laap-desktop-core.exe"
+    }
     $info = Assert-Application $app $edition.Product
     if ($first -and ($first.ProductVersion -ne $info.ProductVersion -or $first.FileVersion -ne $info.FileVersion)) { throw 'Windows application metadata differs between editions' }
     $first = $info
-    $dest = Join-Path $root "applications/$($edition.Name)"
-    New-Item $dest -ItemType Directory -Force | Out-Null
-    Copy-Item $app (Join-Path $dest 'laap-desktop-core.exe') -Force
+    $compiled = Join-Path $root "compiled/$($edition.Name)"
+    New-Item $compiled -ItemType Directory -Force | Out-Null
+    if ($Stage -eq 'BuildApplications') { Copy-Item $app (Join-Path $compiled 'laap-desktop-core.exe') -Force }
+    $bytes = [IO.File]::ReadAllBytes($app)
+    $text = [Text.Encoding]::Latin1.GetString($bytes)
+    $marker = '__TAURI_BUNDLE_TYPE_VAR_UNK'
+    $offset = $text.IndexOf($marker, [StringComparison]::Ordinal)
+    if ($offset -lt 0 -or $text.IndexOf($marker, $offset+1, [StringComparison]::Ordinal) -ge 0) { throw 'Expected exactly one Tauri bundle marker' }
+    foreach ($format in @('nsis','msi')) {
+      $dest = Join-Path $root "applications/$($edition.Name)/$format"
+      New-Item $dest -ItemType Directory -Force | Out-Null
+      $prepared = [byte[]]$bytes.Clone()
+      $kind = if ($format -eq 'nsis') { 'NSS' } else { 'MSI' }
+      $replacement = [Text.Encoding]::ASCII.GetBytes("__TAURI_BUNDLE_TYPE_VAR_$kind")
+      [Buffer]::BlockCopy($replacement,0,$prepared,$offset,$replacement.Length)
+      [IO.File]::WriteAllBytes((Join-Path $dest 'laap-desktop-core.exe'),$prepared)
+    }
     Write-Output "$($edition.Product): ProductVersion=$($info.ProductVersion), FileVersion=$($info.FileVersion)"
   }
   Output 'version' $version
@@ -65,31 +83,46 @@ if ($Stage -eq 'BuildApplications') {
 }
 
 if ($Stage -eq 'BundleInstallers') {
-  Assert-FileSet $source @('team/laap-desktop-core.exe','offline/laap-desktop-core.exe')
+  Assert-FileSet $source @('team/nsis/laap-desktop-core.exe','team/msi/laap-desktop-core.exe','offline/nsis/laap-desktop-core.exe','offline/msi/laap-desktop-core.exe')
   $first = $null
+  $target = Join-Path $repo 'apps/desktop/src-tauri/target/release/laap-desktop-core.exe'
+  New-Item (Split-Path $target -Parent) -ItemType Directory -Force | Out-Null
   foreach ($edition in $editions) {
-    $app = Join-Path $source "$($edition.Name)/laap-desktop-core.exe"
-    $null = Assert-Application $app $edition.Product
-    Copy-Item $app 'apps/desktop/src-tauri/target/release/laap-desktop-core.exe' -Force
-    $bundle = Join-Path $repo 'apps/desktop/src-tauri/target/release/bundle'
-    # These are disposable build outputs; deleting them avoids selecting the other edition's installer.
-    if (Test-Path $bundle) { Remove-Item $bundle -Recurse -Force }
-    Run-Tauri (@('bundle','--ci','--bundles','nsis,msi','--no-sign') + $edition.Config)
-    $binaryHash = (Get-FileHash $app -Algorithm SHA256).Hash
-    if ((Get-FileHash 'apps/desktop/src-tauri/target/release/laap-desktop-core.exe' -Algorithm SHA256).Hash -ne $binaryHash) { throw 'Bundling replaced the signed application' }
-    $exe = @(Get-ChildItem "$bundle/nsis/*-setup.exe")
-    $msi = @(Get-ChildItem "$bundle/msi/*.msi")
-    if ($exe.Count -ne 1 -or $msi.Count -ne 1) { throw 'Expected exactly one EXE and one MSI per edition' }
-    $info = $exe[0].VersionInfo
-    if ($info.ProductName -ne $edition.Product) { throw 'Installer product name mismatch' }
-    Assert-Version $info.ProductVersion
-    Assert-Version $info.FileVersion
-    if ($first -and ($first.ProductVersion -ne $info.ProductVersion -or $first.FileVersion -ne $info.FileVersion)) { throw 'Installer metadata differs between editions' }
-    $first = $info
-    $dest = Join-Path $root "installers/$($edition.Name)"
-    New-Item $dest -ItemType Directory -Force | Out-Null
-    Copy-Item $exe[0].FullName (Join-Path $dest "$($edition.FileName)-$version-x64-setup.exe") -Force
-    Copy-Item $msi[0].FullName (Join-Path $dest "$($edition.FileName)-$version-x64.msi") -Force
+    foreach ($format in @('nsis','msi')) {
+      $app = Join-Path $source "$($edition.Name)/$format/laap-desktop-core.exe"
+      $null = Assert-Application $app $edition.Product
+      $compiled = Join-Path $root "compiled/$($edition.Name)/laap-desktop-core.exe"
+      Copy-Item $compiled $target -Force
+      $bundle = Join-Path $repo 'apps/desktop/src-tauri/target/release/bundle'
+      if (Test-Path $bundle) { Remove-Item $bundle -Recurse -Force }
+      $env:LAAP_SIGNPATH_TARGET = $target
+      $env:LAAP_SIGNPATH_RELEASE_ROOT = Split-Path $target -Parent
+      $env:LAAP_SIGNPATH_PREPARED = Join-Path $root "applications/$($edition.Name)/$format/laap-desktop-core.exe"
+      $env:LAAP_SIGNPATH_RETURNED = $app
+      $env:LAAP_SIGNPATH_REQUIRE_SIGNATURE = [string][bool]$Signed
+      $hook = Join-Path $repo '.signpath/app-signing-hook.ps1'
+      $hookConfig = Join-Path $root 'tauri-signing-hook.json'
+      @{bundle=@{windows=@{signCommand=@{cmd='pwsh';args=@('-NoProfile','-File',$hook,'%1')}}}} | ConvertTo-Json -Depth 8 | Set-Content $hookConfig -Encoding utf8
+      Run-Tauri (@('bundle','--ci','--bundles',$format) + $edition.Config + @('--config',$hookConfig))
+      if ((Get-FileHash $target -Algorithm SHA256).Hash -ne (Get-FileHash $compiled -Algorithm SHA256).Hash) { throw 'Tauri did not restore the compiled application' }
+      $dest = Join-Path $root "installers/$($edition.Name)"
+      New-Item $dest -ItemType Directory -Force | Out-Null
+      if ($format -eq 'nsis') {
+        $files = @(Get-ChildItem "$bundle/nsis/*-setup.exe")
+        if ($files.Count -ne 1) { throw 'Expected one NSIS installer' }
+        $info = $files[0].VersionInfo
+        if ($info.ProductName -ne $edition.Product) { throw 'Installer product name mismatch' }
+        Assert-Version $info.ProductVersion
+        Assert-Version $info.FileVersion
+        if ($first -and ($first.ProductVersion -ne $info.ProductVersion -or $first.FileVersion -ne $info.FileVersion)) { throw 'Installer metadata differs between editions' }
+        $first = $info
+        Copy-Item $files[0].FullName (Join-Path $dest "$($edition.FileName)-$version-x64-setup.exe") -Force
+      } else {
+        $files = @(Get-ChildItem "$bundle/msi/*.msi")
+        if ($files.Count -ne 1) { throw 'Expected one MSI installer' }
+        Copy-Item $files[0].FullName (Join-Path $dest "$($edition.FileName)-$version-x64.msi") -Force
+      }
+    }
   }
   Output 'product-version' $first.ProductVersion
   Output 'file-version' $first.FileVersion
@@ -105,10 +138,11 @@ if ($Stage -eq 'VerifyInstallers') {
   Assert-FileSet $installerRoot $expected
   $manifest = @()
   foreach ($edition in $editions) {
-    $app = Join-Path $source "$($edition.Name)/laap-desktop-core.exe"
-    $null = Assert-Application $app $edition.Product
-    $appHash = (Get-FileHash $app -Algorithm SHA256).Hash
     foreach ($extension in @('exe','msi')) {
+      $format = if ($extension -eq 'exe') { 'nsis' } else { 'msi' }
+      $app = Join-Path $source "$($edition.Name)/$format/laap-desktop-core.exe"
+      $null = Assert-Application $app $edition.Product
+      $appHash = (Get-FileHash $app -Algorithm SHA256).Hash
       $name = if ($extension -eq 'exe') { "$($edition.FileName)-$version-x64-setup.exe" } else { "$($edition.FileName)-$version-x64.msi" }
       $installer = Join-Path $installerRoot "$($edition.Name)/$name"
       if (-not (Test-Path $installer)) { throw "Missing installer $name" }

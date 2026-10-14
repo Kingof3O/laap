@@ -10,12 +10,12 @@ The application should accurately disclose: the project's early public adoption,
 
 ## Preflight
 
-Run **Build and sign Windows with SignPath** with `sign=false`. The workflow builds both editions' application binaries, bundles them using `tauri bundle` without recompiling, checks version metadata, then extracts every EXE/MSI and verifies its application hash against the input binary. It uploads clearly named unsigned application/installer samples for the Foundation to review. No request is sent to SignPath and no release is published.
+Run **Build and sign Windows with SignPath** with `sign=false`. The workflow builds both editions' application binaries, prepares separate NSIS/MSI application payloads and bundles them using `tauri bundle` without recompiling, checks version metadata, then extracts every EXE/MSI and verifies its application hash against the input binary. It uploads clearly named unsigned application/installer samples for the Foundation to review. No request is sent to SignPath and no release is published.
 
 The input ZIP layouts match these versioned configurations:
 
-- `.signpath/laap-windows-applications-v1.xml`: only `team/laap-desktop-core.exe` and `offline/laap-desktop-core.exe`, with fixed product names and version parameters.
-- `.signpath/laap-windows-installers-v1.xml`: only the four canonical LAAP EXE/MSI names. The applications inside them are already signed in the first stage; packaging must preserve their bytes.
+- `.signpath/laap-windows-applications-v1.xml`: only the four `team/nsis`, `team/msi`, `offline/nsis`, and `offline/msi` application binaries, with fixed product names and version parameters.
+- `.signpath/laap-windows-installers-v1.xml`: only the four canonical LAAP EXE/MSI names. The applications inside them are already signed in the first stage; packaging must preserve their bytes. Tauri modifies a three-byte bundle marker before its signing callback and restores the original after packaging. The build prepares that exact documented marker change before SignPath signing; `.signpath/app-signing-hook.ps1` checks the patched payload against its prepared hash, then supplies the signed counterpart. Other changes fail verification. See [Tauri bundler source](https://github.com/tauri-apps/tauri/blob/dev/crates/tauri-bundler/src/bundle.rs).
 
 NSIS is not a deep-signable format in the documented SignPath artifact schema. The workflow signs its application before packaging and its EXE wrapper afterward. NSIS-generated uninstaller code is not separately signed by this flow; disclose that when agreeing the artifact configuration. MSI wrappers are signed in the second stage too. Microsoft/other third-party runtime files must not be signed with LAAP's Foundation access.
 

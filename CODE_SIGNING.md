@@ -20,7 +20,7 @@ The maintainer has confirmed GitHub two-factor authentication is enabled. SignPa
 
 ## Signing scope and build origin
 
-Only LAAP application binaries and LAAP-generated EXE/MSI installers built from this public repository by GitHub-hosted Actions runners are eligible. The workflow signs the application first, bundles that exact binary, then signs the installer wrappers. It verifies the returned signatures, timestamps, product metadata, and the bundled application bytes before describing output as signed. It does not sign Riot Client, League of Legends, Microsoft WebView2 redistributables, or arbitrary user-provided files.
+Only LAAP application binaries and LAAP-generated EXE/MSI installers built from this public repository by GitHub-hosted Actions runners are eligible. The workflow prepares the format-specific NSS/MSI marker that Tauri normally patches into its app, signs each format-specific application, inserts it at the Tauri signing hook after that patch, and signs the installer wrappers afterward. It verifies the returned signatures, timestamps, product metadata, and the bundled application bytes before describing output as signed. It does not sign Riot Client, League of Legends, Microsoft WebView2 redistributables, or arbitrary user-provided files.
 
 SignPath holds the signing key. No certificate private key belongs in the repository or the application. The CI API token is stored only in GitHub Actions secrets. Approval is required for each signing stage. Returned artifacts remain GitHub Actions artifacts until the maintainer approves their release; the onboarding workflow never publishes a release automatically.
 

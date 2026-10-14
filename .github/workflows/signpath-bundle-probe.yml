@@ -1,8 +1,8 @@
-name: Diagnose NSIS sample bytes
+name: Verify SignPath packaging samples
 on:
   push:
     branches: [codex/signpath-setup]
-    paths: ['.github/workflows/signpath-bundle-probe.yml']
+    paths: ['.github/workflows/signpath-bundle-probe.yml', '.signpath/**']
 permissions:
   contents: read
   actions: read
@@ -10,50 +10,22 @@ jobs:
   probe:
     runs-on: windows-latest
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci --workspace @laap/desktop --include-workspace-root
+      - run: npm --workspace @laap/desktop run build
       - uses: actions/download-artifact@v4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: 38627799057
           name: signpath-input-applications
-          path: applications
-      - uses: actions/download-artifact@v4
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: 38627799057
-          name: signpath-input-installers
-          path: installers
-      - name: Compare archived and installed application bytes
+          path: .signpath/out/compiled
+      - name: Prepare and repackage the actual compiled samples
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $original = (Resolve-Path applications/team/laap-desktop-core.exe).Path
-          $installer = (Resolve-Path installers/team/*-setup.exe).Path
-          $archive = Join-Path $env:RUNNER_TEMP 'laap-nsis-archive-probe'
-          $installed = Join-Path $env:RUNNER_TEMP 'laap-nsis-install-probe'
-          & 7z x $installer "-o$archive" -y | Out-Null
-          if ($LASTEXITCODE -ne 0) { throw '7z extraction failed' }
-          $extracted = (Get-ChildItem $archive -Recurse -Filter laap-desktop-core.exe).FullName
-          $expected = (Get-FileHash $original -Algorithm SHA256).Hash
-          $archivedHash = (Get-FileHash $extracted -Algorithm SHA256).Hash
-          Write-Output "Original=$expected; archive=$archivedHash"
-          $left = [IO.File]::ReadAllBytes($original)
-          $right = [IO.File]::ReadAllBytes($extracted)
-          $first = $null
-          $differenceCount = 0
-          for ($i=0; $i -lt [Math]::Min($left.Length,$right.Length); $i++) {
-            if ($left[$i] -ne $right[$i]) { if ($null -eq $first) {$first=$i}; $differenceCount++ }
-          }
-          Write-Output "Lengths=$($left.Length)/$($right.Length); first offset=$first; differing bytes=$differenceCount"
-          $process = Start-Process $installer -ArgumentList @('/S',"/D=$installed") -Wait -PassThru
-          if ($process.ExitCode -ne 0) { throw "NSIS install failed: $($process.ExitCode)" }
-          try {
-            $application = @(Get-ChildItem $installed -Recurse -Filter laap-desktop-core.exe)
-            if ($application.Count -ne 1) { throw 'Installed application missing' }
-            $installedHash = (Get-FileHash $application[0].FullName -Algorithm SHA256).Hash
-            Write-Output "Installed=$installedHash; matches original=$($installedHash -eq $expected)"
-            if ($installedHash -ne $expected) { throw 'Actual installed bytes differ' }
-          } finally {
-            Get-Process | Where-Object {$_.Path -and $_.Path.StartsWith($installed,[StringComparison]::OrdinalIgnoreCase)} | Stop-Process -Force
-            $uninstaller = Join-Path $installed 'uninstall.exe'
-            if (Test-Path $uninstaller) { Start-Process $uninstaller -ArgumentList '/S' -Wait | Out-Null }
-          }
+          ./.signpath/windows-artifacts.ps1 -Stage PrepareApplications
+          ./.signpath/windows-artifacts.ps1 -Stage BundleInstallers
+          ./.signpath/windows-artifacts.ps1 -Stage VerifyInstallers

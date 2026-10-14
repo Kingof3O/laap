@@ -5,10 +5,16 @@
     <parameter name="fileVersion" required="true" />
   </parameters>
   <zip-file>
-    <pe-file path="team/laap-desktop-core.exe" product-name="LAAP Desktop" product-version="${productVersion}" file-version="${fileVersion}">
+    <pe-file path="team/nsis/laap-desktop-core.exe" product-name="LAAP Desktop" product-version="${productVersion}" file-version="${fileVersion}">
       <authenticode-sign hash-algorithm="sha256" />
     </pe-file>
-    <pe-file path="offline/laap-desktop-core.exe" product-name="LAAP Offline" product-version="${productVersion}" file-version="${fileVersion}">
+    <pe-file path="offline/nsis/laap-desktop-core.exe" product-name="LAAP Offline" product-version="${productVersion}" file-version="${fileVersion}">
+      <authenticode-sign hash-algorithm="sha256" />
+    </pe-file>
+    <pe-file path="team/msi/laap-desktop-core.exe" product-name="LAAP Desktop" product-version="${productVersion}" file-version="${fileVersion}">
+      <authenticode-sign hash-algorithm="sha256" />
+    </pe-file>
+    <pe-file path="offline/msi/laap-desktop-core.exe" product-name="LAAP Offline" product-version="${productVersion}" file-version="${fileVersion}">
       <authenticode-sign hash-algorithm="sha256" />
     </pe-file>
   </zip-file>
