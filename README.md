@@ -11,6 +11,10 @@
 
 [Download for Windows and macOS](https://github.com/Kingof3O/laap/releases/latest)
 
+[Code signing policy](CODE_SIGNING.md) · [Privacy policy](PRIVACY.md)
+
+Windows releases are currently unsigned. LAAP is preparing its SignPath Foundation application; acceptance and signing access are pending.
+
 The Windows installer sidebar uses the same current LAAP artwork as the desktop icon:
 
 <img src="docs/assets/nsis-sidebar.png" alt="Updated upright LAAP installer sidebar artwork" height="314" />

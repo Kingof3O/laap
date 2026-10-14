@@ -1,0 +1,133 @@
+name: Build and sign Windows with SignPath
+
+on:
+  workflow_dispatch:
+    inputs:
+      sign:
+        description: Request SignPath signatures (requires program approval and configured credentials)
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      sign:
+        type: boolean
+        default: false
+    secrets:
+      SIGNPATH_API_TOKEN:
+        required: false
+    outputs:
+      artifact-id:
+        description: Verified Windows application/installer artifact ID
+        value: ${{ jobs.windows.outputs.artifact-id }}
+  push:
+    branches: [codex/signpath-setup]
+    paths: ['.signpath/**', '.github/workflows/signpath-windows.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 150
+    outputs:
+      artifact-id: ${{ steps.output.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Check production signing authorization
+        if: inputs.sign
+        shell: pwsh
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+        run: |
+          foreach ($key in @('SIGNPATH_API_TOKEN','SIGNPATH_ORGANIZATION_ID','SIGNPATH_PROJECT_SLUG','SIGNPATH_SIGNING_POLICY_SLUG')) {
+            if (-not [Environment]::GetEnvironmentVariable($key)) { throw "Missing required SignPath setting: $key" }
+          }
+          if ($env:GITHUB_REF -ne 'refs/heads/main' -and $env:GITHUB_REF -notlike 'refs/tags/v*') { throw 'Production signing requires main or a release tag' }
+          git merge-base --is-ancestor HEAD origin/main
+          if ($LASTEXITCODE -ne 0) { throw 'Production signing requires a commit present on main' }
+      - run: npm ci --workspace @laap/desktop --include-workspace-root
+      - name: Build both application editions and verify version metadata
+        id: applications
+        shell: pwsh
+        run: ./.signpath/windows-artifacts.ps1 -Stage BuildApplications
+      - uses: actions/upload-artifact@v4
+        id: input-applications
+        with:
+          name: signpath-input-applications
+          path: .signpath/out/applications/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Request application signatures and wait for maintainer approval
+        if: inputs.sign
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: laap-windows-applications-v1
+          github-artifact-id: ${{ steps.input-applications.outputs.artifact-id }}
+          parameters: |
+            productVersion: "${{ steps.applications.outputs.product-version }}"
+            fileVersion: "${{ steps.applications.outputs.file-version }}"
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: .signpath/out/signed-applications
+      - name: Bundle the exact application binaries without rebuilding
+        id: installers
+        shell: pwsh
+        env:
+          REQUEST_SIGNATURES: ${{ inputs.sign || false }}
+        run: |
+          $signed = $env:REQUEST_SIGNATURES -eq 'true'
+          ./.signpath/windows-artifacts.ps1 -Stage BundleInstallers -Signed:$signed
+      - uses: actions/upload-artifact@v4
+        id: input-installers
+        with:
+          name: signpath-input-installers
+          path: .signpath/out/installers/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Request installer signatures and wait for maintainer approval
+        if: inputs.sign
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: laap-windows-installers-v1
+          github-artifact-id: ${{ steps.input-installers.outputs.artifact-id }}
+          parameters: |
+            version: "${{ steps.applications.outputs.version }}"
+            productVersion: "${{ steps.installers.outputs.product-version }}"
+            fileVersion: "${{ steps.installers.outputs.file-version }}"
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: .signpath/out/signed-installers
+      - name: Verify signatures and extract each installer to check its application
+        shell: pwsh
+        env:
+          REQUEST_SIGNATURES: ${{ inputs.sign || false }}
+        run: |
+          $signed = $env:REQUEST_SIGNATURES -eq 'true'
+          ./.signpath/windows-artifacts.ps1 -Stage VerifyInstallers -Signed:$signed
+      - uses: actions/upload-artifact@v4
+        id: output
+        with:
+          name: ${{ inputs.sign && 'windows-signpath-signed' || 'windows-unsigned-preflight-samples' }}
+          path: ${{ inputs.sign && '.signpath/out/signed-installers/' || '.signpath/out/installers/' }}
+          if-no-files-found: error
+          retention-days: 14

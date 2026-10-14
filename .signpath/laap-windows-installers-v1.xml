@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+    <parameter name="productVersion" required="true" />
+    <parameter name="fileVersion" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file path="team/LAAP-Desktop-${version}-x64-setup.exe" product-name="LAAP Desktop" product-version="${productVersion}" file-version="${fileVersion}">
+      <authenticode-sign hash-algorithm="sha256" />
+    </pe-file>
+    <msi-file path="team/LAAP-Desktop-${version}-x64.msi">
+      <authenticode-sign hash-algorithm="sha256" />
+    </msi-file>
+    <pe-file path="offline/LAAP-Offline-${version}-x64-setup.exe" product-name="LAAP Offline" product-version="${productVersion}" file-version="${fileVersion}">
+      <authenticode-sign hash-algorithm="sha256" />
+    </pe-file>
+    <msi-file path="offline/LAAP-Offline-${version}-x64.msi">
+      <authenticode-sign hash-algorithm="sha256" />
+    </msi-file>
+  </zip-file>
+</artifact-configuration>
