@@ -1,108 +1,109 @@
 <div align="center">
-<img src="docs/assets/logo.webp" alt="LAAP" width="400" />
+<h1><img src="docs/assets/logo.webp" alt="LAAP — League Account Launcher" width="400" /></h1>
 
-**A local account roster and desktop launcher for League of Legends.**
+<p><strong>A desktop roster and launcher for League of Legends accounts.</strong></p>
 
-[![Latest Release](https://img.shields.io/github/v/release/Kingof3O/laap?style=for-the-badge&color=C8AA6E)](https://github.com/Kingof3O/laap/releases/latest)
-[![CI](https://img.shields.io/github/actions/workflow/status/Kingof3O/laap/test-and-lint.yml?branch=main&style=for-the-badge)](https://github.com/Kingof3O/laap/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-C8AA6E?style=for-the-badge)](LICENSE)
+<p><a href="https://github.com/Kingof3O/laap/releases/latest"><strong>Download for Windows or macOS</strong></a></p>
 
-[Download for Windows and macOS](https://github.com/Kingof3O/laap/releases/latest)
-
-[Code signing policy](CODE_SIGNING.md) · [Privacy policy](PRIVACY.md)
-
-Windows releases are currently unsigned. LAAP submitted its SignPath Foundation application on 2026-10-14; review and signing access are pending.
-
-[Profile customization](docs/profile-customization.md) · [Development](docs/DEVELOPMENT.md) · [Architecture](docs/ARCHITECTURE.md) · [Security](docs/SECURITY_MODEL.md) · [API](docs/API.md) · [Deployment](docs/PRODUCTION.md)
-
+<p>
+  <a href="https://github.com/Kingof3O/laap/releases/latest"><img src="https://img.shields.io/github/v/release/Kingof3O/laap?label=release" alt="Latest release" /></a>
+  <a href="https://github.com/Kingof3O/laap/actions"><img src="https://img.shields.io/github/actions/workflow/status/Kingof3O/laap/test-and-lint.yml?branch=main&label=build" alt="Build status" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license" /></a>
+</p>
 </div>
 
-## v0.4.7: tray controls, automatic presence, and current installer artwork
+LAAP organizes saved Riot Client sessions into a personal roster, then launches the profile you choose. It also includes an optional Team edition for shared accounts and administration.
 
-Presence can be configured at startup and changed from the Windows tray or macOS menu bar. The system menu shows saved profiles and supports direct account switching with launch guards. The installer artwork is upright and uses current LAAP branding. Account/session safety and sync retry indicators are included. SignPath Foundation enrollment was submitted; Windows release assets remain unsigned while review is pending. See the [setup, privacy and validation notes](docs/riot-installation-and-presence.md).
+Windows installers are currently unsigned while the SignPath Foundation application awaits review. Windows may display Microsoft Defender SmartScreen's unknown-publisher warning. See the [code-signing policy](CODE_SIGNING.md) and [privacy policy](PRIVACY.md).
 
-## v0.4.6: Riot discovery and LAAP Presence
+## Features
 
-Riot installations on custom Windows drives are discovered through installation records, process metadata and registry lookup, with a saved path override. v0.4.6 introduced Windows LAAP Presence.
-
-## v0.4.5: visible sync and startup feedback
-
-Icon/rank sync shows pending, success, waiting, and failure states with **Sync now / Retry sync**, plus timestamps. Icon previews have loading indicators and retries. Account switching tracks Riot/League startup, prevents repeated launches, and explains timeouts. Progress uses actual status text and spinners, without invented percentages. The v0.4.4 shutdown-race fix remains included. The Windows setup sidebar has been regenerated from its upright SVG artwork.
-
-## What LAAP does
-
-Save a Riot Client login through the official client, organize your profiles, and launch a selected account. LAAP stores session material rather than asking for Riot passwords. Saved logins can expire or be revoked; **Sign in again** refreshes the existing profile while keeping its name, region, rank, notes, and favorite status.
-
-The current session capture/injection integration is unofficial. LAAP does not inject code, inspect game memory, or automate gameplay; those implementation facts do not establish Riot approval or a ban guarantee. See [native interaction details](docs/ANTI_BAN_VERIFICATION.md).
-
-## Current interface
-
-These screenshots show the v0.4.3 interface, captured on 2026-10-14. Roster/editor images use a test profile through a test-only IPC fixture. The Shared Accounts image shows the signed-out screen; production builds contain no fabricated roster.
-
-### Personal Roster
-
-Your selected profile shows its avatar, region, rank, saved notes, and login status. The initial selection prefers the most recently played profile when available. **Play** switches to that profile; **Stop Riot** closes the clients while preserving saved logins. Either action requests confirmation if a League or Valorant game process is detected.
-
-<img src="docs/assets/launcher-grid.png" alt="Current Offline roster with avatar, rank crest, saved notes, sort controls, and Stop Riot" width="100%" />
-
-### Add and edit profiles
-
-The editor previews the name, avatar, region, and rank as you edit. Regions are grouped geographically; ranks include Unranked, Iron–Diamond IV–I, and the three apex tiers. Upload a local image or explicitly download League profile icons. Images are cached on the device; rank crests are bundled.
-
-<img src="docs/assets/profile-editor.png" alt="Current profile editor with live preview, region and rank fields, notes, and optional sync controls" width="760" />
-
-### Compact list
-
-Grid and list views share search, grouped region filtering, rank filtering, and a **Sort by** dropdown. Sort by name, competitive rank, last played, or date added. Unranked and unrecognized ranks stay last in either rank direction. Notes and avatars are visible in both layouts.
-
-<img src="docs/assets/launcher-table.png" alt="Current compact roster list with cached avatar, notes, rank, and sort dropdown" width="100%" />
-
-### Shared Accounts sign-in — Team Edition
-
-Team Edition includes a separate LAAP sign-in screen for shared accounts. Operators see assigned accounts; administrators manage the pool. Shared launches use server leases to prevent concurrent claims.
-
-<img src="docs/assets/launcher-shared-accounts.png" alt="Current Team Edition Shared Accounts sign-in screen" width="100%" />
-
-### Sync and startup status
-
-Retry enabled icon/rank sync without changing your saved opt-ins. While Riot opens, the launch button stays busy and the status bar reports which client has been detected. **Stop waiting** ends observation without closing the client.
-
-<img src="docs/assets/profile-sync.png" alt="Icon and rank sync pending with a disabled Syncing button" width="100%" />
-
-<img src="docs/assets/client-startup.png" alt="Client startup tracking with disabled launch buttons and Stop waiting" width="100%" />
+- **Personal roster:** Save account profiles with names, regions, rank, notes, favorites, and locally cached icons.
+- **Find and organize:** Search, filter by region or rank, and sort by name, rank, last played, or date added.
+- **Switch and stop safely:** Launch a saved session or close Riot and League processes while preserving saved logins. LAAP checks for an active game before stopping or switching.
+- **Keep profile details current:** Sign in again to refresh an expired session without replacing its profile details. Optional icon and Solo/Duo rank synchronization is available with separate opt-ins.
+- **LAAP Presence:** Set the default game presence at startup and control it from the Windows tray or macOS menu bar. The system menu also offers saved local profiles.
+- **Two editions:** Choose the local Offline edition or the Team edition with shared accounts and administration.
 
 ## Editions
 
-| Capability                                          | LAAP Offline                                     | LAAP Desktop (Team)                              |
-| :-------------------------------------------------- | :----------------------------------------------- | :----------------------------------------------- |
-| Personal Roster, notes, favorites, sorting          | Yes                                              | Yes                                              |
-| Local image uploads and bundled rank crests         | Yes                                              | Yes                                              |
-| Optional Riot icon downloads and League Client sync | Yes, explicit opt-in                             | Yes, explicit opt-in                             |
-| Shared Accounts and LAAP authentication             | Disabled                                         | Private team API                                 |
-| GitHub update polling                               | Disabled; static Offline Edition badge           | Automatic and manual checks                      |
-| Downloads                                           | Windows EXE/MSI; universal macOS DMG/app archive | Windows EXE/MSI; universal macOS DMG/app archive |
+| Capability | LAAP Offline | LAAP Desktop (Team) |
+| --- | --- | --- |
+| Personal roster, profile notes, favorites, and sorting | Included | Included |
+| Local image uploads and bundled rank crests | Included | Included |
+| Riot icon downloads and League Client sync | Optional, user-controlled | Optional, user-controlled |
+| Shared Accounts and administration | Not included | Private team service |
+| Cloud API and update polling | Disabled | Team features and update checks |
+| Windows downloads | EXE and MSI | EXE and MSI |
+| macOS downloads | Universal DMG and app archive | Universal DMG and app archive |
 
-Offline Edition makes no cloud API or update requests. Its webview uses `connect-src 'none'`; optional native commands can download Data Dragon icons and contact the local League Client when enabled. Uploaded images remain local. **Auto-sync icon** and **Auto-sync rank** are independent and off by default; rank sync reads Solo/Duo and requires a matching saved PUUID. See [caching and sync behavior](docs/profile-customization.md).
+Offline describes the edition's app services: it makes no cloud API or update requests. It is separate from the game-presence setting. Optional native commands can download icons from Data Dragon, connect to the local League Client when sync is enabled, or prepare LAAP Presence. These behaviors are documented in the [privacy policy](PRIVACY.md).
 
-## Storage and reliability
+## Screenshots
 
-- Native JSON vault with AES-256-GCM encrypted session blobs and an OS-keychain vault key. Profile metadata and cached images are local files, not encrypted by that session envelope.
-- Serialized read/modify/write operations, unique temporary files, atomic replacement, and quarantine of unreadable account records.
-- Reviewed imports, owned provisioning cancellation, and recovery of interrupted session backups.
-- Loading, error, and retry states; no demo accounts if the native IPC bridge is unavailable.
-- Escape, focus trapping, and focus restoration in dialogs; `⌘K` / `Ctrl+K` focuses search.
+The screenshots below illustrate core workflows. Profile images use test-only fixture data; the Shared Accounts image shows the signed-out screen. Test fixtures do not ship in production builds.
+
+### Personal roster
+
+<img src="docs/assets/launcher-grid.png" alt="Personal roster with account avatar, rank, notes, sorting, and Stop Riot controls" width="100%" />
+
+<details>
+<summary>More interface screenshots</summary>
+
+**Edit a profile**
+
+<img src="docs/assets/profile-editor.png" alt="Profile editor with avatar preview, region, rank, notes, and sync options" width="760" />
+
+**Compact roster**
+
+<img src="docs/assets/launcher-table.png" alt="Compact account list with notes, rank, avatar, and sorting controls" width="100%" />
+
+**Team edition**
+
+<img src="docs/assets/launcher-shared-accounts.png" alt="Team edition sign-in screen" width="100%" />
+
+**Synchronization and startup**
+
+<img src="docs/assets/profile-sync.png" alt="Account icon and rank synchronization status" width="100%" />
+
+<img src="docs/assets/client-startup.png" alt="Riot Client startup tracking with duplicate launches disabled" width="100%" />
+
+</details>
+
+## Security and platform boundaries
+
+LAAP does not ask for or store Riot passwords. It captures session material created by the official Riot Client. Session blobs are encrypted with AES-256-GCM using a key held in the operating system keychain. Profile details such as names, regions, ranks, notes, and favorites are stored locally as readable metadata.
+
+Optional League Client sync uses authenticated, read-only requests to the local client. Presence uses local proxy services to route selected Riot traffic. Offline builds disable cloud authentication and update polling in the webview, but explicit native features can still make network requests as described above.
+
+LAAP is an unofficial Riot client integration. It does not inject code, inspect game memory, or automate gameplay. These implementation details do not imply Riot approval or guarantee an account outcome. See the [security model](docs/SECURITY_MODEL.md), [native interaction notes](docs/ANTI_BAN_VERIFICATION.md), and [verification limits](docs/desktop-hardening-verification.md).
 
 ## Development
 
-Use Node.js 22+, the current stable Rust toolchain, and platform build tools. From the repository root:
+### Requirements
+
+- Node.js 22 or newer and npm
+- Current stable Rust toolchain
+- Platform build tools: Xcode Command Line Tools on macOS; Visual Studio C++ build tools and WebView2 on Windows
+
+### Start the applications
+
+From the repository root:
 
 ```sh
 npm ci
-npm run dev                         # API and admin web UI
-npx --workspace @laap/desktop tauri dev  # Native desktop window + Vite
+npm run dev
 ```
 
-`npm --workspace @laap/desktop run dev` starts only Vite. For an Offline native development window, see [the development guide](docs/DEVELOPMENT.md).
+This starts the API and admin web interface. To start the native desktop app with its Vite frontend:
+
+```sh
+npx --workspace @laap/desktop tauri dev
+```
+
+Running `npm --workspace @laap/desktop run dev` starts only the frontend; browser mode reports that native IPC is unavailable. See the [development guide](docs/DEVELOPMENT.md) for environment configuration, Offline development, and packaging.
+
+### Run checks
 
 ```sh
 npm run test
@@ -110,23 +111,38 @@ npm run typecheck
 npm run build
 npm --workspace @laap/desktop run build:offline
 npm --workspace @laap/desktop run test:sorting
+npm --workspace @laap/desktop run test:lease-exit
 npx playwright install chromium
 npm --workspace @laap/desktop run test:ui
 cargo check --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
 cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
 ```
 
-The [v0.4.3 release](https://github.com/Kingof3O/laap/releases/tag/v0.4.3) passed GitHub tests, security scans, and all four installer builds. Automated tests cover orchestration guards and sync identity checks; live authenticated League Client sync and elevated Windows process shutdown still need real-client validation. See [verification details](docs/desktop-hardening-verification.md).
+The npm test script runs API tests and the admin TypeScript check. The desktop UI tests use simulated native responses; they do not authenticate to Riot or stop a real game.
+
+## Repository layout
+
+| Path | Purpose |
+| --- | --- |
+| `apps/desktop` | React desktop interface and Tauri/Rust account orchestration |
+| `apps/api` | Team API, authentication, account services, and leases |
+| `apps/admin` | Team administration interface |
+| `packages/types` | Shared API and application types |
+| `packages/validation` | Shared Zod request schemas |
+| `supabase/migrations` | Database migrations |
+
+For architecture and data flows, see [Architecture](docs/ARCHITECTURE.md).
 
 ## Documentation
 
-- [User guide: profiles, icons, ranks, and sync](docs/profile-customization.md)
+- [Profile guide: regions, ranks, icons, and synchronization](docs/profile-customization.md)
+- [Riot installation discovery and LAAP Presence](docs/riot-installation-and-presence.md)
+- [Security and storage model](docs/SECURITY_MODEL.md)
+- [Privacy policy](PRIVACY.md) · [Code-signing policy](CODE_SIGNING.md)
 - [Development and packaging](docs/DEVELOPMENT.md)
-- [Architecture and data flows](docs/ARCHITECTURE.md)
-- [Security and storage boundaries](docs/SECURITY_MODEL.md)
-- [Native interaction verification](docs/ANTI_BAN_VERIFICATION.md)
-- [REST API](docs/API.md)
-- [Production operations](docs/PRODUCTION.md)
-- [Maintenance handoff](docs/AGENT_HANDOFF.md)
+- [API reference](docs/API.md) · [Production operations](docs/PRODUCTION.md)
+- [Changelog](CHANGELOG.md)
 
-Distributed under the [MIT License](LICENSE). League of Legends artwork belongs to Riot Games.
+## License
+
+LAAP source code is distributed under the [MIT License](LICENSE). League of Legends names and artwork belong to Riot Games; third-party assets and services are described in the [privacy policy](PRIVACY.md).
