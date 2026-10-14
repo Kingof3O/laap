@@ -8,6 +8,9 @@ export interface HeaderProps {
   onRefresh: () => void
   onOpenSettings: () => void
   isOfflineOnly?: boolean
+  riotRunning?: boolean
+  operationBusy?: boolean
+  onStopRiot?: () => Promise<void>
 }
 
 export function Header({
@@ -17,6 +20,9 @@ export function Header({
   onRefresh,
   onOpenSettings,
   isOfflineOnly = false,
+  riotRunning = false,
+  operationBusy = false,
+  onStopRiot,
 }: HeaderProps) {
   return (
     <header className="header-bar" data-tauri-drag-region>
@@ -34,6 +40,7 @@ export function Header({
         <nav className="mode-nav" aria-label="Launcher Modes">
           <button
             type="button"
+            disabled={operationBusy}
             className={`mode-pill ${appMode === 'local' ? 'mode-pill-active' : ''}`}
             onClick={() => onModeChange('local')}
           >
@@ -42,6 +49,7 @@ export function Header({
           </button>
           <button
             type="button"
+            disabled={operationBusy}
             className={`mode-pill ${appMode === 'cloud' ? 'mode-pill-active' : ''}`}
             onClick={() => onModeChange('cloud')}
           >
@@ -53,8 +61,25 @@ export function Header({
 
       {/* Header Utilities & Profile */}
       <div className="header-utilities">
+        {isOfflineOnly ? (
+          <span className="profile-role-tag">Offline Edition</span>
+        ) : null}
+        {onStopRiot ? (
+          <button
+            className="btn-modal-secondary"
+            disabled={!riotRunning || operationBusy}
+            onClick={() => void onStopRiot()}
+          >
+            Stop Riot
+          </button>
+        ) : null}
         {!isOfflineOnly && user ? (
-          <div className="profile-badge" onClick={onOpenSettings} role="button" tabIndex={0}>
+          <div
+            className="profile-badge"
+            onClick={onOpenSettings}
+            role="button"
+            tabIndex={0}
+          >
             <div className="profile-avatar">
               {user.displayName.slice(0, 2).toUpperCase()}
             </div>

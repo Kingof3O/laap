@@ -1,3 +1,4 @@
+import { useDialog } from '../hooks/useDialog'
 import { ArrowUpRight, Download, Sparkles, X } from 'lucide-react'
 import type { GitHubReleaseInfo } from '../../hooks/useUpdateChecker'
 
@@ -16,6 +17,7 @@ export function UpdateModal({
   onDownload,
   onDismiss,
 }: UpdateModalProps) {
+  const dialogRef = useDialog(isOpen, onDismiss, false)
   if (!isOpen || !release) return null
 
   // Truncate body if excessively long for clean popup framing
@@ -25,7 +27,15 @@ export function UpdateModal({
 
   return (
     <div className="modal-backdrop">
-      <div className="modal-panel" style={{ maxWidth: '440px' }}>
+      <div
+        className="modal-panel"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Update available"
+        tabIndex={-1}
+        style={{ maxWidth: '440px' }}
+      >
         <div className="modal-head">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div
@@ -68,27 +78,68 @@ export function UpdateModal({
             }}
           >
             <div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Latest Release</div>
-              <div style={{ fontSize: '15px', fontWeight: 800, color: '#FFFFFF', marginTop: '2px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                Latest Release
+              </div>
+              <div
+                style={{
+                  fontSize: '15px',
+                  fontWeight: 800,
+                  color: '#FFFFFF',
+                  marginTop: '2px',
+                }}
+              >
                 {release.tagName}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Installed</div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                Installed
+              </div>
+              <div
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--text-secondary)',
+                  marginTop: '2px',
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
                 v{currentVersion}
               </div>
             </div>
           </div>
 
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            <p style={{ fontWeight: 600, color: '#FFFFFF', marginBottom: '4px' }}>{release.name}</p>
-            <p style={{ whiteSpace: 'pre-line', color: 'var(--text-muted)', fontSize: '11px' }}>
+          <div
+            style={{
+              fontSize: '12px',
+              color: 'var(--text-secondary)',
+              lineHeight: 1.5,
+            }}
+          >
+            <p
+              style={{ fontWeight: 600, color: '#FFFFFF', marginBottom: '4px' }}
+            >
+              {release.name}
+            </p>
+            <p
+              style={{
+                whiteSpace: 'pre-line',
+                color: 'var(--text-muted)',
+                fontSize: '11px',
+              }}
+            >
               {cleanBody}
             </p>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              marginTop: '4px',
+            }}
+          >
             <button
               type="button"
               className="btn-modal-primary"

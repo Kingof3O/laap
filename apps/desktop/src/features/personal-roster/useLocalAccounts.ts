@@ -1,161 +1,253 @@
-import { useCallback, useEffect, useState } from 'react'
-import { hasTauri, invokeTauri } from '../../lib/api'
-import type { LocalAccountFull, LocalAccountSummary } from '../../lib/types'
-
+import { useNativeClose } from '../../shared/hooks/useNativeClose'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { invokeTauri, isTauriAvailable } from '../../lib/api'
+import { useRiotOperations } from '../../context/RiotOperations'
+import type {
+  CapturedProfile,
+  LocalAccountFull,
+  LocalAccountSummary,
+  ProfileDetails,
+  ProfileCustomization,
+} from '../../lib/types'
+const asError = (cause: unknown) =>
+  cause instanceof Error ? cause : new Error(String(cause))
 export function useLocalAccounts() {
   const [localAccounts, setLocalAccounts] = useState<LocalAccountSummary[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
   const [provisioning, setProvisioning] = useState(false)
-
+  const ticket = useRef<string | null>(null)
+  const generation = useRef(0)
+  const requests = useRef(0)
+  const mounted = useRef(true)
+  const operations = useRiotOperations()
+  const { run } = operations
+  const operationState = useRef(operations)
+  operationState.current = operations
+  const [syncMessage, setSyncMessage] = useState<string | null>(null)
+  const runRef = useRef(run)
+  runRef.current = run
   const loadAccounts = useCallback(async () => {
-    if (!hasTauri) {
-      const stored = localStorage.getItem('laap_browser_accounts')
-      if (stored) {
-        try {
-          setLocalAccounts(JSON.parse(stored))
-        } catch {}
-      } else {
-        const samples: LocalAccountSummary[] = [
-          { id: 'acc-1', name: 'Hide on bush', region: 'KR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 2).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-2', name: 'Caps', region: 'EUW', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 5).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-3', name: 'Agurin', region: 'EUW', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 14).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-4', name: 'Doublelift', region: 'NA', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 26).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-5', name: 'T1 Gumayusi', region: 'KR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 32).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-6', name: 'Jojopyun', region: 'NA', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 48).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-7', name: 'ShowMaker', region: 'KR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 54).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-8', name: 'Bo', region: 'EUW', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 70).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-9', name: 'Bwipo', region: 'NA', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 85).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-10', name: 'Chovy', region: 'KR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 96).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-11', name: 'Nemesis', region: 'KR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 120).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-12', name: 'Upset', region: 'EUW', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 132).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-13', name: 'Inspired', region: 'NA', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 150).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-14', name: 'Jankos', region: 'EUNE', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 168).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-15', name: 'Faker Mid', region: 'KR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 190).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-16', name: 'Hans Sama', region: 'EUW', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 210).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-17', name: 'Perkz', region: 'EUNE', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 240).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-18', name: 'Sniper', region: 'NA', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 260).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-19', name: 'Robo', region: 'BR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 280).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-20', name: 'Tinowns', region: 'BR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 320).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-21', name: 'Caliste', region: 'EUW', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 350).toISOString(), created_at: new Date().toISOString() },
-          { id: 'acc-22', name: 'Rekkles', region: 'KR', has_session: true, last_used_at: new Date(Date.now() - 3600000 * 400).toISOString(), created_at: new Date().toISOString() },
-        ]
-        localStorage.setItem('laap_browser_accounts', JSON.stringify(samples))
-        setLocalAccounts(samples)
-      }
-      return
-    }
+    const request = ++requests.current
     setLoading(true)
+    setError(null)
     try {
-      const list = await invokeTauri<LocalAccountSummary[]>('list_local_accounts')
-      setLocalAccounts(list)
+      for (let retry = 0; retry < 10 && !isTauriAvailable(); retry++)
+        await new Promise((resolve) => window.setTimeout(resolve, 100))
+      if (!isTauriAvailable()) throw new Error('Tauri IPC bridge unavailable')
+      const accounts = await invokeTauri<LocalAccountSummary[]>(
+        'list_local_accounts',
+      )
+      if (mounted.current && request === requests.current)
+        setLocalAccounts(accounts)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause))
+      if (mounted.current && request === requests.current) {
+        setLocalAccounts([])
+        setError(asError(cause))
+      }
     } finally {
-      setLoading(false)
+      if (mounted.current && request === requests.current) setLoading(false)
     }
   }, [])
-
-  useEffect(() => {
-    void loadAccounts()
-  }, [loadAccounts])
-
-  useEffect(() => {
-    const handleRefresh = () => { void loadAccounts() }
-    window.addEventListener('laap:refresh', handleRefresh)
-    return () => window.removeEventListener('laap:refresh', handleRefresh)
-  }, [loadAccounts])
-
-  const saveAccount = async (name: string, region: string, sessionBlob: string, rank = '') => {
-    if (!hasTauri) {
-      const newAcc: LocalAccountSummary = {
-        id: `acc-${Date.now()}`,
-        name: name.trim(),
-        rank: rank.trim() || null,
-        region,
-        has_session: true,
-        last_used_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-      }
-      const updated = [...localAccounts, newAcc]
-      localStorage.setItem('laap_browser_accounts', JSON.stringify(updated))
-      setLocalAccounts(updated)
-      return newAcc
+  const cancelSandbox = useCallback(async () => {
+    generation.current++
+    const owned = ticket.current
+    if (owned) {
+      const cancel = (confirmed: boolean) =>
+        invokeTauri('cancel_provisioning_session', {
+          provisioningId: owned,
+          confirmed,
+        })
+      if (mounted.current) await runRef.current(cancel)
+      else await cancel(false)
+      if (ticket.current === owned) ticket.current = null
     }
-    const result = await invokeTauri<LocalAccountSummary>('save_local_account', {
+    if (mounted.current) setProvisioning(false)
+    if (owned)
+      window.dispatchEvent(
+        new CustomEvent('laap:provisioning', { detail: false }),
+      )
+  }, [])
+  useEffect(() => {
+    mounted.current = true
+    void loadAccounts()
+    const refresh = () => void loadAccounts()
+    window.addEventListener('laap:refresh', refresh)
+    return () => {
+      mounted.current = false
+      requests.current++
+      window.removeEventListener('laap:refresh', refresh)
+      void cancelSandbox().catch((cause) =>
+        console.error('Unable to restore Riot sign-in:', String(cause)),
+      )
+    }
+  }, [loadAccounts, cancelSandbox])
+  useNativeClose(provisioning, cancelSandbox, (cause) =>
+    setError(asError(cause)),
+  )
+  const syncSignature = localAccounts
+    .filter(
+      (account) =>
+        account.customization?.auto_sync_icon ||
+        account.customization?.auto_sync_rank,
+    )
+    .map(
+      (account) =>
+        `${account.id}:${account.customization?.auto_sync_icon}:${account.customization?.auto_sync_rank}`,
+    )
+    .sort()
+    .join('|')
+  useEffect(() => {
+    if (!syncSignature) {
+      setSyncMessage(null)
+      return
+    }
+    let cancelled = false,
+      pending = false
+    const sync = async () => {
+      if (
+        cancelled ||
+        pending ||
+        operationState.current.busy ||
+        operationState.current.provisioning
+      )
+        return
+      pending = true
+      try {
+        const result = await invokeTauri<{
+          changed: boolean
+          message: string | null
+        }>('sync_profile_customizations')
+        if (!cancelled) {
+          setSyncMessage(
+            result.message ??
+              (result.changed ? 'Profile synced from League Client' : null),
+          )
+          if (result.changed) {
+            window.dispatchEvent(new Event('laap:icons-updated'))
+            await loadAccounts()
+          }
+        }
+      } catch (cause) {
+        if (!cancelled) setSyncMessage(String(cause))
+      } finally {
+        pending = false
+      }
+    }
+    void sync()
+    const timer = window.setInterval(() => void sync(), 20000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [syncSignature, loadAccounts])
+  const saveAccount = async (
+    name: string,
+    region: string,
+    sessionBlob: string,
+    rank = '',
+    notes = '',
+    favorite = false,
+    customization?: ProfileCustomization,
+  ) => {
+    const saved = await invokeTauri<LocalAccountSummary>('save_local_account', {
       name: name.trim(),
       region,
       sessionBlob,
       rank: rank.trim() || null,
+      notes,
+      favorite,
+      customization,
     })
     await loadAccounts()
-    return result
+    return saved
   }
-
+  const editAccount = async (id: string, details: ProfileDetails) => {
+    await invokeTauri('edit_local_account', { id, details })
+    await loadAccounts()
+  }
   const deleteAccount = async (id: string) => {
-    if (!hasTauri) {
-      const updated = localAccounts.filter((a) => a.id !== id)
-      localStorage.setItem('laap_browser_accounts', JSON.stringify(updated))
-      setLocalAccounts(updated)
-      return
-    }
     await invokeTauri('delete_local_account', { id })
     await loadAccounts()
   }
-
   const launchAccount = async (id: string) => {
-    if (!hasTauri) return
-    await invokeTauri('launch_local_account', { id })
+    await run((confirmed) =>
+      invokeTauri('launch_local_account', { id, confirmed }),
+    )
     await loadAccounts()
   }
-
-  const captureActive = async () => {
-    if (!hasTauri) return null
-    return invokeTauri<string | null>('capture_active_session')
-  }
-
+  const captureActive = () =>
+    invokeTauri<string | null>('capture_active_session')
+  const detectActive = () =>
+    invokeTauri<CapturedProfile | null>('detect_active_profile')
   const startSandbox = async () => {
-    if (!hasTauri) return
-    await invokeTauri('start_provisioning_session')
-    setProvisioning(true)
+    const version = ++generation.current
+    await run(async (confirmed) => {
+      const id = await invokeTauri<string>('start_provisioning_session', {
+        confirmed,
+      })
+      if (!mounted.current || version !== generation.current) {
+        await invokeTauri('cancel_provisioning_session', { provisioningId: id })
+        return
+      }
+      ticket.current = id
+      setProvisioning(true)
+      window.dispatchEvent(
+        new CustomEvent('laap:provisioning', { detail: true }),
+      )
+    })
   }
-
-  const cancelSandbox = async () => {
-    if (!hasTauri) return
-    await invokeTauri('cancel_provisioning_session').catch(() => undefined)
+  const pollSandbox = useCallback(async () => {
+    const id = ticket.current
+    if (!id) return null
+    return invokeTauri<string | null>('poll_provisioning_session', {
+      provisioningId: id,
+    })
+  }, [])
+  const completeSandbox = async (
+    details: ProfileDetails,
+    profileId?: string,
+  ) => {
+    const id = ticket.current
+    if (!id) throw new Error('This sign-in has been cancelled.')
+    await runRef.current((confirmed) =>
+      invokeTauri('complete_local_provisioning', {
+        provisioningId: id,
+        profileId: profileId ?? null,
+        details,
+        confirmed,
+      }),
+    )
+    ticket.current = null
     setProvisioning(false)
+    window.dispatchEvent(
+      new CustomEvent('laap:provisioning', { detail: false }),
+    )
+    await loadAccounts()
   }
-
-  const pollSandbox = async () => {
-    if (!hasTauri) return null
-    return invokeTauri<string | null>('poll_provisioning_session')
-  }
-
-  const finishSandbox = async () => {
-    if (!hasTauri) return
-    await invokeTauri('finish_provisioning_session')
-    setProvisioning(false)
-  }
-
-  const getFullAccount = async (id: string) => {
-    if (!hasTauri) return null
-    return invokeTauri<LocalAccountFull>('get_local_account', { id })
-  }
-
+  const finishSandbox = cancelSandbox
+  const getFullAccount = (id: string) =>
+    invokeTauri<LocalAccountFull>('get_local_account', { id })
   return {
+    syncMessage,
+    accounts: localAccounts,
     localAccounts,
     loading,
     error,
     setError,
     provisioning,
+    refetch: loadAccounts,
     loadAccounts,
     saveAccount,
+    editAccount,
     deleteAccount,
     launchAccount,
     captureActive,
+    detectActive,
     startSandbox,
     cancelSandbox,
     pollSandbox,
+    completeSandbox,
     finishSandbox,
     getFullAccount,
   }

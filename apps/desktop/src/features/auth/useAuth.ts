@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
-import { apiRequest, clearStoredToken, loadStoredToken, setRuntimeToken, storeAuthToken } from '../../lib/api'
+import {
+  ApiError,
+  IS_OFFLINE_ONLY,
+  apiRequest,
+  clearStoredToken,
+  loadStoredToken,
+  setRuntimeToken,
+  storeAuthToken,
+} from '../../lib/api'
 import type { User } from '../../lib/types'
 
 export function useAuth() {
@@ -8,6 +16,7 @@ export function useAuth() {
   const [error, setError] = useState<string | null>(null)
 
   const checkSession = useCallback(async () => {
+    if (IS_OFFLINE_ONLY) return
     const token = await loadStoredToken()
     if (!token) {
       setUser(null)
@@ -15,7 +24,9 @@ export function useAuth() {
     }
     setRuntimeToken(token)
     try {
-      const result = await apiRequest<{ user: User | null }>('/api/auth/session')
+      const result = await apiRequest<{ user: User | null }>(
+        '/api/auth/session',
+      )
       if (result.user) {
         setUser(result.user)
         // The token remains in memory; the OS keychain is used only when the
@@ -25,27 +36,46 @@ export function useAuth() {
         setRuntimeToken(null)
         await clearStoredToken()
       }
-    } catch {
+    } catch (cause) {
       setUser(null)
-      setRuntimeToken(null)
-      await clearStoredToken()
+      if (cause instanceof ApiError && [401, 403].includes(cause.status)) {
+        setRuntimeToken(null)
+        await clearStoredToken()
+      } else {
+        setError(
+          'Cloud connection unavailable. Your saved sign-in has been preserved.',
+        )
+      }
     }
   }, [])
 
   useEffect(() => {
     void checkSession()
+    const retry = () => void checkSession()
+    if (!IS_OFFLINE_ONLY) window.addEventListener('online', retry)
+    return () => window.removeEventListener('online', retry)
   }, [checkSession])
 
   const login = async (email: string, password: string, rememberMe = true) => {
     setLoading(true)
     setError(null)
     try {
-      const result = await apiRequest<{ user: User; accessToken?: string }>('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email: email.trim(), password, remember: rememberMe }),
-      })
+      const result = await apiRequest<{ user: User; accessToken?: string }>(
+        '/api/auth/login',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            email: email.trim(),
+            password,
+            remember: rememberMe,
+          }),
+        },
+      )
       const token = result.accessToken ?? null
-      if (!token) throw new Error('Desktop sign-in session could not be established. Please update LAAP and try again.')
+      if (!token)
+        throw new Error(
+          'Desktop sign-in session could not be established. Please update LAAP and try again.',
+        )
       setRuntimeToken(token)
       setUser(result.user)
       if (rememberMe && token) {
@@ -58,7 +88,9 @@ export function useAuth() {
       setRuntimeToken(null)
       await clearStoredToken()
       const msg = cause instanceof Error ? cause.message : String(cause)
-      const friendly = msg.includes('INVALID_LOGIN') ? 'Incorrect email or password.' : msg
+      const friendly = msg.includes('INVALID_LOGIN')
+        ? 'Incorrect email or password.'
+        : msg
       setError(friendly)
       throw new Error(friendly)
     } finally {
@@ -67,9 +99,12 @@ export function useAuth() {
   }
 
   const logout = async () => {
-    if (typeof window !== 'undefined') window.dispatchEvent(new Event('laap:logout'))
+    if (typeof window !== 'undefined')
+      window.dispatchEvent(new Event('laap:logout'))
     try {
-      await apiRequest('/api/auth/logout', { method: 'POST' }).catch(() => undefined)
+      await apiRequest('/api/auth/logout', { method: 'POST' }).catch(
+        () => undefined,
+      )
     } finally {
       setRuntimeToken(null)
       await clearStoredToken()

@@ -21,3 +21,7 @@ apps/desktop/src-tauri/gen/
 .playwright-mcp/
 release-dmg/
 *.dmg
+
+apps/desktop/test-results/
+apps/desktop/playwright-report/
+apps/desktop/dist-bundle/

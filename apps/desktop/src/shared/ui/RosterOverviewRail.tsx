@@ -1,5 +1,12 @@
 import { useMemo } from 'react'
-import { BarChart3, KeyRound, Play, RotateCcw, ShieldCheck, Zap } from 'lucide-react'
+import {
+  BarChart3,
+  KeyRound,
+  Play,
+  RotateCcw,
+  ShieldCheck,
+  Zap,
+} from 'lucide-react'
 import type { RosterItem } from './AccountRosterDisplay'
 
 export interface RosterOverviewRailProps {
@@ -45,7 +52,8 @@ export function RosterOverviewRail({
   const unsyncedCount = Math.max(0, totalCount - readyCount - leasedCount)
   const readyPercent = totalCount > 0 ? (readyCount / totalCount) * 100 : 0
   const leasedPercent = totalCount > 0 ? (leasedCount / totalCount) * 100 : 0
-  const unsyncedPercent = totalCount > 0 ? (unsyncedCount / totalCount) * 100 : 0
+  const unsyncedPercent =
+    totalCount > 0 ? (unsyncedCount / totalCount) * 100 : 0
 
   return (
     <aside className="tactical-overview-rail" aria-label="Roster Overview">
@@ -57,8 +65,16 @@ export function RosterOverviewRail({
             <span>Quick Launch</span>
           </div>
           {selectedItem ? (
-            <span className={`pod-badge ${selectedItem.hasSession && !isLeased ? '' : 'text-amber-400 bg-amber-400/10 border-amber-400/20'}`}>
-              {isLeased ? 'In Use' : selectedItem.hasSession ? 'Ready to Play' : 'Needs Login'}
+            <span
+              className={`pod-badge ${selectedItem.hasSession && !isLeased ? '' : 'text-amber-400 bg-amber-400/10 border-amber-400/20'}`}
+            >
+              {isLeased
+                ? 'In Use'
+                : selectedItem.hasSession
+                  ? isCloud
+                    ? 'Ready to Play'
+                    : selectedItem.status
+                  : 'Sign in required'}
             </span>
           ) : null}
         </div>
@@ -67,31 +83,54 @@ export function RosterOverviewRail({
           <div className="pod-body">
             <div className="inspector-preview-head">
               <div className="card-avatar">
-                <span className="avatar-initials">{selectedItem.name.slice(0, 2).toUpperCase()}</span>
+                <span className="avatar-initials">
+                  {selectedItem.name.slice(0, 2).toUpperCase()}
+                </span>
                 <span className="avatar-region-pip">{selectedItem.region}</span>
               </div>
               <div className="card-info">
                 <span className="inspector-name">{selectedItem.name}</span>
-                <span className="inspector-tag">Server: {selectedItem.region}</span>
+                <span className="inspector-tag">
+                  Server: {selectedItem.region}
+                </span>
               </div>
             </div>
 
             {selectedItem.rank ? (
               <div className="pod-field">
                 <span className="pod-field-label">Rank</span>
-                <span className="account-rank-label" title={selectedItem.rank}>{selectedItem.rank}</span>
+                <span className="account-rank-label" title={selectedItem.rank}>
+                  {selectedItem.rank}
+                </span>
               </div>
             ) : null}
 
             <div className="pod-field">
               <span className="pod-field-label">Last Played</span>
-              <span className="pod-field-value">{selectedItem.lastUsedText || 'Never played'}</span>
+              <span className="pod-field-value">
+                {selectedItem.lastUsedText || 'Never played'}
+              </span>
             </div>
 
             <div className="pod-field">
               <span className="pod-field-label">Status</span>
-              <span className="pod-field-value" style={{ color: isLeased ? 'var(--status-leased)' : selectedItem.hasSession ? 'var(--status-ready)' : 'var(--text-muted)' }}>
-                {isLeased ? 'In Use' : selectedItem.hasSession ? 'Ready to Play' : 'Needs Login'}
+              <span
+                className="pod-field-value"
+                style={{
+                  color: isLeased
+                    ? 'var(--status-leased)'
+                    : selectedItem.hasSession
+                      ? 'var(--status-ready)'
+                      : 'var(--text-muted)',
+                }}
+              >
+                {isLeased
+                  ? 'In Use'
+                  : selectedItem.hasSession
+                    ? isCloud
+                      ? 'Ready to Play'
+                      : selectedItem.status
+                    : 'Sign in required'}
               </span>
             </div>
 
@@ -102,7 +141,11 @@ export function RosterOverviewRail({
                   <button
                     type="button"
                     className="inspector-launch-btn"
-                    style={{ background: 'rgba(239, 68, 68, 0.2)', borderColor: 'rgba(239, 68, 68, 0.4)', color: '#fca5a5' }}
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.2)',
+                      borderColor: 'rgba(239, 68, 68, 0.4)',
+                      color: '#fca5a5',
+                    }}
                     onClick={() => onForceRelease(selectedItem.id)}
                     disabled={busy}
                   >
@@ -110,7 +153,11 @@ export function RosterOverviewRail({
                     <span>Force Release Session</span>
                   </button>
                 ) : (
-                  <button type="button" className="inspector-launch-btn" disabled>
+                  <button
+                    type="button"
+                    className="inspector-launch-btn"
+                    disabled
+                  >
                     <span>Currently In Use</span>
                   </button>
                 )
@@ -119,7 +166,7 @@ export function RosterOverviewRail({
                   type="button"
                   className="inspector-launch-btn"
                   onClick={() => onLaunch(selectedItem.id)}
-                  disabled={busy}
+                  disabled={busy || !selectedItem.hasSession}
                 >
                   <Play size={14} fill="currentColor" />
                   <span>{isCloud ? 'Claim & Launch' : 'Play Game'}</span>
@@ -134,7 +181,15 @@ export function RosterOverviewRail({
                   <button
                     type="button"
                     className="btn-modal-secondary"
-                    style={{ flex: 1, height: '30px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                    style={{
+                      flex: 1,
+                      height: '30px',
+                      fontSize: '11px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '5px',
+                    }}
                     onClick={() => onSync(selectedItem.id)}
                     disabled={busy}
                   >
@@ -146,7 +201,15 @@ export function RosterOverviewRail({
                   <button
                     type="button"
                     className="btn-modal-secondary"
-                    style={{ flex: 1, height: '30px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                    style={{
+                      flex: 1,
+                      height: '30px',
+                      fontSize: '11px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '5px',
+                    }}
                     onClick={() => onRevokeSession(selectedItem.id)}
                     disabled={busy}
                   >
@@ -158,7 +221,14 @@ export function RosterOverviewRail({
             ) : null}
           </div>
         ) : (
-          <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+          <div
+            style={{
+              padding: '24px 0',
+              textAlign: 'center',
+              color: 'var(--text-muted)',
+              fontSize: '12px',
+            }}
+          >
             Select an account from the roster to launch League of Legends.
           </div>
         )}
@@ -179,31 +249,54 @@ export function RosterOverviewRail({
         <div className="pod-body">
           <div className="pod-chart-container">
             {/* Visual Multi-Segment Readiness Bar */}
-            <div className="chart-bar-track" title={`${Math.round(readyPercent)}% Ready to Launch`}>
-              <div className="chart-bar-segment chart-bar-ready" style={{ width: `${readyPercent}%` }} />
+            <div
+              className="chart-bar-track"
+              title={`${Math.round(readyPercent)}% ${isCloud ? 'Ready to Launch' : 'Logins saved'}`}
+            >
+              <div
+                className="chart-bar-segment chart-bar-ready"
+                style={{ width: `${readyPercent}%` }}
+              />
               {isCloud && leasedPercent > 0 ? (
-                <div className="chart-bar-segment chart-bar-leased" style={{ width: `${leasedPercent}%` }} />
+                <div
+                  className="chart-bar-segment chart-bar-leased"
+                  style={{ width: `${leasedPercent}%` }}
+                />
               ) : null}
               {unsyncedPercent > 0 ? (
-                <div className="chart-bar-segment chart-bar-unsynced" style={{ width: `${unsyncedPercent}%` }} />
+                <div
+                  className="chart-bar-segment chart-bar-unsynced"
+                  style={{ width: `${unsyncedPercent}%` }}
+                />
               ) : null}
             </div>
 
             {/* Status Legend Row */}
             <div className="chart-legend-row">
               <div className="chart-legend-item">
-                <span className="legend-dot" style={{ background: '#10B981' }} />
-                <span>{readyCount} Ready</span>
+                <span
+                  className="legend-dot"
+                  style={{ background: '#10B981' }}
+                />
+                <span>
+                  {readyCount} {isCloud ? 'Ready' : 'Saved logins'}
+                </span>
               </div>
               {isCloud ? (
                 <div className="chart-legend-item">
-                  <span className="legend-dot" style={{ background: '#F59E0B' }} />
+                  <span
+                    className="legend-dot"
+                    style={{ background: '#F59E0B' }}
+                  />
                   <span>{leasedCount} In Use</span>
                 </div>
               ) : null}
               {unsyncedCount > 0 ? (
                 <div className="chart-legend-item">
-                  <span className="legend-dot" style={{ background: 'rgba(255,255,255,0.3)' }} />
+                  <span
+                    className="legend-dot"
+                    style={{ background: 'rgba(255,255,255,0.3)' }}
+                  />
                   <span>{unsyncedCount} Needs Login</span>
                 </div>
               ) : null}
@@ -214,7 +307,12 @@ export function RosterOverviewRail({
               <div className="region-distribution-list">
                 <div className="region-distribution-title">
                   <span>Server Distribution</span>
-                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{regionCounts.length} {regionCounts.length === 1 ? 'region' : 'regions'}</span>
+                  <span
+                    style={{ fontSize: '10px', color: 'var(--text-muted)' }}
+                  >
+                    {regionCounts.length}{' '}
+                    {regionCounts.length === 1 ? 'region' : 'regions'}
+                  </span>
                 </div>
                 {regionCounts.map(([region, count]) => (
                   <div key={region} className="region-stat-row">
@@ -222,7 +320,9 @@ export function RosterOverviewRail({
                     <div className="region-bar-track">
                       <div
                         className="region-bar-fill"
-                        style={{ width: `${totalCount > 0 ? (count / totalCount) * 100 : 0}%` }}
+                        style={{
+                          width: `${totalCount > 0 ? (count / totalCount) * 100 : 0}%`,
+                        }}
                       />
                     </div>
                     <span className="region-stat-count">{count}</span>
@@ -243,7 +343,8 @@ export function RosterOverviewRail({
           <div className="security-trust-text">
             <div className="security-trust-title">External launcher</div>
             <div className="security-trust-desc">
-              LAAP does not read game memory or automate inputs. Riot controls authentication.
+              LAAP does not read game memory or automate inputs. Riot controls
+              authentication.
             </div>
           </div>
         </div>

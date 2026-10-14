@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { openExternalUrl } from '../lib/api'
+import { IS_OFFLINE_ONLY, openExternalUrl } from '../lib/api'
 
-export const APP_VERSION = '0.4.2'
+export const APP_VERSION = '0.4.3'
 export const GITHUB_REPO = 'Kingof3O/laap'
 const DISMISSED_KEY = 'laap_dismissed_update_version'
 
@@ -26,7 +26,10 @@ function parseSemver(v: string): [number, number, number] {
 /**
  * Returns true if remoteVersion is strictly newer than currentVersion.
  */
-export function isNewerVersion(remoteVersion: string, currentVersion: string): boolean {
+export function isNewerVersion(
+  remoteVersion: string,
+  currentVersion: string,
+): boolean {
   const [rMaj, rMin, rPat] = parseSemver(remoteVersion)
   const [cMaj, cMin, cPat] = parseSemver(currentVersion)
 
@@ -38,19 +41,28 @@ export function isNewerVersion(remoteVersion: string, currentVersion: string): b
 export function useUpdateChecker() {
   const [checking, setChecking] = useState(false)
   const [updateAvailable, setUpdateAvailable] = useState(false)
-  const [latestRelease, setLatestRelease] = useState<GitHubReleaseInfo | null>(null)
+  const [latestRelease, setLatestRelease] = useState<GitHubReleaseInfo | null>(
+    null,
+  )
   const [checkError, setCheckError] = useState<string | null>(null)
 
   const checkForUpdates = useCallback(async (manual = false) => {
+    if (IS_OFFLINE_ONLY) return null
     setChecking(true)
     setCheckError(null)
 
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 12000)
     try {
-      const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
-        headers: {
-          Accept: 'application/vnd.github.v3+json',
+      const res = await fetch(
+        `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
+        {
+          signal: controller.signal,
+          headers: {
+            Accept: 'application/vnd.github.v3+json',
+          },
         },
-      })
+      )
 
       if (!res.ok) {
         if (res.status === 404) {
@@ -80,7 +92,8 @@ export function useUpdateChecker() {
         version: releaseVersion,
         name: data.name || `Release ${data.tag_name}`,
         body: data.body || 'New enhancements and updates are available.',
-        htmlUrl: data.html_url || `https://github.com/${GITHUB_REPO}/releases/latest`,
+        htmlUrl:
+          data.html_url || `https://github.com/${GITHUB_REPO}/releases/latest`,
         publishedAt: data.published_at || new Date().toISOString(),
       }
 
@@ -104,26 +117,34 @@ export function useUpdateChecker() {
     } catch (cause) {
       const msg = cause instanceof Error ? cause.message : String(cause)
       setCheckError(msg)
+      if (manual)
+        throw new Error('Unable to check for updates (Offline/Blocked)')
       return null
     } finally {
+      window.clearTimeout(timeout)
       setChecking(false)
     }
   }, [])
 
   // Check on startup automatically
   useEffect(() => {
-    void checkForUpdates(false)
+    if (!IS_OFFLINE_ONLY) void checkForUpdates(false)
   }, [checkForUpdates])
 
-  const dismissUpdate = useCallback((forever = false) => {
-    if (forever && latestRelease) {
-      localStorage.setItem(DISMISSED_KEY, latestRelease.version)
-    }
-    setUpdateAvailable(false)
-  }, [latestRelease])
+  const dismissUpdate = useCallback(
+    (forever = false) => {
+      if (forever && latestRelease) {
+        localStorage.setItem(DISMISSED_KEY, latestRelease.version)
+      }
+      setUpdateAvailable(false)
+    },
+    [latestRelease],
+  )
 
   const openReleasePage = useCallback(() => {
-    const url = latestRelease?.htmlUrl || `https://github.com/${GITHUB_REPO}/releases/latest`
+    const url =
+      latestRelease?.htmlUrl ||
+      `https://github.com/${GITHUB_REPO}/releases/latest`
     void openExternalUrl(url)
   }, [latestRelease])
 

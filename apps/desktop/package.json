@@ -1,14 +1,17 @@
 {
   "name": "@laap/desktop",
   "private": true,
-  "version": "0.4.2",
+  "type": "module",
+  "version": "0.4.3",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:offline": "tsc -b && vite build --mode offline",
     "tauri": "tauri",
     "test": "cargo test --manifest-path src-tauri/Cargo.toml",
-    "check": "cargo check --manifest-path src-tauri/Cargo.toml"
+    "check": "cargo check --manifest-path src-tauri/Cargo.toml",
+    "test:sorting": "node --experimental-strip-types --test tests/sorting.test.ts",
+    "test:ui": "playwright test"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.2.0",
@@ -17,10 +20,11 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
+    "@tauri-apps/cli": "^2.2.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "@tauri-apps/cli": "^2.2.0",
     "typescript": "~5.7.2",
     "vite": "^6.0.5"
   }

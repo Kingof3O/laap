@@ -1,7 +1,8 @@
+pub mod operation;
 pub mod paths;
 pub mod process;
 pub mod provisioner;
-mod session_format;
+pub mod session_format;
 pub mod session_manager;
 
 pub use paths::{detect_riot_data_dir, RIOT_SETTINGS_FILENAMES};
@@ -23,7 +24,8 @@ mod tests {
         ));
         fs::create_dir_all(&temp_dir).unwrap();
         let manager = RiotSessionManager::with_custom_dir(temp_dir.clone());
-        let provisioner = RiotProvisioner::with_manager(manager.clone());
+        let mut provisioner = RiotProvisioner::with_manager(manager.clone());
+        provisioner.prepare_for_provisioning().unwrap();
         let settings = "psl:\n  authorization:\n    riot-client:\n      refresh_token: test-refresh-token\nriot-login:\n  persist: null\n";
 
         // An empty first candidate must not hide a valid second candidate.
@@ -114,5 +116,55 @@ mod tests {
         );
         assert!(!manager.backup_file_paths().iter().any(|path| path.exists()));
         let _ = fs::remove_dir_all(&temp_dir);
+    }
+}
+
+#[cfg(test)]
+mod cancellation_tests {
+    use super::*;
+    #[test]
+    fn cancellation_restores_original_and_never_captures_later_logins() {
+        let path =
+            std::env::temp_dir().join(format!("laap-cancel-{:032x}", rand::random::<u128>()));
+        std::fs::create_dir_all(&path).unwrap();
+        let file = path.join(RIOT_SETTINGS_FILENAMES[0]);
+        std::fs::write(&file, "rso_token: original").unwrap();
+        let manager = RiotSessionManager::with_custom_dir(path.clone());
+        let mut sandbox = RiotProvisioner::with_manager(manager);
+        assert_eq!(sandbox.poll_captured_session().unwrap(), None);
+        sandbox.prepare_for_provisioning().unwrap();
+        std::fs::write(&file, "rso_token: sandbox").unwrap();
+        assert!(sandbox.poll_captured_session().unwrap().is_some());
+        sandbox.finish_and_restore().unwrap();
+        assert_eq!(
+            std::fs::read_to_string(&file).unwrap(),
+            "rso_token: original"
+        );
+        std::fs::write(&file, "rso_token: later-login").unwrap();
+        assert_eq!(sandbox.poll_captured_session().unwrap(), None);
+        assert!(!std::fs::read_dir(&path)
+            .unwrap()
+            .filter_map(Result::ok)
+            .any(|e| e
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".laap-provision-")));
+        std::fs::remove_dir_all(path).unwrap();
+    }
+    #[test]
+    fn cleanup_without_managed_session_never_deletes_personal_login() {
+        let path =
+            std::env::temp_dir().join(format!("laap-personal-{:032x}", rand::random::<u128>()));
+        std::fs::create_dir_all(&path).unwrap();
+        let file = path.join(RIOT_SETTINGS_FILENAMES[0]);
+        std::fs::write(&file, "rso_token: personal").unwrap();
+        RiotSessionManager::with_custom_dir(path.clone())
+            .cleanup_session()
+            .unwrap();
+        assert_eq!(
+            std::fs::read_to_string(file).unwrap(),
+            "rso_token: personal"
+        );
+        std::fs::remove_dir_all(path).unwrap();
     }
 }

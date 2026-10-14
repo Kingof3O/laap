@@ -1,51 +1,55 @@
-import { useEffect, useRef } from 'react'
-
-interface UseProvisioningSandboxOptions {
+import { useEffect, useRef, useState } from 'react'
+interface Options {
   active: boolean
   pollFn: () => Promise<string | null>
   onCapture: (sessionBlob: string) => Promise<void> | void
   onError?: (err: Error) => void
   pollIntervalMs?: number
 }
-
 export function useProvisioningSandbox({
   active,
   pollFn,
   onCapture,
   onError,
   pollIntervalMs = 1500,
-}: UseProvisioningSandboxOptions) {
-  const pollTimerRef = useRef<NodeJS.Timeout | null>(null)
-
+}: Options) {
+  const callbacks = useRef({ pollFn, onCapture, onError })
+  callbacks.current = { pollFn, onCapture, onError }
+  const [capturing, setCapturing] = useState(false)
   useEffect(() => {
     if (!active) {
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current)
-        pollTimerRef.current = null
-      }
+      setCapturing(false)
       return
     }
-
-    pollTimerRef.current = setInterval(async () => {
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const poll = async () => {
       try {
-        const captured = await pollFn()
-        if (captured) {
-          if (pollTimerRef.current) {
-            clearInterval(pollTimerRef.current)
-            pollTimerRef.current = null
+        const session = await callbacks.current.pollFn()
+        if (cancelled) return
+        if (session) {
+          setCapturing(true)
+          try {
+            await callbacks.current.onCapture(session)
+          } finally {
+            if (!cancelled) setCapturing(false)
           }
-          await onCapture(captured)
+          return
         }
-      } catch (err) {
-        onError?.(err instanceof Error ? err : new Error(String(err)))
+      } catch (cause) {
+        if (!cancelled)
+          callbacks.current.onError?.(
+            cause instanceof Error ? cause : new Error(String(cause)),
+          )
+        return
       }
-    }, pollIntervalMs)
-
-    return () => {
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current)
-        pollTimerRef.current = null
-      }
+      if (!cancelled) timer = setTimeout(() => void poll(), pollIntervalMs)
     }
-  }, [active, pollFn, onCapture, onError, pollIntervalMs])
+    timer = setTimeout(() => void poll(), pollIntervalMs)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [active, pollIntervalMs])
+  return { capturing }
 }

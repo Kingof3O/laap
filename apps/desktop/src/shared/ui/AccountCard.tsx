@@ -1,10 +1,25 @@
-import { KeyRound, Loader2, Play, RotateCcw, Trash2, UploadCloud, Zap } from 'lucide-react'
+import { ProfileAvatar } from './ProfileAvatar'
+import { RankCrest } from './RankPicker'
+import {
+  Pencil,
+  LogIn,
+  KeyRound,
+  Loader2,
+  Play,
+  RotateCcw,
+  Trash2,
+  UploadCloud,
+  Zap,
+} from 'lucide-react'
+import { getRankTierClass, formatRelativeTime } from '../../lib/sorting'
 
 export interface AccountCardProps {
   id: string
   name: string
   region: string
   rank?: string | null
+  notes?: string
+  iconAsset?: string | null
   lastUsedText?: string | null
   hasSession?: boolean
   status?: string
@@ -15,6 +30,9 @@ export interface AccountCardProps {
   isLaunching?: boolean
   launchFailed?: boolean
   onSelect?: () => void
+  launchLabel?: string
+  onEdit?: () => void
+  onRefreshSession?: () => void
   onLaunch: () => void
   onRetry?: () => void
   onSync?: () => void
@@ -28,7 +46,9 @@ export function AccountCard({
   name,
   region,
   rank,
-  lastUsedText: _lastUsedText,
+  notes,
+  iconAsset,
+  lastUsedText,
   hasSession = true,
   status = 'Available',
   isSelected = false,
@@ -38,6 +58,9 @@ export function AccountCard({
   isLaunching = false,
   launchFailed = false,
   onSelect,
+  launchLabel = 'Play',
+  onEdit,
+  onRefreshSession,
   onLaunch,
   onRetry,
   onSync,
@@ -46,8 +69,9 @@ export function AccountCard({
   onRevokeSession,
   onDelete,
 }: AccountCardProps) {
-  const initials = name.slice(0, 2).toUpperCase()
   const isLeased = isCloud && status === 'Leased'
+  const sessionWarning =
+    !isCloud && (status === 'Session stale' || status.includes('unknown'))
 
   return (
     <div
@@ -66,30 +90,43 @@ export function AccountCard({
       <div className="card-top-row">
         <div className="card-identity">
           <div className="card-avatar">
-            <span className="avatar-initials">{initials}</span>
+            <ProfileAvatar name={name} asset={iconAsset} />
             <span className="avatar-region-pip">{region}</span>
           </div>
 
           <div className="card-info">
             <div className="card-title-row">
-              <span className="card-name" title={name}>{name}</span>
+              <span className="card-name" title={name}>
+                {name}
+              </span>
             </div>
             <div className="card-meta">
-              {rank ? <span className="account-rank-label" title={`Rank: ${rank}`}>{rank}</span> : null}
+              {rank ? (
+                <span
+                  className={`account-rank-label ${getRankTierClass(rank)}`}
+                  title={`Rank: ${rank}`}
+                >
+                  <RankCrest rank={rank} /> {rank}
+                </span>
+              ) : null}
               {isLeased ? (
                 <span className="status-indicator status-indicator-warn">
                   <span className="status-beacon status-beacon-amber" />
                   In Use
                 </span>
               ) : hasSession ? (
-                <span className="status-indicator status-indicator-ready">
-                  <span className="status-beacon status-beacon-ready" />
-                  Ready
+                <span
+                  className={`status-indicator ${sessionWarning ? 'status-indicator-warn' : 'status-indicator-ready'}`}
+                >
+                  <span
+                    className={`status-beacon ${sessionWarning ? 'status-beacon-amber' : 'status-beacon-ready'}`}
+                  />
+                  {isCloud ? 'Ready' : status}
                 </span>
               ) : (
                 <span className="status-indicator status-indicator-warn">
                   <span className="status-beacon status-beacon-amber" />
-                  Needs Login
+                  {isCloud ? 'Needs Login' : status}
                 </span>
               )}
             </div>
@@ -97,7 +134,34 @@ export function AccountCard({
         </div>
 
         {/* Quick Card Context Actions */}
-        <div className="card-secondary-actions" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="card-secondary-actions"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {onEdit ? (
+            <button
+              type="button"
+              className="action-icon-btn"
+              title="Edit Profile"
+              aria-label={`Edit ${name}`}
+              disabled={busy}
+              onClick={onEdit}
+            >
+              <Pencil size={14} />
+            </button>
+          ) : null}
+          {onRefreshSession ? (
+            <button
+              type="button"
+              className="action-icon-btn"
+              title="Sign in again"
+              aria-label={`Sign in again to ${name}`}
+              disabled={busy}
+              onClick={onRefreshSession}
+            >
+              <LogIn size={14} />
+            </button>
+          ) : null}
           {canManage && isCloud && onSync ? (
             <button
               type="button"
@@ -148,14 +212,23 @@ export function AccountCard({
         </div>
       </div>
 
+      {notes ? <p className="account-notes card-notes">{notes}</p> : null}
+
       {/* Primary Action Row */}
       <div className="card-bottom-row" onClick={(e) => e.stopPropagation()}>
+        <span className="last-played-text" title={lastUsedText || undefined}>
+          {formatRelativeTime(lastUsedText)}
+        </span>
         {isLeased ? (
           canManage && onForceRelease ? (
             <button
               type="button"
               className="btn-launch-primary"
-              style={{ background: 'rgba(239, 68, 68, 0.2)', borderColor: 'rgba(239, 68, 68, 0.4)', color: '#fca5a5' }}
+              style={{
+                background: 'rgba(239, 68, 68, 0.2)',
+                borderColor: 'rgba(239, 68, 68, 0.4)',
+                color: '#fca5a5',
+              }}
               onClick={onForceRelease}
               disabled={busy}
               title="Force release active session"
@@ -164,20 +237,12 @@ export function AccountCard({
               <span>Force Release</span>
             </button>
           ) : (
-            <button
-              type="button"
-              className="btn-launch-primary"
-              disabled
-            >
+            <button type="button" className="btn-launch-primary" disabled>
               <span>In Use</span>
             </button>
           )
         ) : isLaunching ? (
-          <button
-            type="button"
-            className="btn-launch-primary"
-            disabled
-          >
+          <button type="button" className="btn-launch-primary" disabled>
             <Loader2 size={13} className="animate-spin" />
             <span>Preparing…</span>
           </button>
@@ -185,7 +250,11 @@ export function AccountCard({
           <button
             type="button"
             className="btn-launch-primary"
-            style={{ background: 'rgba(239, 68, 68, 0.2)', borderColor: 'rgba(239, 68, 68, 0.4)', color: '#fca5a5' }}
+            style={{
+              background: 'rgba(239, 68, 68, 0.2)',
+              borderColor: 'rgba(239, 68, 68, 0.4)',
+              color: '#fca5a5',
+            }}
             onClick={onRetry ?? onLaunch}
             disabled={busy && !isLaunching}
           >
@@ -196,11 +265,15 @@ export function AccountCard({
           <button
             type="button"
             className="btn-launch-primary"
-            onClick={onLaunch}
+            onClick={
+              !hasSession && onRefreshSession ? onRefreshSession : onLaunch
+            }
             disabled={busy}
           >
             <Play size={13} fill="currentColor" />
-            <span>Play</span>
+            <span>
+              {!hasSession && onRefreshSession ? 'Sign in again' : launchLabel}
+            </span>
           </button>
         )}
       </div>

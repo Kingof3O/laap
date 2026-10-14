@@ -14,8 +14,16 @@ body {
   user-select: none;
   -webkit-font-smoothing: antialiased;
   background-image:
-    radial-gradient(ellipse 60% 30% at 50% -5%, rgba(200, 170, 110, 0.06), transparent),
-    radial-gradient(ellipse 40% 20% at 85% 10%, rgba(200, 170, 110, 0.03), transparent);
+    radial-gradient(
+      ellipse 60% 30% at 50% -5%,
+      rgba(200, 170, 110, 0.06),
+      transparent
+    ),
+    radial-gradient(
+      ellipse 40% 20% at 85% 10%,
+      rgba(200, 170, 110, 0.03),
+      transparent
+    );
 }
 
 button {
@@ -25,7 +33,12 @@ button {
   background: none;
   color: inherit;
   touch-action: manipulation;
-  transition: transform 120ms ease, background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, color 120ms ease;
+  transition:
+    transform 120ms ease,
+    background 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    color 120ms ease;
 }
 
 button:focus-visible {
@@ -41,4 +54,64 @@ button:focus-visible {
 
 .main-viewport {
   flex: 1;
+}
+
+.empty-state-card {
+  margin: 32px 24px;
+  padding: 32px;
+  border: 1px solid var(--border-card);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  display: grid;
+  gap: 16px;
+  justify-items: start;
+}
+.empty-state-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--gold-surface);
+  color: var(--gold-light);
+}
+@keyframes laap-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.animate-spin {
+  animation: laap-spin 1s linear infinite;
+}
+.loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-card);
+  border-top-color: var(--gold-primary);
+  border-radius: 50%;
+}
+.sort-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.region-filter-bar {
+  flex-wrap: wrap;
+}
+.modal-panel {
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+}
+.modal-body p,
+.detected-details {
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin {
+    animation: none;
+  }
 }

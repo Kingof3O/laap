@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod device;
 pub mod local_store;
+pub mod profile_assets;
 pub mod riot;
 
 pub use device::DeviceIdentity;
@@ -25,6 +26,16 @@ pub fn run() {
             commands::session::cleanup_account_session,
             commands::session::recover_orphaned_account_session,
             commands::session::capture_active_session,
+            commands::session::detect_active_profile,
+            commands::session::complete_local_provisioning,
+            commands::session::switch_account_session,
+            commands::local_accounts::edit_local_account,
+            commands::local_accounts::refresh_local_account,
+            profile_assets::get_icon_catalog,
+            profile_assets::get_profile_icon,
+            profile_assets::read_cached_icon,
+            profile_assets::upload_profile_icon,
+            profile_assets::sync_profile_customizations,
             commands::session::start_provisioning_session,
             commands::session::poll_provisioning_session,
             commands::session::finish_provisioning_session,

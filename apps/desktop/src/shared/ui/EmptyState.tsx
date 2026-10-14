@@ -1,4 +1,14 @@
-import { Gamepad2, HardDrive, KeyRound, Play, Plus, ShieldCheck, Sparkles, Users, Zap } from 'lucide-react'
+import {
+  Gamepad2,
+  HardDrive,
+  KeyRound,
+  Play,
+  Plus,
+  ShieldCheck,
+  Sparkles,
+  Users,
+  Zap,
+} from 'lucide-react'
 
 export interface EmptyStateProps {
   isCloud?: boolean
@@ -21,7 +31,7 @@ export function EmptyState({
         </div>
         <h3 className="empty-state-title">No matching profiles</h3>
         <p className="empty-state-text">
-          No accounts matched your search query or region filter.
+          No profiles matched your search, region, or rank filters.
         </p>
       </div>
     )
@@ -33,7 +43,11 @@ export function EmptyState({
       <div className="empty-blueprint-panel">
         <div className="ghost-card-preview" aria-hidden="true">
           <div className="ghost-avatar">
-            <img src="/favicon.webp" alt="" style={{ width: '22px', height: '22px', borderRadius: '5px' }} />
+            <img
+              src="/favicon.webp"
+              alt=""
+              style={{ width: '22px', height: '22px', borderRadius: '5px' }}
+            />
           </div>
           <div className="ghost-info">
             <div className="ghost-line ghost-line-title" />
@@ -51,7 +65,9 @@ export function EmptyState({
 
         <div className="empty-content-block">
           <h2 className="empty-state-title">
-            {isCloud ? 'Shared Accounts is Empty' : 'Your Personal Roster is Empty'}
+            {isCloud
+              ? 'Shared Accounts is Empty'
+              : 'Your Personal Roster is Empty'}
           </h2>
           <p className="empty-state-text">
             {isCloud
@@ -68,7 +84,9 @@ export function EmptyState({
                 onClick={onAction}
               >
                 <Plus size={15} style={{ marginRight: '6px', flexShrink: 0 }} />
-                <span>{isCloud ? 'Add Shared Account' : 'Register New Profile'}</span>
+                <span>
+                  {isCloud ? 'Add Shared Account' : 'Register New Profile'}
+                </span>
               </button>
             ) : null}
 
@@ -79,7 +97,14 @@ export function EmptyState({
                 onClick={onQuickImport}
                 title="Automatically detect and save the account currently logged in Riot Client"
               >
-                <Zap size={14} style={{ color: 'var(--gold-primary)', marginRight: '6px', flexShrink: 0 }} />
+                <Zap
+                  size={14}
+                  style={{
+                    color: 'var(--gold-primary)',
+                    marginRight: '6px',
+                    flexShrink: 0,
+                  }}
+                />
                 <span>Import from Riot Client</span>
               </button>
             ) : null}
@@ -89,18 +114,39 @@ export function EmptyState({
         {/* Feature Trust Anchors */}
         <div className="empty-trust-row">
           <div className="trust-item">
-            <ShieldCheck size={14} style={{ color: 'var(--status-ready)', marginRight: '4px', flexShrink: 0 }} />
+            <ShieldCheck
+              size={14}
+              style={{
+                color: 'var(--status-ready)',
+                marginRight: '4px',
+                flexShrink: 0,
+              }}
+            />
             <span>No memory injection</span>
           </div>
           <div className="trust-divider" />
           <div className="trust-item">
-            <Zap size={14} style={{ color: 'var(--gold-primary)', marginRight: '4px', flexShrink: 0 }} />
+            <Zap
+              size={14}
+              style={{
+                color: 'var(--gold-primary)',
+                marginRight: '4px',
+                flexShrink: 0,
+              }}
+            />
             <span>1-Click Launch</span>
           </div>
           <div className="trust-divider" />
           <div className="trust-item">
-            <KeyRound size={14} style={{ color: 'var(--text-muted)', marginRight: '4px', flexShrink: 0 }} />
-            <span>Device identity</span>
+            <KeyRound
+              size={14}
+              style={{
+                color: 'var(--text-muted)',
+                marginRight: '4px',
+                flexShrink: 0,
+              }}
+            />
+            <span>{isCloud ? 'Device identity' : 'Encrypted local vault'}</span>
           </div>
         </div>
       </div>

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { LoadState } from '../components/LoadState'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ApiUser, DashboardAccount } from '@laap/types'
 import { api, ApiError } from '../lib/api'
 import { GlassCard } from '../components/GlassCard'
@@ -8,7 +9,6 @@ import { OperatorDossierHeader } from '../components/assignments/OperatorDossier
 import { GrantAccessForm } from '../components/assignments/GrantAccessForm'
 import { AssignedAccountsList } from '../components/assignments/AssignedAccountsList'
 import { GlobalAssignmentsTable } from '../components/assignments/GlobalAssignmentsTable'
-import { fallbackAssignments, fallbackUsers } from '../lib/mocks'
 
 type AssignmentsPageProps = {
   initialAccounts: DashboardAccount[]
@@ -16,7 +16,15 @@ type AssignmentsPageProps = {
   onToast: (message: string) => void
 }
 
-export function AssignmentsPage({ initialAccounts, offline, onToast }: AssignmentsPageProps) {
+export function AssignmentsPage({
+  initialAccounts,
+  offline,
+  onToast,
+}: AssignmentsPageProps) {
+  const requestVersion = useRef(0),
+    mounted = useRef(true)
+  const [loading, setLoading] = useState(true),
+    [loadError, setLoadError] = useState<string | null>(null)
   const [rows, setRows] = useState<AssignmentRow[]>([])
   const [accounts, setAccounts] = useState(initialAccounts)
   const [users, setUsers] = useState<ApiUser[]>([])
@@ -27,13 +35,16 @@ export function AssignmentsPage({ initialAccounts, offline, onToast }: Assignmen
   const [revokingKey, setRevokingKey] = useState<string | null>(null)
 
   const refresh = async () => {
+    if (!mounted.current) return
+    const version = ++requestVersion.current
+    setLoading(true)
+    setLoadError(null)
     if (offline) {
-      setRows(fallbackAssignments as AssignmentRow[])
-      const nonAdmin = (fallbackUsers as unknown as ApiUser[]).filter((u) => u.role !== 'admin')
-      setUsers(nonAdmin)
-      if (!selectedUserId && nonAdmin.length > 0) {
-        setSelectedUserId(nonAdmin[0].id)
-      }
+      setLoading(false)
+      setLoadError('Connection unavailable. Reconnect to load assignments.')
+      setRows([])
+      setUsers([])
+      setSelectedUserId('')
       return
     }
     try {
@@ -42,6 +53,7 @@ export function AssignmentsPage({ initialAccounts, offline, onToast }: Assignmen
         api.getAccounts(),
         api.getUsers(),
       ])
+      if (!mounted.current || version !== requestVersion.current) return
       setRows(assignmentResult.assignments)
       setAccounts(accountResult.accounts)
       const nonAdminUsers = userResult.users.filter((u) => u.role !== 'admin')
@@ -50,12 +62,26 @@ export function AssignmentsPage({ initialAccounts, offline, onToast }: Assignmen
         setSelectedUserId(nonAdminUsers[0].id)
       }
     } catch (error) {
-      onToast(error instanceof ApiError ? error.message : 'Unable to load access data')
+      onToast(
+        error instanceof ApiError
+          ? error.message
+          : 'Unable to load access data',
+      )
+    } finally {
+      if (mounted.current && version === requestVersion.current)
+        setLoading(false)
     }
   }
 
   useEffect(() => {
+    mounted.current = true
     void refresh()
+    const timer = window.setInterval(() => void refresh(), 20000)
+    return () => {
+      mounted.current = false
+      requestVersion.current++
+      window.clearInterval(timer)
+    }
   }, [offline])
 
   // Filtered operators by search query
@@ -63,7 +89,9 @@ export function AssignmentsPage({ initialAccounts, offline, onToast }: Assignmen
     if (!userSearch.trim()) return users
     const query = userSearch.toLowerCase()
     return users.filter(
-      (u) => u.displayName.toLowerCase().includes(query) || u.email.toLowerCase().includes(query)
+      (u) =>
+        u.displayName.toLowerCase().includes(query) ||
+        u.email.toLowerCase().includes(query),
     )
   }, [users, userSearch])
 
@@ -81,13 +109,20 @@ export function AssignmentsPage({ initialAccounts, offline, onToast }: Assignmen
   // Accounts available to grant to this operator (not yet assigned)
   const availableAccountsForUser = useMemo(() => {
     const assignedIds = new Set(
-      userAssignments.filter((r) => r.status === 'active').map((r) => r.accountId)
+      userAssignments
+        .filter((r) => r.status === 'active')
+        .map((r) => r.accountId),
     )
-    return accounts.filter((a) => a.status === 'Available' && !assignedIds.has(a.id))
+    return accounts.filter(
+      (a) => a.status === 'Available' && !assignedIds.has(a.id),
+    )
   }, [accounts, userAssignments])
 
   // Grant account access
-  const handleGrantAccess = async (accountIds: string[], expiresAt: string | null) => {
+  const handleGrantAccess = async (
+    accountIds: string[],
+    expiresAt: string | null,
+  ) => {
     if (!selectedUser || accountIds.length === 0) return
     setSaving(true)
     try {
@@ -97,28 +132,41 @@ export function AssignmentsPage({ initialAccounts, offline, onToast }: Assignmen
             accountId,
             userId: selectedUser.id,
             expiresAt,
-          })
-        )
+          }),
+        ),
       )
-      onToast(`Granted access to ${accountIds.length} account${accountIds.length > 1 ? 's' : ''} for ${selectedUser.displayName}`)
+      onToast(
+        `Granted access to ${accountIds.length} account${accountIds.length > 1 ? 's' : ''} for ${selectedUser.displayName}`,
+      )
       await refresh()
     } catch (error) {
-      onToast(error instanceof ApiError ? error.message : 'Unable to grant access')
+      onToast(
+        error instanceof ApiError ? error.message : 'Unable to grant access',
+      )
     } finally {
       setSaving(false)
     }
   }
 
   // Revoke account access
-  const handleRevoke = async (accountId: string, userId: string, accountName: string, userName?: string) => {
+  const handleRevoke = async (
+    accountId: string,
+    userId: string,
+    accountName: string,
+    userName?: string,
+  ) => {
     const key = `${accountId}-${userId}`
     setRevokingKey(key)
     try {
       await api.revokeAssignment(accountId, userId)
-      onToast(`Revoked access to ${accountName} from ${userName ?? selectedUser?.displayName ?? 'user'}`)
+      onToast(
+        `Revoked access to ${accountName} from ${userName ?? selectedUser?.displayName ?? 'user'}`,
+      )
       await refresh()
     } catch (error) {
-      onToast(error instanceof ApiError ? error.message : 'Unable to revoke access')
+      onToast(
+        error instanceof ApiError ? error.message : 'Unable to revoke access',
+      )
     } finally {
       setRevokingKey(null)
     }
@@ -126,13 +174,19 @@ export function AssignmentsPage({ initialAccounts, offline, onToast }: Assignmen
 
   return (
     <div className="mx-auto max-w-[1600px] px-5 py-7 sm:px-8 sm:py-9 lg:px-10 lg:py-10">
+      <LoadState
+        loading={loading}
+        error={loadError}
+        onRetry={() => void refresh()}
+      />
       {/* Header & Controls */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="eyebrow">ACCESS</p>
           <h1 className="display-title mt-3">Who can use which accounts.</h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-slate-400">
-            Choose a person, give them access to an account, or remove access instantly.
+            Choose a person, give them access to an account, or remove access
+            instantly.
           </p>
         </div>
 
@@ -171,7 +225,10 @@ export function AssignmentsPage({ initialAccounts, offline, onToast }: Assignmen
             onSelectUser={setSelectedUserId}
             search={userSearch}
             onSearchChange={setUserSearch}
-            getAssignmentCount={(id) => rows.filter((r) => r.userId === id && r.status === 'active').length}
+            getAssignmentCount={(id) =>
+              rows.filter((r) => r.userId === id && r.status === 'active')
+                .length
+            }
           />
 
           {selectedUser ? (
@@ -179,7 +236,9 @@ export function AssignmentsPage({ initialAccounts, offline, onToast }: Assignmen
               <GlassCard className="p-5 sm:p-6">
                 <OperatorDossierHeader
                   user={selectedUser}
-                  activeAssignmentsCount={userAssignments.filter((r) => r.status === 'active').length}
+                  activeAssignmentsCount={
+                    userAssignments.filter((r) => r.status === 'active').length
+                  }
                 />
                 <GrantAccessForm
                   userName={selectedUser.displayName}
@@ -194,14 +253,19 @@ export function AssignmentsPage({ initialAccounts, offline, onToast }: Assignmen
                 userName={selectedUser.displayName}
                 assignments={userAssignments}
                 accounts={accounts}
-                onRevoke={(accId, usrId, accName) => handleRevoke(accId, usrId, accName, selectedUser.displayName)}
+                onRevoke={(accId, usrId, accName) =>
+                  handleRevoke(accId, usrId, accName, selectedUser.displayName)
+                }
                 revokingKey={revokingKey}
                 offline={offline}
               />
             </div>
           ) : (
             <GlassCard className="p-12 text-center text-slate-500">
-              <p className="text-sm">Select a person from the left to view and manage their account access.</p>
+              <p className="text-sm">
+                Select a person from the left to view and manage their account
+                access.
+              </p>
             </GlassCard>
           )}
         </div>

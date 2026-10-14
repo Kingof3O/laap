@@ -4,30 +4,37 @@
   --font-body: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  /* Atmospheric Obsidian & Natural Surfaces */
-  --bg-canvas: #07090E;
-  --bg-surface: #0E121B;
-  --bg-surface-elevated: #141926;
-  --bg-card: #121724;
-  --bg-card-hover: #182032;
-  --bg-card-selected: #1C263B;
+  /* Atmospheric Hextech Midnight Void & Sapphire Glass */
+  --bg-canvas: #010A13;
+  --bg-surface: #091428;
+  --bg-surface-elevated: #0F1E38;
+  --bg-card: rgba(16, 26, 46, 0.65);
+  --bg-card-hover: rgba(22, 36, 64, 0.85);
+  --bg-card-selected: rgba(28, 48, 80, 0.92);
 
-  /* Radiant Hextech Metallic Gold */
-  --gold-primary: #E5B85C;
-  --gold-light: #FFF4D9;
-  --gold-hover: #F0C469;
-  --gold-active: #D49E35;
+  /* Hextech Antique Gold & Piltover Brass */
+  --gold-primary: #C8AA6E;
+  --gold-light: #F0E6D2;
+  --gold-hover: #E5C384;
+  --gold-active: #B88528;
   --gold-deep: #966B1E;
-  --gold-border: #F6D896;
-  --gold-gradient: linear-gradient(135deg, #F5CC70 0%, #DCA43B 50%, #BD851D 100%);
-  --gold-gradient-hover: linear-gradient(135deg, #FDE096 0%, #EAB54E 50%, #CB952B 100%);
-  --gold-glow: rgba(229, 184, 92, 0.35);
-  --gold-surface: rgba(229, 184, 92, 0.12);
+  --gold-border: rgba(200, 170, 110, 0.4);
+  --gold-gradient: linear-gradient(135deg, #C8AA6E 0%, #966B1E 100%);
+  --gold-gradient-hover: linear-gradient(135deg, #E5C384 0%, #BD892B 100%);
+  --gold-glow: rgba(200, 170, 110, 0.35);
+  --gold-surface: rgba(200, 170, 110, 0.12);
 
-  /* Semantic Status Tokens */
-  --status-ready: #10B981;
-  --status-ready-bg: rgba(16, 185, 129, 0.12);
-  --status-ready-border: rgba(16, 185, 129, 0.3);
+  /* Hextech Sapphire / Cobalt Blue Accents */
+  --sapphire-blue: #3B82F6;
+  --sapphire-blue-light: #93C5FD;
+  --sapphire-blue-glow: rgba(59, 130, 246, 0.35);
+  --sapphire-blue-bg: rgba(59, 130, 246, 0.12);
+  --sapphire-blue-border: rgba(59, 130, 246, 0.35);
+
+  /* Semantic Status Tokens (Sapphire Blue Ready Indicator) */
+  --status-ready: #3B82F6;
+  --status-ready-bg: rgba(59, 130, 246, 0.12);
+  --status-ready-border: rgba(59, 130, 246, 0.35);
 
   --status-leased: #F59E0B;
   --status-leased-bg: rgba(245, 158, 11, 0.12);
@@ -37,20 +44,20 @@
   --status-danger-bg: rgba(239, 68, 68, 0.12);
   --status-danger-border: rgba(239, 68, 68, 0.3);
 
-  /* Defined Borders & Surface Separation */
-  --border-subtle: rgba(255, 255, 255, 0.09);
-  --border-card: rgba(255, 255, 255, 0.11);
-  --border-card-hover: rgba(229, 184, 92, 0.45);
-  --border-card-selected: rgba(229, 184, 92, 0.85);
-  --border-modal: rgba(255, 255, 255, 0.14);
+  /* Defined Borders & Glass Separation */
+  --border-subtle: rgba(200, 170, 110, 0.15);
+  --border-card: rgba(200, 170, 110, 0.22);
+  --border-card-hover: rgba(200, 170, 110, 0.6);
+  --border-card-selected: #C8AA6E;
+  --border-modal: rgba(200, 170, 110, 0.35);
   --border-divider: rgba(255, 255, 255, 0.08);
 
   /* Surface Elevation Highlights */
-  --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --inner-highlight: inset 0 1px 0 rgba(240, 230, 210, 0.12);
 
   /* Typography Colors */
-  --text-primary: #F8FAFC;
+  --text-primary: #F0E6D2;
   --text-secondary: #94A3B8;
-  --text-muted: #64748B;
-  --text-gold: #FFF4D9;
+  --text-muted: #5C6B82;
+  --text-gold: #F0E6D2;
 }

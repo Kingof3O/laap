@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Header, SubNavbar, SettingsModal } from './shared/ui'
 import { UpdateModal } from './shared/ui/UpdateModal'
 import { ToastProvider, useToast } from './context/ToastContext'
@@ -8,9 +8,18 @@ import { useAuth } from './features/auth'
 import { useUpdateChecker } from './hooks/useUpdateChecker'
 import { VIEW_MODE_KEY } from './lib/constants'
 import { apiRequest, hasTauri, invokeTauri, IS_OFFLINE_ONLY } from './lib/api'
+import {
+  RiotOperationsProvider,
+  useRiotOperations,
+} from './context/RiotOperations'
+import { isNewerVersion } from './hooks/useUpdateChecker'
+import type { SortOrder } from './lib/sorting'
 import type { AppMode, Region, ViewMode } from './lib/types'
 
 function AppContent() {
+  const operations = useRiotOperations()
+  const activeOperations = useRef(false)
+  const [sortOrder, setSortOrder] = useState<SortOrder>('name-asc')
   const [appMode, setAppMode] = useState<AppMode>('local')
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     try {
@@ -29,7 +38,13 @@ function AppContent() {
   const [cloudCount, setCloudCount] = useState(0)
   const [busy, setBusy] = useState(false)
 
-  const { user, login, logout, error: authError, loading: loginBusy } = useAuth()
+  const {
+    user,
+    login,
+    logout,
+    error: authError,
+    loading: loginBusy,
+  } = useAuth()
   const { showSuccess, showError } = useToast()
   const {
     currentVersion,
@@ -42,15 +57,21 @@ function AppContent() {
   } = useUpdateChecker()
 
   useEffect(() => {
-    if (selectedRank.startsWith('rank:') && !rankOptions.some((rank) => `rank:${rank.toLowerCase()}` === selectedRank)) {
+    if (
+      selectedRank.startsWith('rank:') &&
+      !rankOptions.some((rank) => `rank:${rank.toLowerCase()}` === selectedRank)
+    ) {
       setSelectedRank('all')
     }
   }, [rankOptions, selectedRank])
 
   const handleManualCheckUpdates = async () => {
-    const release = await checkForUpdates(true)
-    if (!release) {
-      showSuccess(`LAAP Desktop is up to date (v${currentVersion}).`)
+    try {
+      const release = await checkForUpdates(true)
+      if (release && !isNewerVersion(release.version, currentVersion))
+        showSuccess(`LAAP Desktop is up to date (v${currentVersion}).`)
+    } catch {
+      showError('Unable to check for updates (Offline/Blocked)')
     }
   }
 
@@ -64,11 +85,21 @@ function AppContent() {
   // Recover settings left behind if the previous desktop process crashed.
   useEffect(() => {
     if (!hasTauri) return
-    const recover = () => { void invokeTauri('recover_orphaned_account_session').catch(() => {}) }
+    const operation = (event: Event) => {
+      activeOperations.current = (event as CustomEvent<boolean>).detail
+    }
+    window.addEventListener('laap:operation', operation)
+    const recover = () => {
+      if (!activeOperations.current && !operations.provisioning)
+        void invokeTauri('recover_orphaned_account_session').catch(() => {})
+    }
     recover()
     const timer = window.setInterval(recover, 30_000)
-    return () => window.clearInterval(timer)
-  }, [])
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('laap:operation', operation)
+    }
+  }, [operations.provisioning])
 
   // Keyboard shortcut listener (Cmd+K / Ctrl+K)
   useEffect(() => {
@@ -86,7 +117,13 @@ function AppContent() {
     if (!hasTauri) return
     setBusy(true)
     try {
-      await invokeTauri('cleanup_account_session')
+      await operations.run(async (confirmed) => {
+        await invokeTauri('cancel_provisioning_session', { confirmed })
+        await invokeTauri('cleanup_account_session', { confirmed })
+      })
+      window.dispatchEvent(
+        new CustomEvent('laap:provisioning', { detail: false }),
+      )
       showSuccess('Personal Riot settings restored.')
       setShowSettingsModal(false)
     } catch (cause) {
@@ -108,6 +145,18 @@ function AppContent() {
         onRefresh={() => window.dispatchEvent(new Event('laap:refresh'))}
         onOpenSettings={() => setShowSettingsModal(true)}
         isOfflineOnly={IS_OFFLINE_ONLY}
+        riotRunning={operations.running}
+        operationBusy={operations.busy || operations.provisioning}
+        onStopRiot={async () => {
+          try {
+            await operations.run((confirmed) =>
+              invokeTauri('close_riot_client', { confirmed }),
+            )
+            showSuccess('Riot stopped. Saved logins preserved.')
+          } catch (cause) {
+            showError(String(cause))
+          }
+        }}
       />
 
       {/* Sub Navigation Bar */}
@@ -120,9 +169,13 @@ function AppContent() {
           selectedRank={selectedRank}
           rankOptions={rankOptions}
           onRankChange={appMode === 'local' ? setSelectedRank : undefined}
+          sortOrder={sortOrder}
+          onSortChange={appMode === 'local' ? setSortOrder : undefined}
           viewMode={viewMode}
           onViewModeChange={handleViewModeChange}
-          onAddAccount={appMode === 'local' ? () => setShowAddModal(true) : undefined}
+          onAddAccount={
+            appMode === 'local' ? () => setShowAddModal(true) : undefined
+          }
           addButtonLabel={appMode === 'local' ? 'Add Profile' : undefined}
           totalCount={appMode === 'local' ? localCount : cloudCount}
         />
@@ -136,27 +189,40 @@ function AppContent() {
             selectedRegion={selectedRegion}
             selectedRank={selectedRank}
             onRankOptionsChange={setRankOptions}
+            sortOrder={sortOrder}
             viewMode={viewMode}
             isAdmin={!IS_OFFLINE_ONLY && user?.role === 'admin'}
             showAddModal={showAddModal}
             onCloseAddModal={() => setShowAddModal(false)}
             onOpenAddModal={() => setShowAddModal(true)}
-            onPushToCloud={!IS_OFFLINE_ONLY && user?.role === 'admin' ? async (name, region, sessionBlob) => {
-              const result = await apiRequest<{ accountId: string }>('/api/accounts', {
-                method: 'POST',
-                body: JSON.stringify({
-                  displayName: name,
-                  externalId: `riot-${Date.now()}`,
-                  region,
-                  status: 'available',
-                }),
-              })
-              await apiRequest(`/api/accounts/${result.accountId}/session-blob`, {
-                method: 'PUT',
-                body: JSON.stringify({ sessionBlob }),
-              })
-              showSuccess(`Account "${name}" published to Shared Accounts!`)
-            } : undefined}
+            onPushToCloud={
+              !IS_OFFLINE_ONLY && user?.role === 'admin'
+                ? async (name, region, sessionBlob) => {
+                    const result = await apiRequest<{ accountId: string }>(
+                      '/api/accounts',
+                      {
+                        method: 'POST',
+                        body: JSON.stringify({
+                          displayName: name,
+                          externalId: `riot-${Date.now()}`,
+                          region,
+                          status: 'available',
+                        }),
+                      },
+                    )
+                    await apiRequest(
+                      `/api/accounts/${result.accountId}/session-blob`,
+                      {
+                        method: 'PUT',
+                        body: JSON.stringify({ sessionBlob }),
+                      },
+                    )
+                    showSuccess(
+                      `Account "${name}" published to Shared Accounts!`,
+                    )
+                  }
+                : undefined
+            }
             onCountChange={setLocalCount}
           />
         ) : (
@@ -185,14 +251,14 @@ function AppContent() {
           await logout()
           setShowSettingsModal(false)
         }}
-        onCheckUpdates={handleManualCheckUpdates}
+        onCheckUpdates={IS_OFFLINE_ONLY ? undefined : handleManualCheckUpdates}
         checkingUpdates={checkingUpdates}
-        busy={busy}
+        busy={busy || operations.busy}
       />
 
       {/* Update Available Modal */}
       <UpdateModal
-        isOpen={updateAvailable}
+        isOpen={!IS_OFFLINE_ONLY && updateAvailable}
         currentVersion={currentVersion}
         release={latestRelease}
         onDownload={openReleasePage}
@@ -205,7 +271,9 @@ function AppContent() {
 export default function App() {
   return (
     <ToastProvider>
-      <AppContent />
+      <RiotOperationsProvider>
+        <AppContent />
+      </RiotOperationsProvider>
     </ToastProvider>
   )
 }

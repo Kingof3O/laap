@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react'
+import { ProfileAvatar } from './ProfileAvatar'
+import { RankCrest } from './RankPicker'
+import { useEffect, useMemo, useState } from 'react'
 import { AccountCard } from './AccountCard'
 import { AccountListTable } from './AccountListTable'
-import { RosterOverviewRail } from './RosterOverviewRail'
+import { Play, RotateCcw, Loader2, Pencil } from 'lucide-react'
+import { getRankTierClass, formatRelativeTime } from '../../lib/sorting'
 import type { ViewMode } from '../../lib/types'
 
 export interface RosterItem {
@@ -9,8 +12,11 @@ export interface RosterItem {
   name: string
   region: string
   rank?: string | null
+  notes?: string
+  iconAsset?: string | null
   hasSession: boolean
   lastUsedText?: string | null
+  rawLastUsed?: string | null
   status?: string
 }
 
@@ -22,6 +28,9 @@ export interface AccountRosterDisplayProps {
   busy?: boolean
   launchingId?: string | null
   failedLaunchId?: string | null
+  launchLabel?: string
+  onEdit?: (id: string) => void
+  onRefreshSession?: (id: string) => void
   onLaunch: (id: string) => void
   onSync?: (id: string) => void
   onPushToCloud?: (id: string) => void
@@ -38,6 +47,9 @@ export function AccountRosterDisplay({
   busy = false,
   launchingId,
   failedLaunchId,
+  launchLabel,
+  onEdit,
+  onRefreshSession,
   onLaunch,
   onSync,
   onPushToCloud,
@@ -45,23 +57,166 @@ export function AccountRosterDisplay({
   onRevokeSession,
   onDelete,
 }: AccountRosterDisplayProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(items[0]?.id ?? null)
+  // Find the most recently played account by default
+  const defaultHeroId = useMemo(() => {
+    const itemsWithUsage = items.filter(
+      (i) => i.rawLastUsed && Number.isFinite(Date.parse(i.rawLastUsed)),
+    )
+    if (itemsWithUsage.length > 0) {
+      return (
+        [...itemsWithUsage].sort(
+          (a, b) => Date.parse(b.rawLastUsed!) - Date.parse(a.rawLastUsed!),
+        )[0]?.id ??
+        items[0]?.id ??
+        null
+      )
+    }
+    return items[0]?.id ?? null
+  }, [items])
+
+  const [selectedId, setSelectedId] = useState<string | null>(defaultHeroId)
 
   // Keep selected item valid when items change
   useEffect(() => {
     if (!selectedId && items.length > 0) {
-      setSelectedId(items[0].id)
+      setSelectedId(defaultHeroId)
     } else if (selectedId && !items.some((i) => i.id === selectedId)) {
-      setSelectedId(items[0]?.id ?? null)
+      setSelectedId(defaultHeroId)
     }
-  }, [items, selectedId])
+  }, [items, selectedId, defaultHeroId])
 
-  const selectedItem = items.find((i) => i.id === selectedId) ?? items[0] ?? null
-  const readyCount = items.filter((i) => i.hasSession && i.status !== 'Leased').length
-  const leasedCount = items.filter((i) => i.status === 'Leased').length
+  const activeHero = items.find((i) => i.id === selectedId) ?? items[0] ?? null
+  const isMostRecent =
+    activeHero?.id === defaultHeroId && Boolean(activeHero?.rawLastUsed)
 
   return (
     <div className="studio-viewport">
+      {/* Hero Quick-Resume Strip (Layout A) */}
+      {!isCloud && activeHero ? (
+        <div className="hero-resume-strip">
+          <div className="hero-resume-left">
+            <div className="hero-avatar">
+              <ProfileAvatar
+                name={activeHero.name}
+                asset={activeHero.iconAsset}
+              />
+              <span className="hero-region-badge">{activeHero.region}</span>
+            </div>
+
+            <div className="hero-info">
+              <div className="hero-label-row">
+                <span className="hero-badge-title">
+                  {isMostRecent ? 'Most Recently Played' : 'Selected Summoner'}
+                </span>
+                <span className="hero-dot">•</span>
+                <span className="hero-timestamp">
+                  {formatRelativeTime(
+                    activeHero.rawLastUsed || activeHero.lastUsedText,
+                  )}
+                </span>
+              </div>
+
+              <h2 className="hero-name" title={activeHero.name}>
+                {activeHero.name}
+              </h2>
+
+              <div className="hero-meta-row">
+                {activeHero.rank ? (
+                  <span
+                    className={`account-rank-label ${getRankTierClass(activeHero.rank)}`}
+                    title={`Rank: ${activeHero.rank}`}
+                  >
+                    <RankCrest rank={activeHero.rank} /> {activeHero.rank}
+                  </span>
+                ) : null}
+
+                <span
+                  className={`status-indicator ${
+                    activeHero.hasSession &&
+                    activeHero.status !== 'Session stale' && !activeHero.status?.includes('unknown')
+                      ? 'status-indicator-ready'
+                      : 'status-indicator-warn'
+                  }`}
+                >
+                  <span
+                    className={`status-beacon ${
+                      activeHero.hasSession &&
+                      activeHero.status !== 'Session stale' && !activeHero.status?.includes('unknown')
+                        ? 'status-beacon-ready'
+                        : 'status-beacon-amber'
+                    }`}
+                  />
+                  {activeHero.hasSession
+                    ? activeHero.status || 'Session Ready'
+                    : 'Sign in required'}
+                </span>
+              </div>
+              {activeHero.notes ? (
+                <p className="account-notes hero-notes">{activeHero.notes}</p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="hero-actions">
+            {onEdit ? (
+              <button
+                type="button"
+                className="action-icon-btn"
+                style={{ width: '40px', height: '40px', borderRadius: '8px' }}
+                title="Edit Profile"
+                aria-label={`Edit ${activeHero.name}`}
+                disabled={busy}
+                onClick={() => onEdit(activeHero.id)}
+              >
+                <Pencil size={16} />
+              </button>
+            ) : null}
+
+            {activeHero.id === launchingId ? (
+              <button type="button" className="btn-hero-play" disabled>
+                <Loader2 size={16} className="animate-spin" />
+                <span>Preparing…</span>
+              </button>
+            ) : activeHero.id === failedLaunchId ? (
+              <button
+                type="button"
+                className="btn-hero-play"
+                style={{
+                  background: 'rgba(239, 68, 68, 0.25)',
+                  borderColor: 'rgba(239, 68, 68, 0.5)',
+                  color: '#fca5a5',
+                }}
+                onClick={() => onLaunch(activeHero.id)}
+                disabled={busy}
+              >
+                <RotateCcw size={15} />
+                <span>Retry Launch</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn-hero-play"
+                onClick={() =>
+                  !activeHero.hasSession && onRefreshSession
+                    ? onRefreshSession(activeHero.id)
+                    : onLaunch(activeHero.id)
+                }
+                disabled={busy}
+              >
+                <Play size={15} fill="currentColor" />
+                <span>
+                  {!activeHero.hasSession && onRefreshSession
+                    ? 'Sign in again'
+                    : isMostRecent
+                      ? 'Resume Game'
+                      : launchLabel || 'Play Game'}
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
+      ) : null}
+
       <div className="studio-roster-stage">
         {viewMode === 'grid' ? (
           <div className="roster-grid">
@@ -72,8 +227,10 @@ export function AccountRosterDisplay({
                 name={item.name}
                 region={item.region}
                 rank={item.rank}
+                notes={item.notes}
+                iconAsset={item.iconAsset}
                 hasSession={item.hasSession}
-                lastUsedText={item.lastUsedText}
+                lastUsedText={item.rawLastUsed || item.lastUsedText}
                 status={item.status}
                 isSelected={item.id === selectedId}
                 isCloud={isCloud}
@@ -81,26 +238,43 @@ export function AccountRosterDisplay({
                 busy={busy}
                 isLaunching={item.id === launchingId}
                 launchFailed={item.id === failedLaunchId}
+                launchLabel={launchLabel}
+                onEdit={onEdit ? () => onEdit(item.id) : undefined}
+                onRefreshSession={
+                  onRefreshSession ? () => onRefreshSession(item.id) : undefined
+                }
                 onRetry={() => onLaunch(item.id)}
                 onSelect={() => setSelectedId(item.id)}
                 onLaunch={() => onLaunch(item.id)}
                 onSync={onSync ? () => onSync(item.id) : undefined}
-                onPushToCloud={onPushToCloud ? () => onPushToCloud(item.id) : undefined}
-                onForceRelease={onForceRelease ? () => onForceRelease(item.id) : undefined}
-                onRevokeSession={onRevokeSession ? () => onRevokeSession(item.id) : undefined}
+                onPushToCloud={
+                  onPushToCloud ? () => onPushToCloud(item.id) : undefined
+                }
+                onForceRelease={
+                  onForceRelease ? () => onForceRelease(item.id) : undefined
+                }
+                onRevokeSession={
+                  onRevokeSession ? () => onRevokeSession(item.id) : undefined
+                }
                 onDelete={() => onDelete(item.id, item.name)}
               />
             ))}
           </div>
         ) : (
           <AccountListTable
-            items={items}
+            items={items.map((i) => ({
+              ...i,
+              lastUsedText: i.rawLastUsed || i.lastUsedText,
+            }))}
             selectedId={selectedId}
             isCloud={isCloud}
             canManage={canManage}
             busy={busy}
             launchingId={launchingId}
             failedLaunchId={failedLaunchId}
+            launchLabel={launchLabel}
+            onEdit={onEdit}
+            onRefreshSession={onRefreshSession}
             onSelect={setSelectedId}
             onLaunch={onLaunch}
             onSync={onSync}
@@ -111,21 +285,6 @@ export function AccountRosterDisplay({
           />
         )}
       </div>
-
-      <RosterOverviewRail
-        selectedItem={selectedItem}
-        items={items}
-        totalCount={items.length}
-        readyCount={readyCount}
-        leasedCount={leasedCount}
-        isCloud={isCloud}
-        canManage={canManage}
-        busy={busy}
-        onLaunch={onLaunch}
-        onSync={onSync}
-        onForceRelease={onForceRelease}
-        onRevokeSession={onRevokeSession}
-      />
     </div>
   )
 }

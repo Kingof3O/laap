@@ -23,6 +23,19 @@
 
 ---
 
+## New in v0.4.3
+
+- **Profile customization:** Redesigned Add/Edit dialogs, visible notes, local image uploads, searchable League icon picker, and official rank crests.
+- **Optional League Client sync:** Independent icon and Solo/Duo rank toggles, with account identity checks and local image caching.
+- **Roster organization:** Grouped regions, complete rank selection, rank filtering, and sorting by competitive tier, name, last played, or date added.
+- **Account controls:** Stop Riot and safe switching with live-match confirmation, plus in-place “Sign in again” to refresh saved sessions.
+- **Reliability:** No fabricated accounts, reviewed imports, canceled sandbox cleanup, safer concurrent vault writes, damaged-record isolation, and visible loading/error states.
+- **Offline defaults:** No cloud API or update polling in Offline Edition. Optional native icon downloads and local League Client sync run only when requested or enabled.
+
+See [verification details](docs/desktop-hardening-verification.md) and [profile customization](docs/profile-customization.md).
+
+---
+
 ## 🌟 Overview & Product Philosophy
 
 **LAAP** (League Account Access Platform) is an esports-grade account access control plane and native desktop launcher for League of Legends.
@@ -43,7 +56,7 @@ LAAP is distributed in two distinct flavors to suit your use case:
 | Edition | Intended Audience | Features | Network Footprint | Download Artifacts |
 |:---|:---|:---|:---:|:---|
 | **LAAP Desktop**<br>*(Team Edition)* | Competitive teams, scrim rosters, and groups of friends | • **Personal Roster** (Local)<br>• **Shared Accounts** (Cloud Leases)<br>• Atomic single-active locking<br>• Ed25519 hardware key storage | Authenticates against private team backend via JWT | • `LAAP-Setup.exe` (Windows)<br>• `LAAP-Desktop.dmg` (macOS) |
-| **LAAP Offline**<br>*(Community Edition)* | Solo players, streamers, and open-source users | • **Personal Roster** (Local Only)<br>• Unlimited 1-click accounts<br>• Instant search & regional filters<br>• 100% offline & private | **Zero Network Access**<br>(CSP: `connect-src 'none'`) | • `LAAP-Offline-Setup.exe` (Windows)<br>• `LAAP-Offline.dmg` (macOS) |
+| **LAAP Offline**<br>*(Community Edition)* | Solo players, streamers, and open-source users | • **Personal Roster** (Local Only)<br>• Unlimited 1-click accounts<br>• Instant search & regional filters<br>• Offline-ready profiles & cached icons | **Local by default**<br>Optional Riot icon downloads and opt-in League Client sync | • `LAAP-Offline-Setup.exe` (Windows)<br>• `LAAP-Offline.dmg` (macOS) |
 
 ---
 
@@ -67,22 +80,20 @@ LAAP provides 100% feature parity and native OS integration on both **Windows** 
 ## 📸 Interface Preview
 
 ### 🎮 Personal Roster & Quick Launch
-Manage your entire summoner portfolio with 1-click credential-free launching, live session health, and real-time server distribution analytics.
+Saved avatars, rank crests, notes, and session status stay visible beside the selected profile. Search, grouped regions, rank filters, and sorting by name, rank, last played, or date added help organize your roster.
 
 <div align="center">
-  <img src="docs/assets/launcher-grid.png" alt="LAAP Tactical Launcher - Personal Roster" width="84%" />
+  <img src="docs/assets/launcher-grid.png" alt="LAAP Offline roster with cached avatar, Diamond II crest, saved notes, sorting controls, and Stop Riot action" width="84%" />
 </div>
 
-<br />
-
-### 📋 High-Density Compact Table View
-Quickly filter, sort, and launch across dozens of accounts with instant search (`⌘K` / `Ctrl+K`) and regional filters (`EUW`, `NA`, `KR`, `EUNE`, `BR`).
+### ✨ Add & Edit Profiles
+A live preview shows your profile as you edit. Choose a local photo or a League icon, select a region and rank, and keep notes in your encrypted local vault. Icon downloads are explicit; cached images and bundled rank crests work offline. Optional League Client sync updates the icon and Solo/Duo rank only for the matching saved account.
 
 <div align="center">
-  <img src="docs/assets/launcher-table.png" alt="LAAP Tactical Launcher - Table View" width="84%" />
+  <img src="docs/assets/profile-editor.png" alt="Redesigned profile editor with live avatar preview, grouped regions, rank selector, notes, and optional League Client synchronization" width="70%" />
 </div>
 
-<br />
+Screenshots use a test profile. See the [profile customization guide](docs/profile-customization.md) for caching, privacy, and sync details.
 
 ### 🌐 Shared Accounts Access
 Access shared accounts with atomic single-active session locking, hardware signature verification, and instant release mechanics.
@@ -143,7 +154,7 @@ LAAP **never prompts for or accepts Riot account passwords**. The current deferr
 - **Server Distribution:** Proportional breakdown across competitive server regions (`EUW`, `NA`, `KR`, `BR`, `EUNE`).
 - **Quick Launch Dossier:** Instant inspection of selected profiles, last-played timestamps, and one-click game launch.
 
-### 5. In-App Release Notifications
+### 5. In-App Release Notifications (Team Edition)
 - **Automatic Version Polling:** Seamlessly compares installed version against the public GitHub Releases API on launch.
 - **Hextech Release Modal:** Displays new version highlights, changelog summaries, and a direct 1-click browser download CTA.
 - **Manual Verification:** Players can verify release status anytime via the **`Check for Updates`** action in Launcher Settings.
@@ -198,7 +209,7 @@ Detailed architectural diagrams and domain breakdowns are available in [docs/ARC
 ## 🚀 Development & Build Guide
 
 ### Prerequisites
-- **Node.js**: v20 or v22 LTS
+- **Node.js**: v22 LTS or newer
 - **Rust**: 1.80+ (`rustc` & `cargo`)
 - **macOS Requirements**: Xcode Command Line Tools (`xcode-select --install`)
 - **Windows Requirements**: Visual Studio Build Tools (C++ Desktop Development) and WebView2 Runtime

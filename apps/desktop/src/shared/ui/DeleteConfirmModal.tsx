@@ -1,3 +1,4 @@
+import { useDialog } from '../hooks/useDialog'
 import { Trash2, X } from 'lucide-react'
 
 export interface DeleteConfirmModalProps {
@@ -15,11 +16,19 @@ export function DeleteConfirmModal({
   onConfirm,
   busy,
 }: DeleteConfirmModalProps) {
+  const dialogRef = useDialog(isOpen, onClose, busy)
   if (!isOpen || !target) return null
 
   return (
     <div className="modal-backdrop">
-      <div className="modal-panel">
+      <div
+        className="modal-panel"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="DeleteConfirm"
+        tabIndex={-1}
+      >
         <div className="modal-head">
           <h2 className="modal-title">Remove Profile</h2>
           <button
@@ -33,8 +42,15 @@ export function DeleteConfirmModal({
         </div>
 
         <div className="modal-body">
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            Are you sure you want to remove <strong>{target.name}</strong>? Its stored session material and cached configuration will be removed.
+          <p
+            style={{
+              fontSize: '13px',
+              color: 'var(--text-secondary)',
+              lineHeight: 1.5,
+            }}
+          >
+            Are you sure you want to remove <strong>{target.name}</strong>? Its
+            stored session material and cached configuration will be removed.
           </p>
         </div>
 

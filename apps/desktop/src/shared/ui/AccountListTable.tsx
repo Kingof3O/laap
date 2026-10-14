@@ -1,10 +1,25 @@
-import { KeyRound, Loader2, Play, RotateCcw, Trash2, UploadCloud, Zap } from 'lucide-react'
+import { ProfileAvatar } from './ProfileAvatar'
+import { RankCrest } from './RankPicker'
+import {
+  Pencil,
+  LogIn,
+  KeyRound,
+  Loader2,
+  Play,
+  RotateCcw,
+  Trash2,
+  UploadCloud,
+  Zap,
+} from 'lucide-react'
+import { getRankTierClass, formatRelativeTime } from '../../lib/sorting'
 
 export interface TableItem {
   id: string
   name: string
   region: string
   rank?: string | null
+  notes?: string
+  iconAsset?: string | null
   hasSession: boolean
   lastUsedText?: string | null
   status?: string
@@ -19,6 +34,9 @@ export interface AccountListTableProps {
   launchingId?: string | null
   failedLaunchId?: string | null
   onSelect?: (id: string) => void
+  launchLabel?: string
+  onEdit?: (id: string) => void
+  onRefreshSession?: (id: string) => void
   onLaunch: (id: string) => void
   onSync?: (id: string) => void
   onPushToCloud?: (id: string) => void
@@ -36,6 +54,9 @@ export function AccountListTable({
   launchingId,
   failedLaunchId,
   onSelect,
+  launchLabel = 'Play',
+  onEdit,
+  onRefreshSession,
   onLaunch,
   onSync,
   onPushToCloud,
@@ -66,15 +87,29 @@ export function AccountListTable({
                 onClick={() => onSelect?.(item.id)}
                 style={{
                   cursor: 'pointer',
-                  background: isSelected ? 'var(--bg-card-selected)' : undefined,
+                  background: isSelected
+                    ? 'var(--bg-card-selected)'
+                    : undefined,
                 }}
               >
                 <td>
                   <div className="table-profile-cell">
-                    <div className="table-avatar">{item.name.slice(0, 2).toUpperCase()}</div>
+                    <div className="table-avatar">
+                      <ProfileAvatar name={item.name} asset={item.iconAsset} />
+                    </div>
                     <div className="table-profile-details">
                       <span className="table-name">{item.name}</span>
-                      {item.rank ? <span className="account-rank-label" title={`Rank: ${item.rank}`}>{item.rank}</span> : null}
+                      {item.rank ? (
+                        <span
+                          className={`account-rank-label ${getRankTierClass(item.rank)}`}
+                          title={`Rank: ${item.rank}`}
+                        >
+                          <RankCrest rank={item.rank} /> {item.rank}
+                        </span>
+                      ) : null}
+                      {item.notes ? (
+                        <p className="account-notes">{item.notes}</p>
+                      ) : null}
                     </div>
                   </div>
                 </td>
@@ -83,24 +118,42 @@ export function AccountListTable({
                 </td>
                 <td>
                   {isLeased ? (
-                    <span className="table-status-pill table-status-warn">In Use</span>
+                    <span className="table-status-pill table-status-warn">
+                      In Use
+                    </span>
                   ) : item.hasSession ? (
-                    <span className="table-status-pill table-status-ready">Ready</span>
+                    <span
+                      className={`table-status-pill ${!isCloud && (item.status === 'Session stale' || item.status?.includes('unknown')) ? 'table-status-warn' : 'table-status-ready'}`}
+                    >
+                      {isCloud ? 'Ready' : item.status}
+                    </span>
                   ) : (
-                    <span className="table-status-pill table-status-warn">Needs Sync</span>
+                    <span className="table-status-pill table-status-warn">
+                      {isCloud ? 'Needs Sync' : item.status}
+                    </span>
                   )}
                 </td>
-                <td className="table-date-cell">
-                  {item.lastUsedText || 'Never played'}
+                <td
+                  className="table-date-cell"
+                  title={item.lastUsedText || undefined}
+                >
+                  {formatRelativeTime(item.lastUsedText)}
                 </td>
                 <td>
-                  <div className="table-actions-cell" onClick={(e) => e.stopPropagation()}>
+                  <div
+                    className="table-actions-cell"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {isLeased ? (
                       canManage && onForceRelease ? (
                         <button
                           type="button"
                           className="btn-table-play"
-                          style={{ background: 'rgba(239, 68, 68, 0.2)', borderColor: 'rgba(239, 68, 68, 0.4)', color: '#fca5a5' }}
+                          style={{
+                            background: 'rgba(239, 68, 68, 0.2)',
+                            borderColor: 'rgba(239, 68, 68, 0.4)',
+                            color: '#fca5a5',
+                          }}
                           onClick={() => onForceRelease(item.id)}
                           disabled={busy}
                           title="Force Release / Kick active session"
@@ -118,11 +171,7 @@ export function AccountListTable({
                         </button>
                       )
                     ) : item.id === launchingId ? (
-                      <button
-                        type="button"
-                        className="btn-table-play"
-                        disabled
-                      >
+                      <button type="button" className="btn-table-play" disabled>
                         <Loader2 size={11} className="animate-spin" />
                         <span>Preparing…</span>
                       </button>
@@ -130,7 +179,11 @@ export function AccountListTable({
                       <button
                         type="button"
                         className="btn-table-play"
-                        style={{ background: 'rgba(239, 68, 68, 0.2)', borderColor: 'rgba(239, 68, 68, 0.4)', color: '#fca5a5' }}
+                        style={{
+                          background: 'rgba(239, 68, 68, 0.2)',
+                          borderColor: 'rgba(239, 68, 68, 0.4)',
+                          color: '#fca5a5',
+                        }}
                         onClick={() => onLaunch(item.id)}
                         disabled={busy && item.id !== failedLaunchId}
                       >
@@ -141,14 +194,44 @@ export function AccountListTable({
                       <button
                         type="button"
                         className="btn-table-play"
-                        onClick={() => onLaunch(item.id)}
+                        onClick={() =>
+                          !item.hasSession && onRefreshSession
+                            ? onRefreshSession(item.id)
+                            : onLaunch(item.id)
+                        }
                         disabled={busy}
                       >
                         <Play size={11} fill="currentColor" />
-                        <span>Play</span>
+                        <span>
+                          {!item.hasSession && onRefreshSession
+                            ? 'Sign in again'
+                            : launchLabel}
+                        </span>
                       </button>
                     )}
 
+                    {onEdit ? (
+                      <button
+                        className="table-icon-btn"
+                        aria-label={`Edit ${item.name}`}
+                        title="Edit Profile"
+                        disabled={busy}
+                        onClick={() => onEdit(item.id)}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    ) : null}
+                    {onRefreshSession ? (
+                      <button
+                        className="table-icon-btn"
+                        aria-label={`Sign in again to ${item.name}`}
+                        title="Sign in again"
+                        disabled={busy}
+                        onClick={() => onRefreshSession(item.id)}
+                      >
+                        <LogIn size={13} />
+                      </button>
+                    ) : null}
                     {canManage && isCloud && onSync ? (
                       <button
                         type="button"
@@ -161,7 +244,10 @@ export function AccountListTable({
                       </button>
                     ) : null}
 
-                    {canManage && isCloud && item.hasSession && onRevokeSession ? (
+                    {canManage &&
+                    isCloud &&
+                    item.hasSession &&
+                    onRevokeSession ? (
                       <button
                         type="button"
                         className="table-icon-btn"

@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useDialog } from '../../shared/hooks/useDialog'
+import { AccountLoadState } from '../../shared/ui/AccountLoadState'
+import { useRiotOperations } from '../../context/RiotOperations'
 import { RotateCcw, X } from 'lucide-react'
-import { EmptyState, AccountRosterDisplay, DeleteConfirmModal } from '../../shared/ui'
+import {
+  EmptyState,
+  AccountRosterDisplay,
+  DeleteConfirmModal,
+} from '../../shared/ui'
 import { ActiveLeaseBanner } from './ActiveLeaseBanner'
 import { SyncAccountModal } from './SyncAccountModal'
 import { LoginView } from '../auth/LoginView'
@@ -32,15 +39,30 @@ export function TeamVaultView({
   onCountChange,
 }: TeamVaultViewProps) {
   const { showSuccess, showError } = useToast()
+  const operations = useRiotOperations()
   const [syncTarget, setSyncTarget] = useState<Account | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
-  const [forceReleaseTarget, setForceReleaseTarget] = useState<{ id: string; name: string } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string
+    name: string
+  } | null>(null)
+  const [forceReleaseTarget, setForceReleaseTarget] = useState<{
+    id: string
+    name: string
+  } | null>(null)
   const [launchingId, setLaunchingId] = useState<string | null>(null)
   const [failedLaunchId, setFailedLaunchId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const forceReleaseDialog = useDialog(
+    !!forceReleaseTarget,
+    () => setForceReleaseTarget(null),
+    busy,
+  )
 
   const {
     accounts: cloudAccounts,
+    loading,
+    error,
+    cancelSandbox,
     loadAccounts: reloadCloud,
     acquireAndLaunch,
     releaseLease,
@@ -57,17 +79,24 @@ export function TeamVaultView({
     provisioning,
   } = useCloudAccounts(user)
 
-  const { localAccounts, getFullAccount, captureActive: captureActiveLocal } = useLocalAccounts()
+  const {
+    localAccounts,
+    getFullAccount,
+    captureActive: captureActiveLocal,
+  } = useLocalAccounts()
 
   // Automatic background poller for the Riot sign-in sandbox
   useProvisioningSandbox({
-    active: provisioning,
+    active: provisioning && !!syncTarget,
     pollFn: pollSandbox,
     onCapture: async (captured) => {
       if (syncTarget) {
         showSuccess('Session captured! Uploading to profile…')
-        await uploadSessionBlob(syncTarget.id, captured)
-        await finishSandbox()
+        try {
+          await uploadSessionBlob(syncTarget.id, captured)
+        } finally {
+          await finishSandbox()
+        }
         setSyncTarget(null)
         showSuccess(`Profile "${syncTarget.name}" synced and ready to play!`)
         await reloadCloud()
@@ -80,10 +109,13 @@ export function TeamVaultView({
 
   const filteredAccounts = useMemo(() => {
     return cloudAccounts.filter((acc) => {
-      const matchRegion = selectedRegion === 'ALL' || acc.region.toUpperCase() === selectedRegion
+      const matchRegion =
+        selectedRegion === 'ALL' || acc.region.toUpperCase() === selectedRegion
       const matchSearch =
         !searchQuery.trim() ||
-        `${acc.name} ${acc.region}`.toLowerCase().includes(searchQuery.trim().toLowerCase())
+        `${acc.name} ${acc.region}`
+          .toLowerCase()
+          .includes(searchQuery.trim().toLowerCase())
       return matchRegion && matchSearch
     })
   }, [cloudAccounts, selectedRegion, searchQuery])
@@ -233,7 +265,13 @@ export function TeamVaultView({
       ) : null}
 
       {/* Team Accounts Roster */}
-      {filteredAccounts.length === 0 ? (
+      {loading || error ? (
+        <AccountLoadState
+          loading={loading}
+          error={error}
+          onRetry={() => void reloadCloud()}
+        />
+      ) : filteredAccounts.length === 0 ? (
         <EmptyState
           isCloud={true}
           searchActive={Boolean(searchQuery || selectedRegion !== 'ALL')}
@@ -251,7 +289,7 @@ export function TeamVaultView({
           viewMode={viewMode}
           isCloud={true}
           canManage={user.role === 'admin'}
-          busy={busy}
+          busy={busy || operations.busy || provisioning}
           launchingId={launchingId}
           failedLaunchId={failedLaunchId}
           onLaunch={handleLaunch}
@@ -269,18 +307,26 @@ export function TeamVaultView({
       )}
 
       {/* Sync Account Modal */}
-      <SyncAccountModal
-        targetAccount={syncTarget}
-        localAccounts={localAccounts}
-        isOpen={Boolean(syncTarget)}
-        onClose={() => setSyncTarget(null)}
-        onLinkFromLocal={handleLinkLocal}
-        onSyncActive={handleSyncActive}
-        onStartSandbox={async () => {
-          await startCloudSandbox()
-        }}
-        busy={busy}
-      />
+      {syncTarget ? (
+        <SyncAccountModal
+          targetAccount={syncTarget}
+          localAccounts={localAccounts}
+          isOpen={Boolean(syncTarget)}
+          onClose={() => {
+            void cancelSandbox()
+              .then(() => setSyncTarget(null))
+              .catch((cause) => showError(String(cause)))
+          }}
+          onCancelSandbox={cancelSandbox}
+          provisioning={provisioning}
+          onLinkFromLocal={handleLinkLocal}
+          onSyncActive={handleSyncActive}
+          onStartSandbox={async () => {
+            await startCloudSandbox()
+          }}
+          busy={busy || operations.busy}
+        />
+      ) : null}
 
       {/* Delete Confirmation Modal */}
       <DeleteConfirmModal
@@ -294,7 +340,14 @@ export function TeamVaultView({
       {/* Force Release Confirmation Modal */}
       {forceReleaseTarget ? (
         <div className="modal-backdrop">
-          <div className="modal-panel">
+          <div
+            className="modal-panel"
+            ref={forceReleaseDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Force release account"
+            tabIndex={-1}
+          >
             <div className="modal-head">
               <h2 className="modal-title">Force Release Account</h2>
               <button
@@ -307,8 +360,16 @@ export function TeamVaultView({
               </button>
             </div>
             <div className="modal-body">
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                Are you sure you want to force-release <strong>{forceReleaseTarget.name}</strong>? This will make the account available, which may interrupt an active player.
+              <p
+                style={{
+                  fontSize: '13px',
+                  color: 'var(--text-secondary)',
+                  lineHeight: 1.5,
+                }}
+              >
+                Are you sure you want to force-release{' '}
+                <strong>{forceReleaseTarget.name}</strong>? This will make the
+                account available, which may interrupt an active player.
               </p>
             </div>
             <div className="modal-foot">
@@ -325,7 +386,11 @@ export function TeamVaultView({
                 className="btn-modal-danger"
                 onClick={() => void handleForceRelease(forceReleaseTarget.id)}
                 disabled={busy}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
               >
                 <RotateCcw size={13} />
                 <span>{busy ? 'Releasing…' : 'Force Release'}</span>

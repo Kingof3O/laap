@@ -18,6 +18,18 @@ The **LAAP Desktop Client** is a high-performance account access launcher engine
 
 ---
 
+## Profile management in v0.4.3
+
+The Personal Roster supports editable names, notes, favorites, grouped regions, complete rank choices, and locally cached profile images. Sorting includes name, competitive rank, last played, and date added. Stop Riot and account switching request confirmation when a game is running; “Sign in again” refreshes credentials in the existing profile.
+
+![Personal Roster with cached avatar and saved notes](../../docs/assets/launcher-grid.png)
+
+![Profile editor with live preview](../../docs/assets/profile-editor.png)
+
+See [profile customization](../../docs/profile-customization.md) for manual uploads, Riot icon downloads, opt-in icon and Solo/Duo rank synchronization, and offline behavior. See [verification](../../docs/desktop-hardening-verification.md) for the reliability checks and platform testing limits.
+
+---
+
 ## 🖥️ Cross-Platform Architecture
 
 The desktop client provides 100% feature parity and native OS integration across both **Windows** and **macOS**:
@@ -165,7 +177,7 @@ npx tauri build --bundles msi,nsis
 ```
 
 ### 2. LAAP Offline (Community Edition)
-Compiles a 100% offline binary with zero cloud API footprint and strict local CSP:
+Compiles the Offline Edition with no LAAP cloud API traffic and strict webview CSP. Local uploads and bundled rank crests work without internet; Riot icon downloads and League Client synchronization are explicit opt-ins:
 
 ```bash
 # On macOS (generates LAAP Offline.dmg & .app)

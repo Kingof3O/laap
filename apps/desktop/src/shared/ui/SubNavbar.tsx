@@ -1,5 +1,7 @@
+import { RegionSelect } from './RegionSelect'
 import { LayoutGrid, List, Plus, Search, X } from 'lucide-react'
 import { AVAILABLE_REGIONS } from '../../lib/constants'
+import type { SortOrder } from '../../lib/sorting'
 import type { Region, ViewMode } from '../../lib/types'
 
 export interface SubNavbarProps {
@@ -10,6 +12,8 @@ export interface SubNavbarProps {
   selectedRank?: string
   rankOptions?: string[]
   onRankChange?: (rank: string) => void
+  sortOrder?: SortOrder
+  onSortChange?: (order: SortOrder) => void
   viewMode: ViewMode
   onViewModeChange: (mode: ViewMode) => void
   onAddAccount?: () => void
@@ -25,6 +29,8 @@ export function SubNavbar({
   selectedRank = 'all',
   rankOptions = [],
   onRankChange,
+  sortOrder = 'name-asc',
+  onSortChange,
   viewMode,
   onViewModeChange,
   onAddAccount,
@@ -57,18 +63,13 @@ export function SubNavbar({
           ) : null}
         </div>
 
-        {/* Region Pills */}
-        <div className="region-filter-bar">
-          {AVAILABLE_REGIONS.slice(0, 6).map((region) => (
-            <button
-              key={region}
-              type="button"
-              className={`region-pill ${selectedRegion === region ? 'region-pill-active' : ''}`}
-              onClick={() => onRegionChange(region)}
-            >
-              {region}
-            </button>
-          ))}
+        <div className="toolbar-region-select">
+          <RegionSelect
+            label="Filter by region"
+            includeAll
+            value={selectedRegion}
+            onChange={(region) => onRegionChange(region as Region)}
+          />
         </div>
         {onRankChange ? (
           <select
@@ -78,11 +79,35 @@ export function SubNavbar({
             onChange={(e) => onRankChange(e.target.value)}
           >
             <option value="all">All ranks</option>
-            <option value="unlabeled">No rank label</option>
+            <option value="unlabeled">No rank set</option>
             {rankOptions.map((rank) => (
-              <option key={rank.toLowerCase()} value={`rank:${rank.toLowerCase()}`}>{rank}</option>
+              <option
+                key={rank.toLowerCase()}
+                value={`rank:${rank.toLowerCase()}`}
+              >
+                {rank}
+              </option>
             ))}
           </select>
+        ) : null}
+        {onSortChange ? (
+          <label className="sort-control">
+            <span>Sort by</span>
+            <select
+              className="rank-filter"
+              aria-label="Sort by"
+              value={sortOrder}
+              onChange={(e) => onSortChange(e.target.value as SortOrder)}
+            >
+              <option value="name-asc">Name: A–Z</option>
+              <option value="name-desc">Name: Z–A</option>
+              <option value="rank-desc">Rank: Highest first</option>
+              <option value="rank-asc">Rank: Lowest first</option>
+              <option value="last-played">Last played</option>
+              <option value="added-desc">Date added: Newest first</option>
+              <option value="added-asc">Date added: Oldest first</option>
+            </select>
+          </label>
         ) : null}
       </div>
 

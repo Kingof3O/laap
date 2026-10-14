@@ -1,30 +1,49 @@
 import { useEffect, useMemo, useState } from 'react'
-import { EmptyState, AccountRosterDisplay, DeleteConfirmModal } from '../../shared/ui'
+import {
+  EmptyState,
+  AccountRosterDisplay,
+  DeleteConfirmModal,
+} from '../../shared/ui'
+import { AccountLoadState } from '../../shared/ui/AccountLoadState'
+import { EditAccountModal } from '../../shared/ui/EditAccountModal'
 import { AddAccountModal } from './AddAccountModal'
 import { useLocalAccounts } from './useLocalAccounts'
 import { useProvisioningSandbox } from '../../shared/hooks/useProvisioningSandbox'
 import { useToast } from '../../context/ToastContext'
-import type { Region, ViewMode } from '../../lib/types'
-
-interface PersonalRosterViewProps {
+import { useRiotOperations } from '../../context/RiotOperations'
+import { invokeTauri } from '../../lib/api'
+import { sortProfiles, type SortOrder } from '../../lib/sorting'
+import type {
+  CapturedProfile,
+  LocalAccountSummary,
+  ProfileDetails,
+  Region,
+  ViewMode,
+} from '../../lib/types'
+interface Props {
   searchQuery: string
   selectedRegion: Region
   selectedRank: string
   onRankOptionsChange: (ranks: string[]) => void
+  sortOrder: SortOrder
   viewMode: ViewMode
   isAdmin: boolean
   showAddModal: boolean
   onCloseAddModal: () => void
   onOpenAddModal: () => void
-  onPushToCloud?: (name: string, region: string, sessionBlob: string) => Promise<void>
+  onPushToCloud?: (
+    name: string,
+    region: string,
+    sessionBlob: string,
+  ) => Promise<void>
   onCountChange?: (count: number) => void
 }
-
 export function PersonalRosterView({
   searchQuery,
   selectedRegion,
   selectedRank,
   onRankOptionsChange,
+  sortOrder,
   viewMode,
   isAdmin,
   showAddModal,
@@ -32,80 +51,115 @@ export function PersonalRosterView({
   onOpenAddModal,
   onPushToCloud,
   onCountChange,
-}: PersonalRosterViewProps) {
+}: Props) {
   const { showSuccess, showError } = useToast()
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
-  const [pendingSandboxProfile, setPendingSandboxProfile] = useState<{ name: string; region: string; rank: string } | null>(null)
+  const operations = useRiotOperations()
   const [busy, setBusy] = useState(false)
-
+  const [operationError, setOperationError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string
+    name: string
+  } | null>(null)
+  const [editTarget, setEditTarget] = useState<LocalAccountSummary | null>(null)
+  const [refreshTarget, setRefreshTarget] =
+    useState<LocalAccountSummary | null>(null)
+  const [captured, setCaptured] = useState<CapturedProfile | null>(null)
+  const [pending, setPending] = useState<ProfileDetails | null>(null)
+  const [launchingId, setLaunchingId] = useState<string | null>(null),
+    [failedLaunchId, setFailedLaunchId] = useState<string | null>(null)
   const {
     localAccounts,
+    syncMessage,
+    loading,
+    error,
     loadAccounts,
     saveAccount,
+    editAccount,
     deleteAccount,
     launchAccount,
-    captureActive,
+    detectActive,
     startSandbox,
     cancelSandbox,
     pollSandbox,
-    finishSandbox,
+    completeSandbox,
     provisioning,
     getFullAccount,
   } = useLocalAccounts()
-
-  // Encapsulated Sandbox Poller hook
-  useProvisioningSandbox({
-    active: provisioning,
+  const modalOpen = showAddModal || !!refreshTarget
+  const close = () => {
+    onCloseAddModal()
+    setRefreshTarget(null)
+    setCaptured(null)
+    setPending(null)
+    setOperationError(null)
+  }
+  const { capturing } = useProvisioningSandbox({
+    active: provisioning && modalOpen,
     pollFn: pollSandbox,
-    onCapture: async (captured) => {
-      const profile = pendingSandboxProfile
-      if (!profile) {
-        await finishSandbox()
-        throw new Error('No profile details were provided for this login.')
+    onCapture: async () => {
+      if (!pending)
+        throw new Error('Profile details are missing. Cancel and try again.')
+      setBusy(true)
+      try {
+        await completeSandbox(pending, refreshTarget?.id)
+        close()
+        showSuccess(refreshTarget ? 'Saved login refreshed.' : 'Profile saved.')
+      } finally {
+        setBusy(false)
       }
-      showSuccess('Session captured! Saving profile…')
-      await saveAccount(profile.name, profile.region, captured, profile.rank)
-      await finishSandbox()
-      onCloseAddModal()
-      setPendingSandboxProfile(null)
-      showSuccess('Account saved successfully!')
-      await loadAccounts()
     },
-    onError: (err) => showError(err.message),
+    onError: (err) => {
+      setOperationError(err.message)
+      showError(err.message)
+    },
   })
-
-  const rankOptions = useMemo(() => {
-    const labels = new Map<string, string>()
-    for (const account of localAccounts) {
-      const rank = account.rank?.trim()
-      if (rank && !labels.has(rank.toLowerCase())) labels.set(rank.toLowerCase(), rank)
-    }
-    return [...labels.values()].sort((a, b) => a.localeCompare(b))
-  }, [localAccounts])
-
+  // Also covers a parent-driven close, not just the dialog's close button.
   useEffect(() => {
-    onRankOptionsChange(rankOptions)
-  }, [rankOptions, onRankOptionsChange])
-
-  const filteredAccounts = useMemo(() => {
-    return localAccounts.filter((acc) => {
-      const matchRegion = selectedRegion === 'ALL' || acc.region.toUpperCase() === selectedRegion
-      const rank = acc.rank?.trim().toLowerCase() ?? ''
-      const matchRank = selectedRank === 'all' || (selectedRank === 'unlabeled' ? !rank : selectedRank === `rank:${rank}`)
-      const matchSearch =
-        !searchQuery.trim() ||
-        `${acc.name} ${acc.region} ${acc.rank ?? ''}`.toLowerCase().includes(searchQuery.trim().toLowerCase())
-      return matchRegion && matchRank && matchSearch
-    })
-  }, [localAccounts, selectedRegion, selectedRank, searchQuery])
-
-  useEffect(() => {
-    onCountChange?.(filteredAccounts.length)
-  }, [filteredAccounts.length, onCountChange])
-
-  const [launchingId, setLaunchingId] = useState<string | null>(null)
-  const [failedLaunchId, setFailedLaunchId] = useState<string | null>(null)
-
+    if (!modalOpen)
+      void cancelSandbox().catch((cause) => showError(String(cause)))
+  }, [modalOpen, cancelSandbox])
+  const rankOptions = useMemo(
+    () =>
+      [
+        ...new Map(
+          localAccounts.flatMap((a) =>
+            a.rank?.trim()
+              ? [[a.rank.trim().toLowerCase(), a.rank.trim()] as const]
+              : [],
+          ),
+        ).values(),
+      ].sort((a, b) => a.localeCompare(b)),
+    [localAccounts],
+  )
+  useEffect(
+    () => onRankOptionsChange(rankOptions),
+    [rankOptions, onRankOptionsChange],
+  )
+  const filteredAccounts = useMemo(
+    () =>
+      sortProfiles(
+        localAccounts.filter((acc) => {
+          const rank = acc.rank?.trim().toLowerCase() ?? ''
+          return (
+            (selectedRegion === 'ALL' ||
+              acc.region.toUpperCase() === selectedRegion) &&
+            (selectedRank === 'all' ||
+              (selectedRank === 'unlabeled'
+                ? !rank
+                : selectedRank === `rank:${rank}`)) &&
+            `${acc.name} ${acc.region} ${acc.rank ?? ''} ${acc.notes ?? ''}`
+              .toLowerCase()
+              .includes(searchQuery.trim().toLowerCase())
+          )
+        }),
+        sortOrder,
+      ),
+    [localAccounts, selectedRegion, selectedRank, searchQuery, sortOrder],
+  )
+  useEffect(
+    () => onCountChange?.(filteredAccounts.length),
+    [filteredAccounts.length, onCountChange],
+  )
   const handleLaunch = async (id: string) => {
     setBusy(true)
     setLaunchingId(id)
@@ -114,143 +168,198 @@ export function PersonalRosterView({
       await launchAccount(id)
     } catch (cause) {
       setFailedLaunchId(id)
-      showError(cause instanceof Error ? cause.message : String(cause))
+      showError(String(cause))
     } finally {
       setBusy(false)
       setLaunchingId(null)
     }
   }
-
-  const handleCaptureActive = async (name: string, region: string, rank = '') => {
+  const detect = async (details?: ProfileDetails) => {
     setBusy(true)
-    showSuccess('Inspecting local Riot settings…')
     try {
-      const sessionBlob = await captureActive()
-      if (!sessionBlob) {
-        throw new Error('No saved Riot login found. Sign in to Riot Client with "Stay signed in" enabled, then import again.')
+      const result = await detectActive()
+      if (!result)
+        throw new Error(
+          'No saved Riot login found. Sign in with Stay signed in enabled, then import again.',
+        )
+      if (refreshTarget) {
+        await invokeTauri('refresh_local_account', {
+          id: refreshTarget.id,
+          sessionBlob: result.session_blob,
+        })
+        await loadAccounts()
+        close()
+        showSuccess('Saved login refreshed.')
+        return
       }
-      await saveAccount(name, region, sessionBlob, rank)
-      onCloseAddModal()
-      showSuccess(`Account "${name}" registered successfully!`)
-      await loadAccounts()
+      setCaptured({
+        ...result,
+        details: {
+          ...result.details,
+          name: details?.name || result.details.name,
+          region: details?.region || result.details.region,
+        },
+      })
+      onOpenAddModal()
     } catch (cause) {
-      showError(cause instanceof Error ? cause.message : String(cause))
+      showError(String(cause))
     } finally {
       setBusy(false)
     }
   }
-
-  const handleStartSandbox = async (_name: string, _region: string, rank: string) => {
+  const confirmImport = async (
+    details: ProfileDetails,
+    session: CapturedProfile,
+  ) => {
     setBusy(true)
-    setPendingSandboxProfile({ name: _name.trim(), region: _region, rank })
-    showSuccess('Opening Riot Client in isolated sandbox…')
+    try {
+      await saveAccount(
+        details.name,
+        details.region,
+        session.session_blob,
+        details.rank ?? '',
+        details.notes,
+        details.favorite,
+        details.customization,
+      )
+      close()
+      showSuccess('Profile saved.')
+    } catch (cause) {
+      showError(String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const start = async (details: ProfileDetails) => {
+    setBusy(true)
+    setPending(details)
+    setOperationError(null)
     try {
       await startSandbox()
-      showSuccess('Sandbox ready! Please sign in with "Stay signed in" enabled.')
     } catch (cause) {
-      showError(cause instanceof Error ? cause.message : String(cause))
+      showError(String(cause))
     } finally {
       setBusy(false)
     }
   }
-
-  const handleCancelSandbox = async () => {
-    await cancelSandbox()
-    setPendingSandboxProfile(null)
-  }
-
-  const handleConfirmDelete = async () => {
-    if (!deleteTarget) return
+  const push = async (id: string) => {
+    if (!onPushToCloud) return
     setBusy(true)
-    showSuccess(`Removing "${deleteTarget.name}"…`)
     try {
-      await deleteAccount(deleteTarget.id)
-      showSuccess(`Profile "${deleteTarget.name}" deleted.`)
-      setDeleteTarget(null)
-      await loadAccounts()
-    } catch (cause) {
-      showError(cause instanceof Error ? cause.message : String(cause))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const handlePush = async (localId: string) => {
-    if (!isAdmin || !onPushToCloud) return
-    setBusy(true)
-    showSuccess('Publishing account to Shared Accounts…')
-    try {
-      const full = await getFullAccount(localId)
-      if (!full || !full.session_blob) {
-        throw new Error('No valid session stored in this profile.')
-      }
+      const full = await getFullAccount(id)
       await onPushToCloud(full.name, full.region, full.session_blob)
-      showSuccess(`Account "${full.name}" published to Shared Accounts!`)
+      showSuccess('Profile published.')
     } catch (cause) {
-      showError(cause instanceof Error ? cause.message : String(cause))
+      showError(String(cause))
     } finally {
       setBusy(false)
     }
   }
-
+  const blocked = busy || capturing || operations.busy || provisioning
   return (
     <div>
-      {filteredAccounts.length === 0 ? (
+      {syncMessage ? (
+        <p className="sync-status" role="status">
+          {syncMessage}
+        </p>
+      ) : null}
+      {loading || error ? (
+        <AccountLoadState
+          loading={loading}
+          error={error}
+          onRetry={() => void loadAccounts()}
+        />
+      ) : filteredAccounts.length === 0 ? (
         <EmptyState
           isCloud={false}
-          searchActive={Boolean(searchQuery || selectedRegion !== 'ALL' || selectedRank !== 'all')}
+          searchActive={Boolean(
+            searchQuery || selectedRegion !== 'ALL' || selectedRank !== 'all',
+          )}
           onAction={onOpenAddModal}
-          onQuickImport={() => {
-            void handleCaptureActive('Active Summoner', selectedRegion === 'ALL' ? 'EUW' : selectedRegion)
-          }}
+          onQuickImport={() => void detect()}
         />
       ) : (
         <AccountRosterDisplay
           items={filteredAccounts.map((acc) => ({
             id: acc.id,
-            name: acc.name,
+            name: `${acc.favorite ? '★ ' : ''}${acc.name}`,
             region: acc.region,
             rank: acc.rank,
-            hasSession: true,
+            notes: acc.notes,
+            iconAsset: acc.customization?.icon_asset,
+            hasSession: acc.has_session,
+            status:
+              acc.session_status === 'missing'
+                ? 'Sign in required'
+                : acc.session_status === 'stale'
+                  ? 'Session stale'
+                  : acc.session_status === 'unknown'
+                    ? 'Login saved · freshness unknown'
+                    : 'Login saved',
             lastUsedText: acc.last_used_at
-              ? new Date(acc.last_used_at).toLocaleDateString([], {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })
+              ? new Date(acc.last_used_at).toLocaleString()
               : null,
+            rawLastUsed: acc.last_used_at,
           }))}
           viewMode={viewMode}
           isCloud={false}
-          canManage={true}
-          busy={busy}
+          canManage
+          busy={blocked}
           launchingId={launchingId}
           failedLaunchId={failedLaunchId}
           onLaunch={handleLaunch}
-          onPushToCloud={isAdmin && onPushToCloud ? handlePush : undefined}
+          launchLabel={operations.running ? 'Switch' : 'Play'}
+          onEdit={(id) =>
+            setEditTarget(localAccounts.find((a) => a.id === id) ?? null)
+          }
+          onRefreshSession={(id) => {
+            setCaptured(null)
+            setRefreshTarget(localAccounts.find((a) => a.id === id) ?? null)
+          }}
+          onPushToCloud={isAdmin && onPushToCloud ? push : undefined}
           onDelete={(id, name) => setDeleteTarget({ id, name })}
         />
       )}
-
-      {/* Add Account Modal */}
-      <AddAccountModal
-        isOpen={showAddModal}
-        onClose={onCloseAddModal}
-        onCaptureActive={handleCaptureActive}
-        onStartSandbox={handleStartSandbox}
-        onCancelSandbox={handleCancelSandbox}
-        provisioning={provisioning}
-        busy={busy}
-      />
-
-      {/* Delete Confirmation Modal */}
+      {modalOpen ? (
+        <AddAccountModal
+          isOpen
+          onClose={close}
+          onCaptureActive={detect}
+          onStartSandbox={start}
+          onCancelSandbox={cancelSandbox}
+          onConfirmImport={confirmImport}
+          operationError={operationError}
+          captured={captured}
+          refreshTarget={refreshTarget}
+          provisioning={provisioning}
+          busy={busy || capturing}
+        />
+      ) : null}
+      {editTarget ? (
+        <EditAccountModal
+          account={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSave={(details) => editAccount(editTarget.id, details)}
+        />
+      ) : null}
       <DeleteConfirmModal
         target={deleteTarget}
-        isOpen={Boolean(deleteTarget)}
+        isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={handleConfirmDelete}
-        busy={busy}
+        busy={busy || operations.busy}
+        onConfirm={async () => {
+          if (!deleteTarget) return
+          setBusy(true)
+          try {
+            await deleteAccount(deleteTarget.id)
+            setDeleteTarget(null)
+            showSuccess('Profile removed.')
+          } catch (cause) {
+            showError(String(cause))
+          } finally {
+            setBusy(false)
+          }
+        }}
       />
     </div>
   )
