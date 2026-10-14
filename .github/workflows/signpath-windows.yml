@@ -55,6 +55,10 @@ jobs:
             if (-not [Environment]::GetEnvironmentVariable($key)) { throw "Missing required SignPath setting: $key" }
           }
           if ($env:GITHUB_REF -ne 'refs/heads/main' -and $env:GITHUB_REF -notlike 'refs/tags/v*') { throw 'Production signing requires main or a release tag' }
+          if ($env:GITHUB_REF -like 'refs/tags/*') {
+            $version = (Get-Content apps/desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+            if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag and application version differ' }
+          }
           git merge-base --is-ancestor HEAD origin/main
           if ($LASTEXITCODE -ne 0) { throw 'Production signing requires a commit present on main' }
       - run: npm ci --workspace @laap/desktop --include-workspace-root

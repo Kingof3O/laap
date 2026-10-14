@@ -13,6 +13,7 @@ $editions = @(
 )
 $config = Get-Content 'apps/desktop/src-tauri/tauri.conf.json' -Raw | ConvertFrom-Json
 $version = $config.version
+if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Signing requires a three-part numeric release version' }
 $offline = Get-Content 'apps/desktop/src-tauri/tauri.offline.conf.json' -Raw | ConvertFrom-Json
 if ($offline.version -ne $version) { throw 'Team and Offline versions differ' }
 
@@ -24,6 +25,10 @@ function Assert-Signature([string]$Path) {
   if ($signature.Status -ne 'Valid') { throw "Invalid Authenticode signature: $Path ($($signature.Status))" }
   if (-not $signature.TimeStamperCertificate) { throw "Missing trusted timestamp: $Path" }
   if ($signature.SignerCertificate.Subject -notmatch 'CN=SignPath Foundation(?:,|$)') { throw "Unexpected signing publisher: $Path" }
+}
+function Assert-FileSet([string]$Root,[string[]]$Expected) {
+  $actual = @(Get-ChildItem $Root -Recurse -File | ForEach-Object { [IO.Path]::GetRelativePath($Root, $_.FullName).Replace('\','/') } | Sort-Object)
+  if (($actual -join '|') -ne (($Expected | Sort-Object) -join '|')) { throw 'The signing output contains missing or unexpected files' }
 }
 function Assert-Application([string]$Path,[string]$Product) {
   $info = (Get-Item $Path).VersionInfo
@@ -60,6 +65,7 @@ if ($Stage -eq 'BuildApplications') {
 }
 
 if ($Stage -eq 'BundleInstallers') {
+  Assert-FileSet $source @('team/laap-desktop-core.exe','offline/laap-desktop-core.exe')
   $first = $null
   foreach ($edition in $editions) {
     $app = Join-Path $source "$($edition.Name)/laap-desktop-core.exe"
@@ -91,6 +97,12 @@ if ($Stage -eq 'BundleInstallers') {
 
 if ($Stage -eq 'VerifyInstallers') {
   $installerRoot = if ($Signed) { Join-Path $root 'signed-installers' } else { Join-Path $root 'installers' }
+  $expected = @()
+  foreach ($edition in $editions) {
+    $expected += "$($edition.Name)/$($edition.FileName)-$version-x64-setup.exe"
+    $expected += "$($edition.Name)/$($edition.FileName)-$version-x64.msi"
+  }
+  Assert-FileSet $installerRoot $expected
   $manifest = @()
   foreach ($edition in $editions) {
     $app = Join-Path $source "$($edition.Name)/laap-desktop-core.exe"

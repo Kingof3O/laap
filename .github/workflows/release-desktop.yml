@@ -13,14 +13,23 @@ jobs:
   signing-release-guard:
     runs-on: ubuntu-latest
     steps:
-      - name: Require a version tag for SignPath release publication
+      - uses: actions/checkout@v4
+      - name: Validate release tag, app version, and draft state
         env:
-          SIGNPATH_ENABLED: ${{ vars.SIGNPATH_ENABLED }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          if [[ "$SIGNPATH_ENABLED" == true && ! "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo 'SignPath release publication requires a version tag.' >&2
+          if [[ ! "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo 'Release publication requires a version tag.' >&2
             exit 1
           fi
+          version=$(jq -r .version apps/desktop/src-tauri/tauri.conf.json)
+          if [[ "$RELEASE_TAG" != "v$version" ]]; then
+            echo 'The release tag does not match the app version.' >&2
+            exit 1
+          fi
+          bash .signpath/assert-draft-release.sh
 
   release:
     needs: signing-release-guard
@@ -61,6 +70,16 @@ jobs:
           targets: ${{ matrix.targets }}
 
       - run: npm ci --workspace @laap/desktop --include-workspace-root
+
+      - name: Confirm release is still a draft before uploading
+        if: runner.os != 'Windows' || vars.SIGNPATH_ENABLED != 'true'
+        working-directory: .
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: bash .signpath/assert-draft-release.sh
 
       - uses: tauri-apps/tauri-action@v0.5
         if: runner.os != 'Windows' || vars.SIGNPATH_ENABLED != 'true'
@@ -123,6 +142,14 @@ jobs:
             echo 'Refusing to replace artifacts in an already published release.' >&2
             exit 1
           fi
+          mapfile -t expected < <(find verified-windows -type f \( -name '*.exe' -o -name '*.msi' \) -printf '%f\n')
+          mapfile -t existing < <(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name | select((ascii_downcase | endswith(".exe")) or (ascii_downcase | endswith(".msi")))')
+          for asset in "${existing[@]}"; do
+            if ! printf '%s\n' "${expected[@]}" | grep -Fx -- "$asset" >/dev/null; then
+              echo "Unexpected Windows installer already exists in the draft: $asset" >&2
+              exit 1
+            fi
+          done
           gh release upload "$RELEASE_TAG" verified-windows/team/*.exe verified-windows/team/*.msi verified-windows/offline/*.exe verified-windows/offline/*.msi verified-windows/manifest.json --clobber
 
   publish:
@@ -130,9 +157,12 @@ jobs:
     if: always() && needs.release.result == 'success' && (vars.SIGNPATH_ENABLED != 'true' || (needs.signpath-windows.result == 'success' && needs.upload-signpath-windows.result == 'success'))
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Publish after required builds and signature verification pass
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release edit "$RELEASE_TAG" --draft=false
+        run: |
+          bash .signpath/assert-draft-release.sh
+          gh release edit "$RELEASE_TAG" --draft=false
