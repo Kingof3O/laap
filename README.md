@@ -1,8 +1,6 @@
 <div align="center">
 <img src="docs/assets/logo.webp" alt="LAAP" width="400" />
 
-# LAAP
-
 **A local account roster and desktop launcher for League of Legends.**
 
 [![Latest Release](https://img.shields.io/github/v/release/Kingof3O/laap?style=for-the-badge&color=C8AA6E)](https://github.com/Kingof3O/laap/releases/latest)
@@ -14,10 +12,6 @@
 [Code signing policy](CODE_SIGNING.md) · [Privacy policy](PRIVACY.md)
 
 Windows releases are currently unsigned. LAAP submitted its SignPath Foundation application on 2026-10-14; review and signing access are pending.
-
-The Windows installer sidebar uses the same current LAAP artwork as the desktop icon:
-
-<img src="docs/assets/nsis-sidebar.png" alt="Updated upright LAAP installer sidebar artwork" height="314" />
 
 [Profile customization](docs/profile-customization.md) · [Development](docs/DEVELOPMENT.md) · [Architecture](docs/ARCHITECTURE.md) · [Security](docs/SECURITY_MODEL.md) · [API](docs/API.md) · [Deployment](docs/PRODUCTION.md)
 
