@@ -1,5 +1,7 @@
 # LAAP desktop and admin hardening
 
+Released in v0.4.3. All four Windows/macOS Team/Offline GitHub release jobs, both branch/tag test workflows, and security scans passed on 2026-10-14. Installer compilation does not establish live-client behavior.
+
 ## Implemented behavior
 
 - Desktop roster data comes exclusively from native IPC. A bridge that has not bound is retried briefly, then produces an explicit error and an empty data set. Browser demo accounts and browser-local roster persistence are removed.
@@ -44,7 +46,7 @@ The sorting and browser checks are included in GitHub CI.
 
 ## Practical limits and manual release checks
 
-- Live Riot authentication, a real in-progress match, and Windows UAC/elevated-client shutdown were not exercised locally. Verify on supported Windows and macOS installations before release; automated match tests deliberately do not terminate real games.
+- Live Riot authentication, a real in-progress match, and Windows UAC/elevated-client shutdown were not exercised locally. Verify on supported Windows and macOS installations; automated match tests deliberately do not terminate real games.
 - Offline freshness is a conservative age hint (30 days since capture). Riot can revoke a login earlier, and expiry of an access/id token alone does not prove that a reusable refresh token is invalid. The interface says “Login saved” rather than guaranteeing successful authentication.
 - A syntactically damaged entire JSON document is preserved and reported as an error. Individual malformed/decryption-failing records inside a readable array are isolated.
 - Runtime npm dependency audit reports zero advisories. The full development-tool audit still reports existing Tailwind/Vitest/toolchain advisories that require separate framework upgrades; this change does not claim to eliminate those dependencies' advisories.

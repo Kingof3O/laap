@@ -1,186 +1,80 @@
-# Production Deployment & Operation Guide
+# Production operations
 
-This guide details the deployment process, required secrets, verification steps, and operational procedures for running LAAP in production.
+Checked against repository configuration on 2026-10-14. Deployment requires explicit authorization; configured URLs are not evidence that a service is currently healthy.
 
----
+## Topology and configuration
 
-## 1. Production Topology
+The root `wrangler.toml` deploys `apps/api/worker.ts` as the `laap-api` Cloudflare Worker with Node HTTP compatibility and the Supabase adapter. Admin assets deploy to Cloudflare Pages; `apps/admin/public/_worker.js` proxies same-origin `/api` requests to the API Worker. Keep production `VITE_API_BASE_URL` empty for that proxy flow.
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                      End Users                              │
-│          ┌──────────────────────┬────────────────────┐      │
-│          │  LAAP Desktop App    │  Web Admin (Pages) │      │
-└──────────┴──────────┬───────────┴────────────┬───────┴──────┘
-                      │                        │
-                      │ HTTPS                  │ HTTPS /api (Proxy)
-                      ▼                        ▼
-┌─────────────────────────────────────────────────────────────┐
-│       Cloudflare Worker: laap-api (apps/api/worker.ts)       │
-│        - Ed25519 Nonce Verification                         │
-│        - Managed session-blob API (deferred Riot boundary)   │
-│        - JWT Verification & Rate Limiting                   │
-└─────────────────────────────┬───────────────────────────────┘
-                              │
-                              │ Authenticated Service-Role Connection
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Supabase Cloud (PostgreSQL 15+)                │
-│        - Row Level Security (RLS) on all tables             │
-│        - Atomic lease acquisition stored procedures (RPC)   │
-│        - Application-encrypted session-blob storage         │
-│        - Health check Edge Function                         │
-└─────────────────────────────────────────────────────────────┘
-```
+Worker variables in root `wrangler.toml` include `NODE_ENV`, `LAAP_STORAGE_DRIVER`, `ALLOWED_ORIGIN`, `SUPABASE_URL`, and `CF_WORKER`. Secret values belong in Cloudflare/your secret manager:
 
----
-
-## 2. Secrets & Environment Variables
-
-### Cloudflare Worker (`laap-api`)
-Configure these secrets via `npx wrangler secret put`:
-
-| Secret Name | Purpose |
-| :--- | :--- |
-| `LAAP_WORKER_SUPABASE_ANON_KEY` | Public Supabase anon key for client-scoped operations. |
-| `LAAP_WORKER_SUPABASE_SERVICE_ROLE_KEY` | High-privilege key used exclusively server-side for lease RPCs. |
-| `LAAP_WORKER_JWT_SECRET` | 32+ byte cryptographic secret for signing LAAP access tokens. |
-| `LAAP_WORKER_VAULT_KEY` | 32+ character secret used for AES-256-GCM encryption of stored session blobs. Keep stable for existing data and rotate with a re-encryption plan. |
-
-Example (enter each value interactively and keep the values in your secret
-manager):
-
-```bash
+```sh
 npx wrangler secret put LAAP_WORKER_SUPABASE_ANON_KEY
 npx wrangler secret put LAAP_WORKER_SUPABASE_SERVICE_ROLE_KEY
 npx wrangler secret put LAAP_WORKER_JWT_SECRET
 npx wrangler secret put LAAP_WORKER_VAULT_KEY
 ```
 
-Configure public variables in `apps/api/wrangler.toml`:
-```toml
-[vars]
-SUPABASE_URL = "https://<project-ref>.supabase.co"
-ALLOWED_ORIGIN = "https://laap-control-center.pages.dev,https://tauri.localhost,http://tauri.localhost,tauri://localhost"
-```
+Keep the application vault key stable for existing encrypted blobs; key rotation needs re-encryption planning. Never expose the Supabase service-role or vault key in frontend variables.
 
-### Cloudflare Pages (`laap-control-center`)
-- **Build Command:** `npm run build`
-- **Build Output Directory:** `apps/admin/dist`
-- **Environment Variable:**
-  - `VITE_API_BASE_URL`: Leave **empty** in production so requests go to the same-origin `/api` proxy defined in `apps/admin/public/_worker.js`.
+For a self-hosted Node API, see `apps/api/src/config.ts`: use `LAAP_JWT_SECRET`, `LAAP_VAULT_KEY`, `LAAP_ADMIN_PASSWORD`, and the `SUPABASE_*` variables. Production rejects default/short secrets and the default admin password. The single-process local SQLite adapter is blocked in production unless explicitly overridden; use Supabase for the hosted deployment.
 
----
+## Database
 
-## 3. Database Migration Deployment
+Review and apply ordered files in `supabase/migrations/`:
 
-All database migrations are maintained in `supabase/migrations/`:
-
-```bash
-# Verify pending migrations
+```sh
 npx supabase migration list --linked
-
-# Push migrations to the remote database
 npx supabase db push --linked
 ```
 
-### Applied Migrations:
-1. `20260831000000_init.sql`: Core tables, initial RLS policies, audit log triggers.
-2. `20260901000000_remove_password_credential_paths.sql`: Deprecates password injection paths.
-3. `20260901100000_session_token_sandboxing.sql`: Session-blob storage and RPC compatibility boundary.
-4. `20260901110000_remove_telemetry_and_heartbeat.sql`: Historical compatibility migration; the hardening migration below restores lease liveness.
-5. `20260901120000_admin_lease_bypass.sql`: Allows administrators to claim leases directly.
-6. `20260901121000_fix_admin_lease_role.sql`: Corrects Supabase metadata role check.
-7. `20260904000000_production_hardening.sql`: Adds database-backed roles, encrypted blob compatibility, secure RPC grants, 20-second lease liveness, stale-session reaping, and lifecycle indexes.
+The latest migration is `20260904000000_production_hardening.sql`, following the initial schema, password-path retirement, session sandboxing, historical heartbeat removal, and admin lease fixes. It restores lease liveness, database-backed roles, restricted RPC access, and lifecycle constraints. Do not infer applied migration state from the repository alone.
 
-The initial Supabase migration schedules the reaper with `pg_cron`; the Worker
-also runs it when building a dashboard and lease acquisition reaps stale rows
-transactionally. Keep the Supabase cron job enabled for cleanup while the API
-is idle.
+The initial schema schedules stale cleanup with `pg_cron`; acquisition/dashboard operations also trigger cleanup. The Worker disables the Node interval reaper. Confirm the database cron job is active. Legacy `vault_secret_id` records are intentionally preserved by hardening; inventory them before any separate reviewed cleanup.
 
-The hardening migration intentionally does not delete legacy `vault_secret_id`
-rows. Inventory and remove those secrets through a reviewed Supabase/Vault
-cleanup procedure after confirming they are no longer needed; the old write/read
-RPCs are already revoked.
+## Preflight
 
----
-
-## 4. Pre-Deployment Verification Checklist
-
-Before deploying changes, ensure all tests pass:
-
-```bash
-# 1. Full workspace typecheck, test, and build
-npm run typecheck
+```sh
+npm ci
 npm run test
+npm run typecheck
 npm run build
-
-# 2. Native Rust core tests
-cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
-
-# 3. Security audit
+npm --workspace @laap/desktop run build:offline
+npm --workspace @laap/desktop run test:sorting
+npx playwright install chromium
+npm --workspace @laap/desktop run test:ui
+cargo check --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
+cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
 npm audit --omit=dev
 ```
 
----
+## Deploying hosted services
 
-## 5. Deployment Commands
+Run from the repository root after authorization:
 
-```bash
-# 1. Deploy API Worker to Cloudflare
+```sh
 npx wrangler deploy
-
-# 2. Deploy Web Admin Dashboard to Cloudflare Pages
-npm run build
-npx wrangler pages deploy apps/admin/dist --project-name laap-control-center --branch main --commit-dirty=true
-
-# 3. Build Native Desktop Release Bundles Locally
-# On macOS (builds universal .app & .dmg):
-npm --workspace @laap/desktop run build
-npx --workspace @laap/desktop tauri build --bundles app,dmg
-
-# On Windows (builds .msi installer & .exe standalone):
-npm --workspace @laap/desktop run build
-npx --workspace @laap/desktop tauri build --bundles msi,nsis
+npm --workspace @laap/admin run build
+npx wrangler pages deploy apps/admin/dist --project-name laap-control-center --branch main
 ```
 
----
+`.github/workflows/deploy-admin.yml` is manual (`workflow_dispatch`), not an automatic deploy on every push. It uses configured Cloudflare secrets and the Pages project variable.
 
-## 6. GitHub Actions Automated Multi-Platform Desktop Releases
+After deployment, verify `/api/health` and `/api/ready`, then an authenticated session/dashboard flow and an authorized read against the actual database. Liveness endpoints do not themselves probe database connectivity. Confirm Pages `/api` proxy behavior, cookie delivery, CORS for supported desktop origins, current migrations, and stale-session cleanup.
 
-Desktop release binaries are automatically cross-compiled for **both Windows and macOS** in two separate editions via `.github/workflows/release-desktop.yml`:
+If deploying to a filesystem/server, preserve production `.env`, uploaded files, persistent/runtime storage, requested backups, storage symlinks, logs, sessions, and caches. Exclude development-only files, tests, docs/Markdown, debug captures/logs, temporary files, and unused platform binaries. Retain build dependencies if building on the server. Verify exclusions before `rsync --delete`; do not use `--delete-excluded` without explicit approval. Rebuild and verify services/routes/storage/web-server configuration afterwards.
 
-```yaml
-jobs:
-  release:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: macos-latest
-            edition: team
-            args: '--target universal-apple-darwin'
-            targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
-          - platform: macos-latest
-            edition: offline
-            args: '--target universal-apple-darwin --config src-tauri/tauri.offline.conf.json'
-            targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
-          - platform: windows-latest
-            edition: team
-            args: ''
-            targets: ''
-          - platform: windows-latest
-            edition: offline
-            args: '--config src-tauri/tauri.offline.conf.json'
-            targets: ''
-```
+## Desktop releases
 
-When a release tag (e.g. `v0.4.0`) is published:
-1. **Team Edition**:
-   - `macos-latest` compiles `LAAP Desktop.dmg` & universal `.app` (supports Personal Roster + Cloud Shared Accounts).
-   - `windows-latest` compiles `LAAP-Setup.exe` (NSIS with custom Hextech bitmaps & zero-UAC installation) and `LAAP-Setup.msi`.
-2. **Offline Community Edition**:
-   - `macos-latest` compiles `LAAP Offline.dmg` & universal `.app` (`VITE_OFFLINE_ONLY=true`, local CSP `connect-src 'none'`).
-   - `windows-latest` compiles `LAAP-Offline-Setup.exe` (NSIS zero-UAC) and `LAAP-Offline-Setup.msi`.
-3. The artifacts are automatically attached to the official GitHub Release for public download, and archived in the GitHub Actions run.
-4. Installed LAAP Desktop clients automatically query `https://api.github.com/repos/Kingof3O/laap/releases/latest`, displaying the in-app Hextech update modal with a 1-click download CTA.
+The release workflow builds four jobs: Windows x64 Team/Offline and universal macOS Team/Offline. Push a new `v*.*.*` tag only after aligning versions in package manifests/lockfiles, Cargo manifest/lockfile, both Tauri configs, and `useUpdateChecker.ts`. Use a new version rather than moving a published tag.
+
+Published v0.4.3 artifacts are:
+
+| Edition | Windows | macOS |
+|:---|:---|:---|
+| Team | `LAAP.Desktop_0.4.3_x64-setup.exe`, `LAAP.Desktop_0.4.3_x64_en-US.msi` | `LAAP.Desktop_0.4.3_universal.dmg`, `LAAP.Desktop_universal.app.tar.gz` |
+| Offline | `LAAP.Offline_0.4.3_x64-setup.exe`, `LAAP.Offline_0.4.3_x64_en-US.msi` | `LAAP.Offline_0.4.3_universal.dmg`, `LAAP.Offline_universal.app.tar.gz` |
+
+The workflow creates/publishes the GitHub release and uploads assets as jobs finish; inspect all four results before declaring it complete. It writes generic release text, so finalize detailed notes after all jobs finish. If manually dispatching, select the intended version tag, not `main`. Team Edition polls GitHub releases; Offline Edition does not.
+
+For local host/universal packaging commands and output paths, see [DEVELOPMENT.md](DEVELOPMENT.md). Installer builds do not validate live Riot authentication, real in-game stopping, or elevated Windows shutdown; see [verification limits](desktop-hardening-verification.md).

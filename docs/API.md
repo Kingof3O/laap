@@ -1,233 +1,88 @@
-# LAAP REST API Specification
+# REST API reference
 
-The LAAP Core API exposes an authenticated REST API for managing accounts, hardware devices, assignments, and atomic session leases.
+Checked against v0.4.3 routes and schemas on 2026-10-14. This API manages Team Edition data; Personal Roster, avatars, and local rank sync use native Tauri commands, not these endpoints.
 
-- **Base URL (Local Development):** `http://127.0.0.1:4170`
-- **Base URL (Cloud Production):** `https://laap-api.hussiensalah100.workers.dev`
+Local base URL: `http://127.0.0.1:4170`. The repository's Pages proxy targets `https://laap-api.hussiensalah100.workers.dev`. Configured endpoints are not a live-health assertion.
 
----
+## Common rules
 
-## 1. Authentication & Session Management
+Requests with JSON bodies need `Content-Type: application/json`. IDs validated by `routeUuid` are UUIDs. Authentication is an HttpOnly browser cookie or `Authorization: Bearer <token>`. Errors include a machine-readable code and may include a message. See `apps/api/src/routes/` and `packages/validation/src/index.ts` for authoritative validation.
 
-### `POST /api/auth/login`
-Authenticates a user with email and password.
-- **Request Body:**
-  ```json
-  {
-    "email": "admin@laap.local",
-    "password": "••••••••••••",
-    "remember": true
-  }
-  ```
-- **Response (200 OK):**
-  ```json
-  {
-    "user": {
-      "id": "usr_01J...",
-      "email": "admin@laap.local",
-      "displayName": "Admin",
-      "role": "admin",
-      "status": "active"
-    }
-  }
-  ```
-- The bearer token is returned only to trusted Tauri origins (`tauri://localhost`, `https://tauri.localhost`, `http://tauri.localhost`, or local desktop development). Browser clients receive an `HttpOnly`, `Secure`, `SameSite=Lax` cookie (`__Host-laap_access`) instead. `remember: true` uses a seven-day session; otherwise the session is fifteen minutes.
-- Trusted Tauri responses include the same `user` object plus an `accessToken` for native keychain storage.
+## Authentication
 
-### `GET /api/auth/session`
-Returns the currently authenticated user profile.
-- **Headers:** `Authorization: Bearer <token>` or valid session cookie.
-- **Response (200 OK):**
-  ```json
-  {
-    "user": {
-      "id": "usr_01J...",
-      "email": "admin@laap.local",
-      "displayName": "Admin",
-      "role": "admin",
-      "status": "active"
-    }
-  }
-  ```
+| Method and path | Behavior |
+|:---|:---|
+| `POST /api/auth/login` | `{email, password, remember?}` → `{user}`; trusted Tauri requests also receive `accessToken` |
+| `GET /api/auth/session` | `{user}` or `{user: null}` for an absent/inactive session |
+| `POST /api/auth/logout` | Clears browser cookie; `{success: true}` |
+| `POST /api/auth/demo` | Development-only when enabled; disabled in production |
 
-### `POST /api/auth/logout`
-Terminates the current session and clears cookies.
-- **Response (200 OK):** `{ "success": true }`
+Remembered sessions last seven days; others last 15 minutes. Browser production cookies are HttpOnly, Secure, and SameSite=Lax. Logout does not revoke copies of an already-issued JWT server-side.
 
----
+## Shared accounts
 
-## 2. Account Management
+| Method and path | Access / result |
+|:---|:---|
+| `GET /api/accounts` | Authenticated; assigned accounts for operators, all for admins; `{accounts}` |
+| `POST /api/accounts` | Admin; `{displayName, externalId, region, status?}` → `201 {accountId}` |
+| `PATCH /api/accounts/:id` | Admin; nonempty subset of create fields → `{success: true}` |
+| `DELETE /api/accounts/:id` | Admin; delete profile/session material → `{success: true}` |
+| `PUT` or `POST /api/accounts/:id/session-blob` | Admin; `{sessionBlob}` → `{success: true}` |
+| `DELETE /api/accounts/:id/session-blob` | Admin; revoke saved material → `{success: true}` |
+| `POST /api/accounts/:id/release` | Admin; force release → `{success: true}` |
 
-### `GET /api/accounts`
-Lists accounts in the shared pool.
-- Operators only see accounts assigned to them.
-- Admins see all accounts.
-- **Response (200 OK):**
-  ```json
-  {
-    "accounts": [
-      {
-        "id": "acc_01J...",
-        "name": "T1 Faker",
-        "region": "KR",
-        "status": "available",
-        "hasSessionBlob": true,
-        "lastUsed": "2026-09-02T18:30:00Z"
-      }
-    ]
-  }
-  ```
+Create validation: display name 3–80 characters, external ID 3–120, region 2–16; status is `available`, `maintenance`, or `disabled`. Session blobs must be 10–131072 characters.
 
-### `POST /api/accounts`
-Registers a new account in the cloud pool.
-- **Access:** Admin only.
-- **Request Body:**
-  ```json
-  {
-    "displayName": "T1 Faker",
-    "externalId": "Faker#KR1",
-    "region": "KR",
-    "status": "available"
-  }
-  ```
-- **Response (201 Created):** `{ "accountId": "acc_01J..." }`
+List records use the `DashboardAccount` contract, including `name`, `region`, `status`, `lastUsed`, `level`, `accent`, and optional `hasSessionBlob`/active-lease fields. Display statuses are `Available`, `Leased`, `Maintenance`, or `Disabled`; they differ from persisted create/update statuses.
 
-### `DELETE /api/accounts/:id`
-Permanently deletes an account and purges its stored session blob.
-- **Access:** Admin only.
-- **Response (200 OK):** `{ "success": true }`
+Retired password endpoints (`POST .../credentials`, `GET .../credential-status`) return `410 RIOT_CREDENTIALS_DISABLED`.
 
-### `PUT /api/accounts/:id/session-blob`
-Uploads or updates the authenticated Riot session YAML for an account.
-- **Access:** Admin only.
-- **Request Body:**
-  ```json
-  {
-    "sessionBlob": "data: yaml string with token payload..."
-  }
-  ```
-- **Response (200 OK):** `{ "success": true }`
+## Leases
 
-`POST /api/accounts/:id/credentials` and `GET /api/accounts/:id/credential-status`
-are retired and return `410 RIOT_CREDENTIALS_DISABLED`; LAAP never accepts Riot
-usernames or passwords.
+| Method and path | Input / result |
+|:---|:---|
+| `POST /api/leases/acquire` | `{accountId, deviceId?, nonce?, signature?}` → `{success, sessionId, isReconnect}` |
+| `GET /api/leases/:sessionId/session-blob` | Authorized lease owner → `{sessionBlob}` |
+| `POST /api/leases/:sessionId/heartbeat` | `{runtimeState?}`; refreshes lease/runtime state |
+| `POST /api/leases/:sessionId/release` | Owner/admin; `{reason?}` defaults to `manual` |
 
----
+Acquisition checks account availability, authorized device, and active assignment (admins bypass assignment). Signed requests with a device ID undergo Ed25519 challenge verification; nonce/signature fields are currently optional, so do not describe signatures as mandatory. A supplied challenge is `timestamp:accountId`, accepted within a five-minute timestamp window; signatures are 64-byte Base64 without padding.
 
-## 3. Atomic Lease Brokering
+Conflicts include `ACCOUNT_BUSY` or `ACCOUNT_UNAVAILABLE` (409). Invalid signed challenges return `INVALID_DEVICE_SIGNATURE` (401); authorization failures such as `DEVICE_NOT_AUTHORIZED` or `NO_ACTIVE_ASSIGNMENT` return 403.
 
-### `POST /api/leases/acquire`
-Acquires an exclusive atomic lease for an account.
-- **Access:** Authenticated user with active assignment (or Admin bypass).
-- **Request Body:**
-  ```json
-  {
-    "accountId": "acc_01J...",
-    "deviceId": "dev_01J...",
-    "nonce": "1788239000000:acc_01J...",
-    "signature": "base64-encoded-ed25519-signature"
-  }
-  ```
-- **Response (200 OK):**
-  ```json
-  {
-    "sessionId": "ses_01J...",
-    "isReconnect": false,
-    "success": true
-  }
-  ```
-- **Errors:**
-  - `409 Conflict` (`ACCOUNT_UNAVAILABLE`): Account is currently leased to another player.
-  - `403 Forbidden` (`UNAUTHORIZED_DEVICE`): Invalid cryptographic signature or unregistered device.
+Runtime values are `LAUNCHING`, `IN_CLIENT`, `IN_GAME`, `RECONNECTING`, and `EXITED` (default `IN_CLIENT`). Desktop heartbeats run every 20 seconds; stale cleanup uses 120 seconds subject to reconnect grace. Release reasons are `manual`, `logout`, `lease_timeout`, `admin_force_release`, or `error`.
 
-### `GET /api/leases/:sessionId/session-blob`
-Retrieves the decrypted session blob for injecting into the native client.
-- **Access:** Session owner only.
-- **Response (200 OK):**
-  ```json
-  {
-    "sessionBlob": "login_remember_me_tokens:\n  ..."
-  }
-  ```
+## Devices
 
-### `POST /api/leases/:sessionId/heartbeat`
-Refreshes an active lease and records the desktop runtime state.
-- **Request Body:** `{ "runtimeState": "LAUNCHING|IN_CLIENT|IN_GAME|RECONNECTING|EXITED" }`
-- Heartbeats are sent by the desktop every 20 seconds. `EXITED` ends the lease immediately; missing heartbeats are reaped after 120 seconds (with reconnect grace where applicable).
+| Method and path | Access / result |
+|:---|:---|
+| `GET /api/devices` | Own devices, or all for admins; `{devices}` |
+| `POST /api/devices` | `{publicKey, platform, deviceName, appVersion}` → `201 {deviceId}` |
+| `POST /api/devices/:id/heartbeat` | Owner; `{appVersion?}` → `{success: true}` |
+| `POST /api/devices/:id/approve` | Admin → `{success: true}` |
+| `DELETE /api/devices/:id` | Admin; revoke → `{success: true}` |
 
-### `POST /api/leases/:sessionId/release`
-Releases an active lease and returns the account to `available` state.
-- **Access:** Session owner or Admin.
-- **Request Body:**
-  ```json
-  {
-    "reason": "manual"
-  }
-  ```
-- **Response (200 OK):** `{ "success": true }`
+Platforms are `windows` or `macos`. Public keys are 32-byte Ed25519 Base64 without padding (43 characters).
 
----
+## Administration and dashboard
 
-## 4. Hardware Device Registration
+| Method and path | Access / result |
+|:---|:---|
+| `GET /api/dashboard` | Authenticated, scoped; `{user, metrics, sessions, activity, accounts}` |
+| `GET /api/metrics` | Authenticated, scoped; metrics object |
+| `GET /api/sessions` | Authenticated, scoped; `{sessions}` |
+| `GET /api/activity` | Authenticated, scoped; `{activity}` |
+| `GET /api/users` | Admin; `{users}` |
+| `POST /api/users` | Admin; `{email, displayName, password, role?}` → `201 {user}` |
+| `PATCH /api/users/:id` | Admin; nonempty subset of `{displayName, role, status}` → `{user}` |
+| `POST /api/users/:id/reset-password` | Admin; `{password}` → `{success: true}` |
+| `GET /api/assignments` | Admin; `{assignments}` |
+| `POST /api/assignments` | Admin; `{accountId, userId, expiresAt?}` → `201 {assignmentId}` |
+| `DELETE /api/assignments/:accountId/:userId` | Admin → `{success: true}` |
+| `GET /api/audit?limit=100&offset=0` | Admin; `{audit, pagination: {limit, offset, hasMore}}` |
 
-### `GET /api/devices`
-Lists registered hardware devices for the authenticated user.
-- **Response (200 OK):**
-  ```json
-  {
-    "devices": [
-      {
-        "id": "dev_01J...",
-        "deviceName": "Gaming PC",
-        "platform": "macos",
-        "publicKeyPresent": true,
-        "lastSeenAt": "2026-09-03T02:00:00Z"
-      }
-    ]
-  }
-  ```
+New/reset user passwords need at least 12 characters. Roles are `admin`/`operator`; statuses are `active`/`suspended`/`disabled`. Assignment expiry must be a future ISO datetime or null. Audit rows are operational logs; cryptographic tamper evidence is not implemented.
 
-### `POST /api/devices`
-Registers a new hardware device.
-- **Request Body:**
-  ```json
-  {
-    "deviceName": "Gaming PC",
-    "platform": "macos",
-    "publicKey": "base64-encoded-ed25519-public-key",
-    "appVersion": "1.0.0"
-  }
-  ```
-- **Response (201 Created):** `{ "deviceId": "dev_01J..." }`
+## Liveness
 
-### `POST /api/devices/:id/heartbeat`
-Refreshes the last-seen timestamp for the authenticated user's active device.
-
-### `POST /api/devices/:id/approve`
-Approves a revoked device so it can register again.
-- **Access:** Admin only.
-
----
-
-## 5. Administration & Audit
-
-### `GET /api/dashboard`
-Returns aggregated business metrics for the Web Control Center.
-- **Response (200 OK):**
-  ```json
-  {
-    "totalAccounts": 12,
-    "activeLeases": 3,
-    "availableAccounts": 9,
-    "verifiedDevices": 15
-  }
-  ```
-
-### `GET /api/audit`
-Retrieves tamper-evident audit logs of all lease and admin actions.
-- **Access:** Admin only.
-- **Response (200 OK):** `{ "audit": [...], "pagination": { "limit": 100, "offset": 0, "hasMore": false } }`
-
-### `GET /api/health`
-Health check endpoint returning system status and database connectivity.
-- **Response (200 OK):** `{ "status": "ok", "timestamp": "2026-09-03T02:30:00Z" }`
+`GET /api/health` returns `{status: "ok", service: "laap-api", environment, timestamp}`. `GET /api/ready` returns `{status: "ready", service: "laap-api", timestamp}`. These handlers return application liveness data; they do not issue a database connectivity probe.

@@ -1,6 +1,6 @@
 # Profile customization
 
-Implemented locally; not yet published as a new release.
+Released in [v0.4.3](https://github.com/Kingof3O/laap/releases/tag/v0.4.3). Documentation checked on 2026-10-14.
 
 ## User behavior
 

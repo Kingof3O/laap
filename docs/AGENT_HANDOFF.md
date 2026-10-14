@@ -1,86 +1,39 @@
-# LAAP Agent Handoff & Maintenance Guide
+# Maintenance handoff
 
-This document is the operational guide for future AI coding agents and human developers maintaining the LAAP codebase.
+Checked against v0.4.3 source on 2026-10-14. This describes repository state; deployment URLs/configuration do not prove current service health.
 
----
+## Current baseline
 
-## 1. Repository & Workspace Context
+v0.4.3 contains profile customization, local cached icons, optional icon/Solo-Duo sync, rank/name/time sorting, guarded Stop/Switch, in-place session refresh, owned provisioning cancellation, and vault concurrency/corruption hardening. GitHub built both editions for Windows x64 and universal macOS. See [release verification](desktop-hardening-verification.md).
 
-- **Workspace Path:** `/Volumes/Shared/PW/laap`
-- **Active Branch:** `main`
-- **GitHub Remote:** `https://github.com/Kingof3O/laap.git`
-- **Operating System:** macOS (Apple Silicon / aarch64)
+The local desktop store is JSON with encrypted session blobs, not SQLite. SQLite belongs to the local API adapter. Profile metadata and PNG caches are local readable files. Missing IPC/API responses must surface loading/errors and never fabricate accounts.
 
-### Important macOS / Shared Volume Note:
-Because `/Volumes/Shared` is a shared network/external volume, macOS creates AppleDouble hidden metadata files (`._*`).
-- **Never** commit `._*` files to Git.
-- Always use the provided temporary native Cargo target and home paths when running Cargo commands:
-  ```bash
-  export RUSTUP_HOME=/Volumes/Shared/PW/laap/.toolchains/rustup
-  export CARGO_HOME=/tmp/laap-cargo-home-native
-  export CARGO_TARGET_DIR=/tmp/laap-cargo-target-native
-  export PATH=/Volumes/Shared/PW/laap/.toolchains/cargo/bin:$PATH
-  ```
+## Key files
 
----
+- Desktop orchestration: `src/context/RiotOperations.tsx`, native `riot/operation.rs`, and `commands/session.rs`.
+- Provisioning ownership: `shared/hooks/useProvisioningSandbox.ts` and native `riot/provisioner.rs`.
+- Vault transactions, quarantine, encryption: native `local_store/`.
+- Profiles and images: `shared/ui/ProfileFields.tsx`, `IconPicker.tsx`, `RankPicker.tsx`, and native `profile_assets.rs`.
+- Native command registration: `apps/desktop/src-tauri/src/lib.rs`.
+- API routes and authorization: `apps/api/src/routes/`, with SQLite/Supabase domain services.
+- Hosted configuration: root `wrangler.toml`; Pages proxy `apps/admin/public/_worker.js`.
 
-## 2. Live Production Deployments
+Paths beginning with `src/` above are relative to `apps/desktop/`.
 
-| Component | Production URL / Endpoint | Platform |
-| :--- | :--- | :--- |
-| **Web Admin Dashboard** | [https://laap-control-center.pages.dev](https://laap-control-center.pages.dev) | Cloudflare Pages |
-| **Core API Worker** | [https://laap-api.hussiensalah100.workers.dev](https://laap-api.hussiensalah100.workers.dev) | Cloudflare Workers |
-| **PostgreSQL Database** | Supabase Project: `rlhkkszeagixqmvtmknx` | Supabase Cloud |
-| **macOS Desktop App** | Local: `/tmp/laap-target/release/bundle/macos/LAAP Desktop.app`<br/>DMG: `release-dmg/LAAP Desktop_0.2.0_aarch64.dmg` | Tauri v2 + Rust |
+## Maintenance boundaries
 
----
+- Preserve user profiles, OS-keychain keys, settings backups, and cached images. Never use a real user's vault/session material as test fixtures.
+- Session integration is unofficial; avoid Riot-approval, ban-proof, mandatory-signature, or unconditional zero-network claims.
+- Optional LCU sync intentionally reads local process arguments/lockfiles. Credentials remain ephemeral and loopback-only; no game-memory inspection or gameplay automation is implemented.
+- Live League/Valorant game processes require consent before stop/switch. Do not bypass native guards or ownership locks.
+- Offline webview CSP does not block Rust networking: downloads and sync must remain explicit/opted-in.
+- Dialogs use React focus traps/Escape handlers; do not rely on WebKit `window.confirm`.
+- Recovery checks run every 30 seconds outside active operations; team lease and optional profile sync intervals are 20 seconds. Lease stale timeout is 120 seconds subject to reconnect grace.
 
-## 3. Key Subsystems & State
+## Local development and docs
 
-### Desktop App (`apps/desktop`)
-- **Theme:** Hextech Tactical (deep obsidian slate `#06080D`, vibrant Hextech gold `#F5CC70`, runic teal `#0AC8B9`).
-- **Architecture:** Feature-Sliced Architecture (`src/features/`, `src/shared/`, `src/styles/`).
-- **Modes:**
-  - **Personal Roster:** Standalone local account switcher backed by native SQLite (`local_store`). Zero cloud dependency.
-  - **Shared Accounts:** Cloud account pool backed by the API Worker and Supabase PostgreSQL.
-- **Persistent Auth:** The desktop keeps its LAAP bearer token in the OS keychain only when "Keep me signed in" is enabled. Browser sessions use an HttpOnly cookie; no auth token is stored in `localStorage`.
-- **Dialogs & Modals:** Native WebKit `window.confirm` is blocked in macOS Tauri webviews; all dialogs use custom React modals (`DeleteConfirmModal.tsx`, `AddAccountModal.tsx`, etc.).
+Use [the development guide](DEVELOPMENT.md) for actual native launch commands. An external macOS volume may generate AppleDouble files; keep Cargo output on a local filesystem using `CARGO_TARGET_DIR=/tmp/laap-desktop-cargo-target`. Do not assume a developer-specific Rust home or cached app path exists.
 
-### Core API (`apps/api`)
-- Runs as a standard Node HTTP server locally and a Cloudflare Worker in production (`worker.ts`).
-- Supports CORS with `GET`, `POST`, `PUT`, `DELETE`, `OPTIONS`.
-- Validates requests using Zod schemas from `@laap/validation`.
+Keep release versions aligned in root/desktop package manifests and lockfiles, Cargo manifest/lockfile, both Tauri configs, and `useUpdateChecker.ts`. Capture current UI screenshots using test-only fixtures and document their origin; no production fallback arrays.
 
-### Database (`supabase/`)
-- The production hardening migration is `20260904000000_production_hardening.sql`; apply it after the earlier migrations with `supabase db push --linked`.
-- Admin access is resolved from `public.user_roles` on every API request (with JWT metadata only as a legacy backstop), so role changes take effect without waiting for an old JWT to expire.
-
----
-
-## 4. Immutable Security Invariants
-
-1. **LAAP credentials:** LAAP passwords are hashed server-side; browser auth uses HttpOnly cookies and the desktop uses the OS keychain for an optional LAAP bearer token.
-2. **Riot boundary (deferred):** The current account session capture/injection path is intentionally unchanged for now. It is not an official Riot API and must not be described as ban-proof or Riot-approved.
-3. **Keyring Private Keys:** Ed25519 private keys remain strictly in the native OS keychain (`keyring-rs`).
-4. **No Process Scraping:** Zero DLL injection, zero process memory hooking, zero reading of League lockfile credentials.
-5. **Clean Restores:** Player personal settings in `RiotClientPrivateSettings.yaml` are backed up before a managed launch and restored on release or crash recovery when Riot is not running.
-6. **Lease liveness:** Desktop heartbeats run every 20 seconds; the API reaper marks sessions stale after 120 seconds without a heartbeat (subject to reconnect grace).
-
----
-
-## 5. Verification Commands
-
-Run before pushing any code:
-
-```bash
-# 1. Typecheck and unit tests
-npm run typecheck
-npm run test
-npm run build
-
-# 2. Rust desktop unit tests
-cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
-
-# 3. Clean and verify git status
-git status
-```
+Production instructions are in [PRODUCTION.md](PRODUCTION.md). Follow user/workspace deployment preservation rules. Do not infer deployment authorization from an outdated handoff note.

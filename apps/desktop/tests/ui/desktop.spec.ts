@@ -596,4 +596,5 @@ test('profile notes and cached avatars survive reload; editor preview, regions a
     'src',
     /^data:/,
   )
+  await page.screenshot({ path: path.join(root, 'roster-list.png') })
 })

@@ -1,229 +1,63 @@
-# LAAP System Architecture & Technical Design
+# Architecture
 
-## 1. System Overview & Boundaries
+Checked against v0.4.3 source on 2026-10-14.
 
-LAAP enforces strict separation of concerns between presentation, domain contracts, atomic state brokering, and native process execution:
+## Components
 
-```text
-┌────────────────────────────────────────┐       ┌──────────────────────────────────────┐
-│       LAAP Desktop Launcher            │       │       Web Control Center             │
-│   (Tauri + Rust + Hextech React 19)    │       │     (React 19 + Tailwind CSS)        │
-└──────────────────┬─────────────────────┘       └──────────────────┬───────────────────┘
-                   │                                                │
-                   │ typed DTOs & Zod contracts                     │ typed DTOs
-                   ▼                                                ▼
-┌───────────────────────────────────────────────────────────────────────────────────────┐
-│                    Shared Packages (@laap/types, @laap/validation)                     │
-└──────────────────────────────────────────┬────────────────────────────────────────────┘
-                                           │ authenticated HTTP / Bearer / Cookies
-                                           ▼
-┌───────────────────────────────────────────────────────────────────────────────────────┐
-│              LAAP Core API (Node HTTP / Cloudflare Worker: laap-api)                  │
-│               - Domain Interfaces: IAuth, IAccount, ILease, IDevice, IAdmin           │
-│               - SQL.js / SQLite Modular Domain Services                               │
-│               - Supabase PostgreSQL & RLS Modular Domain Services                     │
-└──────────────────────────────────────────┬────────────────────────────────────────────┘
-                                           │
-                                           ▼
-┌───────────────────────────────────────────────────────────────────────────────────────┐
-│            Supabase Cloud Infrastructure (PostgreSQL, Vault, Auth, RLS)               │
-│               - Atomic lease acquisition functions (Postgres RPC)                     │
-│               - Row Level Security (RLS) enforcement on all tables                    │
-│               - Encrypted session blob storage & admin bypass policies                │
-└───────────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    UI[Desktop React UI] --> IPC[Tauri commands]
+    IPC --> Vault[Local JSON vault + OS keychain]
+    IPC --> Riot[Riot process and session orchestration]
+    IPC --> Assets[Local icon cache]
+    Assets -. explicit download .-> DD[Data Dragon]
+    Assets -. opted-in read-only sync .-> LCU[Loopback League Client API]
+    UI -. Team Edition .-> API[Node HTTP / Cloudflare API]
+    Admin[React admin] --> Proxy[Pages API proxy]
+    Proxy --> API
+    API --> DB[Supabase PostgreSQL / local SQLite]
 ```
 
----
+Offline Edition disables cloud auth, team views, API requests, and update polling. Its webview CSP blocks network connections. Explicit native icon downloads and opted-in loopback sync remain available; CSP does not block Rust HTTP clients.
 
-## 2. Managed Riot Session Material (Deferred Boundary)
+## Desktop
 
-The account session capture/injection path is intentionally still present for
-the current product milestone, but it is a deferred integration boundary—not an
-official Riot authentication API and not a guarantee of compatibility or
-anti-cheat safety. LAAP must never collect Riot passwords, and this path should
-only be enabled for accounts and environments where the operator has explicit
-authorization. Replacing it with a supported Riot flow remains separate work.
+`src/features/personal-roster` owns local profiles and Add provisioning. `team-vault` owns shared leases and admin credential syncing. Shared UI contains grid/list views, Edit, icon/rank pickers, and dialog primitives. `RiotOperations` coordinates UI busy state and live-match confirmation. `lib/sorting.ts` implements competitive-tier ordering independently of filter matching.
 
-### The Problem with Password Injection
-Traditional account management tools store plaintext or weakly encrypted Riot account passwords and attempt to inject them using keystroke simulation or memory scraping. This approach introduces major security vulnerabilities, triggers anti-cheat flags, fails on multi-factor authentication, and exposes player accounts to credential theft.
+Tauri handlers are registered in `src-tauri/src/lib.rs`. Slow commands run on blocking workers. Local accounts come from IPC only; missing IPC produces an error rather than test accounts.
 
-### Current LAAP Session Flow
-LAAP operates exclusively at the **authenticated session layer**:
+### Local persistence
 
-1. **How Riot Client Maintains Sessions:**
-   When a user signs into Riot Client with *"Stay signed in"* enabled, Riot writes an authenticated session token into the client configuration file (`RiotClientPrivateSettings.yaml`).
-2. **One-Time Capture (Sandbox Mode):**
-   - **Local Capture:** The user clicks *"Capture Active Riot Login"* (which reads the current local Riot settings) or *"Open Riot Sign-In Sandbox"*.
-   - In Sandbox mode, LAAP opens a fresh, isolated Riot Client process. The user enters their credentials once.
-   - LAAP detects the newly generated session token, stores it in the local standalone roster (or uploads it to Shared Accounts if performed by an admin), and closes the sandbox.
-3. **1-Click Launch (Session Injection):**
-   - When launching an account, LAAP backs up the user's personal `RiotClientPrivateSettings.yaml`.
-   - It injects the account's authenticated session YAML.
-   - It boots the Riot Client / League of Legends launcher. The client boots directly into the game without prompting for a password.
-4. **Automatic Rollback & Cleanup:**
-   - When the user releases the account or clicks *"Restore Personal Riot Client Settings"*, LAAP cleans up the injected credentials and restores the player's personal profile.
+`local_store/storage.rs` uses `laap_local_accounts.json`, not SQLite. Session blobs use AES-256-GCM with account-bound associated data and a random key in the OS keychain. Names, regions, ranks, notes, favorites, timestamps, and image references are JSON metadata; images are files in `profile-assets`. Those metadata/image files are not encrypted by the session envelope.
 
----
+A process mutex and OS file lock serialize whole vault transactions. Unique temporary files are atomically replaced. Unreadable records are quarantined while valid records load; if every record is unreadable, the original vault remains and loading reports an error.
 
-## 3. Atomic Lease Brokering & Concurrency Control
+### Session orchestration
 
-In **Shared Accounts (Cloud Mode)**, account access is strictly regulated:
+`riot/paths.rs` recognizes `RiotGamesPrivateSettings.yaml` and the legacy `RiotClientPrivateSettings.yaml` in Riot Client's data directory.
 
-1. **Atomic Lease Acquisition:**
-   Lease acquisitions execute inside a serialized transaction (`acquireLease`).
-   - Verifies user role or active operator assignment.
-   - Confirms the account is currently `available`.
-   - Creates an active lease row with a duration timestamp.
-   - Atomically transitions the account status to `leased`.
-2. **Partial Unique Indexing:**
-   A partial unique index (`WHERE status IN ('starting', 'active', 'stopping')`) guarantees that **no account can ever have more than one active lease concurrently**.
-3. **Cryptographic Device Challenge-Response:**
-   - Every desktop client creates an Ed25519 keypair stored in the native OS keychain.
-   - When acquiring a lease, the client signs a server nonce (`${timestamp}:${accountId}`) with its private key.
-   - The API verifies this signature against the registered device public key before returning the encrypted-at-rest session blob.
+1. Review detected import metadata before saving, or begin an owned provisioning session.
+2. Provisioning stages a backup of the user's settings and temporarily uses the standard client data directory for official Riot sign-in. This is not an OS-isolated second client instance.
+3. Closing/canceling the dialog invalidates pending results, cancels its provisioning ID, restores original settings, and removes staging data.
+4. A profile launch acquires native operation locks, checks for a League/Valorant game, stops clients, writes the selected session, launches Riot, and updates `last_used_at` after successful launch.
+5. Stop Riot preserves login files. Cleanup/recovery restores a managed backup; an owner marker prevents old cloud cleanup from stopping a newer managed session.
 
-4. **Lease liveness and recovery:** The desktop reports `LAUNCHING`, `IN_CLIENT`,
-   `IN_GAME`, `RECONNECTING`, or `EXITED` every 20 seconds. The API ends an
-   `EXITED` session immediately and reaps missing heartbeats after 120 seconds;
-   a startup recovery command restores any settings backup left by a crashed
-   desktop process when Riot is not running.
+Graceful stopping uses WM_CLOSE on Windows or SIGTERM on Unix. After 2.5 seconds, termination is attempted and verified. Failure prevents session injection and returns an actionable error. Recovery runs at startup and every 30 seconds, paused during active operations/provisioning.
 
-The desktop deliberately does **not** infer an authenticated Riot account from
-the existence of a Riot process. Riot does not expose a documented, stable
-native-client signal for the signed-in account. Until a supported integration is
-approved, the UI reports *Waiting for Riot login* while the client is present
-and *League running* when the game process is present; it never claims
-`Authenticated` or `Account verified` from process presence alone.
+### Customization
 
----
+`profile_assets.rs` validates and normalizes local uploads, caches Data Dragon icons, and performs optional LCU GET requests. Icon and Solo/Duo rank sync are separate opt-ins checked every 20 seconds while enabled, and only the matching saved PUUID is eligible. See [profile customization](profile-customization.md) for transport and cache rules.
 
-## 4. Super Deep Modular Monorepo Architecture
+Process presence alone does not prove an authenticated account. Login freshness is a conservative capture-age hint, not server-side token validation.
 
-### Desktop Client Architecture (`apps/desktop`)
-The desktop frontend is organized using **Feature-Sliced Architecture (Vertical Slices)**:
+## Team API and database
 
-```text
-apps/desktop/
-├── src/
-│   ├── features/
-│   │   ├── personal-roster/    # Standalone local accounts slice (CRUD, sandbox poller, modals)
-│   │   ├── team-vault/         # Cloud Shared Accounts slice (lease claim, sync, held banner)
-│   │   ├── device/             # Dedicated hardware identity & key registration hook (useDevice)
-│   │   └── auth/               # Shared accounts login view, persistent JWT auth hook (useAuth)
-│   ├── shared/
-│   │   └── ui/                 # Reusable UI kit (AccountRosterDisplay, AccountCard, AccountListTable, ProfileAvatar, RankPicker, IconPicker, Header, Modals)
-│   ├── hooks/
-│   │   └── useUpdateChecker.ts # In-app GitHub release poller and semver comparator
-│   ├── context/
-│   │   ├── ToastContext.tsx    # Centralized floating HUD glassmorphism toasts
-│   │   └── RiotOperations.tsx  # Running process lock & live match guard
-│   ├── lib/
-│   │   ├── api.ts              # Typed fetch client and Tauri invoke bridge
-│   │   ├── constants.ts        # Region enums & local storage keys
-│   │   ├── sorting.ts          # Rank scoring, tier classes, and multi-criteria sorting
-│   │   └── types.ts            # Frontend domain contracts
-│   └── App.tsx                 # Lean coordinator shell
-└── src-tauri/
-    └── src/
-        ├── riot/               # Decoupled Riot Client subsystem
-        │   ├── paths.rs        # Platform settings directory resolution
-        │   ├── process.rs      # Sysinfo process inspection and match guards
-        │   ├── session_manager.rs # YAML token backup, injection, and restore
-        │   ├── provisioner.rs  # Isolated sandbox credential poller
-        │   └── mod.rs          # Re-exports & unit tests
-        ├── local_store/        # Decoupled standalone account store
-        │   ├── models.rs       # LocalAccount and LocalAccountSummary DTOs
-        │   ├── storage.rs      # OS filesystem storage paths and JSON serialization
-        │   ├── manager.rs      # LocalStore CRUD operations & 1-click launcher
-        │   └── mod.rs          # Re-exports & unit tests
-        ├── profile_assets.rs   # Local icon caching, image normalization, LCU sync
-        ├── commands/           # Modular Tauri IPC command handlers
-        │   ├── device.rs       # device_public_key, device_platform, sign_device_nonce
-        │   ├── local_accounts.rs # list_local_accounts, save_local_account, delete, launch
-        │   ├── session.rs      # inject_account_session, launch_riot_client, sandbox commands
-        │   └── mod.rs          # IPC command router & tests
-        ├── device.rs           # Ed25519 identity generation & signing
-        └── lib.rs              # Application bootstrap & handler registration
-```
+The Node HTTP router is reused by `apps/api/worker.ts` through Cloudflare's Node compatibility bridge. Domain interfaces in `services/domain` have SQLite and Supabase implementations. SQLite is the local API adapter; production uses Supabase/PostgreSQL.
 
-### Backend API Architecture (`apps/api`)
-The backend is structured into **Segregated Domain Services**:
+Authenticated users acquire leases after account, assignment, and device checks. Administrators bypass assignment requirements. A partial unique index over live session statuses prevents concurrent active leases. Desktop heartbeats report runtime state every 20 seconds; missing heartbeats become stale after 120 seconds subject to reconnect grace. Shared leases do not prevent another independent Riot client outside LAAP from signing into an account.
 
-```text
-apps/api/
-├── src/
-│   ├── routes/                 # Focused HTTP route handlers
-│   │   ├── auth.routes.ts      # Session check, login, demo, logout
-│   │   ├── accounts.routes.ts  # Account CRUD, session blob upload
-│   │   ├── leases.routes.ts    # Lease acquire, session blob fetch, release
-│   │   ├── devices.routes.ts   # Device registration, list, revocation
-│   │   └── admin.routes.ts     # Dashboard snapshot, metrics, audit logs, users, assignments
-│   ├── services/
-│   │   ├── domain/             # ISP-compliant domain interfaces
-│   │   │   ├── auth.ts         # IAuthService
-│   │   │   ├── accounts.ts     # IAccountService
-│   │   │   ├── leases.ts       # ILeaseService
-│   │   │   ├── devices.ts      # IDeviceService
-│   │   │   └── admin.ts        # IAdminService
-│   │   ├── sqlite/             # SQLite domain implementations
-│   │   ├── supabase/           # Supabase domain implementations
-│   │   ├── laap-service.ts     # SQLite composite facade (75 lines)
-│   │   └── supabase-service.ts # Supabase composite facade (80 lines)
-│   ├── router.ts               # Master route dispatcher
-│   └── server.ts               # Lean HTTP server coordinator
-```
+Device signatures are verified when supplied with a device ID; signed challenges use `timestamp:accountId` and a five-minute timestamp window. The current route also permits unsigned acquisition requests subject to service authorization. Do not describe signatures as mandatory or timestamp freshness as one-time nonce consumption.
 
----
+The admin UI uses same-origin `/api` requests in production; `apps/admin/public/_worker.js` forwards them to the configured API Worker. Browser auth uses HttpOnly cookies, while trusted Tauri responses can provide bearer tokens for native keychain storage.
 
-## 5. Security Invariants
-
-| Invariant | Enforcement Mechanism |
-| :--- | :--- |
-| **No Riot password handling** | Riot passwords are not accepted by LAAP. The deferred session-blob path is encrypted at rest with an application vault key. |
-| **Private Key Security** | Ed25519 private keys are stored in the macOS Keychain / Windows Credential Vault; only public keys cross the network. |
-| **Lease Exclusivity** | Database row-locking + partial unique index prevents concurrent duplicate leases. |
-| **Role-Based Access Control** | Operators only see assigned accounts and their own devices. Account creation, session syncing, and deletion require `admin` role. |
-| **Client Cleanliness** | Automatic backup and rollback ensures personal player settings are never permanently overwritten. |
-| **No Process Hooking** | Zero DLL injection, zero memory scanning, and zero reading of Riot lockfiles. |
-
----
-
-## 6. Dual-Edition Architecture & Isolation Model
-
-LAAP is engineered to accommodate both private esports team rosters and the broader open-source gaming community through a decoupled build pipeline:
-
-```text
-                           ┌──────────────────────────┐
-                           │      LAAP Monorepo       │
-                           │     (@laap/desktop)      │
-                           └─────────────┬────────────┘
-                                         │
-                 ┌───────────────────────┴───────────────────────┐
-                 │                                               │
-                 ▼                                               ▼
-   ┌───────────────────────────┐                   ┌───────────────────────────┐
-   │    LAAP Desktop (Team)    │                   │   LAAP Offline (Solo)     │
-   ├───────────────────────────┤                   ├───────────────────────────┤
-   │ • Personal Roster (Local) │                   │ • Personal Roster (Local) │
-   │ • Cloud Shared Accounts   │                   │ • Zero Network Access     │
-   │ • JWT Bearer Auth         │                   │ • Strict CSP: connect 'none'│
-   │ • Ed25519 Hardware Keys   │                   │ • Compile-time decoupling │
-   │ • Bundle: LAAP-Setup.exe  │                   │ • Bundle: LAAP-Offline    │
-   └───────────────────────────┘                   └───────────────────────────┘
-```
-
-### 1. Operator-First Interaction Philosophy
-> **LAAP is an operator tool: Simple, Fast, and Obvious.**
-> **Pick account → Play → Riot launches → Play.**
-
-Backend complexity (leases, database transactions, vault decryption) remains strictly hidden. The UI avoids displaying distracting telemetry, real-time occupancy monitoring, or granular process states. An account is simply **Ready to Play** or **In Use**.
-
-### 2. Compile-Time Decoupling (`VITE_OFFLINE_ONLY`)
-- When built with `npm run build:offline`, the bundler defines `VITE_OFFLINE_ONLY=true`.
-- In `src/lib/api.ts`, all remote network calls (`fetchAccounts`, `fetchActiveLease`, `loginUser`, `logoutUser`, etc.) are stripped or return immediate offline fallbacks.
-- The **Shared Accounts** navigation tabs, login views, and lease banners are completely removed from the DOM.
-- `tauri.offline.conf.json` enforces a strict Content Security Policy:
-  ```json
-  "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'none'; img-src 'self' data: asset: http://asset.localhost;"
-  ```
-- Public community users can inspect the source code and run the application with guaranteed zero-network egress.
+See [REST API](API.md), [security](SECURITY_MODEL.md), and [production operations](PRODUCTION.md).

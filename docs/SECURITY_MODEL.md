@@ -1,91 +1,41 @@
-# LAAP Security & Cryptographic Model
+# Security and storage model
 
-This document outlines the security architecture, cryptographic verification protocols, and Riot Client interaction model implemented across **LAAP**.
+Checked against v0.4.3 source on 2026-10-14. This describes implementation boundaries, not a security certification.
 
----
+## Local profiles
 
-## 1. Core Threat Model
+LAAP does not accept Riot passwords. It captures session YAML produced by the official Riot Client. That material grants account access and should be treated as a secret.
 
-| Threat | Impact | Mitigation Strategy |
-| ------ | ------ | ------------------- |
-| **Credential Theft** | Loss of account access or password leaks | **No Riot password handling**: Riot passwords are never collected or stored. The deferred session-blob path is encrypted at rest and remains a separate, non-official integration boundary. |
-| **Session Hijacking** | Unauthorized user steals an account lease | **Ed25519 Hardware Nonces**: All lease claims must be cryptographically signed by the requesting machine's private key. |
-| **Concurrent Play** | Two users sign into the same account simultaneously | **Exclusive DB Locks**: Atomic transactions enforce single-active lease constraints at the database level. |
-| **Data Leakage on Shared PCs** | Subsequent PC users inherit previous sessions | **Automatic Teardown**: Releasing an account scrubs injected YAML files and restores original settings. |
-| **Anti-Cheat Interference** | Anti-cheat bans from tampering with game memory | **No Memory Injection**: LAAP strictly manipulates standard configuration files before client launch; Vanguard memory space is never touched. |
+`local_store/crypto.rs` encrypts session blobs with AES-256-GCM, random nonces, and associated data bound to the account ID. A random 32-byte vault key is stored in the native OS keychain. The JSON file retains profile names, regions, ranks, notes, favorites, dates, and customization references as readable metadata; cached icons are local PNG files. Backing up JSON alone does not preserve access to an OS-keychain-bound encryption key.
 
----
+Vault operations use process and cross-process locks, unique temporary files, and atomic replacement. Corrupt records are preserved in quarantine files; a completely unreadable vault reports an error without discarding the original. Unix storage directories/files have restricted permissions. These measures do not protect against malware running as the same user or a compromised OS account.
 
-## 2. Passwordless Session Architecture (deferred Riot boundary)
+Provisioning stages original Riot settings privately and restores them on cancellation. Managed launches save recovery information and an owner marker. Cleanup waits for clients to stop; failed process termination prevents destructive continuation. Stop Riot preserves saved login files rather than signing accounts out.
 
-The current session-material capture/injection path is retained for this
-milestone at the user's request. It is not an official Riot authentication API,
-and it must not be represented as Riot approval or a ban guarantee. Replacing
-it with a supported Riot flow is separate work.
+## Optional assets and local-client sync
 
-Traditional account switchers prompt users for their Riot username and password, storing them in plain text or reversible encryption. **LAAP strictly forbids this pattern.**
+Local uploads are validated, cropped/resized, and converted to PNG without original image metadata. They are never uploaded. Public icon requests use HTTPS with normal certificate verification, validated asset identifiers, and no redirects. Network downloads require explicit user action or saved icon-sync opt-in.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant App as LAAP Desktop
-    participant Riot as Riot Client
-    participant OS as Local Filesystem
+Optional League Client sync reads ephemeral local credentials from its process arguments or nearby lockfile. Requests are read-only GETs to `https://127.0.0.1:<port>`, with proxies and redirects disabled. A self-signed certificate exception is scoped to that loopback client. Credentials are not logged, persisted, or sent to Data Dragon. Saved PUUID and opt-in flags are rechecked before writes; icon and rank sync are independent.
 
-    Note over User,OS: 1-Time Session Capture
-    User->>App: Click "1-Click Sign-in Sandbox"
-    App->>OS: Backup existing Riot settings YAML
-    App->>OS: Clear settings file to force clean login screen
-    App->>Riot: Launch Riot Client
-    User->>Riot: Enter Riot credentials with "Stay signed in" checked
-    Riot->>OS: Write encrypted remember-me tokens to RiotClientPrivateSettings.yaml
-    App->>OS: Poll & capture generated token YAML
-    App->>OS: Restore original user settings
-    App->>User: Account profile registered successfully
+Offline Edition disables cloud authentication/API/update polling and enforces this webview CSP:
+
+```text
+default-src 'self'; img-src 'self' data:; connect-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'
 ```
 
----
+The CSP applies to the webview, not native Rust clients. Offline Edition can still make explicit Data Dragon downloads and opted-in local LCU connections. It must not be advertised as unconditional zero network traffic.
 
-## 3. Cryptographic Hardware Challenge Protocol
+## LAAP authentication and leases
 
-When operating in **Shared Accounts (Cloud Mode)**, an operator cannot claim an account lease using just a user token. The hardware machine itself must be authenticated.
+LAAP user passwords are hashed server-side. Browser authentication uses HttpOnly cookies; production cookies are Secure and SameSite=Lax. Trusted Tauri origins receive bearer tokens, optionally persisted in the OS keychain. Login sessions last 15 minutes or seven days when remembered. Logout clears the browser cookie/native stored token; the API does not revoke an already-issued JWT server-side.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant App as LAAP Desktop (Tauri)
-    participant Core as Native Rust Core (Ed25519)
-    participant API as LAAP Control Plane
+Ed25519 private keys stay in the OS keychain. The lease route verifies a signed `timestamp:accountId` challenge when nonce, signature, and device ID are supplied. The accepted timestamp skew is five minutes. Unsigned requests are also supported by the current route; service checks still enforce device authorization, account availability, and assignment/admin access. Timestamp checking is not a one-time replay cache.
 
-    Note over App,API: Initial Device Registration
-    Core->>Core: Generate/Load Ed25519 Keypair in OS Secure Storage
-    Core->>API: POST /api/devices (publicKey, platform, deviceName)
-    API-->>App: deviceId granted & linked to authenticated user
+Shared session blobs are encrypted at rest with an application vault key. Authorized lease owners receive decrypted session material over the API. Server-side roles and PostgreSQL lease constraints enforce access and single-active claims. Heartbeats and stale-session reaping handle abandoned leases. Audit records support operational review; no cryptographic tamper-evidence guarantee is implemented.
 
-    Note over App,API: Lease Acquisition Challenge
-    App->>App: Generate nonce: `timestamp:accountId`
-    App->>Core: sign_device_nonce(nonce)
-    Core->>Core: Sign nonce with hardware private key
-    Core-->>App: Base64 Ed25519 signature
-    App->>API: POST /api/leases/acquire (accountId, deviceId, nonce, signature)
-    API->>API: Verify Ed25519 signature against registered device publicKey
-    API->>API: Verify nonce timestamp is within 5-minute clock skew window
-    API->>API: Atomically claim exclusive lease
-    API-->>App: Lease sessionId granted
-    App->>API: GET /api/leases/{sessionId}/session-blob
-    API-->>App: Ephemeral Riot session YAML
-    App->>Core: inject_account_session(sessionYaml)
-    Core->>App: Launch League of Legends
-```
+## Native interaction boundary
 
----
+LAAP does not inject code or inspect game memory. It inspects processes, can terminate clients after user consent, modifies session configuration while clients are stopped, and can perform opted-in local API reads while League Client is running. It is an unofficial session integration; these facts do not establish Riot approval or a ban guarantee.
 
-## 4. Vanguard & Anti-Cheat Compatibility
-
-- LAAP acts strictly as an **external orchestrator**.
-- LAAP writes configuration files **before** the Riot Client or League processes start.
-- LAAP does **not** hook Direct3D, does not use DLL injection, does not modify game executable memory, and does not inspect game packets.
-- This avoids memory/code injection and in-game automation, but it does not establish Riot approval or guarantee an anti-cheat outcome.
-
-👉 **For comprehensive technical source code proofs, Windows/macOS API audits, and independent verification steps, see [Anti-Ban Verification](ANTI_BAN_VERIFICATION.md).**
+See [native verification](ANTI_BAN_VERIFICATION.md) and [known validation limits](desktop-hardening-verification.md).
