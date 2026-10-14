@@ -38,7 +38,7 @@ rand = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml_ng = "0.10"
-sysinfo = "0.33"
+sysinfo = "0.39"
 tauri = { version = "2", features = ["tray-icon"] }
 thiserror = "2"
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
