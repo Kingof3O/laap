@@ -150,7 +150,11 @@ export function useTrayActions(
             ),
           )
           if (disposed) {
-            stop()
+            void Promise.resolve()
+              .then(stop)
+              .catch(() => {
+                // The native event bridge may disappear while the view unmounts.
+              })
             return
           }
           unlisten = stop
@@ -166,7 +170,11 @@ export function useTrayActions(
       disposed = true
       window.clearInterval(timer)
       window.removeEventListener('laap:tray-intent', handler)
-      unlisten?.()
+      void Promise.resolve()
+        .then(() => unlisten?.())
+        .catch(() => {
+          // Closing the native event bridge during teardown is harmless.
+        })
     }
   }, [])
 }

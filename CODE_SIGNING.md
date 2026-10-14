@@ -2,7 +2,7 @@
 
 ## Current status
 
-LAAP is preparing an application for the free SignPath Foundation open-source signing program. Acceptance, a certificate, and production signing access have not been granted. Existing GitHub releases are unsigned; this policy does not claim that their SmartScreen warnings have been removed.
+LAAP submitted its application to the free SignPath Foundation open-source signing program on 2026-10-14. The application is awaiting review; acceptance, a certificate, and production signing access have not been granted. Releases remain unsigned until approval and signing setup are complete; this policy does not claim that SmartScreen warnings have been removed.
 
 If the application is approved, attribution for signed Windows releases will be: **Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org)**. Microsoft Store distribution is not used.
 

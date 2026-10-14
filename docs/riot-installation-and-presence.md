@@ -1,6 +1,6 @@
 # Riot installation discovery and LAAP Presence
 
-Custom Riot installation discovery and Windows presence shipped in v0.4.6. The current source adds automatic presence setup and a Windows tray/macOS menu-bar menu; these changes require a new release. Live authenticated Riot chat still requires real-account validation.
+Custom Riot installation discovery and Windows presence shipped in v0.4.6. Automatic setup with a saved Online/Offline startup default and Windows tray/macOS menu-bar controls are included in v0.4.7. Live authenticated Riot chat still requires real-account validation.
 
 ![Current installer sidebar](assets/nsis-sidebar.png)
 

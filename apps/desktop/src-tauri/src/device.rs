@@ -1,7 +1,6 @@
 use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine as _};
 use ed25519_dalek::{Signer, SigningKey};
 use keyring::Entry;
-use rand::rngs::OsRng;
 use thiserror::Error;
 use zeroize::Zeroizing;
 
@@ -12,6 +11,8 @@ const KEYRING_ACCOUNT: &str = "ed25519-device-secret";
 pub enum DeviceError {
     #[error("OS keychain error: {0}")]
     Keychain(String),
+    #[error("OS random source unavailable: {0}")]
+    RandomSource(String),
     #[error("stored device key is invalid")]
     InvalidKey,
 }
@@ -39,9 +40,9 @@ impl DeviceIdentity {
                 value
             }
             Err(keyring::Error::NoEntry) => {
-                let mut rng = OsRng;
-                let signing = SigningKey::generate(&mut rng);
-                let value = signing.to_bytes();
+                let mut value = [0u8; 32];
+                getrandom::fill(&mut value)
+                    .map_err(|error| DeviceError::RandomSource(error.to_string()))?;
                 entry
                     .set_password(&STANDARD_NO_PAD.encode(value))
                     .map_err(|error| DeviceError::Keychain(error.to_string()))?;

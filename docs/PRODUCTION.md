@@ -76,7 +76,7 @@ For local host/universal packaging commands and output paths, see [DEVELOPMENT.m
 
 ## Windows code signing
 
-Current releases are unsigned while SignPath Foundation enrollment is being prepared. See [Code signing policy](../CODE_SIGNING.md), [Privacy policy](../PRIVACY.md), and [SignPath setup](signpath/README.md). The signing workflow produces unsigned preflight samples without sending a SignPath request; trusted signing requires an accepted account and manual approvals.
+Current releases are unsigned while the SignPath Foundation application submitted on 2026-10-14 awaits review. See [Code signing policy](../CODE_SIGNING.md), [Privacy policy](../PRIVACY.md), and [SignPath setup](signpath/README.md). The signing workflow produces unsigned preflight samples without sending a SignPath request; trusted signing requires an accepted account and manual approvals.
 
 Release publication requires a version tag matching the desktop configuration. Select the version tag when manually dispatching the release workflow. Existing published releases are rejected before uploads. With `SIGNPATH_ENABLED=true`, Windows publication requires verified SignPath outputs and rejects unexpected unsigned Windows installers already present in the draft. No Store distribution is used.
 

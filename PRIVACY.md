@@ -20,7 +20,7 @@ Opted-in icon/rank sync reads the local League Client API on 127.0.0.1 using tem
 
 Presence setup fetches and caches a public TLS compatibility certificate from `https://mln.cx/deceive/localhost.pfx`. A failed DNS route can query Google's DNS-over-HTTPS service for that provider's hostname. No profile data, Riot token, or chat content is sent to either service; those providers can see normal connection metadata. The certificate provider does not publish a privacy policy linked by the project, so it must not be described as having one.
 
-The presence service uses local configuration/chat listeners and forwards the routed client's configuration and authenticated chat traffic to Riot's own services. Online/offline mode modifies global presence messages. Credentials and chat payloads remain in memory and are not logged or stored by LAAP. LAAP does not change the system trust store or install a root certificate. v0.4.6 makes setup opt-in on Windows; later source versions can prepare presence automatically on startup, including Offline Edition. Offline Edition therefore means a local roster, not an unconditional promise of zero network traffic.
+The presence service uses local configuration/chat listeners and forwards the routed client's configuration and authenticated chat traffic to Riot's own services. Online/offline mode modifies global presence messages. Credentials and chat payloads remain in memory and are not logged or stored by LAAP. LAAP does not change the system trust store or install a root certificate. LAAP Presence prepares automatically on startup in Windows and macOS releases, including Offline Edition. Offline Edition therefore means a local roster, not an unconditional promise of zero network traffic.
 
 ## Team Edition and updates
 

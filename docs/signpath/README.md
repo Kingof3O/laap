@@ -1,6 +1,6 @@
 # SignPath onboarding and Windows signing
 
-Status: application preparation. SignPath approval, organization credentials, and the trusted-build integration are not available yet. The workflow supports an unsigned preflight now and production signing after enrollment; it does not invent a signing identity.
+Status: application submitted on 2026-10-14 and awaiting review. SignPath approval, organization credentials, and the trusted-build integration are not available yet. The workflow supports an unsigned preflight now and production signing after enrollment; it does not invent a signing identity.
 
 ## Public policy and eligibility
 

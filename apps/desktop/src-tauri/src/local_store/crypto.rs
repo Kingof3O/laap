@@ -2,8 +2,6 @@ use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use keyring::Entry;
-use rand::rngs::OsRng;
-use rand::RngCore;
 use std::fmt;
 use zeroize::Zeroizing;
 
@@ -42,7 +40,8 @@ impl LocalSecretBox {
             }
             Err(keyring::Error::NoEntry) => {
                 let mut key = [0u8; 32];
-                OsRng.fill_bytes(&mut key);
+                getrandom::fill(&mut key)
+                    .map_err(|error| format!("OS random source unavailable: {error}"))?;
                 entry
                     .set_password(&URL_SAFE_NO_PAD.encode(key))
                     .map_err(|error| error.to_string())?;
@@ -58,7 +57,7 @@ impl LocalSecretBox {
     #[cfg(test)]
     pub fn ephemeral() -> Self {
         let mut key = [0u8; 32];
-        OsRng.fill_bytes(&mut key);
+        getrandom::fill(&mut key).expect("OS random source unavailable in test");
         Self {
             key: Zeroizing::new(key),
         }
@@ -71,7 +70,8 @@ impl LocalSecretBox {
         let cipher =
             Aes256Gcm::new_from_slice(self.key.as_ref()).map_err(|error| error.to_string())?;
         let mut nonce_bytes = [0u8; 12];
-        OsRng.fill_bytes(&mut nonce_bytes);
+        getrandom::fill(&mut nonce_bytes)
+            .map_err(|error| format!("OS random source unavailable: {error}"))?;
         let encrypted = cipher
             .encrypt(
                 Nonce::from_slice(&nonce_bytes),

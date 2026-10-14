@@ -5,6 +5,23 @@ All notable changes to the **LAAP** project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.7] - 2026-10-14
+
+### Added
+- Automatic presence setup with a saved Online/Offline startup choice and tray/menu-bar controls on Windows and macOS.
+- System menu account switching, stop, and quit controls with launch and match safety checks.
+- Updated upright Windows installer artwork and installer-page verification.
+- Pending/success/failure states and retry controls for account icon/rank synchronization.
+
+### Fixed
+- Preserve Riot state, cloud leases, and saved session metadata during account switching and shutdown.
+- Prevent duplicate launch attempts while tracking slow Riot Client startup.
+- Avoid fabricated profiles on IPC errors and make teardown safe when the native event bridge closes.
+
+### Changed
+- Updated Rust and JavaScript dependencies, including Vite 8, TypeScript 7, Tailwind 4, Zod 4, Vitest 4, keyring 4, and rand 0.10.
+- SignPath Foundation application submitted; Windows installers remain unsigned pending review and signing access.
+
 ---
 
 ## [0.4.0] - 2026-09-11

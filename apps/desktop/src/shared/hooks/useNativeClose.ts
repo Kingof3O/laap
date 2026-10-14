@@ -30,15 +30,24 @@ export function useNativeClose(
             closing = false
           }
         })
-        if (disposed) stop()
-        else unlisten = stop
+        if (disposed) {
+          void Promise.resolve()
+            .then(stop)
+            .catch(() => {
+              // The native event bridge may disappear while the view unmounts.
+            })
+        } else unlisten = stop
       })
       .catch((cause) => {
         if (!disposed) callbacks.current.onError(cause)
       })
     return () => {
       disposed = true
-      unlisten?.()
+      void Promise.resolve()
+        .then(() => unlisten?.())
+        .catch(() => {
+          // The native event bridge may disappear while the view unmounts.
+        })
     }
   }, [active])
 }
