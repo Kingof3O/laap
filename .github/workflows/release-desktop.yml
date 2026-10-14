@@ -7,9 +7,32 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
+  signing-release-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate release tag, app version, and draft state
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo 'Release publication requires a version tag.' >&2
+            exit 1
+          fi
+          version=$(jq -r .version apps/desktop/src-tauri/tauri.conf.json)
+          if [[ "$RELEASE_TAG" != "v$version" ]]; then
+            echo 'The release tag does not match the app version.' >&2
+            exit 1
+          fi
+          bash .signpath/assert-draft-release.sh
+
   release:
+    needs: signing-release-guard
     strategy:
       fail-fast: false
       matrix:
@@ -48,7 +71,18 @@ jobs:
 
       - run: npm ci --workspace @laap/desktop --include-workspace-root
 
+      - name: Confirm release is still a draft before uploading
+        if: runner.os != 'Windows' || vars.SIGNPATH_ENABLED != 'true'
+        working-directory: .
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: bash .signpath/assert-draft-release.sh
+
       - uses: tauri-apps/tauri-action@v0.5
+        if: runner.os != 'Windows' || vars.SIGNPATH_ENABLED != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -57,15 +91,17 @@ jobs:
           releaseName: 'LAAP Desktop ${{ github.ref_name }}'
           releaseBody: |
             Official LAAP Desktop release.
-            
+
+            [Code signing policy](https://github.com/Kingof3O/laap/blob/main/CODE_SIGNING.md) · [Privacy policy](https://github.com/Kingof3O/laap/blob/main/PRIVACY.md)
+
             - **LAAP Desktop**: Full Team Edition (Shared Accounts + Personal Roster).
             - **LAAP Offline**: Community Standalone Edition (local Personal Roster; optional icon downloads, opt-in League Client sync, and Windows LAAP Presence).
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
 
       - name: Archive build artifacts
-        if: always()
+        if: always() && (runner.os != 'Windows' || vars.SIGNPATH_ENABLED != 'true')
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.platform }}-${{ matrix.edition }}-bundles
@@ -73,3 +109,60 @@ jobs:
             apps/desktop/src-tauri/target/release/bundle/msi/*.msi
             apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
             apps/desktop/src-tauri/target/**/release/bundle/dmg/*.dmg
+
+  signpath-windows:
+    needs: signing-release-guard
+    if: vars.SIGNPATH_ENABLED == 'true'
+    uses: ./.github/workflows/signpath-windows.yml
+    with:
+      sign: true
+    secrets:
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+
+  upload-signpath-windows:
+    needs: [release, signpath-windows]
+    if: vars.SIGNPATH_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.signpath-windows.outputs.artifact-id }}
+          path: verified-windows
+      - name: Upload verified Windows installers to the draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if [[ "$GITHUB_REF" != refs/tags/v* ]]; then
+            echo 'Signed publication requires a version tag.' >&2
+            exit 1
+          fi
+          if [[ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" != true ]]; then
+            echo 'Refusing to replace artifacts in an already published release.' >&2
+            exit 1
+          fi
+          mapfile -t expected < <(find verified-windows -type f \( -name '*.exe' -o -name '*.msi' \) -printf '%f\n')
+          mapfile -t existing < <(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name | select((ascii_downcase | endswith(".exe")) or (ascii_downcase | endswith(".msi")))')
+          for asset in "${existing[@]}"; do
+            if ! printf '%s\n' "${expected[@]}" | grep -Fx -- "$asset" >/dev/null; then
+              echo "Unexpected Windows installer already exists in the draft: $asset" >&2
+              exit 1
+            fi
+          done
+          gh release upload "$RELEASE_TAG" verified-windows/team/*.exe verified-windows/team/*.msi verified-windows/offline/*.exe verified-windows/offline/*.msi verified-windows/manifest.json --clobber
+
+  publish:
+    needs: [release, signpath-windows, upload-signpath-windows]
+    if: always() && needs.release.result == 'success' && (vars.SIGNPATH_ENABLED != 'true' || (needs.signpath-windows.result == 'success' && needs.upload-signpath-windows.result == 'success'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish after required builds and signature verification pass
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          bash .signpath/assert-draft-release.sh
+          gh release edit "$RELEASE_TAG" --draft=false

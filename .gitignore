@@ -25,3 +25,6 @@ release-dmg/
 apps/desktop/test-results/
 apps/desktop/playwright-report/
 apps/desktop/dist-bundle/
+
+# Local/CI SignPath build samples and extracted installers
+.signpath/out/
