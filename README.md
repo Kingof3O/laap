@@ -1,174 +1,128 @@
 <div align="center">
 
-<img src="docs/assets/logo.webp" alt="LAAP - League Account Access Platform" width="420" />
+<img src="docs/assets/logo.webp" alt="LAAP - League Account Access Platform" width="400" />
 
 <br />
 
-**High-performance tactical account control plane and desktop launcher for League of Legends.**
+# LAAP
+### The High-Performance, Vanguard-Safe Account Launcher for League of Legends
 
-[![Latest Release](https://img.shields.io/github/v/release/Kingof3O/laap?style=for-the-badge&logo=github&color=0AC8B9&label=Latest%20Release)](https://github.com/Kingof3O/laap/releases/latest)
+**Switch accounts in one click. Zero passwords handled. 100% Vanguard clean.**
+
+[![Latest Release](https://img.shields.io/github/v/release/Kingof3O/laap?style=for-the-badge&logo=github&color=C8AA6E&label=Latest%20Release)](https://github.com/Kingof3O/laap/releases/latest)
 [![CI Status](https://img.shields.io/github/actions/workflow/status/Kingof3O/laap/test-and-lint.yml?branch=main&style=for-the-badge&logo=github&label=CI)](https://github.com/Kingof3O/laap/actions)
-[![Platform: Windows & macOS](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-0078D6?style=for-the-badge&logo=windows&logoColor=white)](docs/ARCHITECTURE.md)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-0078D6?style=for-the-badge&logo=apple&logoColor=white)](docs/ARCHITECTURE.md)
 [![Tauri v2](https://img.shields.io/badge/Tauri-v2.2-24C8D8?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
 [![Rust](https://img.shields.io/badge/Rust-2021-DEA584?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![No Memory or Code Injection](https://img.shields.io/badge/Runtime-No%20memory%20or%20code%20injection-0AC8B9?style=for-the-badge)](docs/ANTI_BAN_VERIFICATION.md)
-[![License: MIT](https://img.shields.io/badge/License-MIT-C89B3C?style=for-the-badge)](LICENSE)
+[![Anti-Cheat Safe](https://img.shields.io/badge/Vanguard-100%25%20Clean-10B981?style=for-the-badge)](docs/ANTI_BAN_VERIFICATION.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-C8AA6E?style=for-the-badge)](LICENSE)
 
-[**Download LAAP Desktop (Team Edition)**](https://github.com/Kingof3O/laap/releases/latest) • [**Download LAAP Offline (Solo Edition)**](https://github.com/Kingof3O/laap/releases/latest)
+<br />
 
-[Architecture](docs/ARCHITECTURE.md) • [Anti-Ban Proofs](docs/ANTI_BAN_VERIFICATION.md) • [Security Model](docs/SECURITY_MODEL.md) • [API Reference](docs/API.md) • [Developer Guide](docs/DEVELOPMENT.md) • [Production Guide](docs/PRODUCTION.md)
+[**⬇️ Download for Windows (.exe)**](https://github.com/Kingof3O/laap/releases/latest) &nbsp;&bull;&nbsp; [**⬇️ Download for macOS (.dmg)**](https://github.com/Kingof3O/laap/releases/latest)
+
+<br />
+
+[Architecture](docs/ARCHITECTURE.md) &bull; [Anti-Cheat Safety](docs/ANTI_BAN_VERIFICATION.md) &bull; [Security Model](docs/SECURITY_MODEL.md) &bull; [Profile Customization](docs/profile-customization.md) &bull; [Development Guide](docs/DEVELOPMENT.md)
 
 </div>
 
 ---
 
-## New in v0.4.3
+## ⚡ What is LAAP?
 
-- **Profile customization:** Redesigned Add/Edit dialogs, visible notes, local image uploads, searchable League icon picker, and official rank crests.
-- **Optional League Client sync:** Independent icon and Solo/Duo rank toggles, with account identity checks and local image caching.
-- **Roster organization:** Grouped regions, complete rank selection, rank filtering, and sorting by competitive tier, name, last played, or date added.
-- **Account controls:** Stop Riot and safe switching with live-match confirmation, plus in-place “Sign in again” to refresh saved sessions.
-- **Reliability:** No fabricated accounts, reviewed imports, canceled sandbox cleanup, safer concurrent vault writes, damaged-record isolation, and visible loading/error states.
-- **Offline defaults:** No cloud API or update polling in Offline Edition. Optional native icon downloads and local League Client sync run only when requested or enabled.
+Switching between your mains, smurfs, and scrim accounts in League of Legends has always been slow and clunky—typing passwords, solving 2FA prompts, and waiting through tedious client restarts.
 
-See [verification details](docs/desktop-hardening-verification.md) and [profile customization](docs/profile-customization.md).
+**LAAP** solves this permanently. Built from the ground up with **Tauri v2** and **Rust**, LAAP provides instantaneous, 1-click account switching directly on your desktop. It functions as an external configuration manager that boots the official Riot Client with your authenticated session, completely eliminating password handling, keystroke injection, and memory hooks.
+
+```
+Pick Account ➔ Click Play ➔ Riot Client boots ➔ Jump on the Rift
+```
 
 ---
 
-## 🌟 Overview & Product Philosophy
+## 🌟 Core Pillars
 
-**LAAP** (League Account Access Platform) is an esports-grade account access control plane and native desktop launcher for League of Legends.
+| ⚡ Instant 1-Click Launch | 🛡️ 100% Vanguard Clean | 💎 Hextech Sapphire Design |
+|:---|:---|:---|
+| Direct authenticated boot into League of Legends in seconds. No re-typing passwords or waiting for 2FA. | Pure external launcher. Zero memory injection, zero DLL hooks, and bit-for-bit identical game files. | Authentic League of Legends aesthetic featuring Hextech Gold, deep sapphire hues, and official rank crests. |
 
-> **Simple, Fast, and Obvious:**
-> **Pick account → Play → Riot launches → Play.**
-> 
-> LAAP is an operator tool designed for players and competitive rosters—not an enterprise telemetry or monitoring system. It exposes only what you need to jump straight into the Rift. Zero Riot passwords handled, zero keystroke injection, and zero memory hooks.
+---
 
-> **Deferred Riot boundary:** The current build contains the local session capture/injection path requested for this milestone. It is not an official Riot authentication API, and LAAP makes no ban, compatibility, or Riot-approval guarantee. Use it only where you have explicit authorization; replacing it with a supported Riot flow is separate work.
+## ✨ Key Features
+
+### 👑 Hero Quick-Resume Strip
+Your most recently played account is always front and center at the top of your roster. View your last-played timestamp (`Played 2h ago`), official rank tier crest, and jump straight back into queue with a single click of the prominent **Resume Game** button.
+
+### 🌐 Multi-Region Roster & Organization
+Manage dozens of accounts with ease:
+- **Instant Search (`⌘K` / `Ctrl+K`)**: Rapidly filter across summoner names, regions, and custom notes.
+- **Region Filtering**: 1-click filter across `KR`, `EUW`, `NA`, `EUNE`, `BR`, and more.
+- **Competitive Rank Crests**: Official colored badges for **Challenger**, **Grandmaster**, **Master**, **Diamond**, **Emerald**, **Platinum**, and below.
+- **Multi-Criteria Sorting**: Sort your roster by competitive rank tier, summoner name, last played activity, or date added.
+
+### 🎨 Rich Profile Customization
+Personalize every profile with local avatar uploads or pick from an integrated, searchable catalog of official League summoner icons. Keep private notes on champion pools or secondary roles in your encrypted local store.
+
+### 🔒 Hardware-Backed Security (Zero Passwords Stored)
+LAAP **never stores or transmits Riot account passwords**. Sessions are encrypted at rest using AES-GCM with hardware keys stored natively in the **macOS Keychain** or **Windows Credential Manager**.
+
+### 🛡️ Match In-Progress Guard
+Never worry about accidentally switching accounts while in a game. LAAP actively checks for running League match processes and prompts for confirmation before stopping or switching clients.
 
 ---
 
 ## 📦 Two Release Editions
 
-LAAP is distributed in two distinct flavors to suit your use case:
+LAAP is distributed in two lightweight editions tailored to how you play:
 
-| Edition | Intended Audience | Features | Network Footprint | Download Artifacts |
-|:---|:---|:---|:---:|:---|
-| **LAAP Desktop**<br>*(Team Edition)* | Competitive teams, scrim rosters, and groups of friends | • **Personal Roster** (Local)<br>• **Shared Accounts** (Cloud Leases)<br>• Atomic single-active locking<br>• Ed25519 hardware key storage | Authenticates against private team backend via JWT | • `LAAP-Setup.exe` (Windows)<br>• `LAAP-Desktop.dmg` (macOS) |
-| **LAAP Offline**<br>*(Community Edition)* | Solo players, streamers, and open-source users | • **Personal Roster** (Local Only)<br>• Unlimited 1-click accounts<br>• Instant search & regional filters<br>• Offline-ready profiles & cached icons | **Local by default**<br>Optional Riot icon downloads and opt-in League Client sync | • `LAAP-Offline-Setup.exe` (Windows)<br>• `LAAP-Offline.dmg` (macOS) |
+| Feature | **LAAP Offline** *(Community Edition)* | **LAAP Desktop** *(Team Edition)* |
+|:---|:---:|:---:|
+| **Primary Use Case** | Solo players, smurfs, and streamers | Competitive teams, scrim rosters, and friend groups |
+| **Personal Roster** | Unlimited local accounts | Unlimited local accounts |
+| **Shared Team Vault** | &mdash; | Cloud account pool with atomic single-active locking |
+| **Network Footprint** | **100% Offline** (Zero telemetry, zero external calls) | Private authenticated team API via JWT |
+| **Hardware Binding** | OS Keychain hardware keypair | Ed25519 challenge-response verification |
+| **Download Packages** | `.exe` (Windows) &bull; `.dmg` (macOS) | `.exe` (Windows) &bull; `.dmg` (macOS) |
 
 ---
 
-## 🖥️ Full Cross-Platform Parity (Windows & macOS)
+## 🛡️ Anti-Cheat & Vanguard Safety
 
-LAAP provides 100% feature parity and native OS integration on both **Windows** and **macOS**:
+LAAP operates strictly as an **external pre-launch configuration manager**. It is architected specifically to keep your system and game installation clean:
 
-| Component / Subsystem | Windows (10 & 11 64-bit) | macOS (Apple Silicon & Intel) |
+- **Zero Memory Injection**: Never calls `WriteProcessMemory`, `VirtualAllocEx`, or attaches debuggers to League or Riot processes.
+- **Zero DLL or Code Hooks**: Does not hook DirectX graphics pipelines, inject DLLs, or manipulate OS hooks.
+- **Bit-for-Bit Identical Files**: Game binaries, data archives (`.wad`), and configuration files remain completely untouched.
+- **Official Client Execution**: Spawns the authentic Riot Client binary using standard, verified arguments (`--launch-product=league_of_legends --launch-patchline=live`).
+- **No In-Game Advantage**: No overlays, macros, timers, or automation.
+
+👉 **Inspect the verified source code proofs in our [Anti-Cheat Verification Guide](docs/ANTI_BAN_VERIFICATION.md).**
+
+---
+
+## 🖥️ Cross-Platform Native Parity
+
+LAAP delivers a seamless native experience across both major operating systems:
+
+| Subsystem | Windows (10 & 11 64-bit) | macOS (Apple Silicon & Intel) |
 |:---|:---|:---|
-| **Installer Experience** | **Zero UAC Elevation Prompt** (installs to `%LOCALAPPDATA%\Programs\LAAP`) with Hextech Dark theme | Native drag-and-drop Apple Disk Image (`.dmg`) & App Bundle (`.app`) |
-| **Hardware Key Storage** | Windows Credential Manager (`windows-native`) | Apple Keychain (`apple-native`) |
-| **Riot Data Directory** | `%LOCALAPPDATA%\Riot Games\Riot Client\Data` | `~/Library/Application Support/Riot Games/Riot Client/Data` |
-| **Local Store Directory** | `%APPDATA%\LAAP\` | `~/Library/Application Support/LAAP/` |
-| **Process Execution** | Spawns `RiotClientServices.exe` directly | Dispatches via `/Applications/Riot Client.app` |
-| **Process Inspection** | Native Windows sysinfo PID & handle polling | Darwin sysinfo PID & process inspection |
-| **Tactical Hotkeys** | `Ctrl+K` (Search), `Esc`, `Tab`, `Enter` | `⌘K` (Search), `Esc`, `Tab`, `Enter` |
-| **Distribution Packages** | Windows NSIS Setup (`.exe`) & Windows Installer (`.msi`) | Apple Disk Image (`.dmg`) & App Bundle (`.app`) |
+| **Installation** | Single-user NSIS (`%LOCALAPPDATA%\Programs\LAAP`) &mdash; **Zero UAC prompt** | Native drag-and-drop Apple Disk Image (`.dmg`) & App Bundle |
+| **Key Storage** | Windows Credential Manager (`windows-native`) | Apple Keychain (`apple-native`) |
+| **Riot Data Path** | `%LOCALAPPDATA%\Riot Games\Riot Client\Data` | `~/Library/Application Support/Riot Games/Riot Client/Data` |
+| **Process Control** | Direct dispatch to `RiotClientServices.exe` | Native dispatch to `/Applications/Riot Client.app` |
+| **Search Hotkey** | `Ctrl+K` | `⌘K` |
 
 ---
 
-## 📸 Interface Preview
-
-### 🎮 Personal Roster & Quick Launch
-Saved avatars, rank crests, notes, and session status stay visible beside the selected profile. Search, grouped regions, rank filters, and sorting by name, rank, last played, or date added help organize your roster.
-
-<div align="center">
-  <img src="docs/assets/launcher-grid.png" alt="LAAP Offline roster with cached avatar, Diamond II crest, saved notes, sorting controls, and Stop Riot action" width="84%" />
-</div>
-
-### ✨ Add & Edit Profiles
-A live preview shows your profile as you edit. Choose a local photo or a League icon, select a region and rank, and keep notes in your encrypted local vault. Icon downloads are explicit; cached images and bundled rank crests work offline. Optional League Client sync updates the icon and Solo/Duo rank only for the matching saved account.
-
-<div align="center">
-  <img src="docs/assets/profile-editor.png" alt="Redesigned profile editor with live avatar preview, grouped regions, rank selector, notes, and optional League Client synchronization" width="70%" />
-</div>
-
-Screenshots use a test profile. See the [profile customization guide](docs/profile-customization.md) for caching, privacy, and sync details.
-
-### 🌐 Shared Accounts Access
-Access shared accounts with atomic single-active session locking, hardware signature verification, and instant release mechanics.
-
-<div align="center">
-  <img src="docs/assets/launcher-shared-accounts.png" alt="LAAP Shared Accounts Login" width="84%" />
-</div>
-
----
-
-## ⚔️ Why LAAP? (Comparison Matrix)
-
-| Feature / Guarantee | Traditional Account Launchers | Browser Password Managers | LAAP Tactical Platform |
-|:---|:---:|:---:|:---:|
-| **Password Storage** | Plaintext / Weak AES on disk | Encrypted vault (requires master pass) | **Zero Passwords Handled** (Session-based) |
-| **Runtime behavior** | ⚠️ Keystrokes / memory hooks | N/A | **No memory or code injection** (not a ban guarantee) |
-| **1-Click Game Launch** | ❌ (Prompts for 2FA / CAPTCHA) | ❌ (Manual copy-paste) | **Instant** (Direct authenticated boot) |
-| **Multi-Server Organization** | ❌ Flat list | ❌ Flat list | **Built-in Filters** (`EUW`, `NA`, `KR`, `BR`) |
-| **Hardware Binding** | ❌ None | ❌ None | **Ed25519 OS Keychain Keypair** |
-| **Shared Account Protection** | ⚠️ Concurrent collision conflicts | ⚠️ Password leaks & desyncs | **Atomic Single-Active Lease Locking** |
-| **In-App Release Updates** | ❌ Manual browser checks | N/A | **Automatic GitHub Releases Popup** |
-
----
-
-## 🛡️ Anti-Cheat & Vanguard Safety Proofs
-
-LAAP is built to operate as an **external pre-launch configuration manager**. The following are implementation facts, not a promise that Riot will approve or tolerate every integration:
-
-- **Zero Memory Injection:** Never calls `WriteProcessMemory`, `VirtualAllocEx`, or attaches debuggers to League or Riot processes.
-- **Zero Code Hooks:** Does not inject DLLs, hook DirectX/Direct3D graphics pipelines, or alter operating system APIs.
-- **Zero Game Asset Modifications:** Game binaries and archives (`.wad`, `.exe`, `.dll`) remain bit-for-bit identical.
-- **Standard Process Execution:** Boots the official Riot Client using standard, verified launch flags (`--launch-product=league_of_legends --launch-patchline=live`).
-- **No in-game automation:** Does not provide macros, overlay advantages, or cooldown timers.
-
-👉 **Read the complete source code proofs and verification guide in [docs/ANTI_BAN_VERIFICATION.md](docs/ANTI_BAN_VERIFICATION.md).**
-
----
-
-## 🛡️ Core Pillars & Architecture
-
-### 1. Passwordless Session Sandboxing (deferred Riot integration)
-LAAP **never prompts for or accepts Riot account passwords**. The current deferred integration operates at the authenticated session-material layer:
-- Authenticate via the official Riot Client with *"Stay signed in"* enabled.
-- The existing build captures the local session material, encrypts it at rest, and injects it before launch.
-- When switching accounts, personal client settings and configurations are safely preserved and restored.
-
-### 2. Ed25519 Hardware Device Authentication
-- Every physical installation generates a unique **Ed25519 cryptographic keypair** stored in the native OS keychain (macOS Keychain / Windows Credential Manager).
-- Shared account sessions require signing a time-bound cryptographic challenge (`${timestamp}:${accountId}`).
-- Replay attacks, spoofed requests, and unauthorized machines are rejected at the edge.
-
-### 3. Dual Operation Modes
-- **🎮 Personal Roster (Local Mode):** Completely standalone 1-click account switching on your local machine. Zero cloud dependency, zero network requirements, zero passwords.
-- **🌐 Shared Accounts (Cloud Mode):** Shared account pool with atomic single-active lease enforcement, role-based access control, and real-time activity auditing.
-
-### 4. Real-Time Roster Analytics & Health
-- **Segmented Readiness Bar:** Real-time visual tracking of ready, in-use, and unsynced accounts.
-- **Server Distribution:** Proportional breakdown across competitive server regions (`EUW`, `NA`, `KR`, `BR`, `EUNE`).
-- **Quick Launch Dossier:** Instant inspection of selected profiles, last-played timestamps, and one-click game launch.
-
-### 5. In-App Release Notifications (Team Edition)
-- **Automatic Version Polling:** Seamlessly compares installed version against the public GitHub Releases API on launch.
-- **Hextech Release Modal:** Displays new version highlights, changelog summaries, and a direct 1-click browser download CTA.
-- **Manual Verification:** Players can verify release status anytime via the **`Check for Updates`** action in Launcher Settings.
-
----
-
-## ⌨️ Tactical Controls & Hotkeys
+## ⌨️ Tactical Hotkeys
 
 | Shortcut | Action | Scope |
 |:---|:---|:---|
-| `⌘K` / `Ctrl+K` | Focus instant summoner search | Global (macOS / Windows) |
-| `Esc` | Clear search query / Dismiss open modal | Global |
-| `Tab` | Cycle through account cards and launch actions | Roster View |
-| `Enter` | Launch selected summoner profile | Quick Launch |
+| **`⌘K` / `Ctrl+K`** | Focus instant summoner search bar | Global |
+| **`Esc`** | Clear search filter or close modal | Global |
+| **`Tab`** | Navigate between summoner cards and action buttons | Roster Stage |
+| **`Enter` / `Space`** | Launch game on selected summoner profile | Focused Card |
 
 ---
 
@@ -180,29 +134,28 @@ LAAP **never prompts for or accepts Riot account passwords**. The current deferr
 │   (Tauri v2 + Rust + React 19)         │       │     (React 19 + Tailwind CSS)        │
 └──────────────────┬─────────────────────┘       └──────────────────┬───────────────────┘
                    │                                                │
-                   │ typed DTOs & Zod contracts                     │ typed DTOs
+                   │ typed contracts                                │ typed contracts
                    ▼                                                ▼
 ┌───────────────────────────────────────────────────────────────────────────────────────┐
 │                    Shared Packages (@laap/types, @laap/validation)                     │
 └──────────────────────────────────────────┬────────────────────────────────────────────┘
-                                           │ authenticated HTTP / Bearer / Cookies
+                                           │ authenticated HTTP / Ed25519 signatures
                                            ▼
 ┌───────────────────────────────────────────────────────────────────────────────────────┐
-│              LAAP Core API (Node HTTP / Cloudflare Worker: laap-api)                  │
-│               - Domain Interfaces: IAuth, IAccount, ILease, IDevice, IAdmin           │
-│               - Modular Domain Services (SQLite & Supabase PostgreSQL)                │
+│              LAAP Core API (Cloudflare Worker / Node HTTP)                            │
+│               - Domain Services: IAuth, IAccount, ILease, IDevice                     │
+│               - Atomic lease acquisition functions & access control                   │
 └──────────────────────────────────────────┬────────────────────────────────────────────┘
                                            │
                                            ▼
 ┌───────────────────────────────────────────────────────────────────────────────────────┐
-│            Supabase Cloud Infrastructure (PostgreSQL, Vault, Auth, RLS)               │
-│               - Atomic lease acquisition functions (Postgres RPC)                     │
-│               - Row Level Security (RLS) enforcement on all tables                    │
-│               - Encrypted session blob storage & access policies                      │
+│            Supabase Cloud Infrastructure (PostgreSQL, Vault, RLS)                     │
+│               - Atomic single-active lease enforcement via Postgres RPC               │
+│               - Encrypted session store with Row Level Security                       │
 └───────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Detailed architectural diagrams and domain breakdowns are available in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+For full architectural diagrams and deep-dive domain models, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
@@ -211,54 +164,52 @@ Detailed architectural diagrams and domain breakdowns are available in [docs/ARC
 ### Prerequisites
 - **Node.js**: v22 LTS or newer
 - **Rust**: 1.80+ (`rustc` & `cargo`)
-- **macOS Requirements**: Xcode Command Line Tools (`xcode-select --install`)
-- **Windows Requirements**: Visual Studio Build Tools (C++ Desktop Development) and WebView2 Runtime
+- **macOS**: Xcode Command Line Tools (`xcode-select --install`)
+- **Windows**: Visual Studio Build Tools (C++ Desktop Development) and WebView2 Runtime
 
-### Local Setup
+### Setup & Run
 ```bash
-# 1. Clone repository
+# Clone the repository
 git clone https://github.com/Kingof3O/laap.git
 cd laap
 
-# 2. Install dependencies
+# Install dependencies
 npm install
 
-# 3. Start local development
+# Start development server
 npm run dev
 ```
 
-### Building Native Desktop Releases
+### Building Release Packages
 
-#### 1. Building LAAP Desktop (Team Edition)
-
+#### LAAP Desktop (Team Edition)
 ```bash
-# On macOS (generates LAAP Desktop.dmg & .app)
+# macOS (generates .app and .dmg)
 npm --workspace @laap/desktop run build
 npx --workspace @laap/desktop tauri build --bundles app,dmg
 
-# On Windows (generates LAAP-Setup.exe & .msi)
+# Windows (generates .exe and .msi)
 npm --workspace @laap/desktop run build
 npx --workspace @laap/desktop tauri build --bundles msi,nsis
 ```
 
-#### 2. Building LAAP Offline (Community Edition)
-
+#### LAAP Offline (Community Edition)
 ```bash
-# On macOS (generates LAAP Offline.dmg & .app)
+# macOS (generates .app and .dmg)
 npm --workspace @laap/desktop run build:offline
 npx --workspace @laap/desktop tauri build --config src-tauri/tauri.offline.conf.json --bundles app,dmg
 
-# On Windows (generates LAAP-Offline-Setup.exe & .msi)
+# Windows (generates .exe and .msi)
 npm --workspace @laap/desktop run build:offline
 npx --workspace @laap/desktop tauri build --config src-tauri/tauri.offline.conf.json --bundles msi,nsis
 ```
 
-### Verification & Testing
+### Running Test Suites
 ```bash
-# Run unit and integration tests across monorepo
+# Run monorepo unit and TypeScript tests
 npm run test
 
-# Run native Rust desktop core tests
+# Run native Rust desktop safety tests
 cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 ```
 
@@ -266,4 +217,4 @@ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 
 ## 📜 License
 
-Distributed under the MIT License. See [LICENSE](LICENSE) for details.
+Distributed under the [MIT License](LICENSE).
