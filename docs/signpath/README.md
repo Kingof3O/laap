@@ -30,6 +30,10 @@ NSIS is not a deep-signable format in the documented SignPath artifact schema. T
 
 Unsigned releases retain the existing flow until `SIGNPATH_ENABLED` is enabled. Signed artifact names are `LAAP-Desktop-<version>-x64-setup.exe`, `LAAP-Desktop-<version>-x64.msi`, and the equivalent Offline names. The manifest records SHA-256 values and whether signatures were required. The Signature status, Foundation publisher, and timestamp are checked on the returned files and the extracted LAAP applications before upload to a draft release.
 
+## Verification evidence
+
+On 2026-10-14, [Windows packaging probe](https://github.com/Kingof3O/laap/actions/runs/38630998848) verified both editions and installer formats using real CI-built application samples. It exercised the post-patch signing hook in explicitly unsigned mode and checked exact extracted application hashes. This validates packaging order; it does not claim a trusted signature before SignPath enrollment. The temporary diagnostic workflow was removed afterward.
+
 ## What is not yet verified
 
 Unsigned packaging preflight can be verified before enrollment. The actual Foundation signature and approval path cannot be exercised without an accepted account and token. A valid signature does not promise immediate Microsoft SmartScreen reputation, and signing is not a Riot endorsement.
