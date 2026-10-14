@@ -1,6 +1,6 @@
 # Riot installation discovery and LAAP Presence
 
-Implemented in source after v0.4.5; not included in the published v0.4.5 installers.
+Included in v0.4.6. Windows Rust/UI CI and the real public-certificate/loopback TLS transport test passed before release. Live authenticated Riot chat still requires real-account validation.
 
 ![LAAP Presence and Riot installation settings](assets/riot-installation-presence.png)
 

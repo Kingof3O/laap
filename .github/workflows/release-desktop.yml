@@ -59,7 +59,7 @@ jobs:
             Official LAAP Desktop release.
             
             - **LAAP Desktop**: Full Team Edition (Shared Accounts + Personal Roster).
-            - **LAAP Offline**: Community Standalone Edition (local Personal Roster; optional icon downloads and opt-in League Client sync).
+            - **LAAP Offline**: Community Standalone Edition (local Personal Roster; optional icon downloads, opt-in League Client sync, and Windows LAAP Presence).
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

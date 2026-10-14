@@ -23,9 +23,9 @@ The Windows installer sidebar uses the same current LAAP artwork as the desktop 
 
 Icon/rank sync now shows pending, success, waiting, and failure states with **Sync now / Retry sync**, plus timestamps. Icon previews have loading indicators and retries. Account switching tracks Riot/League startup, prevents repeated launches, and explains timeouts. Progress uses actual status text and spinners, without invented percentages. The v0.4.4 shutdown-race fix remains included. The Windows setup sidebar has been regenerated from its upright SVG artwork.
 
-## Upcoming: Riot discovery and LAAP Presence
+## v0.4.6: Riot discovery and LAAP Presence
 
-Source now supports Riot installations on custom Windows drives through installation records, process metadata and registry lookup, with a saved path override. **LAAP Presence** adds optional built-in Windows online/offline controls before login and during a routed session. See the [setup, privacy and validation notes](docs/riot-installation-and-presence.md). These additions are not in the v0.4.5 installers yet.
+Source now supports Riot installations on custom Windows drives through installation records, process metadata and registry lookup, with a saved path override. **LAAP Presence** adds optional built-in Windows online/offline controls before login and during a routed session. See the [setup, privacy and validation notes](docs/riot-installation-and-presence.md). Included in v0.4.6. Presence is available on Windows; macOS retains normal client launching.
 
 ## What LAAP does
 

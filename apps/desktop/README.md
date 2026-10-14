@@ -1,6 +1,6 @@
 # LAAP Desktop
 
-Tauri v2 + Rust backend with a React/TypeScript frontend. Checked against v0.4.5 source on 2026-10-14.
+Tauri v2 + Rust backend with a React/TypeScript frontend. Checked against v0.4.6 source on 2026-10-14.
 
 ## Current interface
 
@@ -75,6 +75,6 @@ The NSIS installer bitmap is generated from [the sidebar SVG source](src-tauri/i
 ![NSIS installer sidebar](../../docs/assets/nsis-sidebar.png)
 
 
-### Riot discovery and LAAP Presence (source)
+### Riot discovery and LAAP Presence (v0.4.6)
 
-Custom Windows installations use Riot records, running processes, registry entries and mounted local-drive folders. Settings includes path detection and a validated override. LAAP Presence is an optional built-in Windows chat presence filter, with startup choices and live online/offline changes. See [setup and verification](../../docs/riot-installation-and-presence.md). These changes are not in the v0.4.5 installers.
+Custom Windows installations use Riot records, running processes, registry entries and mounted local-drive folders. Settings includes path detection and a validated override. LAAP Presence is an optional built-in Windows chat presence filter, with startup choices and live online/offline changes. See [setup and verification](../../docs/riot-installation-and-presence.md). Included in v0.4.6. Presence controls are available on Windows.

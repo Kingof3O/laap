@@ -1,6 +1,6 @@
 # Security and storage model
 
-Checked against v0.4.5 source on 2026-10-14. This describes implementation boundaries, not a security certification.
+Checked against v0.4.6 source on 2026-10-14. This describes implementation boundaries, not a security certification.
 
 ## Local profiles
 
@@ -41,6 +41,6 @@ LAAP does not inject code or inspect game memory. It inspects processes, can ter
 See [native verification](ANTI_BAN_VERIFICATION.md) and [known validation limits](desktop-hardening-verification.md).
 
 
-## Upcoming built-in presence transport
+## Built-in presence transport (v0.4.6)
 
 LAAP Presence adds an opt-in Windows loopback configuration/chat proxy. It uses a publicly trusted, locally validated compatibility certificate, normal upstream Riot TLS validation, and in-memory global-presence rewriting. It does not log/persist chat or authentication payloads. Explicit setup may contact the certificate provider and Google DNS-over-HTTPS for a failed DNS route. A routed client needs LAAP running until Stop Riot. See [transport details and attribution](riot-installation-and-presence.md).
