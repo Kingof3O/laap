@@ -134,9 +134,17 @@ pub fn validate_identity(bytes: &[u8]) -> Result<Identity, String> {
         loop {
             match listener.accept() {
                 Ok((stream, _)) => {
+                    // Winsock accepted sockets can inherit the listener's nonblocking
+                    // mode. This synchronous native-TLS validation needs blocking I/O.
+                    if let Err(error) = stream.set_nonblocking(false) {
+                        return Err(error.to_string());
+                    }
                     let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
                     let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
-                    return acceptor.accept(stream).is_ok();
+                    return acceptor
+                        .accept(stream)
+                        .map(|_| ())
+                        .map_err(|error| error.to_string());
                 }
                 Err(error)
                     if error.kind() == std::io::ErrorKind::WouldBlock
@@ -144,11 +152,11 @@ pub fn validate_identity(bytes: &[u8]) -> Result<Identity, String> {
                 {
                     std::thread::sleep(Duration::from_millis(10))
                 }
-                Err(_) => return false,
+                Err(error) => return Err(error.to_string()),
             }
         }
     });
-    let result: Result<(), String> = (|| {
+    let result: Result<native_tls::TlsStream<std::net::TcpStream>, String> = (|| {
         let stream = std::net::TcpStream::connect_timeout(&address, Duration::from_secs(5))
             .map_err(|_| "Unable to verify presence certificate locally".to_string())?;
         stream
@@ -159,14 +167,14 @@ pub fn validate_identity(bytes: &[u8]) -> Result<Identity, String> {
             .map_err(|e| e.to_string())?;
         let connector = TlsConnector::new()
             .map_err(|_| "Unable to create presence TLS verifier".to_string())?;
-        connector.connect(LOCAL_CHAT_DOMAIN, stream).map_err(|_| "Presence certificate is expired, untrusted or for a different hostname. Prepare presence controls again.".to_string())?;
-        Ok(())
+        connector.connect(LOCAL_CHAT_DOMAIN, stream).map_err(|_| "Presence certificate is expired, untrusted or for a different hostname. Prepare presence controls again.".to_string())
     })();
-    let accepted = server.join().unwrap_or(false);
-    result?;
-    if !accepted {
-        return Err("Presence certificate handshake failed.".into());
-    }
+    // Retain the client stream until the server side finishes the TLS handshake.
+    let accepted = server
+        .join()
+        .map_err(|_| "Presence TLS verifier stopped unexpectedly".to_string())?;
+    let _verified_client = result?;
+    accepted.map_err(|error| format!("Presence certificate server handshake failed: {error}"))?;
     Ok(identity)
 }
 pub fn start(identity: Identity, mode: PresenceMode) -> Result<Arc<Proxy>, String> {
