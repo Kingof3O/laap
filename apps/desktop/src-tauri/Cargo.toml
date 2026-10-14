@@ -33,7 +33,7 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["ring",
 quick-xml = "0.41"
 xmltree = "0.11"
 ed25519-dalek = { version = "3", features = ["rand_core"] }
-keyring = { version = "3", default-features = false }
+keyring = { version = "4", default-features = false }
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -48,11 +48,11 @@ default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 
 [target.'cfg(target_os = "macos")'.dependencies]
-keyring = { version = "3", features = ["apple-native"] }
+keyring = { version = "4", features = ["apple-native"] }
 openssl = { version = "0.10", features = ["vendored"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-keyring = { version = "3", features = ["windows-native"] }
+keyring = { version = "4", features = ["windows-native"] }
 winreg = "0.55"
 
 [target.'cfg(target_os = "windows")'.dependencies.windows-sys]
