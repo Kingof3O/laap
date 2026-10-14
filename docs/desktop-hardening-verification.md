@@ -2,6 +2,12 @@
 
 Released in v0.4.3. All four Windows/macOS Team/Offline GitHub release jobs, both branch/tag test workflows, and security scans passed on 2026-10-14. Installer compilation does not establish live-client behavior.
 
+## v0.4.4 stop-result correction
+
+A failed process-termination call can race with a client/child process exiting. Stop now continues through remaining targets and verifies fresh PID/start-time snapshots for up to 2.5 seconds before deciding whether a failure remains. A disappeared process does not produce the permissions warning. Genuine survivors still block switching; the final restarted-process check and live-match consent remain enforced.
+
+Three additional Rust regression tests cover an exited child without skipping its parent, delayed exit after a failed termination call, and distinguishing a surviving failed target from an unrelated slow-exiting target. This models the shutdown race without terminating real processes; real elevated Windows Riot behavior still requires user validation.
+
 ## Implemented behavior
 
 - Desktop roster data comes exclusively from native IPC. A bridge that has not bound is retried briefly, then produces an explicit error and an empty data set. Browser demo accounts and browser-local roster persistence are removed.
@@ -36,7 +42,7 @@ Verified locally on macOS:
 
 - API/admin/desktop production builds and desktop Offline build.
 - 15 API tests and the admin TypeScript check.
-- 25 Rust tests, including vault corruption isolation, concurrent updates, metadata-preserving refresh, personal-login preservation, sandbox cancellation and League/Valorant match guards.
+- 28 Rust tests, including vault corruption isolation, concurrent updates, metadata-preserving refresh, personal-login preservation, sandbox cancellation and League/Valorant match guards.
 - 2 sorting tests covering hierarchy, divisions, unknown ranks in both directions, names and timestamps.
 - 8 browser tests covering unavailable/delayed IPC, zero external requests in Offline, consent before Stop/Switch, backend match-detection races, focus/Escape/form reset, quick-import review, pending-poll cancellation, metadata editing, grouped region/rank choices, local image upload and cached avatars/notes after reload. Native responses are simulated only in test fixtures; production code contains no demo roster.
 - An explicit public-network smoke test verified Data Dragon versions, icon catalog and an actual profile PNG using the production Rust HTTP client.

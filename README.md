@@ -14,6 +14,10 @@
 [Profile customization](docs/profile-customization.md) · [Development](docs/DEVELOPMENT.md) · [Architecture](docs/ARCHITECTURE.md) · [Security](docs/SECURITY_MODEL.md) · [API](docs/API.md) · [Deployment](docs/PRODUCTION.md)
 </div>
 
+## v0.4.4 patch
+
+Fixes a shutdown race where Stop Riot could close the Windows client successfully but still report an error. LAAP now verifies the remaining processes before deciding that stopping failed. Live-match confirmation and real permission failures remain enforced. The screenshots below show the unchanged v0.4.3 interface.
+
 ## What LAAP does
 
 Save a Riot Client login through the official client, organize your profiles, and launch a selected account. LAAP stores session material rather than asking for Riot passwords. Saved logins can expire or be revoked; **Sign in again** refreshes the existing profile while keeping its name, region, rank, notes, and favorite status.

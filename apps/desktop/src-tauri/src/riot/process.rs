@@ -1,6 +1,8 @@
 use serde::Serialize;
 use std::time::{Duration, Instant};
-use sysinfo::{Pid, Signal, System};
+#[cfg(not(target_os = "windows"))]
+use sysinfo::Signal;
+use sysinfo::{Pid, System};
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct RuntimeSnapshot {
@@ -120,29 +122,122 @@ pub fn stop_riot(confirmed: bool) -> Result<(), String> {
         }
         std::thread::sleep(Duration::from_millis(100));
     }
-    let live = System::new_all();
-    for (pid, start) in &targets {
-        if let Some(process) = live.process(*pid).filter(|p| p.start_time() == *start) {
-            if !process.kill() {
-                return Err("Unable to stop Riot. Close Riot/League manually; if Riot is running as Administrator, run LAAP with matching permissions, then retry.".into());
-            }
+    force_stop_and_wait(
+        &targets,
+        |pid, start| {
+            // A parent may exit and take its children with it between attempts.
+            let live = System::new_all();
+            live.process(pid)
+                .filter(|process| process.start_time() == start)
+                .is_none_or(|process| process.kill())
+        },
+        || {
+            let live = System::new_all();
+            targets
+                .iter()
+                .copied()
+                .filter(|(pid, start)| {
+                    live.process(*pid)
+                        .is_some_and(|process| process.start_time() == *start)
+                })
+                .collect()
+        },
+        Duration::from_millis(2500),
+    )?;
+    ensure_stopped()
+}
+
+fn force_stop_and_wait(
+    targets: &[(Pid, u64)],
+    mut terminate: impl FnMut(Pid, u64) -> bool,
+    mut remaining: impl FnMut() -> Vec<(Pid, u64)>,
+    timeout: Duration,
+) -> Result<(), String> {
+    let mut failed = Vec::new();
+    for &(pid, start) in targets {
+        if !terminate(pid, start) {
+            // A failed call can mean the process already exited, not access denied.
+            // Continue stopping other targets and decide from a fresh snapshot.
+            failed.push((pid, start));
         }
     }
-    for _ in 0..25 {
-        let live = System::new_all();
-        if targets
-            .iter()
-            .all(|(pid, start)| live.process(*pid).is_none_or(|p| p.start_time() != *start))
-        {
-            return ensure_stopped();
+    let deadline = Instant::now() + timeout;
+    loop {
+        let live = remaining();
+        if live.is_empty() {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return if live.iter().any(|target| failed.contains(target)) {
+                Err("Unable to stop remaining Riot/League processes. Close them manually; if Riot is running as Administrator, run LAAP with matching permissions, then retry.".into())
+            } else {
+                Err("Riot did not exit. Close Riot/League manually before retrying.".into())
+            };
         }
         std::thread::sleep(Duration::from_millis(100));
     }
-    Err("Riot did not exit. Close Riot/League manually before retrying.".into())
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn exited_child_does_not_abort_stopping_the_remaining_parent() {
+        let child = (Pid::from_u32(10), 100);
+        let parent = (Pid::from_u32(20), 200);
+        let mut attempted = Vec::new();
+        let result = force_stop_and_wait(
+            &[child, parent],
+            |pid, _| {
+                attempted.push(pid);
+                pid != child.0
+            },
+            Vec::new,
+            Duration::ZERO,
+        );
+        assert!(result.is_ok());
+        assert_eq!(attempted, vec![child.0, parent.0]);
+    }
+
+    #[test]
+    fn failed_termination_reports_permissions_only_if_that_process_remains() {
+        let exited = (Pid::from_u32(10), 100);
+        let live = (Pid::from_u32(20), 200);
+        let result = force_stop_and_wait(
+            &[exited, live],
+            |pid, _| pid == live.0,
+            || vec![live],
+            Duration::ZERO,
+        );
+        assert_eq!(
+            result.unwrap_err(),
+            "Riot did not exit. Close Riot/League manually before retrying."
+        );
+        let result = force_stop_and_wait(&[live], |_, _| false, || vec![live], Duration::ZERO);
+        assert!(result.unwrap_err().contains("matching permissions"));
+    }
+
+    #[test]
+    fn waits_for_delayed_exit_after_a_failed_termination_call() {
+        let target = (Pid::from_u32(10), 100);
+        let mut snapshots = 0;
+        let result = force_stop_and_wait(
+            &[target],
+            |_, _| false,
+            || {
+                snapshots += 1;
+                if snapshots == 1 {
+                    vec![target]
+                } else {
+                    vec![]
+                }
+            },
+            Duration::from_secs(1),
+        );
+        assert!(result.is_ok());
+        assert_eq!(snapshots, 2);
+    }
+
     #[test]
     fn recognizes_match_executables_and_guards_them() {
         for name in ["League of Legends.exe", "VALORANT-Win64-Shipping.exe"] {
