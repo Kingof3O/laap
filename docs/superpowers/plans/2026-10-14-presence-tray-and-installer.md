@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Initial presence mode is Online; a new app session starts Online.
+- Initial startup preference is Online. Persist the user-selected startup presence separately from the live session mode; changing the preference does not alter the current session.
 - Presence setup happens automatically outside Settings; explicit setup failure remains visible.
 - No silent normal launch when the user requested offline filtering.
 - Both Windows and macOS need a real certificate-import/loopback-handshake test before enabling presence there.
@@ -21,6 +21,7 @@
 - Closing the window hides it only after tray initialization succeeds.
 - Do not modify system trust roots or disable hostname/chain validation.
 - No unsigned release may claim to resolve SmartScreen reputation warnings.
+- A saved cloud lease must be released during tray Quit even when the Team view is unmounted. Sign-in provisioning must remain cancellable from Quit.
 
 ## Review Focus
 
@@ -28,7 +29,7 @@
 2. A running match must not stop from a tray click without the existing confirmation.
 3. A deleted/renamed profile must not leave a tray entry that launches the wrong account.
 4. Closing or quitting during provisioning must preserve/cancel owned work correctly.
-5. Imported old settings must not accidentally preserve an Offline preference at fresh app start.
+5. Imported old settings default the new startup preference to Online; users can explicitly choose Offline in Settings.
 
 ## Task 1: Portable identity and TLS transport
 
@@ -46,7 +47,7 @@
 
 **Files:** Modify native `launcher_settings.rs`, `presence.rs`; frontend `src/hooks/useLauncher.ts`, `shared/ui/LauncherSettingsPanel.tsx`, `PresenceControls.tsx`; test `tests/ui/launcher.spec.ts`.
 
-**Interfaces:** `initialize_presence() -> Result<PresenceStatus, String>` is single-flight and starts the application session Online. `ensure_presence_ready() -> Result<(), String>` prepares cached identity before routed launch. Add `setup_state` (`preparing`, `ready`, `failed`) to status. Keep `set_presence_mode`/`retry_presence` commands.
+**Interfaces:** `initialize_presence() -> Result<PresenceStatus, String>` is single-flight and applies the saved startup preference (Online by default). `ensure_presence_ready() -> Result<(), String>` prepares cached identity before routed launch. Add `setup_state` (`preparing`, `ready`, `failed`) to status. Keep `set_presence_mode`/`retry_presence` commands.
 
 - [ ] Add failing tests: old disabled/offline settings initialize Online; automatic setup runs once; a user mode choice is not reset by polling; a provider outage gives visible Retry and explicit normal Online launch; offline-requested launch does not silently bypass filtering.
 - [ ] Introduce a migration marker for old opt-in preferences and use session state for the fresh-app Online default. Preserve the path override and current session choice across account switches.

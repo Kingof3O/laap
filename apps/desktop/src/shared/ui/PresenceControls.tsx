@@ -77,6 +77,7 @@ export function PresenceBanner({
       ) : null}
       {status?.state === 'error' ||
       status?.state === 'setup_failed' ||
+      status?.state === 'normal_online' ||
       launcher.error ? (
         <button
           type="button"

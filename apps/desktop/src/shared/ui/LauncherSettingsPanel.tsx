@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { FolderSearch } from 'lucide-react'
-import type { LauncherController } from '../../hooks/useLauncher'
+import type { LauncherController, PresenceMode } from '../../hooks/useLauncher'
 export function LauncherSettingsPanel({
   launcher,
   disabled,
@@ -11,12 +11,14 @@ export function LauncherSettingsPanel({
   const { view, loading, busy, error } = launcher
   const [path, setPath] = useState('')
   const enabled = true
+  const [startupPresence, setStartupPresence] = useState<PresenceMode>('online')
   const [dirty, setDirty] = useState(false)
   const [saved, setSaved] = useState(false)
   const [action, setAction] = useState<string | null>(null)
   useEffect(() => {
     if (view && !dirty) {
       setPath(view.settings.riot_client_path ?? '')
+      setStartupPresence(view.settings.startup_presence ?? 'online')
     }
   }, [view, dirty])
   const invoke = async (label: string, action: () => Promise<unknown>) => {
@@ -64,6 +66,29 @@ export function LauncherSettingsPanel({
           {view.detected_client.path}
         </code>
       ) : null}
+      {view.presence_supported ? (
+        <>
+          <h3>Default presence</h3>
+          <label className="field-block">
+            <span className="field-label">Default presence on startup</span>
+            <select
+              className="hextech-input"
+              aria-label="Default presence on startup"
+              value={startupPresence}
+              onChange={(event) => {
+                setStartupPresence(event.target.value as PresenceMode)
+                setDirty(true)
+                setSaved(false)
+              }}
+              disabled={disabled || busy}
+            >
+              <option value="online">Online</option>
+              <option value="offline">Appear offline</option>
+            </select>
+          </label>
+          <p>Used when LAAP starts. Change the current session anytime from the header or system menu. New installs start Online.</p>
+        </>
+      ) : null}
       {view.windows ? (
         <>
           <label className="field-block">
@@ -94,7 +119,7 @@ export function LauncherSettingsPanel({
         disabled={disabled || busy || !dirty}
         onClick={() =>
           void invoke('Saving launcher settings…', async () => {
-            await launcher.save(path, enabled)
+            await launcher.save(path, enabled, startupPresence)
             setDirty(false)
             setSaved(true)
           })

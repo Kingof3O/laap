@@ -36,6 +36,8 @@ pub struct TraySnapshot {
     mode: crate::launcher_settings::PresenceMode,
     busy: bool,
     running: bool,
+    #[serde(default)]
+    quit_blocked: bool,
     setup_failed: bool,
 }
 fn error(error: impl std::fmt::Display) -> String {
@@ -163,7 +165,7 @@ fn menu(app: &AppHandle, snapshot: &TraySnapshot) -> Result<Menu<tauri::Wry>, St
         (
             "quit",
             "Quit LAAP",
-            !snapshot.busy && READY.load(Ordering::SeqCst),
+            !snapshot.quit_blocked && READY.load(Ordering::SeqCst),
         ),
     ] {
         menu.append(&MenuItem::with_id(app, id, label, enabled, None::<&str>).map_err(error)?)
@@ -179,6 +181,7 @@ pub fn setup(app: &AppHandle) -> Result<(), String> {
         mode: crate::launcher_settings::PresenceMode::Online,
         busy: true,
         running: false,
+        quit_blocked: true,
         setup_failed: false,
     };
     let icon = if cfg!(target_os = "macos") {
@@ -262,12 +265,7 @@ pub fn update_tray(app: AppHandle, snapshot: TraySnapshot) -> Result<(), String>
 #[tauri::command]
 pub async fn prepare_quit(confirmed: bool) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        if crate::commands::session::owns_provisioning() {
-            crate::commands::session::cancel_provisioning_session_sync(None, Some(confirmed))?;
-        }
-        crate::commands::session::cleanup_account_session_sync(Some(confirmed), None)?;
-        crate::riot::process::stop_riot(confirmed)?;
-        Ok(())
+        crate::commands::session::shutdown_riot_sync(confirmed)
     })
     .await
     .map_err(error)?

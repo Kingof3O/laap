@@ -90,7 +90,7 @@ export function SettingsModal({
                 }}
               >
                 {IS_OFFLINE_ONLY
-                  ? 'AES-GCM local storage. Icons, League sync and presence services connect only when you enable them.'
+                  ? 'AES-GCM encrypted local vault. Icons, rank sync and LAAP Presence setup can use the network.'
                   : 'Your local identity is used for shared-account access.'}
               </div>
             </div>

@@ -25,7 +25,7 @@ Icon/rank sync now shows pending, success, waiting, and failure states with **Sy
 
 ## v0.4.6: Riot discovery and LAAP Presence
 
-Riot installations on custom Windows drives are discovered through installation records, process metadata and registry lookup, with a saved path override. v0.4.6 includes Windows LAAP Presence. Current source also adds automatic Online startup, macOS presence, and system-bar controls for presence and saved local accounts; a new release is required for those additions. See the [setup, privacy and validation notes](docs/riot-installation-and-presence.md).
+Riot installations on custom Windows drives are discovered through installation records, process metadata and registry lookup, with a saved path override. v0.4.6 includes Windows LAAP Presence. Current source also adds automatic presence setup with a saved Online/Offline startup choice, macOS presence, and system-bar controls for presence and saved local accounts; a new release is required for those additions. See the [setup, privacy and validation notes](docs/riot-installation-and-presence.md).
 
 ## What LAAP does
 

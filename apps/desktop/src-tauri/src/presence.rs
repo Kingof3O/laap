@@ -104,7 +104,7 @@ pub async fn initialize_presence() -> Result<PresenceStatus, String> {
         if !SESSION_STARTED.swap(true, std::sync::atomic::Ordering::SeqCst) {
             if let Err(error) = launcher_settings::update(|settings| {
                 settings.presence_enabled = true;
-                settings.presence_mode = PresenceMode::Online;
+                settings.select_startup_mode();
                 Ok(())
             }) {
                 SESSION_STARTED.store(false, std::sync::atomic::Ordering::SeqCst);
@@ -185,6 +185,7 @@ pub async fn get_launcher_settings() -> Result<SettingsView, String> {
 pub async fn save_launcher_settings(
     riot_client_path: Option<String>,
     presence_enabled: bool,
+    startup_presence: Option<PresenceMode>,
 ) -> Result<SettingsView, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let _operation = crate::riot::operation::acquire()?;
@@ -195,6 +196,9 @@ pub async fn save_launcher_settings(
         launcher_settings::update(|s| {
             s.riot_client_path = validated;
             s.presence_enabled = supported();
+            if let Some(mode) = startup_presence {
+                s.startup_presence = mode;
+            }
             Ok(())
         })?;
         settings_view()

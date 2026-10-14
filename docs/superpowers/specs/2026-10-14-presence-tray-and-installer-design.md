@@ -1,6 +1,6 @@
 # Automatic presence, system-bar controls, and installer refresh
 
-Status: proposed design for user review; implementation has not started.
+Status: implementation in progress on `codex/presence-tray`; Windows installer and host transport workflows passed for the initial implementation.
 
 ## Requested outcome
 
@@ -18,11 +18,11 @@ Users should install a visibly current LAAP, launch with Online as the default, 
 
 ### Presence starts ready and Online
 
-Remove presence setup/enable UI from Settings. Keep Riot installation detection and path override there.
+Remove presence preparation and enable controls from Settings. Keep Riot installation detection, the persistent startup-mode choice, and path override there.
 
-On the first launch after this update, automatically prepare and validate the local presence certificate, then use Online as the initial mode. Use a one-time migration marker so an explicit subsequent offline choice is not reset by every refresh. Preserve that choice for subsequent account switches in the same app session. Each fresh app session starts Online, matching the requested default.
+On the first launch after this update, automatically prepare and validate the local presence certificate, then apply the saved startup preference (Online by default). Use a one-time migration marker so an explicit subsequent offline choice is not reset by every refresh. Preserve that choice for subsequent account switches in the same app session. The saved startup preference defaults to Online for new and upgraded settings. On each fresh app session LAAP applies that startup preference; users can choose Appear offline.
 
-Show a compact status in the main window and the system-bar menu: Preparing, Online, Appear offline, Waiting for chat, or Setup failed. The selected preference and the active filter status remain distinguishable. Never claim that offline visibility is active before the routed connection has applied the filter.
+Show a compact status in the main window and the system-bar menu: Preparing, Online, Appear offline, Waiting for chat, or Setup failed. The startup preference in Settings and the active session mode remain distinguishable; saving the startup preference does not change the current session. Never claim that offline visibility is active before the routed connection has applied the filter.
 
 Retry transient setup failures with bounded backoff and expose Retry from the main window/system menu. If automatic setup fails, explain the failure. Permit an explicit normal Online launch so certificate/DNS outages cannot brick account access; do not silently perform an offline-requested launch without filtering.
 

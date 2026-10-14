@@ -82,11 +82,19 @@ export function useLocalAccounts() {
     mounted.current = true
     void loadAccounts()
     const refresh = () => void loadAccounts()
+    const provisioningCancelled = (event: Event) => {
+      if ((event as CustomEvent<boolean>).detail !== false) return
+      generation.current++
+      ticket.current = null
+      setProvisioning(false)
+    }
     window.addEventListener('laap:refresh', refresh)
+    window.addEventListener('laap:provisioning', provisioningCancelled)
     return () => {
       mounted.current = false
       requests.current++
       window.removeEventListener('laap:refresh', refresh)
+      window.removeEventListener('laap:provisioning', provisioningCancelled)
       void cancelSandbox().catch((cause) =>
         console.error('Unable to restore Riot sign-in:', String(cause)),
       )

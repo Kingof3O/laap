@@ -8,6 +8,7 @@ export interface LauncherView {
     riot_client_path: string | null
     presence_enabled: boolean
     presence_mode: PresenceMode
+    startup_presence: PresenceMode
   }
   detected_client: { path: string; source: string } | null
   detection_error: string | null
@@ -167,10 +168,11 @@ export function useLauncher() {
       if (mounted.current) setBusy(false)
     }
   }
-  const save = async (path: string, presenceEnabled: boolean) => {
+  const save = async (path: string, presenceEnabled: boolean, startupPresence: PresenceMode) => {
     const next = await command<LauncherView>('save_launcher_settings', {
       riotClientPath: path.trim() || null,
       presenceEnabled,
+      startupPresence,
     })
     if (mounted.current) setView(next)
     enabled.current = next.settings.presence_enabled

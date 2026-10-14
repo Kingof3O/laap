@@ -56,7 +56,10 @@ export function useTrayActions(
             launcher.busy ||
             pending.current,
           running: operations.running,
-          setup_failed: launcher.presence?.state === 'setup_failed',
+          quit_blocked: operations.busy || launcher.busy || pending.current,
+          setup_failed:
+            launcher.presence?.state === 'setup_failed' ||
+            launcher.presence?.state === 'normal_online',
         }
         const serialized = JSON.stringify(snapshot)
         if (serialized !== last) {
@@ -72,7 +75,10 @@ export function useTrayActions(
           mode: launcher.presence?.desired_mode ?? 'online',
           busy: operations.busy || operations.provisioning || launcher.busy || pending.current,
           running: operations.running,
-          setup_failed: launcher.presence?.state === 'setup_failed',
+          quit_blocked: operations.busy || launcher.busy || pending.current,
+          setup_failed:
+            launcher.presence?.state === 'setup_failed' ||
+            launcher.presence?.state === 'normal_online',
         }
         await invokeTauri('update_tray', { snapshot }).catch(() => {})
         last = '' 
@@ -105,6 +111,7 @@ export function useTrayActions(
         if (intent.type === 'quit') {
           await operations.run(async (confirmed) => {
             await invokeTauri('prepare_quit', { confirmed })
+            window.dispatchEvent(new CustomEvent('laap:provisioning', { detail: false }))
             const jobs: Promise<unknown>[] = []
             window.dispatchEvent(
               new CustomEvent('laap:before-quit', { detail: jobs }),

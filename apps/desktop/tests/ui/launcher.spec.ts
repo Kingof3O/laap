@@ -11,6 +11,7 @@ async function launcherFixture(
           riot_client_path: null as string | null,
           presence_enabled: options.enabled ?? false,
           presence_mode: 'online',
+          startup_presence: 'online',
         },
         detected_client: {
           path: 'E:\\Games & Apps\\Riot Client\\RiotClientServices.exe',
@@ -101,6 +102,8 @@ async function launcherFixture(
             )
           state.view.settings.riot_client_path = args.riotClientPath
           state.view.settings.presence_enabled = args.presenceEnabled
+          state.view.settings.startup_presence = args.startupPresence ?? state.view.settings.startup_presence
+          state.view.settings.startup_presence = args.startupPresence ?? state.view.settings.startup_presence
           if (args.riotClientPath)
             state.view.detected_client = {
               path: args.riotClientPath,
@@ -306,4 +309,20 @@ test('failed setup is visible and Online bypass requires a separate explicit cho
   await page.getByRole('button', { name: 'Allow normal Online launch', exact: true }).click()
   await expect(banner).toContainText('Normal Online launch allowed')
   expect(await page.evaluate(() => (window as any).launcherFixture.bypass)).toBe(true)
+})
+
+test('startup default is saved separately without changing live presence', async ({ page }) => {
+  await launcherFixture(page)
+  await page.goto('/')
+  await expect(page.getByLabel('Online presence', { exact: true })).toHaveValue('online')
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Settings', exact: true })
+  await dialog.getByLabel('Default presence on startup', { exact: true }).selectOption('offline')
+  await dialog.getByRole('button', { name: 'Save launcher settings', exact: true }).click()
+  await expect(dialog).toContainText('Launcher settings saved')
+  expect(await page.evaluate(() => (window as any).launcherFixture.view.settings.startup_presence)).toBe('offline')
+  await expect(page.getByLabel('Online presence', { exact: true })).toHaveValue('online')
+  await dialog.getByRole('button', { name: 'Close modal', exact: true }).click()
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await expect(page.getByRole('dialog').getByLabel('Default presence on startup', { exact: true })).toHaveValue('offline')
 })

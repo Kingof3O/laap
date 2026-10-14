@@ -22,7 +22,7 @@ Open **Settings → Riot installation** to inspect the detected path/source, pas
 
 The product feature is named **LAAP Presence**. It is implemented inside the native Rust app. It does not install or launch a separate executable, inject code, create a fake friend, or automate gameplay.
 
-Presence prepares automatically on Windows and macOS. Each new LAAP session starts **Online**. Choose **Online** or **Appear offline** from the header or the system-bar menu before launching, or change it during a routed session. Settings contains only Riot installation configuration. macOS decodes the legacy certificate package using bundled OpenSSL and serves local TLS with rustls; Windows retains Schannel.
+Presence prepares automatically on Windows and macOS. New and upgraded settings default to **Online**. Choose **Appear offline** or **Online** as the default in Settings; this takes effect on the next LAAP start. The header or system-bar menu still changes the current session immediately. Settings contains only Riot installation configuration. macOS decodes the legacy certificate package using bundled OpenSSL and serves local TLS with rustls; Windows retains Schannel.
 
 A client started normally needs an explicit restart through LAAP once to enable the proxy. The restart follows the same live-match confirmation guard as Stop/Switch. Once the session is routed, the header changes presence live by replaying the latest global presence stanza; it does not restart the client or game.
 

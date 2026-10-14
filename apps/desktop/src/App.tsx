@@ -6,6 +6,7 @@ import { Header, SubNavbar, SettingsModal } from './shared/ui'
 import { UpdateModal } from './shared/ui/UpdateModal'
 import { ToastProvider, useToast } from './context/ToastContext'
 import { PersonalRosterView } from './features/personal-roster'
+import { releasePersistedCloudLease } from './features/team-vault/leaseExit'
 import { TeamVaultView } from './features/team-vault'
 import { useAuth } from './features/auth'
 import { useUpdateChecker } from './hooks/useUpdateChecker'
@@ -50,6 +51,23 @@ function AppContent() {
     loading: loginBusy,
   } = useAuth()
   const { showSuccess, showError } = useToast()
+
+  // The Team Vault view can unmount while its cloud lease remains active.
+  // Keep the release handler at application scope so tray Quit can always find it.
+  useEffect(() => {
+    const beforeQuit = (event: Event) => {
+      ;(event as CustomEvent<Promise<unknown>[]>).detail.push(
+        releasePersistedCloudLease(localStorage, (sessionId) =>
+          apiRequest(`/api/leases/${encodeURIComponent(sessionId)}/release`, {
+            method: 'POST',
+            body: JSON.stringify({ reason: 'logout' }),
+          }),
+        ),
+      )
+    }
+    window.addEventListener('laap:before-quit', beforeQuit)
+    return () => window.removeEventListener('laap:before-quit', beforeQuit)
+  }, [])
   const [trayRequest, setTrayRequest] = useState<{
     id: string
     sequence: number

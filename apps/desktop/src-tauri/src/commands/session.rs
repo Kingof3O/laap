@@ -112,6 +112,15 @@ pub fn cleanup_account_session_sync(
     manager.cleanup_session_confirmed(confirmed.unwrap_or(false))
 }
 
+/// Stops Riot, restores LAAP-managed files, and retires the presence proxy under one process lock.
+pub fn shutdown_riot_sync(confirmed: bool) -> Result<(), String> {
+    let _operation = crate::riot::operation::acquire()?;
+    restore_provisioning(None, confirmed)?;
+    RiotSessionManager::new().cleanup_session_confirmed(confirmed)?;
+    crate::presence::stop_proxy()?;
+    Ok(())
+}
+
 /// Restores settings left behind by a crashed LAAP process when Riot is not
 /// running. It never overwrites a live Riot/League process.
 #[tauri::command]
