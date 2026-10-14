@@ -9,7 +9,7 @@ type TrayIntent =
   | { type: 'switch_account'; id: string }
 export function useTrayActions(
   launcher: LauncherController,
-  onAccount: (id: string) => void,
+  onAccount: (id: string) => void | Promise<void>,
   onError: (message: string) => void,
 ) {
   const operations = useRiotOperations()
@@ -91,7 +91,16 @@ export function useTrayActions(
       if (!intent) return
       const { launcher, operations, onAccount, onError } = current.current
       if (intent.type === 'switch_account') {
-        onAccount(intent.id)
+        if (pending.current || operations.busy || operations.provisioning) return
+        pending.current = true
+        try {
+          await onAccount(intent.id)
+        } catch (cause) {
+          onError(String(cause))
+        } finally {
+          pending.current = false
+          void refresh()
+        }
         return
       }
       if (intent.type === 'open') {

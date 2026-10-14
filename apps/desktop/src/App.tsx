@@ -6,7 +6,7 @@ import { Header, SubNavbar, SettingsModal } from './shared/ui'
 import { UpdateModal } from './shared/ui/UpdateModal'
 import { ToastProvider, useToast } from './context/ToastContext'
 import { PersonalRosterView } from './features/personal-roster'
-import { releasePersistedCloudLease } from './features/team-vault/leaseExit'
+import { releasePersistedCloudLease, ACTIVE_LEASE_KEY } from './features/team-vault/leaseExit'
 import { TeamVaultView } from './features/team-vault'
 import { useAuth } from './features/auth'
 import { useUpdateChecker } from './hooks/useUpdateChecker'
@@ -74,7 +74,34 @@ function AppContent() {
   } | null>(null)
   useTrayActions(
     launcher,
-    (id) => {
+    async (id) => {
+      const stored = (() => {
+        try {
+          return JSON.parse(localStorage.getItem(ACTIVE_LEASE_KEY) ?? 'null') as
+            | { sessionId?: unknown }
+            | null
+        } catch {
+          localStorage.removeItem(ACTIVE_LEASE_KEY)
+          return null
+        }
+      })()
+      if (typeof stored?.sessionId === 'string' && stored.sessionId) {
+        await operations.run(async (confirmed) => {
+          await releasePersistedCloudLease(
+            localStorage,
+            (sessionId) =>
+              apiRequest(`/api/leases/${encodeURIComponent(sessionId)}/release`, {
+                method: 'POST',
+                body: JSON.stringify({ reason: 'logout' }),
+              }),
+            (sessionId) =>
+              invokeTauri('cleanup_account_session', {
+                confirmed,
+                expectedOwner: `cloud:${sessionId}`,
+              }),
+          )
+        })
+      }
       setAppMode('local')
       setTrayRequest({ id, sequence: Date.now() })
     },

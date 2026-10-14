@@ -3,6 +3,7 @@ export const ACTIVE_LEASE_KEY = 'laap_active_lease_v1'
 export async function releasePersistedCloudLease(
   storage: Pick<Storage, 'getItem' | 'removeItem'>,
   release: (sessionId: string) => Promise<unknown>,
+  restore?: (sessionId: string) => Promise<unknown>,
 ): Promise<void> {
   let sessionId: string | undefined
   try {
@@ -16,5 +17,6 @@ export async function releasePersistedCloudLease(
     return
   }
   await release(sessionId)
+  await restore?.(sessionId)
   storage.removeItem(ACTIVE_LEASE_KEY)
 }
