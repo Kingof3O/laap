@@ -27,6 +27,8 @@ export interface AccountCardProps {
   isCloud?: boolean
   canManage?: boolean
   busy?: boolean
+  clientRunning?: boolean
+  launchStatus?: string | null
   isLaunching?: boolean
   launchFailed?: boolean
   onSelect?: () => void
@@ -55,6 +57,8 @@ export function AccountCard({
   isCloud = false,
   canManage = false,
   busy = false,
+  clientRunning = false,
+  launchStatus,
   isLaunching = false,
   launchFailed = false,
   onSelect,
@@ -244,7 +248,11 @@ export function AccountCard({
         ) : isLaunching ? (
           <button type="button" className="btn-launch-primary" disabled>
             <Loader2 size={13} className="animate-spin" />
-            <span>Preparing…</span>
+            <span>{launchStatus ? 'Waiting for client…' : 'Preparing…'}</span>
+          </button>
+        ) : clientRunning ? (
+          <button type="button" className="btn-launch-primary" disabled>
+            Client running
           </button>
         ) : launchFailed ? (
           <button
@@ -256,7 +264,7 @@ export function AccountCard({
               color: '#fca5a5',
             }}
             onClick={onRetry ?? onLaunch}
-            disabled={busy && !isLaunching}
+            disabled={busy}
           >
             <RotateCcw size={13} />
             <span>Couldn&apos;t launch · Retry</span>

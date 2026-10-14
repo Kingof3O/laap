@@ -598,3 +598,306 @@ test('profile notes and cached avatars survive reload; editor preview, regions a
   )
   await page.screenshot({ path: path.join(root, 'roster-list.png') })
 })
+
+test('sync reports pending, partial failure, and manual retry without fake percentages', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    ;(window as any).syncCalls = 0
+    ;(window as any).__TAURI_INTERNALS__ = {
+      invoke: async (command: string) => {
+        if (command === 'runtime_snapshot')
+          return {
+            riot_client: false,
+            league_client: false,
+            league_game: false,
+            valorant_game: false,
+          }
+        if (command === 'list_local_accounts')
+          return [
+            {
+              id: 'sync-main',
+              name: 'Sync Main',
+              region: 'EUW',
+              rank: 'Gold II',
+              notes: '',
+              favorite: false,
+              session_status: 'saved',
+              has_session: true,
+              created_at: '2026-01-01',
+              last_used_at: null,
+              customization: { auto_sync_icon: true, auto_sync_rank: true },
+            },
+          ]
+        if (command === 'sync_profile_customizations') {
+          ;(window as any).syncCalls++
+          return await new Promise((resolve) => {
+            ;(window as any).finishSync = resolve
+          })
+        }
+        return null
+      },
+    }
+  })
+  await page.goto('/')
+  const panel = page.locator('.sync-status')
+  await expect(panel).toContainText('Syncing enabled icons')
+  const { mkdirSync } = await import('node:fs')
+  mkdirSync('../../.artifacts/sync-feedback', { recursive: true })
+  await page.screenshot({ path: '../../.artifacts/sync-feedback/syncing.png' })
+
+  await expect(
+    panel.getByRole('button', { name: 'Syncing…', exact: true }),
+  ).toBeDisabled()
+  await page.evaluate(() =>
+    (window as any).finishSync({
+      changed: false,
+      state: 'error',
+      message: 'Icon sync failed: download blocked. Rank was checked.',
+    }),
+  )
+  await expect(panel).toContainText('download blocked')
+  await panel.getByRole('button', { name: 'Retry sync', exact: true }).click()
+  await expect
+    .poll(() => page.evaluate(() => (window as any).syncCalls))
+    .toBe(2)
+  await page.evaluate(() =>
+    (window as any).finishSync({
+      changed: false,
+      state: 'success',
+      message:
+        'Sync Main: enabled icon/rank sync checked — already up to date.',
+    }),
+  )
+  await expect(panel).toContainText('already up to date')
+  await expect(panel).toContainText('Last attempt:')
+  await expect(
+    panel.getByRole('button', { name: 'Sync now', exact: true }),
+  ).toBeEnabled()
+  expect(await panel.textContent()).not.toMatch(/\d+%/)
+})
+
+test('slow startup stays locked, tracks real processes, and blocks duplicate profile launches', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    ;(window as any).stage = 'none'
+    ;(window as any).launchCalls = 0
+    ;(window as any).__TAURI_INTERNALS__ = {
+      invoke: async (command: string) => {
+        if (command === 'runtime_snapshot')
+          return {
+            riot_client: (window as any).stage !== 'none',
+            league_client: (window as any).stage === 'league',
+            league_game: false,
+            valorant_game: false,
+          }
+        if (command === 'list_local_accounts')
+          return ['Main', 'Second'].map((name) => ({
+            id: name,
+            name,
+            region: 'EUW',
+            rank: '',
+            notes: '',
+            favorite: false,
+            session_status: 'saved',
+            has_session: true,
+            created_at: '2026-01-01',
+            last_used_at: null,
+          }))
+        if (command === 'launch_local_account') {
+          ;(window as any).launchCalls++
+          return null
+        }
+        return null
+      },
+    }
+  })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Play', exact: true }).first().click()
+  await expect(page.locator('.client-launch-status')).toContainText(
+    'Waiting for Riot Client',
+  )
+  await expect(
+    page.getByRole('button', { name: 'Play', exact: true }),
+  ).toBeDisabled()
+  await expect(
+    page
+      .getByRole('button', { name: 'Waiting for client…', exact: true })
+      .first(),
+  ).toBeDisabled()
+  expect(await page.evaluate(() => (window as any).launchCalls)).toBe(1)
+  await page.evaluate(() => {
+    ;(window as any).stage = 'riot'
+  })
+  await expect(page.locator('.client-launch-status')).toContainText(
+    'Riot Client detected · waiting for League',
+  )
+  const { mkdirSync } = await import('node:fs')
+  mkdirSync('../../.artifacts/sync-feedback', { recursive: true })
+  await page.screenshot({
+    path: '../../.artifacts/sync-feedback/client-startup.png',
+  })
+  await page.evaluate(() => {
+    ;(window as any).stage = 'league'
+  })
+  await expect(page.locator('.client-launch-status')).toContainText(
+    'League Client detected',
+  )
+  await expect(
+    page.getByRole('button', { name: 'Client running', exact: true }).first(),
+  ).toBeDisabled()
+  await expect(
+    page.getByRole('button', { name: 'Switch', exact: true }),
+  ).toBeEnabled()
+  expect(await page.evaluate(() => (window as any).launchCalls)).toBe(1)
+  await page.evaluate(() => {
+    ;(window as any).stage = 'riot'
+  })
+  await page.getByRole('button', { name: 'Switch', exact: true }).click()
+  await expect(page.locator('.client-launch-status')).toContainText(
+    'waiting for League',
+  )
+  await page.getByRole('button', { name: 'Stop waiting', exact: true }).click()
+  await expect(page.locator('.client-launch-status')).toContainText(
+    'the client was not stopped',
+  )
+  expect(await page.evaluate(() => (window as any).launchCalls)).toBe(2)
+})
+
+test('failed icon previews show an error and retry downloads successfully', async ({
+  page,
+}) => {
+  const { readFileSync } = await import('node:fs')
+  const source = readFileSync('tests/fixtures/summoner-685.png').toString(
+    'base64',
+  )
+  await page.addInitScript(
+    ({ source }) => {
+      ;(window as any).previewCalls = 0
+      ;(window as any).__TAURI_INTERNALS__ = {
+        invoke: async (command: string, args: any) => {
+          if (command === 'runtime_snapshot')
+            return {
+              riot_client: false,
+              league_client: false,
+              league_game: false,
+              valorant_game: false,
+            }
+          if (command === 'list_local_accounts')
+            return [
+              {
+                id: 'main',
+                name: 'Main',
+                region: 'EUW',
+                rank: '',
+                notes: '',
+                favorite: false,
+                session_status: 'saved',
+                has_session: true,
+                created_at: '2026-01-01',
+                last_used_at: null,
+              },
+            ]
+          if (command === 'get_icon_catalog')
+            return {
+              version: '16.20.1',
+              icons: [{ id: 685, label: 'Icon #685' }],
+            }
+          if (command === 'get_profile_icon') {
+            if (!args.downloadRequested) return null
+            ;(window as any).previewCalls++
+            if ((window as any).previewCalls === 1)
+              throw new Error('Network blocked')
+            return {
+              asset: 'dd-16.20.1-685.png',
+              data_url: `data:image/png;base64,${source}`,
+            }
+          }
+          return null
+        },
+      }
+    },
+    { source },
+  )
+  await page.goto('/')
+  await page
+    .getByRole('button', { name: 'Edit Main', exact: true })
+    .first()
+    .click()
+  await page.getByRole('button', { name: 'League icons', exact: true }).click()
+  await page
+    .getByRole('button', { name: 'Load online previews', exact: true })
+    .click()
+  await expect(
+    page.getByRole('button', { name: 'Select Icon #685', exact: true }),
+  ).toContainText('Failed · retry previews')
+  await page
+    .getByRole('button', { name: 'Retry previews', exact: true })
+    .click()
+  await expect(
+    page.getByRole('button', { name: 'Select Icon #685', exact: true }),
+  ).toBeEnabled()
+  expect(await page.evaluate(() => (window as any).previewCalls)).toBe(2)
+})
+
+test('startup timeout explains the delay and Stop Riot restores launch controls', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await page.addInitScript(() => {
+    ;(window as any).running = false
+    ;(window as any).__TAURI_INTERNALS__ = {
+      invoke: async (command: string) => {
+        if (command === 'runtime_snapshot')
+          return {
+            riot_client: (window as any).running,
+            league_client: false,
+            league_game: false,
+            valorant_game: false,
+          }
+        if (command === 'list_local_accounts')
+          return [
+            {
+              id: 'main',
+              name: 'Main',
+              region: 'EUW',
+              rank: '',
+              notes: '',
+              favorite: false,
+              session_status: 'saved',
+              has_session: true,
+              created_at: '2026-01-01',
+              last_used_at: null,
+            },
+          ]
+        if (command === 'launch_local_account') {
+          ;(window as any).running = true
+        }
+        if (command === 'close_riot_client') {
+          ;(window as any).running = false
+        }
+        return null
+      },
+    }
+  })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Play', exact: true }).first().click()
+  await expect(page.locator('.client-launch-status')).toContainText(
+    'waiting for League',
+  )
+  await page.clock.runFor(121000)
+  await expect(page.locator('.client-launch-status')).toContainText(
+    'Check Riot for sign-in, updates or errors',
+  )
+  await expect(
+    page.getByRole('button', { name: 'Stop waiting', exact: true }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: 'Client running', exact: true }).first(),
+  ).toBeDisabled()
+  await page.getByRole('button', { name: 'Stop Riot', exact: true }).click()
+  await expect(
+    page.getByRole('button', { name: 'Play', exact: true }).first(),
+  ).toBeEnabled()
+})

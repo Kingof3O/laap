@@ -1,6 +1,6 @@
 # Security and storage model
 
-Checked against v0.4.3 source on 2026-10-14. This describes implementation boundaries, not a security certification.
+Checked against v0.4.5 source on 2026-10-14. This describes implementation boundaries, not a security certification.
 
 ## Local profiles
 

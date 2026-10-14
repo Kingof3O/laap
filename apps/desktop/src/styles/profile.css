@@ -568,3 +568,72 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.sync-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 12px 24px;
+  padding: 14px 16px;
+  border: 1px solid #33445f;
+  border-radius: 10px;
+  background: #0d192b;
+  color: #d0dbea;
+  font-size: 12px;
+}
+.sync-status strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sync-status p {
+  margin: 5px 0;
+}
+.sync-status small {
+  color: var(--text-secondary);
+}
+.sync-status-error {
+  border-color: #e5a04b;
+  color: #ffcf8c;
+}
+.sync-status button {
+  flex-shrink: 0;
+}
+.client-launch-status {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: min(760px, calc(100% - 40px));
+  box-sizing: border-box;
+  padding: 16px 20px;
+  border: 1px solid var(--border-color, #4e5d73);
+  border-radius: 12px;
+  background: #101e32;
+  color: #e8edf6;
+  box-shadow: 0 8px 30px #0008;
+  font-size: 13px;
+}
+.client-launch-status > span {
+  flex: 1;
+}
+.client-launch-status button {
+  flex-shrink: 0;
+}
+.status-spinner {
+  display: inline-block;
+  font-size: 20px;
+  vertical-align: middle;
+}
+.icon-tile > span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+}

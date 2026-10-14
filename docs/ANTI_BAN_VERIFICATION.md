@@ -1,6 +1,6 @@
 # Native interaction and verification
 
-Checked against v0.4.3 source on 2026-10-14. The historical filename is retained for existing links. This document does not certify anti-cheat safety or Riot approval.
+Checked against v0.4.5 source on 2026-10-14. The historical filename is retained for existing links. This document does not certify anti-cheat safety or Riot approval.
 
 ## What the native core does
 

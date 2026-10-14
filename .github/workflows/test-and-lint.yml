@@ -24,7 +24,11 @@ jobs:
       - run: npm audit --omit=dev
 
   desktop-core:
-    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -34,4 +38,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
       - run: npm --workspace @laap/desktop run build
-      - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - run: cargo check --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - run: cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - if: runner.os == 'Windows'
+        run: npx playwright install chromium
+      - if: runner.os == 'Windows'
+        run: npm --workspace @laap/desktop run test:ui

@@ -1,6 +1,6 @@
 # LAAP desktop and admin hardening
 
-Released in v0.4.3. All four Windows/macOS Team/Offline GitHub release jobs, both branch/tag test workflows, and security scans passed on 2026-10-14. Installer compilation does not establish live-client behavior.
+Updated for v0.4.5. Rust checks and tests now run on macOS and Windows; desktop browser UI tests run on Windows and Ubuntu. The v0.4.5 release workflow also packages both Windows editions and both universal macOS editions.
 
 ## v0.4.4 stop-result correction
 
@@ -42,9 +42,9 @@ Verified locally on macOS:
 
 - API/admin/desktop production builds and desktop Offline build.
 - 15 API tests and the admin TypeScript check.
-- 28 Rust tests, including vault corruption isolation, concurrent updates, metadata-preserving refresh, personal-login preservation, sandbox cancellation and League/Valorant match guards.
+- 29 Rust tests, including vault corruption isolation, concurrent updates, metadata-preserving refresh, personal-login preservation, sandbox cancellation and League/Valorant match guards.
 - 2 sorting tests covering hierarchy, divisions, unknown ranks in both directions, names and timestamps.
-- 8 browser tests covering unavailable/delayed IPC, zero external requests in Offline, consent before Stop/Switch, backend match-detection races, focus/Escape/form reset, quick-import review, pending-poll cancellation, metadata editing, grouped region/rank choices, local image upload and cached avatars/notes after reload. Native responses are simulated only in test fixtures; production code contains no demo roster.
+- 12 browser tests covering unavailable/delayed IPC, zero external requests in Offline, consent before Stop/Switch, backend match-detection races, focus/Escape/form reset, quick-import review, pending-poll cancellation, metadata editing, grouped region/rank choices, local image upload and cached avatars/notes after reload. Native responses are simulated only in test fixtures; production code contains no demo roster.
 - An explicit public-network smoke test verified Data Dragon versions, icon catalog and an actual profile PNG using the production Rust HTTP client.
 - Built artifacts contain no former pro-player fallback roster or browser roster-persistence code.
 
@@ -56,4 +56,4 @@ The sorting and browser checks are included in GitHub CI.
 - Offline freshness is a conservative age hint (30 days since capture). Riot can revoke a login earlier, and expiry of an access/id token alone does not prove that a reusable refresh token is invalid. The interface says “Login saved” rather than guaranteeing successful authentication.
 - A syntactically damaged entire JSON document is preserved and reported as an error. Individual malformed/decryption-failing records inside a readable array are isolated.
 - Runtime npm dependency audit reports zero advisories. The full development-tool audit still reports existing Tailwind/Vitest/toolchain advisories that require separate framework upgrades; this change does not claim to eliminate those dependencies' advisories.
-- No new GitHub release was published by this implementation task.
+- Live authenticated League Client sync and elevated Windows process shutdown have not been tested on a real Riot installation. CI validates Windows Rust code, simulated desktop UI behavior, and Windows installer compilation.

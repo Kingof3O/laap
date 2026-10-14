@@ -1,6 +1,6 @@
 # REST API reference
 
-Checked against v0.4.3 routes and schemas on 2026-10-14. This API manages Team Edition data; Personal Roster, avatars, and local rank sync use native Tauri commands, not these endpoints.
+Checked against v0.4.5 routes and schemas on 2026-10-14. This API manages Team Edition data; Personal Roster, avatars, and local rank sync use native Tauri commands, not these endpoints.
 
 Local base URL: `http://127.0.0.1:4170`. The repository's Pages proxy targets `https://laap-api.hussiensalah100.workers.dev`. Configured endpoints are not a live-health assertion.
 

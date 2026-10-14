@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { ImagePlus, Search, Upload, Wifi, Trash2 } from 'lucide-react'
+import {
+  ImagePlus,
+  Search,
+  Upload,
+  Wifi,
+  Trash2,
+  Loader2,
+  RefreshCw,
+} from 'lucide-react'
 import { invokeTauri } from '../../lib/api'
 import {
   loadRiotIcon,
@@ -14,6 +22,7 @@ function IconTile({
   version,
   online,
   selected,
+  retry,
   onChoose,
 }: {
   id: number
@@ -21,10 +30,12 @@ function IconTile({
   version: string
   online: boolean
   selected: boolean
+  retry: number
   onChoose: (icon: CachedIcon, id: number) => void
 }) {
   const [icon, setIcon] = useState<CachedIcon | null>(null),
-    [error, setError] = useState(false)
+    [error, setError] = useState(false),
+    [loading, setLoading] = useState(false)
   const ref = useRef<HTMLButtonElement>(null)
   const [visible, setVisible] = useState(false)
   useEffect(() => {
@@ -44,6 +55,7 @@ function IconTile({
     if (!visible) return
     let cancelled = false
     setError(false)
+    setLoading(true)
     void loadRiotIcon(version, id, online)
       .then((icon) => {
         if (!cancelled) setIcon(icon)
@@ -51,10 +63,13 @@ function IconTile({
       .catch(() => {
         if (!cancelled) setError(true)
       })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
     return () => {
       cancelled = true
     }
-  }, [visible, version, id, online])
+  }, [visible, version, id, online, retry])
   return (
     <button
       ref={ref}
@@ -79,7 +94,17 @@ function IconTile({
           }}
         />
       ) : (
-        <span>{error ? 'Unavailable' : `#${id}`}</span>
+        <span>
+          {loading ? (
+            <>
+              <Loader2 size={16} className="animate-spin" /> Loading…
+            </>
+          ) : error ? (
+            'Failed · retry previews'
+          ) : (
+            `#${id} · not cached`
+          )}
+        </span>
       )}
       <small>#{id}</small>
     </button>
@@ -103,6 +128,8 @@ export function IconPicker({
     [limit, setLimit] = useState(48),
     [loading, setLoading] = useState(false),
     [error, setError] = useState<string | null>(null)
+  const [retry, setRetry] = useState(0)
+  const [uploading, setUploading] = useState(false)
   const file = useRef<HTMLInputElement>(null)
   useEffect(() => {
     if (!open) return
@@ -129,6 +156,7 @@ export function IconPicker({
       })
       setCatalog(data)
       setOnline(true)
+      setRetry((value) => value + 1)
     } catch (cause) {
       setError(String(cause))
     } finally {
@@ -145,6 +173,7 @@ export function IconPicker({
       return
     }
     onBusy(true)
+    setUploading(true)
     setError(null)
     try {
       const encoded = await new Promise<string>((resolve, reject) => {
@@ -169,6 +198,7 @@ export function IconPicker({
       setError(String(cause))
     } finally {
       onBusy(false)
+      setUploading(false)
     }
   }
   const matching =
@@ -191,7 +221,12 @@ export function IconPicker({
           disabled={disabled}
           onClick={() => file.current?.click()}
         >
-          <Upload size={14} /> Upload image
+          {uploading ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Upload size={14} />
+          )}{' '}
+          {uploading ? 'Saving image…' : 'Upload image'}
         </button>
         <button
           type="button"
@@ -263,6 +298,16 @@ export function IconPicker({
                 setLimit(48)
               }}
             />
+            {catalog && online ? (
+              <button
+                type="button"
+                className="btn-modal-secondary"
+                disabled={disabled || loading}
+                onClick={() => setRetry((value) => value + 1)}
+              >
+                <RefreshCw size={13} /> Retry previews
+              </button>
+            ) : null}
             {catalog && !online ? (
               <button
                 type="button"
@@ -279,11 +324,16 @@ export function IconPicker({
               disabled={disabled || loading}
               onClick={() => void refresh()}
             >
-              {loading
-                ? 'Downloading…'
-                : catalog
-                  ? 'Refresh catalog'
-                  : 'Download catalog & previews'}
+              {loading ? (
+                <>
+                  <Loader2 size={13} className="animate-spin" /> Downloading
+                  catalog…
+                </>
+              ) : catalog ? (
+                'Refresh catalog'
+              ) : (
+                'Download catalog & previews'
+              )}
             </button>
           </div>
           {catalog ? (
@@ -295,6 +345,7 @@ export function IconPicker({
                     {...icon}
                     version={catalog.version}
                     online={online}
+                    retry={retry}
                     selected={value.icon_id === icon.id}
                     onChoose={(icon, id) =>
                       onChange({

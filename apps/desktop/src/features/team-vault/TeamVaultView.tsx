@@ -291,6 +291,12 @@ export function TeamVaultView({
           canManage={user.role === 'admin'}
           busy={busy || operations.busy || provisioning}
           launchingId={launchingId}
+          launchStatus={operations.tracking ? operations.launchStatus : null}
+          activeLaunchId={
+            operations.activeLaunchKey?.startsWith('cloud:')
+              ? operations.activeLaunchKey.slice(6)
+              : null
+          }
           failedLaunchId={failedLaunchId}
           onLaunch={handleLaunch}
           onSync={(id) => {

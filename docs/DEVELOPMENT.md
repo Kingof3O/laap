@@ -1,6 +1,6 @@
 # Development and packaging
 
-Checked against v0.4.3 source on 2026-10-14. Commands below run from the repository root.
+Checked against v0.4.5 source on 2026-10-14. Commands below run from the repository root.
 
 ## Requirements
 

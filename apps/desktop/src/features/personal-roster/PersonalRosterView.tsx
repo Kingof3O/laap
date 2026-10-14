@@ -1,3 +1,4 @@
+import { Loader2, RefreshCw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import {
   EmptyState,
@@ -70,6 +71,11 @@ export function PersonalRosterView({
   const {
     localAccounts,
     syncMessage,
+    syncState,
+    syncNow,
+    lastSyncAt,
+    lastSuccessfulSyncAt,
+    syncEnabled,
     loading,
     error,
     loadAccounts,
@@ -258,10 +264,48 @@ export function PersonalRosterView({
   const blocked = busy || capturing || operations.busy || provisioning
   return (
     <div>
-      {syncMessage ? (
-        <p className="sync-status" role="status">
-          {syncMessage}
-        </p>
+      {syncEnabled ? (
+        <div
+          className={`sync-status sync-status-${syncState}`}
+          role="status"
+          aria-live="polite"
+          aria-busy={syncState === 'syncing'}
+        >
+          <div>
+            <strong>
+              {syncState === 'syncing' ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <RefreshCw size={14} />
+              )}{' '}
+              Icon & rank sync
+            </strong>
+            <p>
+              {syncMessage ??
+                'Only saved auto-sync options are updated. Open the matching League account, then sync.'}
+            </p>
+            {lastSyncAt ? (
+              <small>
+                Last attempt: {lastSyncAt.toLocaleTimeString()}
+                {lastSuccessfulSyncAt
+                  ? ` · Last successful check: ${lastSuccessfulSyncAt.toLocaleTimeString()}`
+                  : ''}
+              </small>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="btn-modal-secondary"
+            disabled={syncState === 'syncing' || blocked}
+            onClick={() => void syncNow()}
+          >
+            {syncState === 'syncing'
+              ? 'Syncing…'
+              : syncState === 'error'
+                ? 'Retry sync'
+                : 'Sync now'}
+          </button>
+        </div>
       ) : null}
       {loading || error ? (
         <AccountLoadState
@@ -306,6 +350,12 @@ export function PersonalRosterView({
           canManage
           busy={blocked}
           launchingId={launchingId}
+          launchStatus={operations.tracking ? operations.launchStatus : null}
+          activeLaunchId={
+            operations.activeLaunchKey?.startsWith('local:')
+              ? operations.activeLaunchKey.slice(6)
+              : null
+          }
           failedLaunchId={failedLaunchId}
           onLaunch={handleLaunch}
           launchLabel={operations.running ? 'Switch' : 'Play'}

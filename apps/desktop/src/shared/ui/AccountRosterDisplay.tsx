@@ -28,6 +28,8 @@ export interface AccountRosterDisplayProps {
   busy?: boolean
   launchingId?: string | null
   failedLaunchId?: string | null
+  activeLaunchId?: string | null
+  launchStatus?: string | null
   launchLabel?: string
   onEdit?: (id: string) => void
   onRefreshSession?: (id: string) => void
@@ -47,6 +49,8 @@ export function AccountRosterDisplay({
   busy = false,
   launchingId,
   failedLaunchId,
+  activeLaunchId,
+  launchStatus,
   launchLabel,
   onEdit,
   onRefreshSession,
@@ -133,7 +137,8 @@ export function AccountRosterDisplay({
                 <span
                   className={`status-indicator ${
                     activeHero.hasSession &&
-                    activeHero.status !== 'Session stale' && !activeHero.status?.includes('unknown')
+                    activeHero.status !== 'Session stale' &&
+                    !activeHero.status?.includes('unknown')
                       ? 'status-indicator-ready'
                       : 'status-indicator-warn'
                   }`}
@@ -141,7 +146,8 @@ export function AccountRosterDisplay({
                   <span
                     className={`status-beacon ${
                       activeHero.hasSession &&
-                      activeHero.status !== 'Session stale' && !activeHero.status?.includes('unknown')
+                      activeHero.status !== 'Session stale' &&
+                      !activeHero.status?.includes('unknown')
                         ? 'status-beacon-ready'
                         : 'status-beacon-amber'
                     }`}
@@ -175,7 +181,13 @@ export function AccountRosterDisplay({
             {activeHero.id === launchingId ? (
               <button type="button" className="btn-hero-play" disabled>
                 <Loader2 size={16} className="animate-spin" />
-                <span>Preparing…</span>
+                <span>
+                  {launchStatus ? 'Waiting for client…' : 'Preparing…'}
+                </span>
+              </button>
+            ) : activeHero.id === activeLaunchId ? (
+              <button type="button" className="btn-hero-play" disabled>
+                Client running
               </button>
             ) : activeHero.id === failedLaunchId ? (
               <button
@@ -236,6 +248,8 @@ export function AccountRosterDisplay({
                 isCloud={isCloud}
                 canManage={canManage}
                 busy={busy}
+                clientRunning={item.id === activeLaunchId}
+                launchStatus={launchStatus}
                 isLaunching={item.id === launchingId}
                 launchFailed={item.id === failedLaunchId}
                 launchLabel={launchLabel}
@@ -270,6 +284,8 @@ export function AccountRosterDisplay({
             isCloud={isCloud}
             canManage={canManage}
             busy={busy}
+            activeLaunchId={activeLaunchId}
+            launchStatus={launchStatus}
             launchingId={launchingId}
             failedLaunchId={failedLaunchId}
             launchLabel={launchLabel}

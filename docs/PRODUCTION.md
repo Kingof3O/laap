@@ -68,13 +68,7 @@ If deploying to a filesystem/server, preserve production `.env`, uploaded files,
 
 The release workflow builds four jobs: Windows x64 Team/Offline and universal macOS Team/Offline. Push a new `v*.*.*` tag only after aligning versions in package manifests/lockfiles, Cargo manifest/lockfile, both Tauri configs, and `useUpdateChecker.ts`. Use a new version rather than moving a published tag.
 
-Published v0.4.3 artifacts are:
-
-| Edition | Windows | macOS |
-|:---|:---|:---|
-| Team | `LAAP.Desktop_0.4.3_x64-setup.exe`, `LAAP.Desktop_0.4.3_x64_en-US.msi` | `LAAP.Desktop_0.4.3_universal.dmg`, `LAAP.Desktop_universal.app.tar.gz` |
-| Offline | `LAAP.Offline_0.4.3_x64-setup.exe`, `LAAP.Offline_0.4.3_x64_en-US.msi` | `LAAP.Offline_0.4.3_universal.dmg`, `LAAP.Offline_universal.app.tar.gz` |
-
+For the latest Windows `.exe`/`.msi` installers and universal macOS `.dmg`/`.app.tar.gz` archives, use the [latest GitHub release](https://github.com/Kingof3O/laap/releases/latest). Artifact names include the product edition and version (for example, `LAAP.Offline_<version>_x64-setup.exe`).
 The workflow creates/publishes the GitHub release and uploads assets as jobs finish; inspect all four results before declaring it complete. It writes generic release text, so finalize detailed notes after all jobs finish. If manually dispatching, select the intended version tag, not `main`. Team Edition polls GitHub releases; Offline Edition does not.
 
 For local host/universal packaging commands and output paths, see [DEVELOPMENT.md](DEVELOPMENT.md). Installer builds do not validate live Riot authentication, real in-game stopping, or elevated Windows shutdown; see [verification limits](desktop-hardening-verification.md).

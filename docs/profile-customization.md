@@ -1,6 +1,6 @@
 # Profile customization
 
-Released in [v0.4.3](https://github.com/Kingof3O/laap/releases/tag/v0.4.3). Documentation checked on 2026-10-14.
+Updated for v0.4.5. Documentation checked on 2026-10-14.
 
 ## User behavior
 
@@ -24,6 +24,16 @@ LCU credentials are read from the running League process or its nearby lockfile.
 The current-summoner identity is checked again after downloads, and each opt-in is rechecked inside the vault write transaction. A cancelled opt-in or a different account cannot overwrite manual customization. A stale editor does not revert newer sync results while that sync remains enabled.
 
 The Offline Edition retains `connect-src 'none'` for the webview. Explicit asset downloads and opted-in sync use narrow native commands; cloud sign-in/update polling stay disabled. `img-src 'self' data:` allows locally cached PNGs. Uploaded images never leave the device.
+
+## Sync and startup feedback in v0.4.5
+
+Introduced in v0.4.5. The same update fixes the Windows NSIS installer sidebar, regenerating its `.bmp` from the upright source SVG.
+
+- An enabled-profile sync panel shows Syncing, waiting, successful checks, partial failures, and errors. It records the latest attempt and latest successful check for the current app session. **Sync now / Retry sync** runs the saved opt-ins again; it does not enable sync or overwrite a manually managed icon/rank.
+- Icon catalog downloads, image uploads, and individual previews show real pending states. Failed preview downloads can be retried with **Retry previews**. Damaged local images are reported and can be downloaded again; an obsolete catalog gets one refresh attempt for newly equipped icons.
+- No percentage is displayed: these client/API operations expose no reliable total progress. Spinners and text describe actual pending requests/process observations.
+- Play/Switch stays busy while waiting for Riot and League processes, for up to two minutes. The same profile's launch stays disabled while its managed client is running. **Stop waiting** ends observation without terminating the client; **Stop Riot** remains the way to close it before relaunching the same profile. Other profiles can be switched to after startup tracking ends.
+- Startup timeout and tracking failures produce persistent messages. Process detection reports a client opening, not verified authentication or patch completion.
 
 ## Asset sources
 

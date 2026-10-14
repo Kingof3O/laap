@@ -1,6 +1,7 @@
 import { useNativeClose } from '../../shared/hooks/useNativeClose'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { invokeTauri, isTauriAvailable } from '../../lib/api'
+import { invalidateIcons } from '../../lib/iconCache'
 import { useRiotOperations } from '../../context/RiotOperations'
 import type {
   CapturedProfile,
@@ -25,6 +26,15 @@ export function useLocalAccounts() {
   const operationState = useRef(operations)
   operationState.current = operations
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
+  const [syncState, setSyncState] = useState<
+    'idle' | 'syncing' | 'waiting' | 'success' | 'error'
+  >('idle')
+  const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null)
+  const [lastSuccessfulSyncAt, setLastSuccessfulSyncAt] = useState<Date | null>(
+    null,
+  )
+  const syncPending = useRef(false)
+  const syncEpoch = useRef(0)
   const runRef = useRef(run)
   runRef.current = run
   const loadAccounts = useCallback(async () => {
@@ -97,50 +107,76 @@ export function useLocalAccounts() {
     )
     .sort()
     .join('|')
+  const syncNow = useCallback(async () => {
+    if (
+      syncPending.current ||
+      operationState.current.busy ||
+      operationState.current.provisioning
+    )
+      return
+    syncPending.current = true
+    const epoch = syncEpoch.current
+    let syncedChanges = false
+    setSyncState('syncing')
+    setSyncMessage(
+      'Syncing enabled icons and Solo/Duo ranks from League Client…',
+    )
+    try {
+      const result = await invokeTauri<{
+        changed: boolean
+        message: string | null
+        state?: 'waiting' | 'success' | 'error'
+      }>('sync_profile_customizations')
+      if (mounted.current && epoch === syncEpoch.current) {
+        syncedChanges = result.changed
+        setSyncState(result.state ?? (result.message ? 'waiting' : 'success'))
+        setSyncMessage(result.message ?? 'Enabled profile data is up to date.')
+        setLastSyncAt(new Date())
+        if (result.state === 'success') setLastSuccessfulSyncAt(new Date())
+        if (result.changed) {
+          invalidateIcons()
+          window.dispatchEvent(new Event('laap:icons-updated'))
+          // Refresh quietly: keep the roster and its controls visible during sync.
+          const accounts = await invokeTauri<LocalAccountSummary[]>(
+            'list_local_accounts',
+          )
+          if (mounted.current && epoch === syncEpoch.current)
+            setLocalAccounts(accounts)
+        }
+      }
+    } catch (cause) {
+      if (mounted.current && epoch === syncEpoch.current) {
+        setSyncState('error')
+        setSyncMessage(
+          syncedChanges
+            ? `Profile data synced, but the roster could not refresh: ${String(cause)}. Use Refresh Accounts.`
+            : `Sync failed: ${String(cause)}. Saved data was kept. Try Sync now again.`,
+        )
+        setLastSyncAt(new Date())
+      }
+    } finally {
+      syncPending.current = false
+      if (mounted.current && epoch !== syncEpoch.current) {
+        setSyncState('waiting')
+        setSyncMessage(
+          'Sync options changed. Use Sync now to check the saved settings.',
+        )
+      }
+    }
+  }, [])
   useEffect(() => {
     if (!syncSignature) {
       setSyncMessage(null)
+      setSyncState('idle')
       return
     }
-    let cancelled = false,
-      pending = false
-    const sync = async () => {
-      if (
-        cancelled ||
-        pending ||
-        operationState.current.busy ||
-        operationState.current.provisioning
-      )
-        return
-      pending = true
-      try {
-        const result = await invokeTauri<{
-          changed: boolean
-          message: string | null
-        }>('sync_profile_customizations')
-        if (!cancelled) {
-          setSyncMessage(
-            result.message ??
-              (result.changed ? 'Profile synced from League Client' : null),
-          )
-          if (result.changed) {
-            window.dispatchEvent(new Event('laap:icons-updated'))
-            await loadAccounts()
-          }
-        }
-      } catch (cause) {
-        if (!cancelled) setSyncMessage(String(cause))
-      } finally {
-        pending = false
-      }
-    }
-    void sync()
-    const timer = window.setInterval(() => void sync(), 20000)
+    void syncNow()
+    const timer = window.setInterval(() => void syncNow(), 20000)
     return () => {
-      cancelled = true
+      syncEpoch.current++
       window.clearInterval(timer)
     }
-  }, [syncSignature, loadAccounts])
+  }, [syncSignature, syncNow])
   const saveAccount = async (
     name: string,
     region: string,
@@ -171,8 +207,9 @@ export function useLocalAccounts() {
     await loadAccounts()
   }
   const launchAccount = async (id: string) => {
-    await run((confirmed) =>
-      invokeTauri('launch_local_account', { id, confirmed }),
+    await run(
+      (confirmed) => invokeTauri('launch_local_account', { id, confirmed }),
+      { launchKey: `local:${id}` },
     )
     await loadAccounts()
   }
@@ -230,6 +267,11 @@ export function useLocalAccounts() {
     invokeTauri<LocalAccountFull>('get_local_account', { id })
   return {
     syncMessage,
+    syncState,
+    syncNow,
+    lastSyncAt,
+    lastSuccessfulSyncAt,
+    syncEnabled: Boolean(syncSignature),
     accounts: localAccounts,
     localAccounts,
     loading,

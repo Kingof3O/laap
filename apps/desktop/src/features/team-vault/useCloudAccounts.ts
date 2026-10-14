@@ -167,58 +167,61 @@ export function useCloudAccounts(user: User | null) {
     accId: string,
     onStepChange?: (step: string) => void,
   ) =>
-    operations.run(async (confirmed) => {
-      if (!hasTauri)
-        throw new Error(deviceError || 'Desktop environment not detected.')
-      setError(null)
-      let acquiredSessionId: string | null = null
-      try {
-        if (sessionId)
-          await apiRequest(`/api/leases/${sessionId}/release`, {
-            method: 'POST',
-            body: JSON.stringify({ reason: 'manual' }),
-          })
-        onStepChange?.('Securing account lease…')
-        const result = await apiRequest<{ sessionId: string }>(
-          '/api/leases/acquire',
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              accountId: accId,
-              deviceId: deviceId ?? undefined,
-            }),
-          },
-        )
-        acquiredSessionId = result.sessionId
-        persistLease(result.sessionId, accId)
-        setLeaseState('ACTIVE')
+    operations.run(
+      async (confirmed) => {
+        if (!hasTauri)
+          throw new Error(deviceError || 'Desktop environment not detected.')
+        setError(null)
+        let acquiredSessionId: string | null = null
+        try {
+          if (sessionId)
+            await apiRequest(`/api/leases/${sessionId}/release`, {
+              method: 'POST',
+              body: JSON.stringify({ reason: 'manual' }),
+            })
+          onStepChange?.('Securing account lease…')
+          const result = await apiRequest<{ sessionId: string }>(
+            '/api/leases/acquire',
+            {
+              method: 'POST',
+              body: JSON.stringify({
+                accountId: accId,
+                deviceId: deviceId ?? undefined,
+              }),
+            },
+          )
+          acquiredSessionId = result.sessionId
+          persistLease(result.sessionId, accId)
+          setLeaseState('ACTIVE')
 
-        onStepChange?.('Preparing Riot Client…')
-        const sessionRes = await apiRequest<{ sessionBlob: string }>(
-          `/api/leases/${result.sessionId}/session-blob`,
-        )
-        await invokeTauri('switch_account_session', {
-          sessionYaml: sessionRes.sessionBlob,
-          confirmed,
-          ownerId: `cloud:${result.sessionId}`,
-        })
-        await loadAccounts()
-      } catch (cause) {
-        if (acquiredSessionId) {
-          await apiRequest(`/api/leases/${acquiredSessionId}/release`, {
-            method: 'POST',
-            body: JSON.stringify({ reason: 'error' }),
-          }).catch(() => {})
+          onStepChange?.('Preparing Riot Client…')
+          const sessionRes = await apiRequest<{ sessionBlob: string }>(
+            `/api/leases/${result.sessionId}/session-blob`,
+          )
+          await invokeTauri('switch_account_session', {
+            sessionYaml: sessionRes.sessionBlob,
+            confirmed,
+            ownerId: `cloud:${result.sessionId}`,
+          })
+          await loadAccounts()
+        } catch (cause) {
+          if (acquiredSessionId) {
+            await apiRequest(`/api/leases/${acquiredSessionId}/release`, {
+              method: 'POST',
+              body: JSON.stringify({ reason: 'error' }),
+            }).catch(() => {})
+          }
+          if (acquiredSessionId) {
+            setSessionId(null)
+            setActiveAccountId(null)
+            setLeaseState('IDLE')
+            clearPersistedLease()
+          }
+          throw cause
         }
-        if (acquiredSessionId) {
-          setSessionId(null)
-          setActiveAccountId(null)
-          setLeaseState('IDLE')
-          clearPersistedLease()
-        }
-        throw cause
-      }
-    })
+      },
+      { launchKey: `cloud:${accId}` },
+    )
 
   // Restore a lease after a normal app restart
   useEffect(() => {

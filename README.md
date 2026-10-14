@@ -11,12 +11,17 @@
 
 [Download for Windows and macOS](https://github.com/Kingof3O/laap/releases/latest)
 
+The Windows installer sidebar uses the same current LAAP artwork as the desktop icon:
+
+<img src="docs/assets/nsis-sidebar.png" alt="Updated upright LAAP installer sidebar artwork" height="314" />
+
 [Profile customization](docs/profile-customization.md) · [Development](docs/DEVELOPMENT.md) · [Architecture](docs/ARCHITECTURE.md) · [Security](docs/SECURITY_MODEL.md) · [API](docs/API.md) · [Deployment](docs/PRODUCTION.md)
+
 </div>
 
-## v0.4.4 patch
+## v0.4.5: visible sync and startup feedback
 
-Fixes a shutdown race where Stop Riot could close the Windows client successfully but still report an error. LAAP now verifies the remaining processes before deciding that stopping failed. Live-match confirmation and real permission failures remain enforced. The screenshots below show the unchanged v0.4.3 interface.
+Icon/rank sync now shows pending, success, waiting, and failure states with **Sync now / Retry sync**, plus timestamps. Icon previews have loading indicators and retries. Account switching tracks Riot/League startup, prevents repeated launches, and explains timeouts. Progress uses actual status text and spinners, without invented percentages. The v0.4.4 shutdown-race fix remains included. The Windows setup sidebar has been regenerated from its upright SVG artwork.
 
 ## What LAAP does
 
@@ -52,16 +57,24 @@ Team Edition includes a separate LAAP sign-in screen for shared accounts. Operat
 
 <img src="docs/assets/launcher-shared-accounts.png" alt="Current Team Edition Shared Accounts sign-in screen" width="100%" />
 
+### Sync and startup status
+
+Retry enabled icon/rank sync without changing your saved opt-ins. While Riot opens, the launch button stays busy and the status bar reports which client has been detected. **Stop waiting** ends observation without closing the client.
+
+<img src="docs/assets/profile-sync.png" alt="Icon and rank sync pending with a disabled Syncing button" width="100%" />
+
+<img src="docs/assets/client-startup.png" alt="Client startup tracking with disabled launch buttons and Stop waiting" width="100%" />
+
 ## Editions
 
-| Capability | LAAP Offline | LAAP Desktop (Team) |
-|:---|:---|:---|
-| Personal Roster, notes, favorites, sorting | Yes | Yes |
-| Local image uploads and bundled rank crests | Yes | Yes |
-| Optional Riot icon downloads and League Client sync | Yes, explicit opt-in | Yes, explicit opt-in |
-| Shared Accounts and LAAP authentication | Disabled | Private team API |
-| GitHub update polling | Disabled; static Offline Edition badge | Automatic and manual checks |
-| Downloads | Windows EXE/MSI; universal macOS DMG/app archive | Windows EXE/MSI; universal macOS DMG/app archive |
+| Capability                                          | LAAP Offline                                     | LAAP Desktop (Team)                              |
+| :-------------------------------------------------- | :----------------------------------------------- | :----------------------------------------------- |
+| Personal Roster, notes, favorites, sorting          | Yes                                              | Yes                                              |
+| Local image uploads and bundled rank crests         | Yes                                              | Yes                                              |
+| Optional Riot icon downloads and League Client sync | Yes, explicit opt-in                             | Yes, explicit opt-in                             |
+| Shared Accounts and LAAP authentication             | Disabled                                         | Private team API                                 |
+| GitHub update polling                               | Disabled; static Offline Edition badge           | Automatic and manual checks                      |
+| Downloads                                           | Windows EXE/MSI; universal macOS DMG/app archive | Windows EXE/MSI; universal macOS DMG/app archive |
 
 Offline Edition makes no cloud API or update requests. Its webview uses `connect-src 'none'`; optional native commands can download Data Dragon icons and contact the local League Client when enabled. Uploaded images remain local. **Auto-sync icon** and **Auto-sync rank** are independent and off by default; rank sync reads Solo/Duo and requires a matching saved PUUID. See [caching and sync behavior](docs/profile-customization.md).
 

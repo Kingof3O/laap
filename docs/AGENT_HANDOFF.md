@@ -1,10 +1,10 @@
 # Maintenance handoff
 
-Checked against v0.4.3 source on 2026-10-14. This describes repository state; deployment URLs/configuration do not prove current service health.
+Checked against v0.4.5 source on 2026-10-14. This describes repository state; deployment URLs/configuration do not prove current service health.
 
 ## Current baseline
 
-v0.4.3 contains profile customization, local cached icons, optional icon/Solo-Duo sync, rank/name/time sorting, guarded Stop/Switch, in-place session refresh, owned provisioning cancellation, and vault concurrency/corruption hardening. GitHub built both editions for Windows x64 and universal macOS. See [release verification](desktop-hardening-verification.md).
+v0.4.5 adds sync/startup feedback and upright Windows installer artwork to the profile customization, local cached icons, optional icon/Solo-Duo sync, rank/name/time sorting, guarded Stop/Switch, in-place session refresh, owned provisioning cancellation, and vault concurrency/corruption hardening., local cached icons, optional icon/Solo-Duo sync, rank/name/time sorting, guarded Stop/Switch, in-place session refresh, owned provisioning cancellation, and vault concurrency/corruption hardening. GitHub built both editions for Windows x64 and universal macOS. See [release verification](desktop-hardening-verification.md).
 
 The local desktop store is JSON with encrypted session blobs, not SQLite. SQLite belongs to the local API adapter. Profile metadata and PNG caches are local readable files. Missing IPC/API responses must surface loading/errors and never fabricate accounts.
 

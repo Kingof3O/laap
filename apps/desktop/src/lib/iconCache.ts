@@ -22,6 +22,9 @@ async function limited<T>(action: () => Promise<T>): Promise<T> {
     else active--
   }
 }
+export function invalidateIcons() {
+  images.clear()
+}
 export function rememberIcon(icon: CachedIcon) {
   images.set(icon.asset, icon.data_url)
   return icon

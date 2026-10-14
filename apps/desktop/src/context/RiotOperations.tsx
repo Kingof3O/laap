@@ -19,7 +19,13 @@ interface Operations {
   busy: boolean
   running: boolean
   provisioning: boolean
-  run: <T>(action: (confirmed: boolean) => Promise<T>) => Promise<T>
+  launchStatus: string | null
+  tracking: boolean
+  activeLaunchKey: string | null
+  run: <T>(
+    action: (confirmed: boolean) => Promise<T>,
+    options?: { launchKey: string },
+  ) => Promise<T>
 }
 const Context = createContext<Operations | null>(null)
 export function RiotOperationsProvider({ children }: { children: ReactNode }) {
@@ -27,6 +33,11 @@ export function RiotOperationsProvider({ children }: { children: ReactNode }) {
   const [running, setRunning] = useState(false)
   const [provisioning, setProvisioning] = useState(false)
   const [confirm, setConfirm] = useState(false)
+  const [launchStatus, setLaunchStatus] = useState<string | null>(null)
+  const [tracking, setTracking] = useState(false)
+  const [activeLaunchKey, setActiveLaunchKey] = useState<string | null>(null)
+  const activeKey = useRef<string | null>(null)
+  const stopTracking = useRef(false)
   const resolve = useRef<((yes: boolean) => void) | null>(null)
   const locked = useRef(false)
   const mounted = useRef(true)
@@ -38,7 +49,14 @@ export function RiotOperationsProvider({ children }: { children: ReactNode }) {
   const ref = useDialog(confirm, () => answer(false))
   const snapshot = async () => {
     const state = await invokeTauri<RuntimeSnapshot>('runtime_snapshot')
-    if (mounted.current) setRunning(Object.values(state).some(Boolean))
+    if (mounted.current) {
+      const anyRunning = Object.values(state).some(Boolean)
+      setRunning(anyRunning)
+      if (!anyRunning && !locked.current) {
+        activeKey.current = null
+        setActiveLaunchKey(null)
+      }
+    }
     return state
   }
   useEffect(() => {
@@ -63,16 +81,22 @@ export function RiotOperationsProvider({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener('laap:provisioning', provision)
       mounted.current = false
+      stopTracking.current = true
       window.clearInterval(timer)
       resolve.current?.(false)
       resolve.current = null
     }
   }, [])
-  const run = async <T,>(action: (confirmed: boolean) => Promise<T>) => {
+  const run = async <T,>(
+    action: (confirmed: boolean) => Promise<T>,
+    options?: { launchKey: string },
+  ) => {
     if (locked.current)
       throw new Error('Another Riot operation is in progress.')
     locked.current = true
     setBusy(true)
+    stopTracking.current = false
+    if (options) setLaunchStatus('Preparing account and starting Riot Client…')
     window.dispatchEvent(new CustomEvent('laap:operation', { detail: true }))
     const ask = () =>
       new Promise<boolean>((done) => {
@@ -81,14 +105,24 @@ export function RiotOperationsProvider({ children }: { children: ReactNode }) {
       })
     try {
       const state = await snapshot()
+      if (
+        options &&
+        activeKey.current === options.launchKey &&
+        Object.values(state).some(Boolean)
+      ) {
+        throw new Error(
+          'This profile already has a running client. Use Stop Riot before relaunching it.',
+        )
+      }
       let confirmed = false
       if (state.league_game || state.valorant_game) {
         confirmed = await ask()
         if (!confirmed)
           throw new Error('Operation cancelled. Your game is still running.')
       }
+      let result: T
       try {
-        return await action(confirmed)
+        result = await action(confirmed)
       } catch (error) {
         if (
           !confirmed &&
@@ -96,10 +130,56 @@ export function RiotOperationsProvider({ children }: { children: ReactNode }) {
         ) {
           if (!(await ask()))
             throw new Error('Operation cancelled. Your game is still running.')
-          return await action(true)
-        }
-        throw error
+          result = await action(true)
+        } else throw error
       }
+      if (options && mounted.current) {
+        activeKey.current = options.launchKey
+        setActiveLaunchKey(options.launchKey)
+        setTracking(true)
+        const deadline = Date.now() + 120000
+        let detected = false
+        try {
+          while (mounted.current && !stopTracking.current) {
+            const state = await snapshot()
+            if (state.league_client || state.league_game) {
+              detected = true
+              setLaunchStatus('League Client detected. Continue in the client.')
+              break
+            }
+            setLaunchStatus(
+              state.riot_client
+                ? 'Riot Client detected · waiting for League Client…'
+                : 'Waiting for Riot Client to start…',
+            )
+            if (Date.now() >= deadline) {
+              setLaunchStatus(
+                state.riot_client
+                  ? 'Riot Client is running, but League has not appeared. Check Riot for sign-in, updates or errors.'
+                  : 'No Riot Client detected after 2 minutes. Check the client installation and try again.',
+              )
+              break
+            }
+            await new Promise((done) => window.setTimeout(done, 1000))
+          }
+          if (stopTracking.current && mounted.current && !detected)
+            setLaunchStatus(
+              'Stopped waiting. Check Riot Client before trying again; the client was not stopped.',
+            )
+        } catch (cause) {
+          if (mounted.current)
+            setLaunchStatus(
+              `Unable to track client startup: ${String(cause)}. Check Riot Client before retrying.`,
+            )
+        } finally {
+          if (mounted.current) setTracking(false)
+        }
+      }
+      return result
+    } catch (cause) {
+      if (options && mounted.current)
+        setLaunchStatus(`Launch could not finish: ${String(cause)}`)
+      throw cause
     } finally {
       locked.current = false
       if (mounted.current) {
@@ -110,8 +190,54 @@ export function RiotOperationsProvider({ children }: { children: ReactNode }) {
     }
   }
   return (
-    <Context.Provider value={{ busy, running, provisioning, run }}>
+    <Context.Provider
+      value={{
+        busy,
+        running,
+        provisioning,
+        run,
+        launchStatus,
+        tracking,
+        activeLaunchKey: running || tracking ? activeLaunchKey : null,
+      }}
+    >
       {children}
+      {launchStatus ? (
+        <div
+          className="client-launch-status"
+          role="status"
+          aria-live="polite"
+          aria-busy={tracking}
+        >
+          <span>
+            {tracking ? (
+              <span className="status-spinner animate-spin" aria-hidden="true">
+                ◌
+              </span>
+            ) : null}{' '}
+            {launchStatus}
+          </span>
+          {tracking ? (
+            <button
+              type="button"
+              className="btn-modal-secondary"
+              onClick={() => {
+                stopTracking.current = true
+              }}
+            >
+              Stop waiting
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn-modal-secondary"
+              onClick={() => setLaunchStatus(null)}
+            >
+              Dismiss
+            </button>
+          )}
+        </div>
+      ) : null}
       {confirm ? (
         <div className="modal-backdrop">
           <div

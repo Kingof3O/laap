@@ -34,6 +34,15 @@ pub struct SyncResult {
     pub changed: bool,
     pub account_id: Option<String>,
     pub message: Option<String>,
+    pub state: SyncState,
+}
+#[derive(Default, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SyncState {
+    #[default]
+    Waiting,
+    Success,
+    Error,
 }
 fn assets_dir() -> Result<PathBuf, String> {
     let path = LocalAccountStorage::default_storage_dir().join("profile-assets");
@@ -139,10 +148,15 @@ fn cached_icon(key: &str) -> Result<Option<CachedIcon>, String> {
 fn cached_icon_in(root: &std::path::Path, key: &str) -> Result<Option<CachedIcon>, String> {
     validate_asset_key(key)?;
     match fs::read(root.join(key)) {
-        Ok(bytes) => Ok(Some(CachedIcon {
-            asset: key.into(),
-            data_url: format!("data:image/png;base64,{}", STANDARD.encode(bytes)),
-        })),
+        Ok(bytes) => {
+            if bytes.len() > IMAGE_LIMIT || image::load_from_memory(&bytes).is_err() {
+                return Err("Cached icon is damaged. Download it again.".into());
+            }
+            Ok(Some(CachedIcon {
+                asset: key.into(),
+                data_url: format!("data:image/png;base64,{}", STANDARD.encode(bytes)),
+            }))
+        }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(format!("Unable to read cached icon: {e}")),
     }
@@ -221,8 +235,10 @@ fn profile_icon(
     download_requested: bool,
 ) -> Result<Option<CachedIcon>, String> {
     let key = icon_key(version, id)?;
-    if let Some(cached) = cached_icon(&key)? {
-        return Ok(Some(cached));
+    match cached_icon(&key) {
+        Ok(Some(cached)) => return Ok(Some(cached)),
+        Err(error) if !download_requested => return Err(error),
+        _ => {}
     }
     if !download_requested {
         return Ok(None);
@@ -428,7 +444,12 @@ static SYNC_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 fn sync_customizations() -> Result<SyncResult, String> {
     let _sync = match SYNC_LOCK.try_lock() {
         Ok(lock) => lock,
-        Err(std::sync::TryLockError::WouldBlock) => return Ok(SyncResult::default()),
+        Err(std::sync::TryLockError::WouldBlock) => {
+            return Ok(SyncResult {
+                message: Some("Another profile sync is already running. Try again shortly.".into()),
+                ..Default::default()
+            })
+        }
         Err(std::sync::TryLockError::Poisoned(error)) => {
             SYNC_LOCK.clear_poison();
             error.into_inner()
@@ -440,7 +461,10 @@ fn sync_customizations() -> Result<SyncResult, String> {
         .iter()
         .any(|a| a.customization.auto_sync_icon || a.customization.auto_sync_rank)
     {
-        return Ok(SyncResult::default());
+        return Ok(SyncResult {
+            message: Some("No saved profile has icon/rank auto-sync enabled. Enable it in Edit Profile first.".into()),
+            ..Default::default()
+        });
     }
     if accounts
         .iter()
@@ -474,12 +498,20 @@ fn sync_customizations() -> Result<SyncResult, String> {
             ..Default::default()
         });
     };
-    let mut warning = None;
+    let mut warnings = Vec::new();
     let rank = if account.customization.auto_sync_rank {
         match lcu.get("/lol-ranked/v1/current-ranked-stats") {
-            Ok(data) => solo_rank(&data),
+            Ok(data) => match solo_rank(&data) {
+                Some(rank) => Some(rank),
+                None => {
+                    warnings.push(
+                        "Solo/Duo rank is unavailable; your saved rank was kept.".to_string(),
+                    );
+                    None
+                }
+            },
             Err(error) => {
-                warning = Some(error);
+                warnings.push(format!("Rank sync failed: {error}"));
                 None
             }
         }
@@ -501,24 +533,40 @@ fn sync_customizations() -> Result<SyncResult, String> {
                     .is_none_or(|key| cached_icon(key).ok().flatten().is_none())
             {
                 let result = (|| {
-                    let catalog = match catalog(false)? {
+                    let initial = match catalog(false).ok().flatten() {
                         Some(c) => c,
                         None => catalog(true)?.ok_or("Icon catalog unavailable")?,
                     };
-                    profile_icon(&catalog.version, id, true)?
-                        .ok_or_else(|| "Icon unavailable".to_string())
+                    // A cached patch catalog may predate a newly equipped icon.
+                    // Refresh once before reporting a visible download failure.
+                    match profile_icon(&initial.version, id, true) {
+                        Ok(Some(icon)) => Ok(icon),
+                        _ => {
+                            let latest = catalog(true)?.ok_or("Icon catalog unavailable")?;
+                            profile_icon(&latest.version, id, true)?
+                                .ok_or_else(|| "Icon unavailable".to_string())
+                        }
+                    }
                 })();
                 match result {
                     Ok(asset) => icon = Some((asset.asset, id)),
-                    Err(error) => warning = Some(error),
+                    Err(error) => warnings.push(format!("Icon sync failed: {error}")),
                 }
             }
+        } else {
+            warnings
+                .push("League has not provided a profile icon; your saved image was kept.".into());
         }
     }
     // Recheck identity after any slow image download; never apply results from a previous login.
     let current = lcu.get("/lol-summoner/v1/current-summoner")?;
     if current.get("puuid").and_then(|v| v.as_str()) != Some(puuid) {
-        return Ok(SyncResult::default());
+        return Ok(SyncResult {
+            message: Some(
+                "League account changed during sync. Saved data was kept; try again.".into(),
+            ),
+            ..Default::default()
+        });
     }
     let rank = rank.filter(|rank| account.rank.as_ref() != Some(rank));
     let changed = if rank.is_some() || icon.is_some() {
@@ -529,7 +577,29 @@ fn sync_customizations() -> Result<SyncResult, String> {
     Ok(SyncResult {
         changed,
         account_id: Some(account.id.clone()),
-        message: warning,
+        state: if warnings.is_empty() {
+            SyncState::Success
+        } else {
+            SyncState::Error
+        },
+        message: Some(if warnings.is_empty() {
+            format!(
+                "{}: enabled icon/rank sync checked — {}.",
+                account.name,
+                if changed {
+                    "profile updated"
+                } else {
+                    "already up to date"
+                }
+            )
+        } else {
+            format!(
+                "{}: {}{}",
+                account.name,
+                if changed { "Some data updated. " } else { "" },
+                warnings.join(" ")
+            )
+        }),
     })
 }
 #[tauri::command]
@@ -598,6 +668,18 @@ mod image_tests {
 #[cfg(test)]
 mod cache_tests {
     use super::*;
+    #[test]
+    fn damaged_cached_images_report_a_repairable_error() {
+        let root =
+            std::env::temp_dir().join(format!("laap-damaged-icon-{:032x}", rand::random::<u128>()));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("dd-16.20.1-685.png"), b"incomplete download").unwrap();
+        assert!(cached_icon_in(&root, "dd-16.20.1-685.png")
+            .err()
+            .unwrap()
+            .contains("damaged"));
+        fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     fn selected_images_are_read_from_disk_without_network_after_memory_is_discarded() {
         let root =

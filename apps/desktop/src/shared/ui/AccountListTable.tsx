@@ -34,6 +34,8 @@ export interface AccountListTableProps {
   launchingId?: string | null
   failedLaunchId?: string | null
   onSelect?: (id: string) => void
+  activeLaunchId?: string | null
+  launchStatus?: string | null
   launchLabel?: string
   onEdit?: (id: string) => void
   onRefreshSession?: (id: string) => void
@@ -54,6 +56,8 @@ export function AccountListTable({
   launchingId,
   failedLaunchId,
   onSelect,
+  activeLaunchId,
+  launchStatus,
   launchLabel = 'Play',
   onEdit,
   onRefreshSession,
@@ -173,7 +177,13 @@ export function AccountListTable({
                     ) : item.id === launchingId ? (
                       <button type="button" className="btn-table-play" disabled>
                         <Loader2 size={11} className="animate-spin" />
-                        <span>Preparing…</span>
+                        <span>
+                          {launchStatus ? 'Waiting for client…' : 'Preparing…'}
+                        </span>
+                      </button>
+                    ) : item.id === activeLaunchId ? (
+                      <button type="button" className="btn-table-play" disabled>
+                        Client running
                       </button>
                     ) : item.id === failedLaunchId ? (
                       <button
@@ -185,7 +195,7 @@ export function AccountListTable({
                           color: '#fca5a5',
                         }}
                         onClick={() => onLaunch(item.id)}
-                        disabled={busy && item.id !== failedLaunchId}
+                        disabled={busy}
                       >
                         <RotateCcw size={11} />
                         <span>Retry</span>
