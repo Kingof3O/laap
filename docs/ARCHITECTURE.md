@@ -111,21 +111,23 @@ apps/desktop/
 │   │   ├── device/             # Dedicated hardware identity & key registration hook (useDevice)
 │   │   └── auth/               # Shared accounts login view, persistent JWT auth hook (useAuth)
 │   ├── shared/
-│   │   └── ui/                 # Reusable UI kit (Header, SubNavbar, Cards, Modals, Tables, UpdateModal)
+│   │   └── ui/                 # Reusable UI kit (AccountRosterDisplay, AccountCard, AccountListTable, ProfileAvatar, RankPicker, IconPicker, Header, Modals)
 │   ├── hooks/
 │   │   └── useUpdateChecker.ts # In-app GitHub release poller and semver comparator
 │   ├── context/
-│   │   └── ToastContext.tsx    # Centralized floating HUD glassmorphism toasts
+│   │   ├── ToastContext.tsx    # Centralized floating HUD glassmorphism toasts
+│   │   └── RiotOperations.tsx  # Running process lock & live match guard
 │   ├── lib/
 │   │   ├── api.ts              # Typed fetch client and Tauri invoke bridge
 │   │   ├── constants.ts        # Region enums & local storage keys
+│   │   ├── sorting.ts          # Rank scoring, tier classes, and multi-criteria sorting
 │   │   └── types.ts            # Frontend domain contracts
-│   └── App.tsx                 # Lean coordinator shell (< 140 lines)
+│   └── App.tsx                 # Lean coordinator shell
 └── src-tauri/
     └── src/
         ├── riot/               # Decoupled Riot Client subsystem
         │   ├── paths.rs        # Platform settings directory resolution
-        │   ├── process.rs      # Sysinfo process inspection and termination
+        │   ├── process.rs      # Sysinfo process inspection and match guards
         │   ├── session_manager.rs # YAML token backup, injection, and restore
         │   ├── provisioner.rs  # Isolated sandbox credential poller
         │   └── mod.rs          # Re-exports & unit tests
@@ -134,6 +136,7 @@ apps/desktop/
         │   ├── storage.rs      # OS filesystem storage paths and JSON serialization
         │   ├── manager.rs      # LocalStore CRUD operations & 1-click launcher
         │   └── mod.rs          # Re-exports & unit tests
+        ├── profile_assets.rs   # Local icon caching, image normalization, LCU sync
         ├── commands/           # Modular Tauri IPC command handlers
         │   ├── device.rs       # device_public_key, device_platform, sign_device_nonce
         │   ├── local_accounts.rs # list_local_accounts, save_local_account, delete, launch
