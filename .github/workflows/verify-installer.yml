@@ -1,0 +1,41 @@
+name: Verify Windows installer artwork
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/presence-tray]
+permissions:
+  contents: read
+jobs:
+  installer-pages:
+    strategy:
+      matrix:
+        edition: [team, offline]
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci --workspace @laap/desktop --include-workspace-root
+      - name: Build NSIS installer
+        shell: pwsh
+        run: |
+          if ('${{ matrix.edition }}' -eq 'offline') {
+            npx --workspace @laap/desktop tauri build --debug --config src-tauri/tauri.offline.conf.json --bundles nsis
+          } else {
+            npx --workspace @laap/desktop tauri build --debug --bundles nsis
+          }
+      - name: Capture Welcome and Already Installed pages
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem apps/desktop/src-tauri/target/debug/bundle/nsis/*-setup.exe | Select-Object -First 1
+          if (-not $installer) { throw 'NSIS installer was not generated' }
+          ./scripts/capture-windows-installer.ps1 -Installer $installer.FullName -Output installer-screenshots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-installer-pages-${{ matrix.edition }}
+          path: installer-screenshots/*.png

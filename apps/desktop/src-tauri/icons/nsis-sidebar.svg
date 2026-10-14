@@ -1,32 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="164" height="314" viewBox="0 0 164 314">
-  <defs>
-    <linearGradient id="sideBg" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#080c12" />
-      <stop offset="40%" stop-color="#0f1622" />
-      <stop offset="100%" stop-color="#05080c" />
-    </linearGradient>
-    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#f0e6d2" />
-      <stop offset="50%" stop-color="#c8aa6e" />
-      <stop offset="100%" stop-color="#785a28" />
-    </linearGradient>
-    <linearGradient id="cyanGlow" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.3" />
-      <stop offset="100%" stop-color="#0284c7" stop-opacity="0" />
-    </linearGradient>
-  </defs>
-  <rect width="164" height="314" fill="url(#sideBg)" />
-  <circle cx="82" cy="115" r="60" fill="url(#cyanGlow)" />
-  <line x1="163" y1="0" x2="163" y2="314" stroke="#c8aa6e" stroke-opacity="0.35" stroke-width="1" />
-  <path d="M10 20 L30 20 M20 10 L20 30" stroke="#c8aa6e" stroke-opacity="0.4" stroke-width="1.5" />
-  <path d="M10 294 L30 294 M20 284 L20 304" stroke="#c8aa6e" stroke-opacity="0.4" stroke-width="1.5" />
-  <g transform="translate(42, 65)">
-    <path d="M40 0 L75 14 V42 C75 66 52 82 40 88 C28 82 5 66 5 42 V14 Z" fill="#0b1722" stroke="url(#goldGrad)" stroke-width="3" />
-    <path d="M40 8 L67 19 V38 C67 58 48 71 40 76 C32 71 13 58 13 38 V19 Z" fill="#060e15" stroke="#38bdf8" stroke-width="1.8" />
-    <path d="M28 40 L36 48 L52 30" fill="none" stroke="#a5f3fc" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
-  </g>
-  <text x="82" y="195" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="22" font-weight="700" fill="#f1f5f9" text-anchor="middle" letter-spacing="4">LAAP</text>
-  <text x="82" y="215" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" font-weight="600" fill="#c8aa6e" text-anchor="middle" letter-spacing="2">OPERATOR TOOL</text>
-  <line x1="35" y1="235" x2="129" y2="235" stroke="#c8aa6e" stroke-opacity="0.25" stroke-width="1" />
-  <text x="82" y="250" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="8" font-weight="500" fill="#64748b" text-anchor="middle" letter-spacing="1">HEX-FAST SWITCH</text>
+ <defs><linearGradient id="bg" x2=".8" y2="1"><stop stop-color="#152945"/><stop offset="1" stop-color="#06111e"/></linearGradient><linearGradient id="gold"><stop stop-color="#efcf8b"/><stop offset="1" stop-color="#af8544"/></linearGradient></defs>
+ <rect width="164" height="314" fill="url(#bg)"/>
+ <path d="M0 220L164 56M0 265L164 101M24 314L164 174" stroke="#c4a369" opacity=".08"/>
+ <rect x="16" y="22" width="28" height="3" rx="1.5" fill="url(#gold)"/>
+ <image href="icon.png" x="38" y="56" width="88" height="88"/>
+ <text x="82" y="179" fill="#f2f5fb" font-family="Arial, sans-serif" font-size="29" font-weight="700" text-anchor="middle" letter-spacing="2">LAAP</text>
+ <text x="82" y="200" fill="#cfb378" font-family="Arial, sans-serif" font-size="8" text-anchor="middle" letter-spacing="1.2">ACCOUNT LAUNCHER</text>
+ <path d="M32 221h100" stroke="#cfb378" opacity=".3"/>
+ <text x="82" y="242" fill="#aebdd0" font-family="Arial, sans-serif" font-size="9" text-anchor="middle">Your roster. One click.</text>
+ <text x="82" y="288" fill="#879bb6" font-family="Arial, sans-serif" font-size="8" text-anchor="middle">LEAGUE OF LEGENDS</text>
+ <path d="M163 0v314" stroke="#d2b173" opacity=".35"/>
 </svg>

@@ -72,3 +72,12 @@ For the latest Windows `.exe`/`.msi` installers and universal macOS `.dmg`/`.app
 The workflow creates/publishes the GitHub release and uploads assets as jobs finish; inspect all four results before declaring it complete. It writes generic release text, so finalize detailed notes after all jobs finish. If manually dispatching, select the intended version tag, not `main`. Team Edition polls GitHub releases; Offline Edition does not.
 
 For local host/universal packaging commands and output paths, see [DEVELOPMENT.md](DEVELOPMENT.md). Installer builds do not validate live Riot authentication, real in-game stopping, or elevated Windows shutdown; see [verification limits](desktop-hardening-verification.md).
+
+
+## Windows publisher signing and SmartScreen
+
+Windows artifacts remain unsigned unless a trusted signing identity is configured. Set the protected GitHub secret `WINDOWS_SIGN_COMMAND` to the Tauri-compatible signing command (use `%1` for the file), backed by your signing provider. The command must produce SHA-256 Authenticode signatures with a trusted timestamp; provision any provider credentials through protected runner secrets, never committed files. The workflow checks the executable and installers with `Get-AuthenticodeSignature`, then publishes the draft release only after every build and signing check passes. No signing identity is currently provisioned.
+
+Microsoft Security Intelligence file submissions review malware detections. They do not guarantee clearance of the consumer SmartScreen unknown-publisher/reputation warning, and no malware false-positive claim should be filed solely for that warning. See [Microsoft's SmartScreen reputation documentation](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation).
+
+Regenerate installer artwork with `scripts/render-installer-assets.sh` (librsvg and ImageMagick required). The Windows installer verification workflow captures Welcome and Already Installed pages from the generated NSIS installer.

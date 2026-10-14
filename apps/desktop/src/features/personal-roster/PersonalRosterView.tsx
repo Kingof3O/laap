@@ -22,6 +22,8 @@ import type {
   ViewMode,
 } from '../../lib/types'
 interface Props {
+  trayRequest?: { id: string; sequence: number } | null
+  onTrayRequestHandled?: () => void
   searchQuery: string
   selectedRegion: Region
   selectedRank: string
@@ -40,6 +42,8 @@ interface Props {
   onCountChange?: (count: number) => void
 }
 export function PersonalRosterView({
+  trayRequest,
+  onTrayRequestHandled,
   searchQuery,
   selectedRegion,
   selectedRank,
@@ -180,6 +184,27 @@ export function PersonalRosterView({
       setLaunchingId(null)
     }
   }
+  useEffect(() => {
+    if (!trayRequest || loading) return
+    onTrayRequestHandled?.()
+    const account = localAccounts.find(
+      (account) => account.id === trayRequest.id,
+    )
+    if (!account) {
+      showError('That profile no longer exists. Refresh the roster.')
+      return
+    }
+    if (busy || operations.busy || provisioning) {
+      showError('Please wait for the current Riot operation.')
+      return
+    }
+    if (!account.has_session) {
+      void invokeTauri('show_launcher').catch(() => {})
+      setRefreshTarget(account)
+      return
+    }
+    void handleLaunch(account.id)
+  }, [trayRequest, loading])
   const detect = async (details?: ProfileDetails) => {
     setBusy(true)
     try {

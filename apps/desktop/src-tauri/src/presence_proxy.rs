@@ -1,5 +1,6 @@
 //! LAAP's own loopback-only configuration and TLS chat proxy.
 //! Presence payloads stay in memory; authentication and chat are never logged.
+use crate::presence_identity::{ChatAcceptor, ChatIdentity};
 use crate::{
     launcher_settings::PresenceMode,
     presence_protocol::{self, Frames},
@@ -12,7 +13,7 @@ use axum::{
     Router,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use native_tls::{Identity, TlsAcceptor, TlsConnector};
+use native_tls::TlsConnector;
 use std::{
     net::{Ipv4Addr, TcpListener},
     sync::{
@@ -113,19 +114,14 @@ pub fn check_local_dns() -> Result<(), String> {
     }
     Ok(())
 }
-pub fn validate_identity(bytes: &[u8]) -> Result<Identity, String> {
+pub fn validate_identity(bytes: &[u8]) -> Result<ChatIdentity, String> {
     if bytes.len() > 512 * 1024 {
         return Err("Presence certificate is too large.".into());
     }
-    let identity = Identity::from_pkcs12(bytes, "").map_err(|error| {
-        format!(
-            "Presence certificate could not be loaded: {error}. Prepare presence controls again."
-        )
-    })?;
+    let identity = crate::presence_identity::load(bytes)?;
     // Verify the cached identity's public chain, hostname and validity using the
     // platform's normal TLS verifier. No certificate trust is disabled or installed.
-    let acceptor = TlsAcceptor::new(identity.clone())
-        .map_err(|_| "Unable to prepare local presence TLS".to_string())?;
+    let server_identity = identity.clone();
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(|e| e.to_string())?;
     let address = listener.local_addr().map_err(|e| e.to_string())?;
     listener.set_nonblocking(true).map_err(|e| e.to_string())?;
@@ -141,10 +137,7 @@ pub fn validate_identity(bytes: &[u8]) -> Result<Identity, String> {
                     }
                     let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
                     let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
-                    return acceptor
-                        .accept(stream)
-                        .map(|_| ())
-                        .map_err(|error| error.to_string());
+                    return server_identity.accept_blocking(stream);
                 }
                 Err(error)
                     if error.kind() == std::io::ErrorKind::WouldBlock
@@ -177,7 +170,7 @@ pub fn validate_identity(bytes: &[u8]) -> Result<Identity, String> {
     accepted.map_err(|error| format!("Presence certificate server handshake failed: {error}"))?;
     Ok(identity)
 }
-pub fn start(identity: Identity, mode: PresenceMode) -> Result<Arc<Proxy>, String> {
+pub fn start(identity: ChatIdentity, mode: PresenceMode) -> Result<Arc<Proxy>, String> {
     let config = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(|e| e.to_string())?;
     let chat = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(|e| e.to_string())?;
     config.set_nonblocking(true).map_err(|e| e.to_string())?;
@@ -210,7 +203,7 @@ pub fn start(identity: Identity, mode: PresenceMode) -> Result<Arc<Proxy>, Strin
             let result = (|| {
                 let config = tokio::net::TcpListener::from_std(config).map_err(|e| e.to_string())?;
                 let chat = tokio::net::TcpListener::from_std(chat).map_err(|e| e.to_string())?;
-                let acceptor = tokio_native_tls::TlsAcceptor::from(TlsAcceptor::new(identity).map_err(|e| e.to_string())?);
+                let acceptor = identity.acceptor()?;
                 Ok::<_, String>((config, chat, acceptor))
             })();
             let (config, chat, acceptor) = match result { Ok(result) => result, Err(error) => { let _ = ready_tx.send(Err(error)); return; } };
@@ -425,11 +418,7 @@ async fn config_request(State(state): State<Arc<Proxy>>, request: Request) -> Re
         }
     }
 }
-async fn serve_chat(
-    listener: tokio::net::TcpListener,
-    acceptor: tokio_native_tls::TlsAcceptor,
-    state: Arc<Proxy>,
-) {
+async fn serve_chat(listener: tokio::net::TcpListener, acceptor: ChatAcceptor, state: Arc<Proxy>) {
     let slots = Arc::new(tokio::sync::Semaphore::new(8));
     loop {
         let Ok((stream, peer)) = listener.accept().await else {
@@ -465,7 +454,7 @@ impl Drop for Connected {
 }
 async fn chat_connection(
     stream: tokio::net::TcpStream,
-    acceptor: tokio_native_tls::TlsAcceptor,
+    acceptor: ChatAcceptor,
     state: Arc<Proxy>,
 ) -> Result<(), String> {
     let mut stopped = state.shutdown.subscribe();
@@ -557,6 +546,19 @@ async fn relay_presence<R: tokio::io::AsyncRead + Unpin, W: tokio::io::AsyncWrit
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[ignore = "Explicit local public-certificate fixture handshake; no user settings accessed"]
+    fn host_certificate_import_contract() {
+        let path =
+            std::env::var("LAAP_TEST_PUBLIC_PFX").expect("provide the public PFX fixture path");
+        let bytes = std::fs::read(path).unwrap();
+        let identity = validate_identity(&bytes).unwrap();
+        let proxy = start(identity, PresenceMode::Online).unwrap();
+        assert!(proxy.alive());
+        proxy.stop();
+        assert!(!proxy.alive());
+    }
+
     #[tokio::test]
     async fn live_mode_changes_replay_presence_without_restarting_the_stream() {
         let (mode, _) = watch::channel(PresenceMode::Offline);

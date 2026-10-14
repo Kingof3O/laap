@@ -223,6 +223,17 @@ export function useCloudAccounts(user: User | null) {
       { launchKey: `cloud:${accId}` },
     )
 
+  useEffect(() => {
+    const beforeQuit = (event: Event) => {
+      if (sessionId)
+        (event as CustomEvent<Promise<unknown>[]>).detail.push(
+          releaseLease('logout'),
+        )
+    }
+    window.addEventListener('laap:before-quit', beforeQuit)
+    return () => window.removeEventListener('laap:before-quit', beforeQuit)
+  }, [sessionId, releaseLease])
+
   // Restore a lease after a normal app restart
   useEffect(() => {
     if (!user || sessionId) return

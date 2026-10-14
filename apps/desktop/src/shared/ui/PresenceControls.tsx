@@ -55,6 +55,16 @@ export function PresenceBanner({
             ? 'Applying presence…'
             : (status?.message ?? 'Checking presence…'))}
       </span>
+      {status?.state === 'setup_failed' && status.desired_mode === 'online' ? (
+        <button
+          type="button"
+          className="btn-modal-secondary"
+          disabled={launcher.busy}
+          onClick={() => void launcher.allowOnline().catch(() => {})}
+        >
+          Allow normal Online launch
+        </button>
+      ) : null}
       {status?.state === 'restart_required' ? (
         <button
           type="button"
@@ -65,7 +75,9 @@ export function PresenceBanner({
           Restart Riot with presence controls
         </button>
       ) : null}
-      {status?.state === 'error' || launcher.error ? (
+      {status?.state === 'error' ||
+      status?.state === 'setup_failed' ||
+      launcher.error ? (
         <button
           type="button"
           className="btn-modal-secondary"

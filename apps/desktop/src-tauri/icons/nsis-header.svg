@@ -1,20 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="150" height="57" viewBox="0 0 150 57">
-  <defs>
-    <linearGradient id="headerBg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0a0e14" />
-      <stop offset="100%" stop-color="#141a23" />
-    </linearGradient>
-    <linearGradient id="goldAccent" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#785a28" stop-opacity="0.2" />
-      <stop offset="50%" stop-color="#c8aa6e" stop-opacity="0.9" />
-      <stop offset="100%" stop-color="#f0e6d2" stop-opacity="0.4" />
-    </linearGradient>
-  </defs>
-  <rect width="150" height="57" fill="url(#headerBg)" />
-  <rect y="55" width="150" height="2" fill="url(#goldAccent)" />
-  <g transform="translate(112, 10) scale(0.6)">
-    <path d="M30 4 L54 14 V32 C54 48 38 56 30 60 C22 56 6 48 6 32 V14 Z" fill="#0f222e" stroke="#c8aa6e" stroke-width="2.5" />
-    <path d="M30 10 L48 18 V30 C48 42 36 48 30 51 C24 48 12 42 12 30 V18 Z" fill="#09141c" stroke="#38bdf8" stroke-width="1.5" />
-    <path d="M21 28 L27 34 L39 22" fill="none" stroke="#67e8f9" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-  </g>
+ <defs><linearGradient id="bg"><stop stop-color="#142740"/><stop offset="1" stop-color="#081420"/></linearGradient></defs>
+ <rect width="150" height="57" fill="url(#bg)"/>
+ <image href="icon.png" x="10" y="8" width="40" height="40"/>
+ <text x="58" y="29" fill="#f2f5fb" font-family="Arial, sans-serif" font-size="19" font-weight="700" letter-spacing="1">LAAP</text>
+ <text x="59" y="42" fill="#cdb174" font-family="Arial, sans-serif" font-size="7.5">ACCOUNT LAUNCHER</text>
+ <path d="M0 56h150" stroke="#cdb174" opacity=".5"/>
 </svg>

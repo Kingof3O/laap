@@ -1,3 +1,4 @@
+import { useTrayActions } from './hooks/useTrayActions'
 import { useLauncher } from './hooks/useLauncher'
 import { PresenceBanner, PresenceSelect } from './shared/ui/PresenceControls'
 import { useEffect, useRef, useState } from 'react'
@@ -49,6 +50,19 @@ function AppContent() {
     loading: loginBusy,
   } = useAuth()
   const { showSuccess, showError } = useToast()
+  const [trayRequest, setTrayRequest] = useState<{
+    id: string
+    sequence: number
+  } | null>(null)
+  useTrayActions(
+    launcher,
+    (id) => {
+      setAppMode('local')
+      setTrayRequest({ id, sequence: Date.now() })
+    },
+    showError,
+  )
+
   const {
     currentVersion,
     checking: checkingUpdates,
@@ -194,6 +208,8 @@ function AppContent() {
       <main className="main-viewport">
         {appMode === 'local' ? (
           <PersonalRosterView
+            trayRequest={trayRequest}
+            onTrayRequestHandled={() => setTrayRequest(null)}
             searchQuery={searchQuery}
             selectedRegion={selectedRegion}
             selectedRank={selectedRank}

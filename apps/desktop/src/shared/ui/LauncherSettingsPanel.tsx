@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Download, FolderSearch, Loader2 } from 'lucide-react'
+import { FolderSearch } from 'lucide-react'
 import type { LauncherController } from '../../hooks/useLauncher'
-import { openExternalUrl } from '../../lib/api'
 export function LauncherSettingsPanel({
   launcher,
   disabled,
@@ -11,14 +10,13 @@ export function LauncherSettingsPanel({
 }) {
   const { view, loading, busy, error } = launcher
   const [path, setPath] = useState('')
-  const [enabled, setEnabled] = useState(false)
+  const enabled = true
   const [dirty, setDirty] = useState(false)
   const [saved, setSaved] = useState(false)
   const [action, setAction] = useState<string | null>(null)
   useEffect(() => {
     if (view && !dirty) {
       setPath(view.settings.riot_client_path ?? '')
-      setEnabled(view.settings.presence_enabled)
     }
   }, [view, dirty])
   const invoke = async (label: string, action: () => Promise<unknown>) => {
@@ -90,67 +88,6 @@ export function LauncherSettingsPanel({
           </p>
         </>
       ) : null}
-      {view.presence_supported ? (
-        <>
-          <h3>LAAP Presence</h3>
-          <p>
-            Choose Online or Appear offline before login, then change it from
-            the header while logged in. Lobby chat remains available.
-          </p>
-          <p>
-            Prepare the local chat certificate once. Setup needs internet
-            access; the certificate is cached on this device.
-          </p>
-          <button
-            type="button"
-            className="btn-modal-secondary"
-            disabled={disabled || busy}
-            onClick={() =>
-              void invoke('Preparing presence controls…', launcher.prepare)
-            }
-          >
-            {action?.startsWith('Preparing') ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Download size={14} />
-            )}{' '}
-            {view.presence_ready
-              ? 'Refresh presence setup'
-              : 'Prepare presence controls'}
-          </button>
-          <button
-            type="button"
-            className="btn-modal-secondary"
-            onClick={() =>
-              void openExternalUrl(
-                'https://github.com/Kingof3O/laap/blob/main/docs/riot-installation-and-presence.md',
-              )
-            }
-          >
-            Presence setup guide
-          </button>
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={enabled}
-              onChange={(event) => {
-                setEnabled(event.target.checked)
-                setDirty(true)
-                setSaved(false)
-              }}
-              disabled={disabled || busy || !view.presence_ready}
-            />{' '}
-            Enable LAAP Presence for future logins
-          </label>
-          <p>
-            A client opened normally needs one restart to enable the presence
-            filter. Later status changes do not restart your game. Keep LAAP
-            open or minimized while using presence controls.
-          </p>
-        </>
-      ) : (
-        <p>LAAP Presence is available on Windows.</p>
-      )}
       <button
         type="button"
         className="btn-modal-primary"

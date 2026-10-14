@@ -7,8 +7,12 @@ permissions:
   contents: read
 
 jobs:
-  windows-transport:
-    runs-on: windows-latest
+  host-transport:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.platform }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
