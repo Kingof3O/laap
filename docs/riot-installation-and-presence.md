@@ -22,7 +22,7 @@ Open **Settings → Riot installation** to inspect the detected path/source, pas
 
 The product feature is named **LAAP Presence**. It is implemented inside the native Rust app. It does not install or launch a separate executable, inject code, create a fake friend, or automate gameplay.
 
-Presence prepares automatically on Windows and macOS. New and upgraded settings default to **Online**. Choose **Appear offline** or **Online** as the default in Settings; this takes effect on the next LAAP start. The header or system-bar menu still changes the current session immediately. Settings contains only Riot installation configuration. macOS decodes the legacy certificate package using bundled OpenSSL and serves local TLS with rustls; Windows retains Schannel.
+Presence prepares automatically on Windows and macOS. New and upgraded settings default to **Online**. Choose **Appear offline** or **Online** as the default in Settings; this takes effect on the next LAAP start. The header or system-bar menu still changes the current session immediately. Settings also contains the default startup presence; saving that choice does not change the current session. macOS decodes the legacy certificate package using bundled OpenSSL and serves local TLS with rustls; Windows retains Schannel.
 
 A client started normally needs an explicit restart through LAAP once to enable the proxy. The restart follows the same live-match confirmation guard as Stop/Switch. Once the session is routed, the header changes presence live by replaying the latest global presence stanza; it does not restart the client or game.
 
@@ -38,7 +38,7 @@ The chat compatibility hostname must resolve to `127.0.0.1`. Some DNS services b
 
 ## Transport and privacy
 
-- Presence setup runs automatically and starts Online. The Offline Edition's local vault mode is separate from online/offline game presence; automatic certificate setup can contact the network. If setup fails, an explicit **Allow normal Online launch** option permits an unfiltered launch. An Offline request never silently falls back to Online.
+- Presence setup runs automatically. The saved startup default is Online unless the user chooses Appear offline in Settings. The Offline Edition's local vault mode is separate from online/offline game presence; automatic certificate setup can contact the network. If setup fails, an explicit **Allow normal Online launch** option permits an unfiltered launch. An Offline request never silently falls back to Online.
 - Setup fetches and caches the reference project's public loopback TLS identity. The hostname is `deceive-localhost.molenzwiebel.xyz`; it must resolve only to `127.0.0.1`. This technical compatibility hostname does not change the LAAP feature name.
 - Certificate downloads use HTTPS. A failed system-DNS route can retry using a fixed Google DNS-over-HTTPS query for the certificate provider's hostname. No user/account data is included. The download's normal TLS hostname verification remains enabled.
 - Before launch, LAAP verifies the cached certificate chain, hostname and validity through a local TLS handshake. It does not install a root certificate or disable TLS validation. **Retry presence** obtains a renewed identity when needed.
