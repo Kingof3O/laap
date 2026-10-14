@@ -15,7 +15,7 @@
     "@laap/types": "0.1.0",
     "@laap/validation": "0.1.0",
     "@supabase/supabase-js": "^2.49.8",
-    "bcryptjs": "^2.4.3",
+    "bcryptjs": "^3.0.3",
     "jose": "^6.0.8",
     "sql.js": "^1.12.0",
     "zod": "^3.24.1"
