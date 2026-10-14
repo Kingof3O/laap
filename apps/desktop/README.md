@@ -73,3 +73,8 @@ Session blobs are AES-256-GCM encrypted. Metadata and cached PNGs are readable l
 The NSIS installer bitmap is generated from [the sidebar SVG source](src-tauri/icons/nsis-sidebar.svg). Keep the checked-in `nsis-sidebar.bmp` synchronized with this upright design; Tauri uses it for both Team and Offline Windows installers.
 
 ![NSIS installer sidebar](../../docs/assets/nsis-sidebar.png)
+
+
+### Riot discovery and LAAP Presence (source)
+
+Custom Windows installations use Riot records, running processes, registry entries and mounted local-drive folders. Settings includes path detection and a validated override. LAAP Presence is an optional built-in Windows chat presence filter, with startup choices and live online/offline changes. See [setup and verification](../../docs/riot-installation-and-presence.md). These changes are not in the v0.4.5 installers.

@@ -24,7 +24,7 @@ interface Operations {
   activeLaunchKey: string | null
   run: <T>(
     action: (confirmed: boolean) => Promise<T>,
-    options?: { launchKey: string },
+    options?: { launchKey: string; allowRelaunch?: boolean },
   ) => Promise<T>
 }
 const Context = createContext<Operations | null>(null)
@@ -89,7 +89,7 @@ export function RiotOperationsProvider({ children }: { children: ReactNode }) {
   }, [])
   const run = async <T,>(
     action: (confirmed: boolean) => Promise<T>,
-    options?: { launchKey: string },
+    options?: { launchKey: string; allowRelaunch?: boolean },
   ) => {
     if (locked.current)
       throw new Error('Another Riot operation is in progress.')
@@ -107,6 +107,7 @@ export function RiotOperationsProvider({ children }: { children: ReactNode }) {
       const state = await snapshot()
       if (
         options &&
+        !options.allowRelaunch &&
         activeKey.current === options.launchKey &&
         Object.values(state).some(Boolean)
       ) {

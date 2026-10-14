@@ -106,7 +106,7 @@ pub fn stop_riot(confirmed: bool) -> Result<(), String> {
         }
     }
     if targets.is_empty() {
-        return Ok(());
+        return ensure_stopped();
     }
     let deadline = Instant::now() + Duration::from_millis(2500);
     loop {
@@ -257,6 +257,6 @@ fn ensure_stopped() -> Result<(), String> {
     if runtime_snapshot().running() {
         Err("Riot restarted while stopping. Close all Riot/League/Valorant windows manually and retry.".into())
     } else {
-        Ok(())
+        crate::presence::stop_proxy()
     }
 }

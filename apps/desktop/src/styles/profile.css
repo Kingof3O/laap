@@ -637,3 +637,73 @@
   gap: 6px;
   font-size: 10px;
 }
+
+.settings-body {
+  max-height: calc(100vh - 190px);
+  overflow-y: auto;
+}
+.launcher-settings-panel {
+  display: grid;
+  gap: 12px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #33445f;
+  margin-bottom: 16px;
+}
+.launcher-settings-panel h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  margin: 0;
+}
+.launcher-settings-panel p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.detected-client-path {
+  display: block;
+  padding: 10px;
+  overflow-wrap: anywhere;
+  color: #a9d9ff;
+  background: #06111e;
+  border-radius: 6px;
+  font-size: 11px;
+}
+.presence-select {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.presence-select select {
+  background: #101e32;
+  border: 1px solid #33445f;
+  color: #e8edf6;
+  border-radius: 6px;
+  padding: 7px;
+}
+.presence-status {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 24px;
+  background: #101e32;
+  color: #c8d9ed;
+  font-size: 12px;
+  border-bottom: 1px solid #33445f;
+}
+.presence-status > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.presence-status-error {
+  color: #ffcf8c;
+}
+.presence-status-active {
+  color: #a4e6c3;
+}

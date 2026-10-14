@@ -39,3 +39,8 @@ Shared session blobs are encrypted at rest with an application vault key. Author
 LAAP does not inject code or inspect game memory. It inspects processes, can terminate clients after user consent, modifies session configuration while clients are stopped, and can perform opted-in local API reads while League Client is running. It is an unofficial session integration; these facts do not establish Riot approval or a ban guarantee.
 
 See [native verification](ANTI_BAN_VERIFICATION.md) and [known validation limits](desktop-hardening-verification.md).
+
+
+## Upcoming built-in presence transport
+
+LAAP Presence adds an opt-in Windows loopback configuration/chat proxy. It uses a publicly trusted, locally validated compatibility certificate, normal upstream Riot TLS validation, and in-memory global-presence rewriting. It does not log/persist chat or authentication payloads. Explicit setup may contact the certificate provider and Google DNS-over-HTTPS for a failed DNS route. A routed client needs LAAP running until Stop Riot. See [transport details and attribution](riot-installation-and-presence.md).

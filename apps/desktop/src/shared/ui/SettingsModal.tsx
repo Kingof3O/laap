@@ -1,3 +1,5 @@
+import type { LauncherController } from '../../hooks/useLauncher'
+import { LauncherSettingsPanel } from './LauncherSettingsPanel'
 import { IS_OFFLINE_ONLY } from '../../lib/api'
 import { useDialog } from '../hooks/useDialog'
 import { LogOut, RotateCcw, ShieldCheck, X } from 'lucide-react'
@@ -13,6 +15,7 @@ export interface SettingsModalProps {
   onCheckUpdates?: () => Promise<void> | void
   checkingUpdates?: boolean
   busy: boolean
+  launcher?: LauncherController
 }
 
 export function SettingsModal({
@@ -24,6 +27,7 @@ export function SettingsModal({
   onCheckUpdates,
   checkingUpdates = false,
   busy,
+  launcher,
 }: SettingsModalProps) {
   const dialogRef = useDialog(isOpen, onClose, busy)
   if (!isOpen) return null
@@ -50,7 +54,10 @@ export function SettingsModal({
           </button>
         </div>
 
-        <div className="modal-body">
+        <div className="modal-body settings-body">
+          {launcher ? (
+            <LauncherSettingsPanel launcher={launcher} disabled={busy} />
+          ) : null}
           {/* Security Card */}
           <div
             style={{
@@ -83,7 +90,7 @@ export function SettingsModal({
                 }}
               >
                 {IS_OFFLINE_ONLY
-                  ? 'AES-GCM local storage. Icon downloads and League sync connect only when you choose to enable them.'
+                  ? 'AES-GCM local storage. Icons, League sync and presence services connect only when you enable them.'
                   : 'Your local identity is used for shared-account access.'}
               </div>
             </div>

@@ -1,3 +1,4 @@
+pub mod install;
 pub mod operation;
 pub mod paths;
 pub mod process;

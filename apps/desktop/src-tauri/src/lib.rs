@@ -1,6 +1,10 @@
 pub mod commands;
 pub mod device;
+pub mod launcher_settings;
 pub mod local_store;
+pub mod presence;
+mod presence_protocol;
+mod presence_proxy;
 pub mod profile_assets;
 pub mod riot;
 
@@ -10,7 +14,18 @@ pub use riot as session;
 pub use riot::{RiotProvisioner, RiotSessionManager};
 
 pub fn run() {
+    use tauri::Manager;
     tauri::Builder::default()
+        .on_window_event(|_, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if presence::keep_open() {
+                    api.prevent_close();
+                    presence::explain_close();
+                } else {
+                    let _ = presence::stop_proxy();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::auth::load_access_token,
             commands::auth::store_access_token,
@@ -46,8 +61,29 @@ pub fn run() {
             commands::local_accounts::save_local_account,
             commands::local_accounts::delete_local_account,
             commands::local_accounts::launch_local_account,
+            presence::get_launcher_settings,
+            presence::save_launcher_settings,
+            presence::prepare_presence_support,
+            presence::get_presence_status,
+            presence::set_presence_mode,
+            presence::retry_presence,
+            commands::session::restart_riot_presence,
             commands::session::open_external_url
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running LAAP desktop")
+        .build(tauri::generate_context!())
+        .expect("error while building LAAP desktop")
+        .run(|handle, event| {
+            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                if presence::keep_open() {
+                    api.prevent_exit();
+                    presence::explain_close();
+                    if let Some(window) = handle.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                } else {
+                    let _ = presence::stop_proxy();
+                }
+            }
+        });
 }

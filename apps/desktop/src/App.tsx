@@ -1,3 +1,5 @@
+import { useLauncher } from './hooks/useLauncher'
+import { PresenceBanner, PresenceSelect } from './shared/ui/PresenceControls'
 import { useEffect, useRef, useState } from 'react'
 import { Header, SubNavbar, SettingsModal } from './shared/ui'
 import { UpdateModal } from './shared/ui/UpdateModal'
@@ -18,6 +20,7 @@ import type { AppMode, Region, ViewMode } from './lib/types'
 
 function AppContent() {
   const operations = useRiotOperations()
+  const launcher = useLauncher()
   const activeOperations = useRef(false)
   const [sortOrder, setSortOrder] = useState<SortOrder>('name-asc')
   const [appMode, setAppMode] = useState<AppMode>('local')
@@ -145,6 +148,7 @@ function AppContent() {
         onRefresh={() => window.dispatchEvent(new Event('laap:refresh'))}
         onOpenSettings={() => setShowSettingsModal(true)}
         isOfflineOnly={IS_OFFLINE_ONLY}
+        presenceControl={<PresenceSelect launcher={launcher} />}
         riotRunning={operations.running}
         operationBusy={operations.busy || operations.provisioning}
         onStopRiot={async () => {
@@ -157,6 +161,11 @@ function AppContent() {
             showError(String(cause))
           }
         }}
+      />
+
+      <PresenceBanner
+        launcher={launcher}
+        operationBusy={operations.busy || operations.provisioning}
       />
 
       {/* Sub Navigation Bar */}
@@ -243,6 +252,7 @@ function AppContent() {
 
       {/* Settings Modal */}
       <SettingsModal
+        launcher={launcher}
         user={IS_OFFLINE_ONLY ? null : user}
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}

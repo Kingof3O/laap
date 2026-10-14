@@ -144,54 +144,26 @@ pub fn launch_riot_client_sync() -> Result<(), String> {
     launch_riot_client_unlocked()
 }
 pub fn launch_riot_client_unlocked() -> Result<(), String> {
-    crate::riot::operation::mark_launch();
-    #[cfg(target_os = "macos")]
-    {
-        Command::new("open")
-            .args([
-                "-a",
-                "Riot Client",
-                "--args",
-                LEAGUE_LAUNCH_ARGS[0],
-                LEAGUE_LAUNCH_ARGS[1],
-            ])
-            .status()
-            .map_err(|error| error.to_string())
-            .and_then(|status| if status.success() {Ok(())} else {Err("Riot Client could not be opened. Verify it is installed and launch it once manually.".into())})
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let candidates = [
-            Some(r"C:\Riot Games\Riot Client\RiotClientServices.exe".to_string()),
-            Some(r"D:\Riot Games\Riot Client\RiotClientServices.exe".to_string()),
-            std::env::var("PROGRAMFILES")
-                .ok()
-                .map(|root| format!(r"{root}\Riot Games\Riot Client\RiotClientServices.exe")),
-            std::env::var("ProgramFiles(x86)")
-                .ok()
-                .map(|root| format!(r"{root}\Riot Games\Riot Client\RiotClientServices.exe")),
-            std::env::var("LOCALAPPDATA")
-                .ok()
-                .map(|root| format!(r"{root}\Riot Games\Riot Client\RiotClientServices.exe")),
-        ];
-        let path = candidates
-            .into_iter()
-            .flatten()
-            .find(|candidate| std::path::Path::new(candidate).exists())
-            .ok_or_else(|| {
-                "Riot Client was not found on this system. Please verify Riot Games is installed."
-                    .to_string()
-            })?;
-        Command::new(path)
-            .args(LEAGUE_LAUNCH_ARGS)
-            .spawn()
-            .map(|_| ())
-            .map_err(|error| error.to_string())
-    }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    {
-        Err("This desktop build only supports macOS and Windows".to_string())
-    }
+    crate::presence::LaunchPlan::prepare()?.launch()
+}
+
+#[tauri::command]
+pub async fn restart_riot_presence(confirmed: Option<bool>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _operation = crate::riot::operation::acquire()?;
+        idle()?;
+        if !cfg!(target_os = "windows") {
+            return Err("LAAP Presence is available on Windows.".into());
+        }
+        if !crate::launcher_settings::load()?.presence_enabled {
+            return Err("Enable presence controls in Settings first.".into());
+        }
+        let plan = crate::presence::LaunchPlan::prepare()?;
+        crate::riot::process::stop_riot(confirmed.unwrap_or(false))?;
+        plan.launch()
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Starts a single owned provisioning transaction. No background worker outlives it.
@@ -208,6 +180,7 @@ pub fn start_provisioning_session_sync(confirmed: Option<bool>) -> Result<String
         return Err("A sign-in is already in progress.".into());
     }
     let lease = crate::riot::operation::reserve_signin()?;
+    let launch_plan = crate::presence::LaunchPlan::prepare()?;
     crate::riot::process::stop_riot(confirmed.unwrap_or(false))?;
     let mut worker = RiotProvisioner::new();
     if let Err(error) = worker.prepare_for_provisioning() {
@@ -226,7 +199,7 @@ pub fn start_provisioning_session_sync(confirmed: Option<bool>) -> Result<String
         worker,
         _lease: lease,
     });
-    if let Err(error) = launch_riot_client_unlocked() {
+    if let Err(error) = launch_plan.launch() {
         if let Some(session) = lock.as_mut() {
             session.worker.finish_and_restore()?;
         }
@@ -400,6 +373,7 @@ pub fn switch_session_unlocked(session: &str, confirmed: bool, owner: &str) -> R
     if !crate::riot::session_format::has_persisted_session(session) {
         return Err("Sign in required: no reusable saved login.".into());
     }
+    let launch_plan = crate::presence::LaunchPlan::prepare()?;
     crate::riot::process::stop_riot(confirmed)?;
     let manager = RiotSessionManager::new();
     manager.inject_session(session)?;
@@ -413,7 +387,7 @@ pub fn switch_session_unlocked(session: &str, confirmed: bool, owner: &str) -> R
                 .unwrap_or_default()
         ));
     }
-    if let Err(error) = launch_riot_client_unlocked() {
+    if let Err(error) = launch_plan.launch() {
         manager.cleanup_session()?;
         return Err(error);
     }

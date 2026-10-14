@@ -1,0 +1,26 @@
+name: Verify LAAP Presence transport
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-transport:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci --workspace @laap/desktop --include-workspace-root
+      - run: npm --workspace @laap/desktop run build
+      - name: Build transport test harness
+        run: cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --no-run
+      - name: Verify public certificate and local TLS listeners
+        timeout-minutes: 3
+        run: cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml presence_public_certificate_contract -- --ignored

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Database, Gamepad2, RefreshCw, Settings, Zap } from 'lucide-react'
 import type { AppMode, User } from '../../lib/types'
 
@@ -10,6 +11,7 @@ export interface HeaderProps {
   isOfflineOnly?: boolean
   riotRunning?: boolean
   operationBusy?: boolean
+  presenceControl?: ReactNode
   onStopRiot?: () => Promise<void>
 }
 
@@ -23,6 +25,7 @@ export function Header({
   riotRunning = false,
   operationBusy = false,
   onStopRiot,
+  presenceControl,
 }: HeaderProps) {
   return (
     <header className="header-bar" data-tauri-drag-region>
@@ -61,6 +64,7 @@ export function Header({
 
       {/* Header Utilities & Profile */}
       <div className="header-utilities">
+        {presenceControl}
         {isOfflineOnly ? (
           <span className="profile-role-tag">Offline Edition</span>
         ) : null}
