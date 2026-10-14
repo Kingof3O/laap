@@ -101,6 +101,7 @@ export function RiotOperationsProvider({ children }: { children: ReactNode }) {
     const ask = () =>
       new Promise<boolean>((done) => {
         resolve.current = done
+        void invokeTauri('show_launcher').catch(() => {})
         setConfirm(true)
       })
     try {

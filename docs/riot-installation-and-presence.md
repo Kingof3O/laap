@@ -1,8 +1,8 @@
 # Riot installation discovery and LAAP Presence
 
-Included in v0.4.6. Windows Rust/UI CI and the real public-certificate/loopback TLS transport test passed before release. Live authenticated Riot chat still requires real-account validation.
+Custom Riot installation discovery and Windows presence shipped in v0.4.6. The current source adds automatic presence setup and a Windows tray/macOS menu-bar menu; these changes require a new release. Live authenticated Riot chat still requires real-account validation.
 
-![LAAP Presence and Riot installation settings](assets/riot-installation-presence.png)
+![Current installer sidebar](assets/nsis-sidebar.png)
 
 ## Riot installations on other drives
 
@@ -22,32 +22,26 @@ Open **Settings → Riot installation** to inspect the detected path/source, pas
 
 The product feature is named **LAAP Presence**. It is implemented inside the native Rust app. It does not install or launch a separate executable, inject code, create a fake friend, or automate gameplay.
 
-Presence controls are available on Windows. The current source project's PKCS#12 certificate cannot be imported through macOS's native TLS API in local validation, so the Mac UI does not offer an unverified presence option. Normal macOS launch remains available.
-
-To enable:
-
-1. Open **Settings → LAAP Presence** and choose **Prepare presence controls**.
-2. Save **Enable LAAP Presence for future logins**.
-3. Choose **Online** or **Appear offline** from the header before launching an account.
+Presence prepares automatically on Windows and macOS. New and upgraded settings default to **Online**. Choose **Appear offline** or **Online** as the default in Settings; this takes effect on the next LAAP start. The header or system-bar menu still changes the current session immediately. Settings also contains the default startup presence; saving that choice does not change the current session. macOS decodes the legacy certificate package using bundled OpenSSL and serves local TLS with rustls; Windows retains Schannel.
 
 A client started normally needs an explicit restart through LAAP once to enable the proxy. The restart follows the same live-match confirmation guard as Stop/Switch. Once the session is routed, the header changes presence live by replaying the latest global presence stanza; it does not restart the client or game.
 
 The UI distinguishes saved startup mode, waiting for routing/chat, an active filter, and errors. It reports the local filter state, not an independently verified friends-list result. Unknown or failed states never claim that offline presence is active.
 
-Keep LAAP open or minimized while a proxied client is running. Normal close/quit requests are prevented while the active chat proxy is needed, with an explanation in the presence banner. **Stop Riot** closes the clients and the proxy. Use **Online** for normal visibility during the session; stop Riot before disabling the feature for future launches.
+Closing the LAAP window leaves it running in the Windows tray or macOS menu bar. Its menu shows current status, saved local profiles, presence controls, **Stop Riot**, **Open LAAP** and **Quit LAAP**. Cloud accounts stay in the main app because they require lease authorization. Quit uses the same live-match warning, cancels owned provisioning, restores the previous login, stops Riot and releases any cloud lease before exiting. A failed tray initialization leaves the existing visible-window close protection available.
 
 ## Troubleshooting setup
 
-If detection cannot find Riot, open the official client once to refresh its record or paste the full executable path in Settings. If certificate setup fails, retry **Refresh presence setup**; a corrupt, expired or untrusted identity is rejected before launch.
+If detection cannot find Riot, open the official client once to refresh its record or paste the full executable path in Settings. If certificate setup fails, use **Retry presence** in the banner; a corrupt, expired or untrusted identity is rejected before launch.
 
 The chat compatibility hostname must resolve to `127.0.0.1`. Some DNS services block names that resolve to loopback. You can inspect it on Windows with `Resolve-DnsName deceive-localhost.molenzwiebel.xyz -Type A`. Use a network-approved DNS configuration or a manually reviewed hosts entry if necessary. LAAP does not change system DNS or edit the hosts file.
 
 ## Transport and privacy
 
-- Presence is disabled by default. The Offline Edition's local vault mode is separate from online/offline game presence.
-- Setup explicitly fetches and caches the reference project's public loopback TLS identity. The hostname is `deceive-localhost.molenzwiebel.xyz`; it must resolve only to `127.0.0.1`. This technical compatibility hostname does not change the LAAP feature name.
+- Presence setup runs automatically. The saved startup default is Online unless the user chooses Appear offline in Settings. The Offline Edition's local vault mode is separate from online/offline game presence; automatic certificate setup can contact the network. If setup fails, an explicit **Allow normal Online launch** option permits an unfiltered launch. An Offline request never silently falls back to Online.
+- Setup fetches and caches the reference project's public loopback TLS identity. The hostname is `deceive-localhost.molenzwiebel.xyz`; it must resolve only to `127.0.0.1`. This technical compatibility hostname does not change the LAAP feature name.
 - Certificate downloads use HTTPS. A failed system-DNS route can retry using a fixed Google DNS-over-HTTPS query for the certificate provider's hostname. No user/account data is included. The download's normal TLS hostname verification remains enabled.
-- Before launch, LAAP verifies the cached certificate chain, hostname and validity through a local TLS handshake. It does not install a root certificate or disable TLS validation. **Refresh presence setup** obtains a renewed identity when needed.
+- Before launch, LAAP verifies the cached certificate chain, hostname and validity through a local TLS handshake. It does not install a root certificate or disable TLS validation. **Retry presence** obtains a renewed identity when needed.
 - Configuration and chat listeners bind only to IPv4 loopback on dynamically allocated ports. Riot is launched with a local `--client-config-url` when presence is enabled.
 - The configuration proxy forwards only required headers to Riot's fixed HTTPS configuration/affinity services. Redirects are disabled, upstream chat endpoints must be recognized Riot domains, and upstream TLS certificates are verified normally.
 - The chat relay frames fragmented XML before changing global presence. Offline mode clears the game/activity payload and sets the global show state to offline. Online mode replays the original presence. Directed presence and chat messages, including lobby traffic, pass through unchanged.
@@ -56,17 +50,17 @@ The chat compatibility hostname must resolve to `127.0.0.1`. Some DNS services b
 
 ## Verification
 
-Native tests cover custom install records, stale paths, quoted registry strings, atomic preference writes, fragmented XML, directed chat, unknown activity removal, TLS/routing rejection, and changing presence on a live in-memory stream without restart. Browser tests cover custom-path settings, explicit setup/opt-in, waiting/active states and guarded activation restart.
+Native tests cover custom install records, stale paths, quoted registry strings, atomic preference writes, fragmented XML, directed chat, unknown activity removal, TLS/routing rejection, and changing presence on a live in-memory stream without restart. Browser tests cover custom-path settings, automatic setup, visible setup failure, explicit Online fallback, waiting/active states and guarded activation restart.
 
-The Windows-only public certificate contract is opt-in:
+The host-platform public certificate contract is opt-in:
 
 ```sh
 cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml presence_public_certificate_contract -- --ignored
 ```
 
-It downloads the current public identity, performs a real local TLS validation handshake and starts/stops the listeners. It never reads a Riot login or modifies a real user profile. The manual **Verify LAAP Presence transport** GitHub workflow runs this contract on Windows.
+It downloads the current public identity, performs a real local TLS validation handshake and starts/stops the listeners. It never reads a Riot login or modifies a real user profile. The manual **Verify LAAP Presence transport** GitHub workflow runs this contract on Windows and macOS.
 
-Live authenticated Riot chat/friends-list behavior still requires a supported Windows installation and real-account testing; fixtures and the local transport test do not establish that result.
+Live authenticated Riot chat/friends-list behavior still requires a supported Riot installation and real-account testing; fixtures and the local transport test do not establish that result.
 
 ## Reference attribution
 

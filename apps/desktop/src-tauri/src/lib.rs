@@ -3,10 +3,12 @@ pub mod device;
 pub mod launcher_settings;
 pub mod local_store;
 pub mod presence;
+mod presence_identity;
 mod presence_protocol;
 mod presence_proxy;
 pub mod profile_assets;
 pub mod riot;
+pub mod tray;
 
 pub use device::DeviceIdentity;
 pub use local_store::{LocalAccount, LocalAccountSummary, LocalStore};
@@ -16,9 +18,20 @@ pub use riot::{RiotProvisioner, RiotSessionManager};
 pub fn run() {
     use tauri::Manager;
     tauri::Builder::default()
-        .on_window_event(|_, event| {
+        .setup(|app| {
+            if let Err(error) = tray::setup(app.handle()) {
+                eprintln!("LAAP tray unavailable: {error}");
+            }
+            Ok(())
+        })
+        .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if presence::keep_open() {
+                if tray::available(window.app_handle())
+                    && !tray::QUIT_ALLOWED.load(std::sync::atomic::Ordering::SeqCst)
+                {
+                    api.prevent_close();
+                    let _ = window.hide();
+                } else if presence::keep_open() {
                     api.prevent_close();
                     presence::explain_close();
                 } else {
@@ -61,6 +74,15 @@ pub fn run() {
             commands::local_accounts::save_local_account,
             commands::local_accounts::delete_local_account,
             commands::local_accounts::launch_local_account,
+            tray::active_local_profile,
+            tray::tray_available,
+            tray::tray_client_ready,
+            tray::show_launcher,
+            tray::update_tray,
+            tray::prepare_quit,
+            tray::finish_quit,
+            presence::initialize_presence,
+            presence::allow_normal_online_launch,
             presence::get_launcher_settings,
             presence::save_launcher_settings,
             presence::prepare_presence_support,
@@ -74,7 +96,14 @@ pub fn run() {
         .expect("error while building LAAP desktop")
         .run(|handle, event| {
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
-                if presence::keep_open() {
+                if tray::available(handle)
+                    && !tray::QUIT_ALLOWED.load(std::sync::atomic::Ordering::SeqCst)
+                {
+                    api.prevent_exit();
+                    if let Some(window) = handle.get_webview_window("main") {
+                        let _ = window.hide();
+                    }
+                } else if presence::keep_open() {
                     api.prevent_exit();
                     presence::explain_close();
                     if let Some(window) = handle.get_webview_window("main") {

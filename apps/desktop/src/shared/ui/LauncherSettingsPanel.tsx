@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Download, FolderSearch, Loader2 } from 'lucide-react'
-import type { LauncherController } from '../../hooks/useLauncher'
-import { openExternalUrl } from '../../lib/api'
+import { FolderSearch } from 'lucide-react'
+import type { LauncherController, PresenceMode } from '../../hooks/useLauncher'
 export function LauncherSettingsPanel({
   launcher,
   disabled,
@@ -11,14 +10,15 @@ export function LauncherSettingsPanel({
 }) {
   const { view, loading, busy, error } = launcher
   const [path, setPath] = useState('')
-  const [enabled, setEnabled] = useState(false)
+  const enabled = true
+  const [startupPresence, setStartupPresence] = useState<PresenceMode>('online')
   const [dirty, setDirty] = useState(false)
   const [saved, setSaved] = useState(false)
   const [action, setAction] = useState<string | null>(null)
   useEffect(() => {
     if (view && !dirty) {
       setPath(view.settings.riot_client_path ?? '')
-      setEnabled(view.settings.presence_enabled)
+      setStartupPresence(view.settings.startup_presence ?? 'online')
     }
   }, [view, dirty])
   const invoke = async (label: string, action: () => Promise<unknown>) => {
@@ -66,6 +66,29 @@ export function LauncherSettingsPanel({
           {view.detected_client.path}
         </code>
       ) : null}
+      {view.presence_supported ? (
+        <>
+          <h3>Default presence</h3>
+          <label className="field-block">
+            <span className="field-label">Default presence on startup</span>
+            <select
+              className="hextech-input"
+              aria-label="Default presence on startup"
+              value={startupPresence}
+              onChange={(event) => {
+                setStartupPresence(event.target.value as PresenceMode)
+                setDirty(true)
+                setSaved(false)
+              }}
+              disabled={disabled || busy}
+            >
+              <option value="online">Online</option>
+              <option value="offline">Appear offline</option>
+            </select>
+          </label>
+          <p>Used when LAAP starts. Change the current session anytime from the header or system menu. New installs start Online.</p>
+        </>
+      ) : null}
       {view.windows ? (
         <>
           <label className="field-block">
@@ -90,74 +113,13 @@ export function LauncherSettingsPanel({
           </p>
         </>
       ) : null}
-      {view.presence_supported ? (
-        <>
-          <h3>LAAP Presence</h3>
-          <p>
-            Choose Online or Appear offline before login, then change it from
-            the header while logged in. Lobby chat remains available.
-          </p>
-          <p>
-            Prepare the local chat certificate once. Setup needs internet
-            access; the certificate is cached on this device.
-          </p>
-          <button
-            type="button"
-            className="btn-modal-secondary"
-            disabled={disabled || busy}
-            onClick={() =>
-              void invoke('Preparing presence controls…', launcher.prepare)
-            }
-          >
-            {action?.startsWith('Preparing') ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Download size={14} />
-            )}{' '}
-            {view.presence_ready
-              ? 'Refresh presence setup'
-              : 'Prepare presence controls'}
-          </button>
-          <button
-            type="button"
-            className="btn-modal-secondary"
-            onClick={() =>
-              void openExternalUrl(
-                'https://github.com/Kingof3O/laap/blob/main/docs/riot-installation-and-presence.md',
-              )
-            }
-          >
-            Presence setup guide
-          </button>
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={enabled}
-              onChange={(event) => {
-                setEnabled(event.target.checked)
-                setDirty(true)
-                setSaved(false)
-              }}
-              disabled={disabled || busy || !view.presence_ready}
-            />{' '}
-            Enable LAAP Presence for future logins
-          </label>
-          <p>
-            A client opened normally needs one restart to enable the presence
-            filter. Later status changes do not restart your game. Keep LAAP
-            open or minimized while using presence controls.
-          </p>
-        </>
-      ) : (
-        <p>LAAP Presence is available on Windows.</p>
-      )}
       <button
         type="button"
         className="btn-modal-primary"
         disabled={disabled || busy || !dirty}
         onClick={() =>
           void invoke('Saving launcher settings…', async () => {
-            await launcher.save(path, enabled)
+            await launcher.save(path, enabled, startupPresence)
             setDirty(false)
             setSaved(true)
           })

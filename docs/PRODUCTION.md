@@ -79,3 +79,7 @@ For local host/universal packaging commands and output paths, see [DEVELOPMENT.m
 Current releases are unsigned while SignPath Foundation enrollment is being prepared. See [Code signing policy](../CODE_SIGNING.md), [Privacy policy](../PRIVACY.md), and [SignPath setup](signpath/README.md). The signing workflow produces unsigned preflight samples without sending a SignPath request; trusted signing requires an accepted account and manual approvals.
 
 Release publication requires a version tag matching the desktop configuration. Select the version tag when manually dispatching the release workflow. Existing published releases are rejected before uploads. With `SIGNPATH_ENABLED=true`, Windows publication requires verified SignPath outputs and rejects unexpected unsigned Windows installers already present in the draft. No Store distribution is used.
+
+Microsoft Security Intelligence malware submissions do not guarantee clearance of SmartScreen's unknown-publisher/reputation warning. See [Microsoft documentation](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation).
+
+Regenerate installer artwork with `scripts/render-installer-assets.sh`. The installer verification workflow captures Welcome and Already Installed pages from generated NSIS installers.

@@ -10,6 +10,11 @@ pub enum PresenceMode {
     Online,
     Offline,
 }
+impl LauncherSettings {
+    pub fn select_startup_mode(&mut self) {
+        self.presence_mode = self.startup_presence;
+    }
+}
 impl PresenceMode {
     pub fn command(self) -> &'static str {
         match self {
@@ -24,6 +29,7 @@ pub struct LauncherSettings {
     pub riot_client_path: Option<String>,
     pub presence_enabled: bool,
     pub presence_mode: PresenceMode,
+    pub startup_presence: PresenceMode,
 }
 static SETTINGS_LOCK: Mutex<()> = Mutex::new(());
 pub fn load() -> Result<LauncherSettings, String> {
@@ -124,6 +130,28 @@ mod tests {
         assert!(settings.presence_enabled);
         assert_eq!(settings.presence_mode, PresenceMode::Offline);
         std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn old_session_mode_does_not_become_the_startup_default() {
+        let settings: LauncherSettings =
+            serde_json::from_str(r#"{"presence_mode":"offline"}"#).unwrap();
+        let saved = serde_json::to_value(settings.clone()).unwrap();
+        assert_eq!(saved["startup_presence"], "online");
+        let mut current = settings;
+        current.select_startup_mode();
+        assert_eq!(current.presence_mode, PresenceMode::Online);
+    }
+    #[test]
+    fn offline_startup_choice_survives_settings_round_trip() {
+        let settings: LauncherSettings =
+            serde_json::from_str(r#"{"startup_presence":"offline","presence_mode":"online"}"#)
+                .unwrap();
+        let saved = serde_json::to_value(settings.clone()).unwrap();
+        assert_eq!(saved["startup_presence"], "offline");
+        assert_eq!(saved["presence_mode"], "online");
+        let mut current = settings;
+        current.select_startup_mode();
+        assert_eq!(current.presence_mode, PresenceMode::Offline);
     }
     #[test]
     fn old_settings_default_to_normal_online_launches() {

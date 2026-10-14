@@ -8,6 +8,7 @@ export interface LauncherView {
     riot_client_path: string | null
     presence_enabled: boolean
     presence_mode: PresenceMode
+    startup_presence: PresenceMode
   }
   detected_client: { path: string; source: string } | null
   detection_error: string | null
@@ -19,6 +20,9 @@ export interface PresenceStatus {
   desired_mode: PresenceMode
   applied_mode: PresenceMode | null
   state:
+    | 'preparing'
+    | 'setup_failed'
+    | 'normal_online'
     | 'disabled'
     | 'next_launch'
     | 'restart_required'
@@ -61,12 +65,52 @@ export function useLauncher() {
   useEffect(() => {
     mounted.current = true
     void refresh()
-    const lateBridge = window.setTimeout(() => void refresh(), 1200)
+    let attempt = 0
+    let retryTimer: number | undefined
+    let initializing = false
+    const initialize = async (first = true) => {
+      if (!isTauriAvailable() || initializing || pending.current) return
+      initializing = true
+      pending.current = true
+      setBusy(true)
+      if (first)
+        setPresence({
+          enabled: true,
+          desired_mode: 'online',
+          applied_mode: null,
+          state: 'preparing',
+          message: 'Preparing LAAP Presence…',
+        })
+      try {
+        const state = await invokeTauri<PresenceStatus | null>(
+          first ? 'initialize_presence' : 'retry_presence',
+        )
+        if (!mounted.current || !state) return
+        setPresence(state)
+        await refresh()
+        if (state.state === 'setup_failed' && attempt < 3)
+          retryTimer = window.setTimeout(
+            () => void initialize(false),
+            [2000, 5000, 15000][attempt++],
+          )
+      } catch (cause) {
+        if (mounted.current) setError(String(cause))
+      } finally {
+        initializing = false
+        pending.current = false
+        if (mounted.current) setBusy(false)
+      }
+    }
+    void initialize()
+    const lateBridge = window.setTimeout(() => {
+      if (isTauriAvailable() && !enabled.current) void initialize()
+    }, 1200)
     const reload = () => void refresh()
     window.addEventListener('laap:refresh', reload)
     return () => {
       mounted.current = false
       window.clearTimeout(lateBridge)
+      if (retryTimer) window.clearTimeout(retryTimer)
       window.removeEventListener('laap:refresh', reload)
     }
   }, [refresh])
@@ -124,10 +168,11 @@ export function useLauncher() {
       if (mounted.current) setBusy(false)
     }
   }
-  const save = async (path: string, presenceEnabled: boolean) => {
+  const save = async (path: string, presenceEnabled: boolean, startupPresence: PresenceMode) => {
     const next = await command<LauncherView>('save_launcher_settings', {
       riotClientPath: path.trim() || null,
       presenceEnabled,
+      startupPresence,
     })
     if (mounted.current) setView(next)
     enabled.current = next.settings.presence_enabled
@@ -143,6 +188,10 @@ export function useLauncher() {
   }
   const retry = async () => {
     const next = await command<PresenceStatus>('retry_presence')
+    if (mounted.current) setPresence(next)
+  }
+  const allowOnline = async () => {
+    const next = await command<PresenceStatus>('allow_normal_online_launch')
     if (mounted.current) setPresence(next)
   }
   const restart = async () => {
@@ -172,6 +221,7 @@ export function useLauncher() {
     changeMode,
     retry,
     restart,
+    allowOnline,
   }
 }
 export type LauncherController = ReturnType<typeof useLauncher>

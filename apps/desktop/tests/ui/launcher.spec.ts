@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 async function launcherFixture(
   page: Page,
-  options: { enabled?: boolean; client?: boolean; game?: boolean } = {},
+  options: { enabled?: boolean; client?: boolean; game?: boolean; setupFailed?: boolean } = {},
 ) {
   await page.addInitScript((options) => {
     const state = {
@@ -11,6 +11,7 @@ async function launcherFixture(
           riot_client_path: null as string | null,
           presence_enabled: options.enabled ?? false,
           presence_mode: 'online',
+          startup_presence: 'online',
         },
         detected_client: {
           path: 'E:\\Games & Apps\\Riot Client\\RiotClientServices.exe',
@@ -24,6 +25,8 @@ async function launcherFixture(
       game: options.game ?? false,
       helper: false,
       applied: null as string | null,
+      setupFailed: options.setupFailed ?? false,
+      bypass: false,
       delayPresence: false,
       calls: [] as { command: string; args: any }[],
       finishPresence: null as null | (() => void),
@@ -33,14 +36,14 @@ async function launcherFixture(
       enabled: state.view.settings.presence_enabled,
       desired_mode: state.view.settings.presence_mode,
       applied_mode: state.applied,
-      state: !state.client
+      state: state.setupFailed ? (state.bypass ? 'normal_online' : 'setup_failed') : !state.client
         ? 'next_launch'
         : !state.helper
           ? 'restart_required'
           : state.applied === state.view.settings.presence_mode
             ? 'active'
             : 'waiting',
-      message: !state.client
+      message: state.setupFailed ? (state.bypass ? 'Normal Online launch allowed. Presence controls unavailable.' : 'Presence setup failed: certificate provider unreachable.') : !state.client
         ? `Appear ${state.view.settings.presence_mode} on next login.`
         : !state.helper
           ? 'Restart Riot with presence controls to change online/offline status for this session.'
@@ -88,6 +91,10 @@ async function launcherFixture(
             },
           ]
         if (command === 'get_launcher_settings') return state.view
+        if (command === 'initialize_presence') {
+          state.view.settings.presence_enabled = true
+          return status()
+        }
         if (command === 'save_launcher_settings') {
           if (args.riotClientPath === 'missing.exe')
             throw new Error(
@@ -95,6 +102,8 @@ async function launcherFixture(
             )
           state.view.settings.riot_client_path = args.riotClientPath
           state.view.settings.presence_enabled = args.presenceEnabled
+          state.view.settings.startup_presence = args.startupPresence ?? state.view.settings.startup_presence
+          state.view.settings.startup_presence = args.startupPresence ?? state.view.settings.startup_presence
           if (args.riotClientPath)
             state.view.detected_client = {
               path: args.riotClientPath,
@@ -105,6 +114,10 @@ async function launcherFixture(
         if (command === 'prepare_presence_support') {
           state.view.presence_ready = true
           return state.view
+        }
+        if (command === 'allow_normal_online_launch') {
+          state.bypass = true
+          return status()
         }
         if (command === 'get_presence_status') return status()
         if (command === 'set_presence_mode') {
@@ -135,7 +148,7 @@ async function launcherFixture(
   }, options)
 }
 
-test('custom-drive discovery, saved overrides and explicit presence setup are visible in Settings', async ({
+test('custom-drive settings remain editable while presence setup is automatic', async ({
   page,
 }) => {
   await launcherFixture(page)
@@ -161,20 +174,7 @@ test('custom-drive discovery, saved overrides and explicit presence setup are vi
   await expect(dialog).not.toContainText(/deceive/i)
   await expect(
     dialog.getByLabel('Enable LAAP Presence for future logins'),
-  ).toBeDisabled()
-  await dialog
-    .getByRole('button', { name: 'Prepare presence controls', exact: true })
-    .click()
-  await expect(
-    dialog.getByLabel('Enable LAAP Presence for future logins'),
-  ).toBeEnabled()
-  await expect(
-    dialog.getByLabel('Enable LAAP Presence for future logins'),
-  ).not.toBeChecked()
-  await dialog.getByLabel('Enable LAAP Presence for future logins').check()
-  await dialog
-    .getByRole('button', { name: 'Save launcher settings', exact: true })
-    .click()
+  ).toHaveCount(0)
   await expect(
     page.getByLabel('Online presence', { exact: true }),
   ).toBeVisible()
@@ -274,4 +274,55 @@ test('a normally opened client requires an explicit guarded restart to enable pr
   )
   expect(restarts).toHaveLength(1)
   expect(restarts[0].args.confirmed).toBe(true)
+})
+
+test('presence is always in the header and setup controls are absent from Settings', async ({
+  page,
+}) => {
+  await launcherFixture(page, { enabled: true })
+  await page.goto('/')
+  await expect(page.getByLabel('Online presence', { exact: true })).toHaveValue(
+    'online',
+  )
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await expect(page.getByRole('dialog')).not.toContainText(
+    'Enable LAAP Presence for future logins',
+  )
+  await expect(
+    page.getByRole('button', {
+      name: 'Prepare presence controls',
+      exact: true,
+    }),
+  ).toHaveCount(0)
+})
+
+test('failed setup is visible and Online bypass requires a separate explicit choice', async ({ page }) => {
+  await launcherFixture(page, { setupFailed: true })
+  await page.goto('/')
+  const banner = page.locator('.presence-status')
+  await expect(banner).toContainText('certificate provider unreachable')
+  await expect(page.getByRole('button', { name: 'Retry presence', exact: true })).toBeVisible()
+  expect(await page.evaluate(() => (window as any).launcherFixture.bypass)).toBe(false)
+  await page.getByLabel('Online presence', { exact: true }).selectOption('offline')
+  await expect(page.getByRole('button', { name: 'Allow normal Online launch', exact: true })).toHaveCount(0)
+  await page.getByLabel('Online presence', { exact: true }).selectOption('online')
+  await page.getByRole('button', { name: 'Allow normal Online launch', exact: true }).click()
+  await expect(banner).toContainText('Normal Online launch allowed')
+  expect(await page.evaluate(() => (window as any).launcherFixture.bypass)).toBe(true)
+})
+
+test('startup default is saved separately without changing live presence', async ({ page }) => {
+  await launcherFixture(page)
+  await page.goto('/')
+  await expect(page.getByLabel('Online presence', { exact: true })).toHaveValue('online')
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Settings', exact: true })
+  await dialog.getByLabel('Default presence on startup', { exact: true }).selectOption('offline')
+  await dialog.getByRole('button', { name: 'Save launcher settings', exact: true }).click()
+  await expect(dialog).toContainText('Launcher settings saved')
+  expect(await page.evaluate(() => (window as any).launcherFixture.view.settings.startup_presence)).toBe('offline')
+  await expect(page.getByLabel('Online presence', { exact: true })).toHaveValue('online')
+  await dialog.getByRole('button', { name: 'Close modal', exact: true }).click()
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await expect(page.getByRole('dialog').getByLabel('Default presence on startup', { exact: true })).toHaveValue('offline')
 })

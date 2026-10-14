@@ -112,6 +112,15 @@ pub fn cleanup_account_session_sync(
     manager.cleanup_session_confirmed(confirmed.unwrap_or(false))
 }
 
+/// Stops Riot, restores LAAP-managed files, and retires the presence proxy under one process lock.
+pub fn shutdown_riot_sync(confirmed: bool) -> Result<(), String> {
+    let _operation = crate::riot::operation::acquire()?;
+    restore_provisioning(None, confirmed)?;
+    RiotSessionManager::new().cleanup_session_confirmed(confirmed)?;
+    crate::presence::stop_proxy()?;
+    Ok(())
+}
+
 /// Restores settings left behind by a crashed LAAP process when Riot is not
 /// running. It never overwrites a live Riot/League process.
 #[tauri::command]
@@ -152,11 +161,11 @@ pub async fn restart_riot_presence(confirmed: Option<bool>) -> Result<(), String
     tauri::async_runtime::spawn_blocking(move || {
         let _operation = crate::riot::operation::acquire()?;
         idle()?;
-        if !cfg!(target_os = "windows") {
-            return Err("LAAP Presence is available on Windows.".into());
+        if !cfg!(any(target_os = "windows", target_os = "macos")) {
+            return Err("LAAP Presence is available on Windows and macOS.".into());
         }
         if !crate::launcher_settings::load()?.presence_enabled {
-            return Err("Enable presence controls in Settings first.".into());
+            return Err("Presence is still starting. Please retry in a moment.".into());
         }
         let plan = crate::presence::LaunchPlan::prepare()?;
         crate::riot::process::stop_riot(confirmed.unwrap_or(false))?;

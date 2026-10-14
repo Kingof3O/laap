@@ -1,3 +1,4 @@
+import { useTrayActions } from './hooks/useTrayActions'
 import { useLauncher } from './hooks/useLauncher'
 import { PresenceBanner, PresenceSelect } from './shared/ui/PresenceControls'
 import { useEffect, useRef, useState } from 'react'
@@ -5,6 +6,7 @@ import { Header, SubNavbar, SettingsModal } from './shared/ui'
 import { UpdateModal } from './shared/ui/UpdateModal'
 import { ToastProvider, useToast } from './context/ToastContext'
 import { PersonalRosterView } from './features/personal-roster'
+import { releasePersistedCloudLease, ACTIVE_LEASE_KEY } from './features/team-vault/leaseExit'
 import { TeamVaultView } from './features/team-vault'
 import { useAuth } from './features/auth'
 import { useUpdateChecker } from './hooks/useUpdateChecker'
@@ -49,6 +51,63 @@ function AppContent() {
     loading: loginBusy,
   } = useAuth()
   const { showSuccess, showError } = useToast()
+
+  // The Team Vault view can unmount while its cloud lease remains active.
+  // Keep the release handler at application scope so tray Quit can always find it.
+  useEffect(() => {
+    const beforeQuit = (event: Event) => {
+      ;(event as CustomEvent<Promise<unknown>[]>).detail.push(
+        releasePersistedCloudLease(localStorage, (sessionId) =>
+          apiRequest(`/api/leases/${encodeURIComponent(sessionId)}/release`, {
+            method: 'POST',
+            body: JSON.stringify({ reason: 'logout' }),
+          }),
+        ),
+      )
+    }
+    window.addEventListener('laap:before-quit', beforeQuit)
+    return () => window.removeEventListener('laap:before-quit', beforeQuit)
+  }, [])
+  const [trayRequest, setTrayRequest] = useState<{
+    id: string
+    sequence: number
+  } | null>(null)
+  useTrayActions(
+    launcher,
+    async (id) => {
+      const stored = (() => {
+        try {
+          return JSON.parse(localStorage.getItem(ACTIVE_LEASE_KEY) ?? 'null') as
+            | { sessionId?: unknown }
+            | null
+        } catch {
+          localStorage.removeItem(ACTIVE_LEASE_KEY)
+          return null
+        }
+      })()
+      if (typeof stored?.sessionId === 'string' && stored.sessionId) {
+        await operations.run(async (confirmed) => {
+          await releasePersistedCloudLease(
+            localStorage,
+            (sessionId) =>
+              apiRequest(`/api/leases/${encodeURIComponent(sessionId)}/release`, {
+                method: 'POST',
+                body: JSON.stringify({ reason: 'logout' }),
+              }),
+            (sessionId) =>
+              invokeTauri('cleanup_account_session', {
+                confirmed,
+                expectedOwner: `cloud:${sessionId}`,
+              }),
+          )
+        })
+      }
+      setAppMode('local')
+      setTrayRequest({ id, sequence: Date.now() })
+    },
+    showError,
+  )
+
   const {
     currentVersion,
     checking: checkingUpdates,
@@ -194,6 +253,8 @@ function AppContent() {
       <main className="main-viewport">
         {appMode === 'local' ? (
           <PersonalRosterView
+            trayRequest={trayRequest}
+            onTrayRequestHandled={() => setTrayRequest(null)}
             searchQuery={searchQuery}
             selectedRegion={selectedRegion}
             selectedRank={selectedRank}

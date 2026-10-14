@@ -223,6 +223,7 @@ export function useCloudAccounts(user: User | null) {
       { launchKey: `cloud:${accId}` },
     )
 
+
   // Restore a lease after a normal app restart
   useEffect(() => {
     if (!user || sessionId) return
@@ -382,7 +383,15 @@ export function useCloudAccounts(user: User | null) {
   }, [])
   useEffect(() => {
     cloudMounted.current = true
+    const provisioningCancelled = (event: Event) => {
+      if ((event as CustomEvent<boolean>).detail !== false) return
+      sandboxGeneration.current++
+      sandboxTicket.current = null
+      setProvisioning(false)
+    }
+    window.addEventListener('laap:provisioning', provisioningCancelled)
     return () => {
+      window.removeEventListener('laap:provisioning', provisioningCancelled)
       cloudMounted.current = false
       void cancelSandbox().catch((cause) =>
         console.error('Unable to cancel shared sign-in:', String(cause)),
@@ -415,7 +424,7 @@ export function useCloudAccounts(user: User | null) {
       : null
   }
   useNativeClose(
-    provisioning,
+    provisioning || !!sessionId,
     async () => {
       await cancelSandbox()
       await releaseLease('logout')

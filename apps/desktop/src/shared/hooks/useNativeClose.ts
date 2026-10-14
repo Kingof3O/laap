@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { invokeTauri } from '../../lib/api'
 export function useNativeClose(
   active: boolean,
   finish: () => Promise<void>,
@@ -14,6 +15,8 @@ export function useNativeClose(
     void import('@tauri-apps/api/window')
       .then(async ({ getCurrentWindow }) => {
         if (disposed) return
+        if (await invokeTauri<boolean>('tray_available').catch(() => false))
+          return
         const window = getCurrentWindow()
         const stop = await window.onCloseRequested(async (event) => {
           event.preventDefault()

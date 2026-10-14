@@ -95,7 +95,7 @@ jobs:
             [Code signing policy](https://github.com/Kingof3O/laap/blob/main/CODE_SIGNING.md) · [Privacy policy](https://github.com/Kingof3O/laap/blob/main/PRIVACY.md)
 
             - **LAAP Desktop**: Full Team Edition (Shared Accounts + Personal Roster).
-            - **LAAP Offline**: Community Standalone Edition (local Personal Roster; optional icon downloads, opt-in League Client sync, and Windows LAAP Presence).
+            - **LAAP Offline**: Community Standalone Edition (local Personal Roster; optional icon downloads, opt-in League Client sync, and Windows/macOS LAAP Presence).
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

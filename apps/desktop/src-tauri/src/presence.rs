@@ -48,6 +48,97 @@ pub fn explain_close() {
         proxy.set_notice("Keep LAAP open while presence controls are running. You can minimize it. Use Stop Riot before quitting.");
     }
 }
+#[derive(Clone, Default)]
+struct SetupState {
+    preparing: bool,
+    ready: bool,
+    error: Option<String>,
+}
+static SETUP: Mutex<SetupState> = Mutex::new(SetupState {
+    preparing: false,
+    ready: false,
+    error: None,
+});
+static PREPARE: Mutex<()> = Mutex::new(());
+static SESSION_STARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static ONLINE_BYPASS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+fn supported() -> bool {
+    cfg!(any(target_os = "windows", target_os = "macos"))
+}
+fn ensure_ready() -> Result<(), String> {
+    let _guard = PREPARE.lock().unwrap_or_else(|e| e.into_inner());
+    if SETUP.lock().unwrap_or_else(|e| e.into_inner()).ready {
+        return Ok(());
+    }
+    *SETUP.lock().unwrap_or_else(|e| e.into_inner()) = SetupState {
+        preparing: true,
+        ready: false,
+        error: None,
+    };
+    let result = (|| {
+        if certificate_bytes()
+            .ok()
+            .and_then(|bytes| presence_proxy::validate_identity(&bytes).ok())
+            .is_none()
+        {
+            let bytes = download_certificate()?;
+            presence_proxy::validate_identity(&bytes)?;
+            launcher_settings::atomic_write(&certificate_path(), &bytes)?;
+        }
+        presence_proxy::check_local_dns()?;
+        Ok::<(), String>(())
+    })();
+    *SETUP.lock().unwrap_or_else(|e| e.into_inner()) = SetupState {
+        preparing: false,
+        ready: result.is_ok(),
+        error: result.as_ref().err().cloned(),
+    };
+    result
+}
+#[tauri::command]
+pub async fn initialize_presence() -> Result<PresenceStatus, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        if !supported() {
+            return status();
+        }
+        if !SESSION_STARTED.swap(true, std::sync::atomic::Ordering::SeqCst) {
+            if let Err(error) = launcher_settings::update(|settings| {
+                settings.presence_enabled = true;
+                settings.select_startup_mode();
+                Ok(())
+            }) {
+                SESSION_STARTED.store(false, std::sync::atomic::Ordering::SeqCst);
+                return Err(error);
+            }
+        }
+        let _ = ensure_ready();
+        status()
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+pub async fn allow_normal_online_launch() -> Result<PresenceStatus, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        if launcher_settings::load()?.presence_mode != PresenceMode::Online {
+            return Err("Choose Online before allowing an unfiltered launch.".into());
+        }
+        if SETUP
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .error
+            .is_none()
+        {
+            return Err(
+                "Normal launch fallback is available only when presence setup fails.".into(),
+            );
+        }
+        ONLINE_BYPASS.store(true, std::sync::atomic::Ordering::SeqCst);
+        status()
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
 #[derive(Serialize)]
 pub struct SettingsView {
     pub settings: LauncherSettings,
@@ -59,9 +150,7 @@ pub struct SettingsView {
 }
 fn settings_view() -> Result<SettingsView, String> {
     let mut settings = launcher_settings::load()?;
-    if !cfg!(target_os = "windows") {
-        settings.presence_enabled = false;
-    }
+    settings.presence_enabled = supported();
     let location = crate::riot::install::discover();
     let unverified_app = location
         .as_ref()
@@ -79,11 +168,11 @@ fn settings_view() -> Result<SettingsView, String> {
         } else {
             location.err()
         },
-        presence_ready: cfg!(target_os = "windows")
+        presence_ready: supported()
             && certificate_bytes()
                 .ok()
-                .is_some_and(|bytes| native_tls::Identity::from_pkcs12(&bytes, "").is_ok()),
-        presence_supported: cfg!(target_os = "windows"),
+                .is_some_and(|bytes| crate::presence_identity::load(&bytes).is_ok()),
+        presence_supported: supported(),
     })
 }
 #[tauri::command]
@@ -96,20 +185,26 @@ pub async fn get_launcher_settings() -> Result<SettingsView, String> {
 pub async fn save_launcher_settings(
     riot_client_path: Option<String>,
     presence_enabled: bool,
+    startup_presence: Option<PresenceMode>,
 ) -> Result<SettingsView, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let _operation = crate::riot::operation::acquire()?;
-        let validated = crate::riot::install::validate_override(riot_client_path.as_deref().unwrap_or_default())?;
-        if presence_enabled {
-            if !cfg!(target_os = "windows") { return Err("LAAP Presence is available on Windows.".into()); }
-            presence_proxy::validate_identity(&certificate_bytes()?)?;
-            presence_proxy::check_local_dns()?;
-        } else if keep_open() {
-            return Err("Use Online to show normal presence now. Use Stop Riot before disabling presence controls for future logins.".into());
-        }
-        launcher_settings::update(|s| { s.riot_client_path = validated; s.presence_enabled = presence_enabled; Ok(()) })?;
+        let validated = crate::riot::install::validate_override(
+            riot_client_path.as_deref().unwrap_or_default(),
+        )?;
+        let _ = presence_enabled; // legacy IPC field; presence is prepared automatically.
+        launcher_settings::update(|s| {
+            s.riot_client_path = validated;
+            s.presence_enabled = supported();
+            if let Some(mode) = startup_presence {
+                s.startup_presence = mode;
+            }
+            Ok(())
+        })?;
         settings_view()
-    }).await.map_err(|e| e.to_string())?
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 fn download_certificate() -> Result<Vec<u8>, String> {
     use std::io::Read;
@@ -198,13 +293,8 @@ fn download_certificate() -> Result<Vec<u8>, String> {
 #[tauri::command]
 pub async fn prepare_presence_support() -> Result<SettingsView, String> {
     tauri::async_runtime::spawn_blocking(|| {
-        let _operation = crate::riot::operation::acquire()?;
-        if !cfg!(target_os = "windows") {
-            return Err("LAAP Presence is available on Windows.".into());
-        }
-        let bytes = download_certificate()?;
-        presence_proxy::validate_identity(&bytes)?;
-        launcher_settings::atomic_write(&certificate_path(), &bytes)?;
+        SETUP.lock().unwrap_or_else(|e| e.into_inner()).ready = false;
+        ensure_ready()?;
         settings_view()
     })
     .await
@@ -228,11 +318,32 @@ pub fn status() -> Result<PresenceStatus, String> {
         state: "disabled",
         message: "LAAP Presence is disabled.".into(),
     };
-    if !cfg!(target_os = "windows") {
+    if !supported() {
         result.enabled = false;
         return Ok(result);
     }
     if !settings.presence_enabled {
+        return Ok(result);
+    }
+    let setup = SETUP.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    if setup.preparing {
+        result.state = "preparing";
+        result.message = "Preparing LAAP Presence…".into();
+        return Ok(result);
+    }
+    if let Some(error) = setup.error {
+        result.state = if ONLINE_BYPASS.load(std::sync::atomic::Ordering::SeqCst)
+            && settings.presence_mode == PresenceMode::Online
+        {
+            "normal_online"
+        } else {
+            "setup_failed"
+        };
+        result.message = if result.state == "normal_online" {
+            "Normal Online launch allowed for this app session. Presence filtering is unavailable; retry setup to enable it.".into()
+        } else {
+            format!("Presence setup failed: {error}")
+        };
         return Ok(result);
     }
     let running = crate::riot::process::is_riot_running();
@@ -293,8 +404,8 @@ pub async fn get_presence_status() -> Result<PresenceStatus, String> {
         .map_err(|e| e.to_string())?
 }
 fn apply_mode(mode: Option<PresenceMode>) -> Result<PresenceStatus, String> {
-    if !cfg!(target_os = "windows") {
-        return Err("LAAP Presence is available on Windows.".into());
+    if !supported() {
+        return Err("Presence is unsupported on this platform.".into());
     }
     let settings = if let Some(mode) = mode {
         launcher_settings::update(|s| {
@@ -304,6 +415,13 @@ fn apply_mode(mode: Option<PresenceMode>) -> Result<PresenceStatus, String> {
     } else {
         launcher_settings::load()?
     };
+    if mode.is_none() {
+        SETUP.lock().unwrap_or_else(|e| e.into_inner()).ready = false;
+        let _ = ensure_ready();
+    }
+    if settings.presence_mode == PresenceMode::Offline {
+        ONLINE_BYPASS.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
     if settings.presence_enabled {
         if let Some(proxy) = current_proxy() {
             proxy.change_mode(settings.presence_mode);
@@ -334,16 +452,24 @@ pub async fn retry_presence() -> Result<PresenceStatus, String> {
 }
 pub struct LaunchPlan {
     client: crate::riot::install::ClientLocation,
-    identity: Option<native_tls::Identity>,
+    identity: Option<crate::presence_identity::ChatIdentity>,
 }
 impl LaunchPlan {
     pub fn prepare() -> Result<Self, String> {
         let client = crate::riot::install::discover()?;
         let settings = launcher_settings::load()?;
-        let identity = if cfg!(target_os = "windows") && settings.presence_enabled {
-            let identity = presence_proxy::validate_identity(&certificate_bytes()?)?;
-            presence_proxy::check_local_dns()?;
-            Some(identity)
+        let identity = if supported() {
+            if let Err(error) = ensure_ready() {
+                if settings.presence_mode == PresenceMode::Online
+                    && ONLINE_BYPASS.load(std::sync::atomic::Ordering::SeqCst)
+                {
+                    None
+                } else {
+                    return Err(format!("Presence setup failed: {error}. Retry setup or explicitly allow normal Online launch from the banner."));
+                }
+            } else {
+                Some(presence_proxy::validate_identity(&certificate_bytes()?)?)
+            }
         } else {
             None
         };
@@ -410,7 +536,7 @@ fn spawn_client(path: &str, args: &[String]) -> Result<(), String> {
     }
 }
 
-#[cfg(all(test, target_os = "windows"))]
+#[cfg(test)]
 mod contract_tests {
     use super::*;
     #[test]
