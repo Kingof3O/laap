@@ -16,8 +16,12 @@ pub use riot as session;
 pub use riot::{RiotProvisioner, RiotSessionManager};
 
 pub fn run() {
-    use tauri::Manager;
+    use tauri::{Emitter, Manager};
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tray::show(app);
+            let _ = app.emit("laap:tray-intent", tray::TrayIntent::Open);
+        }))
         .setup(|app| {
             if let Err(error) = tray::setup(app.handle()) {
                 eprintln!("LAAP tray unavailable: {error}");

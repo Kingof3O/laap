@@ -43,6 +43,7 @@ sysinfo = "0.39"
 tauri = { version = "2", features = ["tray-icon"] }
 thiserror = "2"
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
+tauri-plugin-single-instance = "2"
 
 [features]
 default = ["custom-protocol"]
