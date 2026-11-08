@@ -2,7 +2,7 @@
   "name": "@laap/desktop",
   "private": true,
   "type": "module",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
