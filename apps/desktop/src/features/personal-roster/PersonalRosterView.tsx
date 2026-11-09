@@ -286,6 +286,25 @@ export function PersonalRosterView({
       setBusy(false)
     }
   }
+  const handleToggleFavorite = async (id: string) => {
+    const account = localAccounts.find((a) => a.id === id)
+    if (!account) return
+    setBusy(true)
+    try {
+      await editAccount(id, {
+        name: account.name,
+        region: account.region,
+        rank: account.rank ?? null,
+        notes: account.notes ?? '',
+        favorite: !account.favorite,
+        customization: account.customization,
+      })
+    } catch (cause) {
+      showError(String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
   const blocked = busy || capturing || operations.busy || provisioning
   return (
     <div>
@@ -393,6 +412,7 @@ export function PersonalRosterView({
           }}
           onPushToCloud={isAdmin && onPushToCloud ? push : undefined}
           onDelete={(id, name) => setDeleteTarget({ id, name })}
+          onToggleFavorite={handleToggleFavorite}
         />
       )}
       {modalOpen ? (

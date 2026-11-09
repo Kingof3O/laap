@@ -16,6 +16,8 @@
     "dev:admin": "npm --workspace @laap/admin run dev",
     "desktop:check": "npm --workspace @laap/desktop run check",
     "desktop:test": "npm --workspace @laap/desktop run test",
+    "desktop:dev": "npm --workspace @laap/desktop run dev",
+    "desktop:dev:offline": "npm --workspace @laap/desktop run dev:offline",
     "build": "npm --workspace @laap/api run build && npm --workspace @laap/admin run build && npm --workspace @laap/desktop run build",
     "desktop:build": "npm --workspace @laap/desktop run build",
     "preview": "npm --workspace @laap/admin run preview",

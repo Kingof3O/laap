@@ -24,6 +24,19 @@ export async function invokeTauri<T>(
   return tauri.invoke<T>(command, args)
 }
 
+export async function listenTauriEvent<T>(
+  event: string,
+  callback: (payload: T) => void,
+): Promise<() => void> {
+  if (!isTauriAvailable()) return () => {}
+  try {
+    const tauriEvent = await import('@tauri-apps/api/event')
+    return await tauriEvent.listen<T>(event, (e) => callback(e.payload))
+  } catch {
+    return () => {}
+  }
+}
+
 export const hasTauri =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
@@ -83,6 +96,23 @@ let activeToken: string | null = null
 
 export function setRuntimeToken(token: string | null) {
   activeToken = token
+}
+
+export async function minimizeWindow(): Promise<void> {
+  if (hasTauri) await invokeTauri('window_minimize')
+}
+
+export async function toggleMaximizeWindow(): Promise<void> {
+  if (hasTauri) await invokeTauri('window_toggle_maximize')
+}
+
+export async function isWindowMaximized(): Promise<boolean> {
+  if (hasTauri) return await invokeTauri<boolean>('window_is_maximized')
+  return false
+}
+
+export async function closeWindow(): Promise<void> {
+  if (hasTauri) await invokeTauri('window_close')
 }
 
 export class ApiError extends Error {

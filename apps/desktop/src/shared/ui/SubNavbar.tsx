@@ -1,6 +1,5 @@
 import { RegionSelect } from './RegionSelect'
 import { LayoutGrid, List, Plus, Search, X } from 'lucide-react'
-import { AVAILABLE_REGIONS } from '../../lib/constants'
 import type { SortOrder } from '../../lib/sorting'
 import type { Region, ViewMode } from '../../lib/types'
 
@@ -37,17 +36,19 @@ export function SubNavbar({
   addButtonLabel = 'Add Profile',
   totalCount = 0,
 }: SubNavbarProps) {
+  const isMac = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('mac')
+  const shortcutHint = isMac ? '⌘K' : 'Ctrl+K'
+
   return (
     <div className="sub-navbar">
-      {/* Search & Region Filters */}
+      {/* Search & Filtering Toolbar */}
       <div className="filter-controls">
-        {/* Search Box */}
         <div className="search-box">
-          <Search size={14} className="search-icon" />
+          <Search size={15} className="search-icon" />
           <input
             type="text"
             className="search-input"
-            placeholder="Search profiles or regions…"
+            placeholder="Search accounts or regions…"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
           />
@@ -58,9 +59,11 @@ export function SubNavbar({
               onClick={() => onSearchChange('')}
               aria-label="Clear search"
             >
-              <X size={12} />
+              <X size={13} />
             </button>
-          ) : null}
+          ) : (
+            <span className="search-shortcut">{shortcutHint}</span>
+          )}
         </div>
 
         <div className="toolbar-region-select">
@@ -71,6 +74,7 @@ export function SubNavbar({
             onChange={(region) => onRegionChange(region as Region)}
           />
         </div>
+
         {onRankChange ? (
           <select
             className="rank-filter"
@@ -90,6 +94,7 @@ export function SubNavbar({
             ))}
           </select>
         ) : null}
+
         {onSortChange ? (
           <label className="sort-control">
             <span>Sort by</span>
@@ -99,42 +104,45 @@ export function SubNavbar({
               value={sortOrder}
               onChange={(e) => onSortChange(e.target.value as SortOrder)}
             >
-              <option value="name-asc">Name: A–Z</option>
-              <option value="name-desc">Name: Z–A</option>
-              <option value="rank-desc">Rank: Highest first</option>
-              <option value="rank-asc">Rank: Lowest first</option>
-              <option value="last-played">Last played</option>
-              <option value="added-desc">Date added: Newest first</option>
-              <option value="added-asc">Date added: Oldest first</option>
+              <option value="name-asc">Name (A-Z)</option>
+              <option value="name-desc">Name (Z-A)</option>
+              <option value="last-played-desc">Recently played</option>
+              <option value="last-played-asc">Oldest played</option>
+              <option value="date-added-desc">Recently added</option>
+              <option value="date-added-asc">Oldest added</option>
+              <option value="rank-desc">Rank (High to Low)</option>
+              <option value="rank-asc">Rank (Low to High)</option>
             </select>
           </label>
         ) : null}
       </div>
 
-      {/* View Switcher & Add Action */}
+      {/* View Mode & Add Action */}
       <div className="view-action-controls">
-        {totalCount > 0 ? (
-          <div className="view-mode-toggle" aria-label="Layout view switcher">
-            <button
-              type="button"
-              className={`view-toggle-btn ${viewMode === 'grid' ? 'view-toggle-btn-active' : ''}`}
-              onClick={() => onViewModeChange('grid')}
-              title="Grid View"
-              aria-label="Grid View"
-            >
-              <LayoutGrid size={14} />
-            </button>
-            <button
-              type="button"
-              className={`view-toggle-btn ${viewMode === 'list' ? 'view-toggle-btn-active' : ''}`}
-              onClick={() => onViewModeChange('list')}
-              title="List View"
-              aria-label="List View"
-            >
-              <List size={14} />
-            </button>
-          </div>
-        ) : null}
+        <span className="badge badge-muted" style={{ padding: '5px 10px', fontSize: '12px' }}>
+          {totalCount} {totalCount === 1 ? 'Profile' : 'Profiles'}
+        </span>
+
+        <div className="view-mode-toggle" role="group" aria-label="View mode">
+          <button
+            type="button"
+            className={`view-toggle-btn ${viewMode === 'grid' ? 'view-toggle-btn-active' : ''}`}
+            onClick={() => onViewModeChange('grid')}
+            title="Grid View"
+            aria-label="Grid View"
+          >
+            <LayoutGrid size={15} />
+          </button>
+          <button
+            type="button"
+            className={`view-toggle-btn ${viewMode === 'list' ? 'view-toggle-btn-active' : ''}`}
+            onClick={() => onViewModeChange('list')}
+            title="List View"
+            aria-label="List View"
+          >
+            <List size={15} />
+          </button>
+        </div>
 
         {onAddAccount ? (
           <button
@@ -142,7 +150,7 @@ export function SubNavbar({
             className="btn-add-primary"
             onClick={onAddAccount}
           >
-            <Plus size={14} />
+            <Plus size={15} />
             <span>{addButtonLabel}</span>
           </button>
         ) : null}

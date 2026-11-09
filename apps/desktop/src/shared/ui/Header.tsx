@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Database, Gamepad2, RefreshCw, Settings, Zap } from 'lucide-react'
+import { ArrowUpCircle, Database, Gamepad2, RefreshCw, Settings, Square } from 'lucide-react'
 import type { AppMode, User } from '../../lib/types'
 
 export interface HeaderProps {
@@ -13,6 +13,8 @@ export interface HeaderProps {
   operationBusy?: boolean
   presenceControl?: ReactNode
   onStopRiot?: () => Promise<void>
+  updateAvailable?: boolean
+  onOpenUpdates?: () => void
 }
 
 export function Header({
@@ -26,19 +28,26 @@ export function Header({
   operationBusy = false,
   onStopRiot,
   presenceControl,
+  updateAvailable = false,
+  onOpenUpdates,
 }: HeaderProps) {
   return (
     <header className="header-bar" data-tauri-drag-region>
-      {/* Brand Identity */}
-      <div className="brand-zone">
+      {/* Brand Identity & Edition */}
+      <div className="brand-zone" data-tauri-drag-region>
         <img
           src="/logo.webp"
           alt="LAAP"
-          style={{ height: '26px', width: 'auto', objectFit: 'contain' }}
+          style={{ height: '24px', width: 'auto', objectFit: 'contain' }}
         />
+        <span
+          className={`brand-edition-tag ${isOfflineOnly ? 'brand-edition-offline' : 'brand-edition-team'}`}
+        >
+          {isOfflineOnly ? 'Offline Edition' : 'Team Edition'}
+        </span>
       </div>
 
-      {/* Mode Navigation Switcher */}
+      {/* Mode Navigation Switcher (Team Edition only) */}
       {!isOfflineOnly ? (
         <nav className="mode-nav" aria-label="Launcher Modes">
           <button
@@ -47,7 +56,7 @@ export function Header({
             className={`mode-pill ${appMode === 'local' ? 'mode-pill-active' : ''}`}
             onClick={() => onModeChange('local')}
           >
-            <Gamepad2 size={14} />
+            <Gamepad2 size={15} />
             <span>Personal Roster</span>
           </button>
           <button
@@ -56,33 +65,50 @@ export function Header({
             className={`mode-pill ${appMode === 'cloud' ? 'mode-pill-active' : ''}`}
             onClick={() => onModeChange('cloud')}
           >
-            <Database size={14} />
+            <Database size={15} />
             <span>Shared Accounts</span>
           </button>
         </nav>
       ) : null}
 
-      {/* Header Utilities & Profile */}
+      {/* Header Utilities */}
       <div className="header-utilities">
         {presenceControl}
-        {isOfflineOnly ? (
-          <span className="profile-role-tag">Offline Edition</span>
-        ) : null}
-        {onStopRiot ? (
+
+        {updateAvailable ? (
           <button
-            className="btn-modal-secondary"
-            disabled={!riotRunning || operationBusy}
-            onClick={() => void onStopRiot()}
+            type="button"
+            className="header-update-badge"
+            onClick={onOpenUpdates ?? onOpenSettings}
+            title="A new version of LAAP is available"
+            aria-label="Update available"
           >
-            Stop Riot
+            <ArrowUpCircle size={14} />
+            <span>Update available</span>
           </button>
         ) : null}
+
+        {onStopRiot && riotRunning ? (
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={operationBusy}
+            onClick={() => void onStopRiot()}
+            title="Safely exit active Riot client"
+            style={{ height: '34px', fontSize: '12px' }}
+          >
+            <Square size={12} fill="currentColor" />
+            <span>Stop Riot</span>
+          </button>
+        ) : null}
+
         {!isOfflineOnly && user ? (
           <div
             className="profile-badge"
             onClick={onOpenSettings}
             role="button"
             tabIndex={0}
+            title="Account settings"
           >
             <div className="profile-avatar">
               {user.displayName.slice(0, 2).toUpperCase()}
@@ -98,8 +124,9 @@ export function Header({
           onClick={onRefresh}
           title="Refresh Accounts"
           aria-label="Refresh Accounts"
+          disabled={operationBusy}
         >
-          <RefreshCw size={14} />
+          <RefreshCw size={15} />
         </button>
 
         <button
@@ -109,7 +136,7 @@ export function Header({
           title="Settings"
           aria-label="Settings"
         >
-          <Settings size={14} />
+          <Settings size={15} />
         </button>
       </div>
     </header>

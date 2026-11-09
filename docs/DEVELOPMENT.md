@@ -1,10 +1,10 @@
 # Development and packaging
 
-Checked against v0.4.5 source on 2026-10-14. Commands below run from the repository root.
+Checked against LAAP V2 source. Commands below run from the repository root.
 
 ## Requirements
 
-Use Node.js 22 or newer, npm, and the current stable Rust toolchain. No minimum Rust version is certified across the current dependency lockfile. macOS needs Xcode Command Line Tools; Windows needs Visual Studio C++ build tools and WebView2. GitHub builds Windows x64 and universal macOS installers.
+Use Node.js 22 or newer, npm, and the current stable Rust toolchain. macOS needs Xcode Command Line Tools; Windows needs Visual Studio C++ build tools and WebView2. GitHub builds Windows x64 and universal macOS installers.
 
 ```sh
 npm ci
@@ -50,6 +50,8 @@ npm run typecheck
 npm run build
 npm --workspace @laap/desktop run build:offline
 npm --workspace @laap/desktop run test:sorting
+npm --workspace @laap/desktop run test:lease-exit
+npm --workspace @laap/desktop run test:updater
 npx playwright install chromium
 npm --workspace @laap/desktop run test:ui
 cargo check --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
@@ -69,26 +71,9 @@ Tauri runs the appropriate frontend build automatically.
 npx --workspace @laap/desktop tauri build --bundles app,dmg
 npx --workspace @laap/desktop tauri build --config src-tauri/tauri.offline.conf.json --bundles app,dmg
 
-# Windows, run on Windows
-npx --workspace @laap/desktop tauri build --bundles msi,nsis
-npx --workspace @laap/desktop tauri build --config src-tauri/tauri.offline.conf.json --bundles msi,nsis
+# Windows x64
+npx --workspace @laap/desktop tauri build --bundles nsis,msi
+npx --workspace @laap/desktop tauri build --config src-tauri/tauri.offline.conf.json --bundles nsis,msi
 ```
 
-For universal macOS builds, install both Rust targets and add `--target universal-apple-darwin`:
-
-```sh
-rustup target add aarch64-apple-darwin x86_64-apple-darwin
-npx --workspace @laap/desktop tauri build --target universal-apple-darwin --bundles app,dmg
-```
-
-Default outputs are under `apps/desktop/src-tauri/target/`: `release/bundle/` for host builds or `universal-apple-darwin/release/bundle/` for universal macOS builds. `CARGO_TARGET_DIR` relocates that root. Bundle subdirectories include `macos`, `dmg`, `msi`, and `nsis`.
-
-## Source layout
-
-- `apps/desktop`: React feature slices, shared UI, and Tauri/Rust orchestration.
-- `apps/api`: Node HTTP API, Cloudflare Worker entrypoint, domain services, SQLite and Supabase adapters.
-- `apps/admin`: React admin client; production `/api` proxy in `public/_worker.js`.
-- `packages/types` and `packages/validation`: shared contracts and Zod schemas.
-- `supabase/migrations`: ordered database migrations.
-
-Keep feature-specific logic in its slice and native secrets out of frontend persistence. Never add a production demo roster as an IPC/API fallback.
+Installers are written to `apps/desktop/src-tauri/target/release/bundle/`. Team builds produce `LAAP_*`; Offline builds produce `LAAP-Offline_*`. Both edition configs use the shared Rust source.

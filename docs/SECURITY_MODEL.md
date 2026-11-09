@@ -1,6 +1,6 @@
 # Security and storage model
 
-Checked against v0.4.7 source on 2026-10-14. This describes implementation boundaries, not a security certification.
+Checked against LAAP V2 source. This describes implementation boundaries, not a security certification.
 
 ## Local profiles
 
@@ -12,19 +12,26 @@ Vault operations use process and cross-process locks, unique temporary files, an
 
 Provisioning stages original Riot settings privately and restores them on cancellation. Managed launches save recovery information and an owner marker. Cleanup waits for clients to stop; failed process termination prevents destructive continuation. Stop Riot preserves saved login files rather than signing accounts out.
 
-## Optional assets and local-client sync
+## Optional assets, update checks, and local-client sync
 
 Local uploads are validated, cropped/resized, and converted to PNG without original image metadata. They are never uploaded. Public icon requests use HTTPS with normal certificate verification, validated asset identifiers, and no redirects. Network downloads require explicit user action or saved icon-sync opt-in.
 
 Optional League Client sync reads ephemeral local credentials from its process arguments or nearby lockfile. Requests are read-only GETs to `https://127.0.0.1:<port>`, with proxies and redirects disabled. A self-signed certificate exception is scoped to that loopback client. Credentials are not logged, persisted, or sent to Data Dragon. Saved PUUID and opt-in flags are rechecked before writes; icon and rank sync are independent.
 
-Offline Edition disables cloud authentication/API/update polling and enforces this webview CSP:
+### Update Checking Architecture (V2)
+
+In LAAP V2, update verification is handled via the native command `check_github_update`:
+- **Isolation:** The check executes entirely within the native Rust host process using `reqwest` with system certificates and rustls.
+- **Content Security Policy Compliance:** In Offline Edition, the webview CSP strictly enforces `connect-src 'none'`. Native host execution ensures that the webview sandbox is never compromised and no browser `fetch()` calls occur.
+- **Zero Telemetry:** The request queries solely `https://api.github.com/repos/Kingof3O/laap/releases/latest` with an `Accept: application/vnd.github.v3+json` header. No user credentials, account identifiers, machine fingerprints, or telemetry payloads are transmitted.
+
+Offline Edition webview CSP:
 
 ```text
-default-src 'self'; img-src 'self' data:; connect-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'
+default-src 'self'; img-src 'self' data: asset: http://asset.localhost; connect-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'
 ```
 
-The CSP applies to the webview, not native Rust clients. Offline Edition can still make explicit Data Dragon downloads and opted-in local LCU connections. It must not be advertised as unconditional zero network traffic.
+The CSP applies to the webview, not native Rust clients. Offline Edition can still make explicit Data Dragon downloads, opted-in local LCU connections, and native update checks. It must not be advertised as unconditional zero network traffic.
 
 ## LAAP authentication and leases
 
@@ -40,7 +47,6 @@ LAAP does not inject code or inspect game memory. It inspects processes, can ter
 
 See [native verification](ANTI_BAN_VERIFICATION.md) and [known validation limits](desktop-hardening-verification.md).
 
-
-## Built-in presence transport (v0.4.7)
+## Built-in presence transport
 
 LAAP Presence adds an automatically prepared Windows/macOS loopback configuration/chat proxy. It uses a publicly trusted, locally validated compatibility certificate, normal upstream Riot TLS validation, and in-memory global-presence rewriting. It does not log/persist chat or authentication payloads. Automatic setup may contact the certificate provider and Google DNS-over-HTTPS for a failed DNS route. A routed client needs LAAP running until Stop Riot; closing its window retains the tray/menu-bar process. See [transport details and attribution](riot-installation-and-presence.md).

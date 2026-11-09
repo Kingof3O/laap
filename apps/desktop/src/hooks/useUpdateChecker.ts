@@ -1,9 +1,34 @@
 import { useCallback, useEffect, useState } from 'react'
-import { IS_OFFLINE_ONLY, openExternalUrl } from '../lib/api'
+import {
+  hasTauri,
+  invokeTauri,
+  IS_OFFLINE_ONLY,
+  listenTauriEvent,
+  openExternalUrl,
+} from '../lib/api'
+import { parseSemver, isNewerVersion } from '../lib/version'
 
+export { parseSemver, isNewerVersion }
 export const APP_VERSION = '0.4.8'
 export const GITHUB_REPO = 'Kingof3O/laap'
 const DISMISSED_KEY = 'laap_dismissed_update_version'
+const AUTO_CHECK_KEY = 'laap_auto_check_updates'
+
+export type UpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'downloading'
+  | 'verifying'
+  | 'ready'
+  | 'error'
+  | 'up-to-date'
+
+export interface DownloadProgress {
+  downloaded: number
+  total: number
+  percentage: number
+}
 
 export interface GitHubReleaseInfo {
   tagName: string
@@ -12,124 +37,266 @@ export interface GitHubReleaseInfo {
   body: string
   htmlUrl: string
   publishedAt: string
+  downloadUrl?: string | null
+  signature?: string | null
+  edition?: string
+  platform?: string
 }
 
-/**
- * Parses semver string into [major, minor, patch] numeric tuple.
- */
-function parseSemver(v: string): [number, number, number] {
-  const clean = v.replace(/^v/, '').trim()
-  const parts = clean.split('.').map((p) => parseInt(p, 10) || 0)
-  return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0]
-}
-
-/**
- * Returns true if remoteVersion is strictly newer than currentVersion.
- */
-export function isNewerVersion(
-  remoteVersion: string,
-  currentVersion: string,
-): boolean {
-  const [rMaj, rMin, rPat] = parseSemver(remoteVersion)
-  const [cMaj, cMin, cPat] = parseSemver(currentVersion)
-
-  if (rMaj !== cMaj) return rMaj > cMaj
-  if (rMin !== cMin) return rMin > cMin
-  return rPat > cPat
+interface NativeUpdateResult {
+  has_update: boolean
+  current_version: string
+  latest_version: string
+  release_name: string
+  release_notes: string
+  published_at: string
+  html_url: string
+  download_url?: string | null
+  signature?: string | null
+  edition: string
+  platform: string
 }
 
 export function useUpdateChecker() {
+  const [currentVersion, setCurrentVersion] = useState<string>(APP_VERSION)
+  const [status, setStatus] = useState<UpdateStatus>('idle')
   const [checking, setChecking] = useState(false)
   const [updateAvailable, setUpdateAvailable] = useState(false)
-  const [latestRelease, setLatestRelease] = useState<GitHubReleaseInfo | null>(
-    null,
-  )
+  const [latestRelease, setLatestRelease] = useState<GitHubReleaseInfo | null>(null)
+  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null)
+  const [lastChecked, setLastChecked] = useState<Date | null>(null)
   const [checkError, setCheckError] = useState<string | null>(null)
-
-  const checkForUpdates = useCallback(async (manual = false) => {
-    if (IS_OFFLINE_ONLY) return null
-    setChecking(true)
-    setCheckError(null)
-
-    const controller = new AbortController()
-    const timeout = window.setTimeout(() => controller.abort(), 12000)
+  const [installError, setInstallError] = useState<string | null>(null)
+  const [autoCheckOnLaunch, setAutoCheckOnLaunchState] = useState<boolean>(() => {
     try {
-      const res = await fetch(
-        `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
-        {
-          signal: controller.signal,
-          headers: {
-            Accept: 'application/vnd.github.v3+json',
-          },
-        },
-      )
+      const saved = localStorage.getItem(AUTO_CHECK_KEY)
+      if (saved === null) return !IS_OFFLINE_ONLY
+      return saved === 'true'
+    } catch {
+      return !IS_OFFLINE_ONLY
+    }
+  })
 
-      if (!res.ok) {
-        if (res.status === 404) {
-          // No releases published yet on repo
-          setUpdateAvailable(false)
-          return null
-        }
-        throw new Error(`GitHub API error (${res.status})`)
-      }
+  const setAutoCheckOnLaunch = (val: boolean) => {
+    setAutoCheckOnLaunchState(val)
+    try {
+      localStorage.setItem(AUTO_CHECK_KEY, String(val))
+    } catch {}
+  }
 
-      const data = (await res.json()) as {
-        tag_name?: string
-        name?: string
-        body?: string
-        html_url?: string
-        published_at?: string
-      }
-
-      if (!data.tag_name) {
-        setUpdateAvailable(false)
-        return null
-      }
-
-      const releaseVersion = data.tag_name.replace(/^v/, '')
-      const releaseInfo: GitHubReleaseInfo = {
-        tagName: data.tag_name,
-        version: releaseVersion,
-        name: data.name || `Release ${data.tag_name}`,
-        body: data.body || 'New enhancements and updates are available.',
-        htmlUrl:
-          data.html_url || `https://github.com/${GITHUB_REPO}/releases/latest`,
-        publishedAt: data.published_at || new Date().toISOString(),
-      }
-
-      setLatestRelease(releaseInfo)
-
-      const isNew = isNewerVersion(releaseVersion, APP_VERSION)
-      const dismissed = localStorage.getItem(DISMISSED_KEY)
-
-      if (isNew) {
-        // If manual check, always show even if previously dismissed
-        if (manual || dismissed !== releaseVersion) {
-          setUpdateAvailable(true)
-        } else {
-          setUpdateAvailable(false)
-        }
-      } else {
-        setUpdateAvailable(false)
-      }
-
-      return releaseInfo
-    } catch (cause) {
-      const msg = cause instanceof Error ? cause.message : String(cause)
-      setCheckError(msg)
-      if (manual)
-        throw new Error('Unable to check for updates (Offline/Blocked)')
-      return null
-    } finally {
-      window.clearTimeout(timeout)
-      setChecking(false)
+  // Load native app version if running under Tauri
+  useEffect(() => {
+    if (hasTauri) {
+      invokeTauri<string>('get_app_version')
+        .then((ver) => {
+          if (ver && typeof ver === 'string') {
+            setCurrentVersion(ver)
+          }
+        })
+        .catch(() => {})
     }
   }, [])
 
-  // Check on startup automatically
+  // Listen to native download progress events
   useEffect(() => {
-    if (!IS_OFFLINE_ONLY) void checkForUpdates(false)
-  }, [checkForUpdates])
+    if (!hasTauri) return
+    let unlisten: (() => void) | undefined
+    void listenTauriEvent<DownloadProgress>('updater-download-progress', (progress) => {
+      setDownloadProgress(progress)
+      if (progress.percentage >= 100) {
+        setStatus('verifying')
+      } else {
+        setStatus('downloading')
+      }
+    }).then((fn) => {
+      unlisten = fn
+    })
+
+    return () => {
+      unlisten?.()
+    }
+  }, [])
+
+  const checkForUpdates = useCallback(
+    async (manual = false): Promise<GitHubReleaseInfo | null> => {
+      if (!hasTauri && IS_OFFLINE_ONLY) {
+        if (manual) {
+          throw new Error('Update checks are not available in offline browser mode.')
+        }
+        return null
+      }
+
+      setChecking(true)
+      setStatus('checking')
+      setCheckError(null)
+      setInstallError(null)
+
+      try {
+        if (hasTauri) {
+          const res = await invokeTauri<NativeUpdateResult>('check_github_update', {
+            customVersion: currentVersion,
+          })
+          setLastChecked(new Date())
+
+          const releaseInfo: GitHubReleaseInfo = {
+            tagName: `v${res.latest_version}`,
+            version: res.latest_version,
+            name: res.release_name || `Release v${res.latest_version}`,
+            body: res.release_notes || 'New updates and improvements are available.',
+            htmlUrl: res.html_url || `https://github.com/${GITHUB_REPO}/releases/latest`,
+            publishedAt: res.published_at || new Date().toISOString(),
+            downloadUrl: res.download_url,
+            signature: res.signature,
+            edition: res.edition,
+            platform: res.platform,
+          }
+
+          setLatestRelease(releaseInfo)
+
+          const dismissed = localStorage.getItem(DISMISSED_KEY)
+          if (res.has_update) {
+            if (manual || dismissed !== res.latest_version) {
+              setUpdateAvailable(true)
+              setStatus('available')
+            } else {
+              setUpdateAvailable(false)
+              setStatus('idle')
+            }
+          } else {
+            setUpdateAvailable(false)
+            setStatus('up-to-date')
+          }
+
+          return releaseInfo
+        }
+
+        // Web preview fallback (Team edition browser environment)
+        const controller = new AbortController()
+        const timeout = window.setTimeout(() => controller.abort(), 10000)
+        try {
+          const res = await fetch(
+            `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
+            {
+              signal: controller.signal,
+              headers: {
+                Accept: 'application/vnd.github.v3+json',
+              },
+            },
+          )
+
+          if (!res.ok) {
+            if (res.status === 404) {
+              setUpdateAvailable(false)
+              setStatus('up-to-date')
+              setLastChecked(new Date())
+              return null
+            }
+            if (res.status === 403) {
+              throw new Error('GitHub API rate limit reached. Try again later.')
+            }
+            throw new Error(`GitHub API error (${res.status})`)
+          }
+
+          const data = (await res.json()) as {
+            tag_name?: string
+            name?: string
+            body?: string
+            html_url?: string
+            published_at?: string
+          }
+
+          setLastChecked(new Date())
+
+          if (!data.tag_name) {
+            setUpdateAvailable(false)
+            setStatus('up-to-date')
+            return null
+          }
+
+          const releaseVersion = data.tag_name.replace(/^v/, '')
+          const releaseInfo: GitHubReleaseInfo = {
+            tagName: data.tag_name,
+            version: releaseVersion,
+            name: data.name || `Release ${data.tag_name}`,
+            body: data.body || 'New updates and improvements are available.',
+            htmlUrl:
+              data.html_url || `https://github.com/${GITHUB_REPO}/releases/latest`,
+            publishedAt: data.published_at || new Date().toISOString(),
+          }
+
+          setLatestRelease(releaseInfo)
+
+          const isNew = isNewerVersion(releaseVersion, currentVersion)
+          const dismissed = localStorage.getItem(DISMISSED_KEY)
+
+          if (isNew) {
+            if (manual || dismissed !== releaseVersion) {
+              setUpdateAvailable(true)
+              setStatus('available')
+            } else {
+              setUpdateAvailable(false)
+              setStatus('idle')
+            }
+          } else {
+            setUpdateAvailable(false)
+            setStatus('up-to-date')
+          }
+
+          return releaseInfo
+        } finally {
+          window.clearTimeout(timeout)
+        }
+      } catch (cause) {
+        const msg = cause instanceof Error ? cause.message : String(cause)
+        setCheckError(msg)
+        setStatus('error')
+        if (manual) {
+          throw new Error(msg.includes('rate limit') ? msg : 'Unable to check for updates (Offline/Blocked)')
+        }
+        return null
+      } finally {
+        setChecking(false)
+      }
+    },
+    [currentVersion],
+  )
+
+  const downloadAndInstallUpdate = useCallback(async () => {
+    if (!latestRelease?.downloadUrl) {
+      throw new Error('No verified download URL available for this platform.')
+    }
+
+    setStatus('downloading')
+    setInstallError(null)
+
+    try {
+      if (hasTauri) {
+        await invokeTauri('native_download_and_install_update', {
+          downloadUrl: latestRelease.downloadUrl,
+          signature: latestRelease.signature,
+        })
+        setStatus('ready')
+      } else {
+        // In browser mock, simulate short progress and complete
+        setDownloadProgress({ downloaded: 50, total: 100, percentage: 50 })
+        await new Promise((r) => setTimeout(r, 400))
+        setDownloadProgress({ downloaded: 100, total: 100, percentage: 100 })
+        setStatus('ready')
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setInstallError(msg)
+      setStatus('error')
+      throw err
+    }
+  }, [latestRelease])
+
+  // Auto-check on launch if enabled and not offline-only browser test
+  useEffect(() => {
+    if (autoCheckOnLaunch && (hasTauri || !IS_OFFLINE_ONLY)) {
+      void checkForUpdates(false)
+    }
+  }, [autoCheckOnLaunch, checkForUpdates])
 
   const dismissUpdate = useCallback(
     (forever = false) => {
@@ -137,6 +304,7 @@ export function useUpdateChecker() {
         localStorage.setItem(DISMISSED_KEY, latestRelease.version)
       }
       setUpdateAvailable(false)
+      setStatus('idle')
     },
     [latestRelease],
   )
@@ -149,12 +317,19 @@ export function useUpdateChecker() {
   }, [latestRelease])
 
   return {
-    currentVersion: APP_VERSION,
+    currentVersion,
+    status,
     checking,
     updateAvailable,
     latestRelease,
+    downloadProgress,
+    lastChecked,
     checkError,
+    installError,
+    autoCheckOnLaunch,
+    setAutoCheckOnLaunch,
     checkForUpdates,
+    downloadAndInstallUpdate,
     dismissUpdate,
     openReleasePage,
   }

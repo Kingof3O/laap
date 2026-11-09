@@ -1,16 +1,16 @@
-# LAAP Desktop
+# LAAP Desktop V2
 
-Tauri v2 + Rust backend with a React/TypeScript frontend. Checked against v0.4.6 source on 2026-10-14.
+Tauri v2 + Rust backend with a modern React 19 / TypeScript interface.
 
-## Current interface
+## V2 Interface & Architecture
 
-![Personal Roster with saved avatar, rank, notes, and sorting](../../docs/assets/launcher-grid.png)
-
-![Live profile editor](../../docs/assets/profile-editor.png)
-
-![Compact roster list](../../docs/assets/launcher-table.png)
-
-Screenshots use a test-only native IPC fixture. Production code never supplies demo accounts when IPC is missing.
+LAAP V2 introduces a complete desktop redesign:
+- **Design system:** Semantic tokens in `src/styles/tokens.css` with dark-first Hextech aesthetics (`#070D17` canvas, `#101B2C` surfaces, `#C8AA6E` gold accents).
+- **Custom Titlebar:** `WindowTitleBar.tsx` on Windows with frameless titlebar drag and window control IPC (`window_minimize`, `window_toggle_maximize`, `window_close`).
+- **Unified Roster:** Direct single-account representation in responsive grid (`AccountCard.tsx`) and table (`AccountListTable.tsx`) layouts. Redundant hero panel completely eliminated.
+- **Contextual Actions:** Clean context menus (`ContextMenu.tsx`) preventing scattered icon buttons on cards.
+- **Two-Column Settings:** Spacious workspace (`SettingsModal.tsx` + `settings/*`) with modular navigation rail.
+- **Native Update System:** Native command `check_github_update` bypassing webview CSP in Offline Edition without compromising isolation.
 
 ## Features
 
@@ -18,25 +18,52 @@ Personal Roster supports Add/Edit, favorites, notes, grouped regions, complete r
 
 Choose local PNG/JPEG/WebP uploads or explicit Data Dragon downloads. Icons are cached as local files; rank crests are bundled. Optional icon and Solo/Duo rank sync are independent, disabled by default, and require a matching saved PUUID. See [profile customization](../../docs/profile-customization.md).
 
-Team Edition adds LAAP authentication and Shared Accounts leases. Offline Edition hides those views and disables cloud API/update polling. Its webview blocks network connections; narrow native commands still support explicit icon downloads and opted-in loopback League Client sync.
+Team Edition adds LAAP authentication and Shared Accounts leases. Offline Edition hides those views and disables cloud API polling. Its webview blocks network connections (`connect-src 'none'`); native host commands support explicit icon downloads, local League Client sync, and GitHub update checks.
 
 ## Development
 
 From the repository root:
 
 ```sh
-npm ci
-npx --workspace @laap/desktop tauri dev
+# Team Edition (Native Desktop)
+npm --workspace @laap/desktop run tauri dev
+
+# Offline Edition (Native Desktop)
+npm --workspace @laap/desktop run tauri:offline
+
+# Team Edition (Browser UI Preview)
+npm --workspace @laap/desktop run dev
+
+# Offline Edition (Browser UI Preview)
+npm --workspace @laap/desktop run dev:offline
 ```
 
-`npm --workspace @laap/desktop run dev` runs Vite alone. Browser previews cannot load the real native roster. See [DEVELOPMENT.md](../../docs/DEVELOPMENT.md) for Offline dev mode, platform requirements, tests, and native packaging.
+`npm --workspace @laap/desktop run dev` and `dev:offline` run Vite alone. Browser previews show an explicit missing-IPC notice. See [DEVELOPMENT.md](../../docs/DEVELOPMENT.md) for platform requirements, tests, and native packaging.
 
-## Native command map
+## Testing & Verification
 
-The authoritative handler list is `src-tauri/src/lib.rs`; DTOs are in `local_store/models.rs`. Frontend invoke arguments use camelCase keys.
+```sh
+# Typecheck & Vite builds
+npm --workspace @laap/desktop run build
+npm --workspace @laap/desktop run build:offline
+
+# Unit test suites
+npm --workspace @laap/desktop run test:sorting
+npm --workspace @laap/desktop run test:lease-exit
+npm --workspace @laap/desktop run test:updater
+
+# Full Playwright UI integration suite (19 tests)
+npm --workspace @laap/desktop run test:ui
+```
+
+## Native Command Map
+
+The authoritative handler list is `src-tauri/src/lib.rs`. Frontend invoke arguments use camelCase keys.
 
 | Commands                                                                          | Purpose                                                                  |
 | :-------------------------------------------------------------------------------- | :----------------------------------------------------------------------- |
+| `window_minimize`, `window_toggle_maximize`, `window_is_maximized`, `window_close`| Custom frameless titlebar window controls                                |
+| `get_app_version`, `check_github_update`                                          | Dynamic version query and native GitHub update verification              |
 | `list_local_accounts`, `get_local_account`                                        | Local summaries/full profile                                             |
 | `save_local_account`, `edit_local_account`, `delete_local_account`                | Create/edit/delete; save accepts rank, notes, favorite, customization    |
 | `launch_local_account(id, confirmed?)`                                            | Guarded native launch                                                    |
@@ -54,27 +81,3 @@ The authoritative handler list is `src-tauri/src/lib.rs`; DTOs are in `local_sto
 | `device_public_key`, `sign_device_nonce`, `device_platform`, `device_info`        | Device identity                                                          |
 | `load_access_token`, `store_access_token`, `clear_access_token`                   | Native LAAP bearer-token persistence                                     |
 | `open_external_url`                                                               | Validated external browser opening                                       |
-
-`edit_local_account` returns unit on success, not a summary. Callers should refetch summaries after edits. See handler signatures before adding clients rather than relying on this grouped reference as a full schema.
-
-## Storage and platforms
-
-| Location                       | Windows                                      | macOS                                                         |
-| :----------------------------- | :------------------------------------------- | :------------------------------------------------------------ |
-| Local vault                    | `%APPDATA%/LAAP/laap_local_accounts.json`    | `~/Library/Application Support/LAAP/laap_local_accounts.json` |
-| Image cache                    | `profile-assets` under vault directory       | `profile-assets` under vault directory                        |
-| Riot settings                  | `%LOCALAPPDATA%/Riot Games/Riot Client/Data` | `~/Library/Application Support/Riot Games/Riot Client/Data`   |
-| Vault key / device private key | Windows Credential Manager                   | macOS Keychain                                                |
-
-Session blobs are AES-256-GCM encrypted. Metadata and cached PNGs are readable local files. The store uses locked JSON transactions, atomic writes, and damaged-record quarantine. See [security model](../../docs/SECURITY_MODEL.md) and [verification limits](../../docs/desktop-hardening-verification.md).
-
-### Windows installer artwork
-
-The NSIS installer bitmap is generated from [the sidebar SVG source](src-tauri/icons/nsis-sidebar.svg). Keep the checked-in `nsis-sidebar.bmp` synchronized with this upright design; Tauri uses it for both Team and Offline Windows installers.
-
-![NSIS installer sidebar](../../docs/assets/nsis-sidebar.png)
-
-
-### Riot discovery and LAAP Presence (v0.4.6)
-
-Custom Windows installations use Riot records, running processes, registry entries and mounted local-drive folders. Settings includes path detection and a validated override. LAAP Presence is an optional built-in Windows chat presence filter, with startup choices and live online/offline changes. See [setup and verification](../../docs/riot-installation-and-presence.md). Included in v0.4.6. Presence controls are available on Windows.

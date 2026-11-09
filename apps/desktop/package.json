@@ -5,13 +5,16 @@
   "version": "0.4.8",
   "scripts": {
     "dev": "vite",
+    "dev:offline": "vite --mode offline",
     "build": "tsc -b && vite build",
     "build:offline": "tsc -b && vite build --mode offline",
     "tauri": "tauri",
+    "tauri:offline": "tauri dev --config src-tauri/tauri.offline.conf.json",
     "test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "check": "cargo check --manifest-path src-tauri/Cargo.toml",
     "test:lease-exit": "node --experimental-strip-types --test tests/lease-exit.test.ts",
     "test:sorting": "node --experimental-strip-types --test tests/sorting.test.ts",
+    "test:updater": "node --experimental-strip-types --test tests/updater.test.ts",
     "test:ui": "playwright test"
   },
   "dependencies": {

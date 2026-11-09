@@ -2,7 +2,7 @@ import { useTrayActions } from './hooks/useTrayActions'
 import { useLauncher } from './hooks/useLauncher'
 import { PresenceBanner, PresenceSelect } from './shared/ui/PresenceControls'
 import { useEffect, useRef, useState } from 'react'
-import { Header, SubNavbar, SettingsModal } from './shared/ui'
+import { Header, SubNavbar, SettingsModal, WindowTitleBar } from './shared/ui'
 import { UpdateModal } from './shared/ui/UpdateModal'
 import { ToastProvider, useToast } from './context/ToastContext'
 import { PersonalRosterView } from './features/personal-roster'
@@ -39,6 +39,7 @@ function AppContent() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [showUpdateModal, setShowUpdateModal] = useState(false)
   const [localCount, setLocalCount] = useState(0)
   const [cloudCount, setCloudCount] = useState(0)
   const [busy, setBusy] = useState(false)
@@ -111,9 +112,16 @@ function AppContent() {
   const {
     currentVersion,
     checking: checkingUpdates,
+    status: updateStatus,
+    downloadProgress,
+    installError,
     updateAvailable,
     latestRelease,
+    lastChecked,
+    autoCheckOnLaunch,
+    setAutoCheckOnLaunch,
     checkForUpdates,
+    downloadAndInstallUpdate,
     dismissUpdate,
     openReleasePage,
   } = useUpdateChecker()
@@ -197,9 +205,13 @@ function AppContent() {
 
   return (
     <div className="app-container">
+      <WindowTitleBar />
+
       {/* Top Header */}
       <Header
         appMode={appMode}
+        updateAvailable={!IS_OFFLINE_ONLY && updateAvailable}
+        onOpenUpdates={() => setShowUpdateModal(true)}
         onModeChange={(m) => {
           if (!IS_OFFLINE_ONLY) setAppMode(m)
         }}
@@ -324,16 +336,37 @@ function AppContent() {
         }}
         onCheckUpdates={IS_OFFLINE_ONLY ? undefined : handleManualCheckUpdates}
         checkingUpdates={checkingUpdates}
+        updateStatus={updateStatus}
+        downloadProgress={downloadProgress}
+        installError={installError}
+        onInstallUpdate={downloadAndInstallUpdate}
         busy={busy || operations.busy}
+        lastChecked={lastChecked}
+        updateAvailable={!IS_OFFLINE_ONLY && updateAvailable}
+        latestRelease={latestRelease}
+        autoCheckOnLaunch={autoCheckOnLaunch}
+        onToggleAutoCheck={setAutoCheckOnLaunch}
+        onOpenReleaseModal={() => {
+          setShowSettingsModal(false)
+          setShowUpdateModal(true)
+        }}
+        currentVersion={currentVersion}
       />
 
       {/* Update Available Modal */}
       <UpdateModal
-        isOpen={!IS_OFFLINE_ONLY && updateAvailable}
+        isOpen={!IS_OFFLINE_ONLY && (updateAvailable || showUpdateModal)}
         currentVersion={currentVersion}
         release={latestRelease}
+        status={updateStatus}
+        downloadProgress={downloadProgress}
+        installError={installError}
         onDownload={openReleasePage}
-        onDismiss={dismissUpdate}
+        onInstall={downloadAndInstallUpdate}
+        onDismiss={(forever) => {
+          dismissUpdate(forever)
+          setShowUpdateModal(false)
+        }}
       />
     </div>
   )

@@ -2,6 +2,8 @@ pub mod auth;
 pub mod device;
 pub mod local_accounts;
 pub mod session;
+pub mod updater;
+pub mod window;
 
 pub use session::launch_riot_client;
 

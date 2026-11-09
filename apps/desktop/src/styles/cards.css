@@ -1,70 +1,89 @@
+/* ========================================================================= */
+/* ACCOUNT ROSTER GRID & CARDS                                               */
+/* ========================================================================= */
 .roster-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 20px;
+  gap: 16px;
+  width: 100%;
+}
+
+/* Single or Two Account Layout Centering (PART 3) */
+.roster-grid-single {
+  grid-template-columns: minmax(320px, 440px);
+  justify-content: center;
+}
+
+.roster-grid-double {
+  grid-template-columns: repeat(2, minmax(320px, 440px));
+  justify-content: center;
 }
 
 .roster-card {
   background: var(--bg-card);
   border: 1px solid var(--border-card);
-  border-radius: 14px;
-  padding: 20px;
-  min-height: 168px;
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  min-height: 156px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 14px;
-  cursor: pointer;
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  gap: 12px;
+  transition: all var(--transition-normal);
   position: relative;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(200, 170, 110, 0.15);
+  box-shadow: var(--shadow-card);
+  outline: none;
 }
 
 .roster-card:hover {
   background: var(--bg-card-hover);
-  border-color: rgba(200, 170, 110, 0.6);
-  transform: translateY(-3px) scale(1.01);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7), 0 0 20px rgba(59, 130, 246, 0.2);
+  border-color: var(--border-card-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.roster-card:focus-within {
+  border-color: var(--gold-border);
 }
 
 .roster-card-selected {
   background: var(--bg-card-selected);
   border-color: var(--gold-primary);
-  box-shadow: 0 0 0 1px var(--gold-primary), 0 16px 36px rgba(0, 0, 0, 0.75), 0 0 24px rgba(59, 130, 246, 0.25);
+  box-shadow: 0 0 0 1px var(--gold-primary), var(--shadow-card-hover);
 }
 
 .card-top-row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
 .card-identity {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
+  flex: 1;
 }
 
 .card-avatar {
   width: 44px;
   height: 44px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #1C283F 0%, #0A1220 100%);
-  border: 1px solid rgba(200, 170, 110, 0.35);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--gold-border-subtle);
   display: grid;
   place-items: center;
   position: relative;
   flex-shrink: 0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .avatar-initials {
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--gold-light);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
 }
 
 .avatar-region-pip {
@@ -72,10 +91,10 @@
   bottom: -4px;
   right: -4px;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
   padding: 1px 5px;
-  border-radius: 4px;
-  background: #0A1220;
+  border-radius: var(--radius-xs);
+  background: var(--bg-canvas);
   border: 1px solid var(--sapphire-blue);
   color: var(--sapphire-blue-light);
   line-height: 1.2;
@@ -84,59 +103,69 @@
 .card-info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 
 .card-name {
   font-size: 15px;
-  font-weight: 700;
-  color: #FFFFFF;
+  font-weight: 600;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
+}
+
+.card-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.card-favorite-btn {
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.card-favorite-btn:hover {
+  color: var(--gold-primary);
+  background: var(--gold-surface);
+}
+
+.card-favorite-btn-active {
+  color: var(--gold-primary);
 }
 
 .card-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
+  gap: 8px;
+  font-size: 12px;
 }
 
-/* Status Indicators */
-.status-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.status-indicator-ready {
-  color: var(--status-ready);
-}
-
-.status-indicator-warn {
-  color: var(--status-leased);
-}
-
-.status-beacon {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-}
-
-.status-beacon-ready {
-  background: var(--status-ready);
-  box-shadow: 0 0 8px var(--status-ready);
-}
-
-.status-beacon-amber {
-  background: var(--status-leased);
-  box-shadow: 0 0 6px var(--status-leased);
+.card-notes {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .card-bottom-row {
@@ -144,73 +173,48 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding-top: 12px;
+  padding-top: 10px;
   border-top: 1px solid var(--border-divider);
   margin-top: auto;
 }
 
 .last-played-text {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
-  font-weight: 500;
+  font-weight: 400;
   white-space: nowrap;
 }
 
-/* Card Context Actions */
-.card-secondary-actions {
+.card-actions-group {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
 }
 
-.action-icon-btn {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border-radius: 6px;
-  color: var(--text-muted);
-  border: 1px solid transparent;
-  transition: all 0.15s ease;
-}
-
-.action-icon-btn:hover {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.08);
-  border-color: var(--border-subtle);
-}
-
-.action-icon-btn-delete:hover {
-  color: var(--status-danger);
-  background: var(--status-danger-bg);
-  border-color: var(--status-danger-border);
-}
-
-/* Champion Launch Button (Console Premium Hextech Gold) */
+/* Primary Launch Button */
 .btn-launch-primary {
-  min-width: 90px;
-  padding: 0 16px;
-  height: 36px;
-  border-radius: 8px;
+  min-width: 84px;
+  padding: 0 14px;
+  height: 34px;
+  border-radius: var(--radius-md);
   font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  color: #03070E;
+  gap: 6px;
+  color: var(--text-inverse);
   background: var(--gold-gradient);
-  border: 1px solid #FFE4A0;
-  box-shadow: 0 4px 14px rgba(200, 170, 110, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
-  transition: all 0.16s ease;
+  transition: all var(--transition-fast);
 }
 
 .btn-launch-primary:hover:not(:disabled) {
   background: var(--gold-gradient-hover);
-  box-shadow: 0 6px 20px rgba(200, 170, 110, 0.55), 0 0 12px rgba(59, 130, 246, 0.35);
+  box-shadow: var(--shadow-md);
   transform: translateY(-1px);
 }
 
@@ -219,68 +223,40 @@
 }
 
 .btn-launch-primary:disabled {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
   color: var(--text-muted);
   cursor: not-allowed;
   box-shadow: none;
 }
 
+/* Rank Crest & Badge */
+.account-rank-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-default);
+}
+
 .account-rank-label {
   display: inline-block;
-  max-width: 180px;
+  max-width: 160px;
   padding: 2px 8px;
-  border: 1px solid var(--border-card);
-  border-radius: 9999px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
   color: var(--gold-light);
-  background: rgba(200, 170, 110, 0.1);
+  background: var(--gold-surface);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: middle;
-}
-
-.account-rank-label.rank-challenger {
-  color: #FBBF24;
-  background: rgba(245, 158, 11, 0.12);
-  border-color: rgba(245, 158, 11, 0.35);
-}
-
-.account-rank-label.rank-grandmaster {
-  color: #F87171;
-  background: rgba(239, 68, 68, 0.12);
-  border-color: rgba(239, 68, 68, 0.35);
-}
-
-.account-rank-label.rank-master {
-  color: #E879F9;
-  background: rgba(217, 70, 239, 0.12);
-  border-color: rgba(217, 70, 239, 0.35);
-}
-
-.account-rank-label.rank-diamond {
-  color: #60A5FA;
-  background: rgba(96, 165, 250, 0.12);
-  border-color: rgba(96, 165, 250, 0.35);
-}
-
-.account-rank-label.rank-emerald {
-  color: #34D399;
-  background: rgba(16, 185, 129, 0.12);
-  border-color: rgba(16, 185, 129, 0.35);
-}
-
-.account-rank-label.rank-platinum {
-  color: #2DD4BF;
-  background: rgba(45, 212, 191, 0.12);
-  border-color: rgba(45, 212, 191, 0.35);
-}
-
-.account-rank-label.rank-gold {
-  color: #F59E0B;
-  background: rgba(245, 158, 11, 0.1);
-  border-color: rgba(245, 158, 11, 0.3);
 }

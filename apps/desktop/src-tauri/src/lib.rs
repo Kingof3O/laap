@@ -22,7 +22,14 @@ pub fn run() {
             tray::show(app);
             let _ = app.emit("laap:tray-intent", tray::TrayIntent::Open);
         }))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
+            #[cfg(target_os = "windows")]
+            {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_decorations(false);
+                }
+            }
             if let Err(error) = tray::setup(app.handle()) {
                 eprintln!("LAAP tray unavailable: {error}");
             }
@@ -94,7 +101,14 @@ pub fn run() {
             presence::set_presence_mode,
             presence::retry_presence,
             commands::session::restart_riot_presence,
-            commands::session::open_external_url
+            commands::session::open_external_url,
+            commands::updater::get_app_version,
+            commands::updater::check_github_update,
+            commands::updater::native_download_and_install_update,
+            commands::window::window_minimize,
+            commands::window::window_toggle_maximize,
+            commands::window::window_is_maximized,
+            commands::window::window_close
         ])
         .build(tauri::generate_context!())
         .expect("error while building LAAP desktop")
