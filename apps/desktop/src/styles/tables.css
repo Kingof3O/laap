@@ -148,3 +148,5 @@
   gap: 4px;
   min-width: 0;
 }
+
+.table-favorite { color: var(--gold-primary); vertical-align: middle; margin-left: 4px; }

@@ -63,3 +63,13 @@ test('name, last-played, and date-added orders are stable', () => {
   for (const order of ['name-desc', 'added-asc'] as const)
     assert.equal(sortProfiles(rows, order)[0].id, 'b')
 })
+
+test('every sorting option orders by its declared field', () => {
+  const rows = [
+    { id: 'a', name: 'Alpha', rank: 'Gold I', created_at: '2026-01-01', last_used_at: '2026-03-01' },
+    { id: 'b', name: 'Zulu', rank: 'Diamond I', created_at: '2026-02-01', last_used_at: '2026-02-01' },
+  ]
+  const expected = { 'name-asc': 'a', 'name-desc': 'b', 'rank-asc': 'a', 'rank-desc': 'b', 'last-played': 'a', 'added-asc': 'a', 'added-desc': 'b' } as const
+  for (const [order, id] of Object.entries(expected))
+    assert.equal(sortProfiles(rows, order as keyof typeof expected)[0].id, id, order)
+})

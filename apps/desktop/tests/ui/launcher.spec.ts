@@ -155,6 +155,7 @@ test('custom-drive settings remain editable while presence setup is automatic', 
   await page.goto('/')
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Settings', exact: true })
+  await dialog.getByRole('tab', { name: 'Riot Client', exact: true }).click()
   await expect(dialog).toContainText(
     'E:\\Games & Apps\\Riot Client\\RiotClientServices.exe',
   )
@@ -317,6 +318,7 @@ test('startup default is saved separately without changing live presence', async
   await expect(page.getByLabel('Online presence', { exact: true })).toHaveValue('online')
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Settings', exact: true })
+  await dialog.getByRole('tab', { name: 'Presence', exact: true }).click()
   await dialog.getByLabel('Default presence on startup', { exact: true }).selectOption('offline')
   await dialog.getByRole('button', { name: 'Save launcher settings', exact: true }).click()
   await expect(dialog).toContainText('Launcher settings saved')

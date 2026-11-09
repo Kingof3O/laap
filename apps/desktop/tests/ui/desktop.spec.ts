@@ -358,7 +358,7 @@ test('editing persists name, region, rank, notes and favorite without refreshing
     },
   ])
   await expect(
-    page.getByText('★ My main', { exact: true }).first(),
+    page.getByText('My main', { exact: true }).first(),
   ).toBeVisible()
 })
 
@@ -496,7 +496,7 @@ test('profile notes and cached avatars survive reload; editor preview, regions a
     'Keep this note offline.',
   )
   await page
-    .getByRole('button', { name: 'Edit ★ main', exact: true })
+    .getByRole('button', { name: 'Edit main', exact: true })
     .first()
     .click()
   const dialog = page.getByRole('dialog')
@@ -900,4 +900,71 @@ test('startup timeout explains the delay and Stop Riot restores launch controls'
   await expect(
     page.getByRole('button', { name: 'Play', exact: true }).first(),
   ).toBeEnabled()
+})
+
+test('appearance changes the live roster and persists reduced motion', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Settings' })
+  await dialog.getByRole('tab', { name: 'Appearance', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Compact Table' }).click()
+  await expect(page.getByRole('button', { name: 'List View' })).toHaveClass(/view-toggle-btn-active/)
+  await dialog.getByRole('checkbox', { name: 'Reduced motion' }).check()
+  await expect(page.locator('html')).toHaveClass(/reduced-motion/)
+  await page.reload()
+  await expect(page.locator('html')).toHaveClass(/reduced-motion/)
+  await expect(page.getByRole('button', { name: 'List View' })).toHaveClass(/view-toggle-btn-active/)
+})
+
+test('offline edition checks updates through native IPC and menus support keyboard navigation', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('laap_auto_check_updates', 'false')
+    ;(window as any).updateChecks = 0
+    ;(window as any).__TAURI_INTERNALS__ = {
+      metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } },
+      transformCallback: () => 1, unregisterCallback: () => {},
+      invoke: async (command: string) => {
+        if (command === 'runtime_snapshot') return { riot_client: false, league_client: false, league_game: false, valorant_game: false }
+        if (command === 'list_local_accounts') return [{ id: 'one', name: 'One', region: 'EUW', rank: null, notes: '', favorite: false, session_status: 'saved', has_session: true, created_at: '2026-01-01', last_used_at: null }]
+        if (command === 'get_app_version') return '0.4.8'
+        if (command === 'check_github_update') { (window as any).updateChecks++; return { has_update: false, current_version: '0.4.8', latest_version: '0.4.8', release_name: 'Current', release_notes: '', published_at: '', html_url: 'https://github.com/Kingof3O/laap/releases', edition: 'offline', platform: 'windows-x86_64' } }
+        return null
+      },
+    }
+  })
+  await page.goto('/')
+  const trigger = page.getByRole('button', { name: 'Options for One' })
+  await trigger.click()
+  await expect(page.getByRole('menuitem').first()).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(page.getByRole('menuitem').last()).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(trigger).toBeFocused()
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.getByRole('tab', { name: 'Updates', exact: true }).click()
+  await page.getByRole('button', { name: 'Check for Updates' }).click()
+  await expect.poll(() => page.evaluate(() => (window as any).updateChecks)).toBe(1)
+})
+
+test('the selected profile inspector follows roster selection and its real notes', async ({ page }) => {
+  await page.addInitScript(() => {
+    ;(window as any).__TAURI_INTERNALS__ = {
+      metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } }, transformCallback: () => 1, unregisterCallback: () => {},
+      invoke: async (command: string) => {
+        if (command === 'runtime_snapshot') return { riot_client: false, league_client: false, league_game: false, valorant_game: false }
+        if (command === 'list_local_accounts') return [
+          { id: 'a', name: 'Alpha', region: 'EUW', rank: null, notes: 'Alpha note', favorite: false, session_status: 'saved', has_session: true, created_at: '2026-01-01', last_used_at: null },
+          { id: 'b', name: 'Bravo', region: 'NA', rank: null, notes: 'Bravo note', favorite: false, session_status: 'missing', has_session: false, created_at: '2026-01-02', last_used_at: null },
+        ]
+        return null
+      },
+    }
+  })
+  await page.goto('/')
+  const details = page.getByRole('complementary', { name: 'Selected profile details' })
+  await expect(details).toContainText('Alpha note')
+  await page.getByRole('button', { name: 'Select Bravo' }).click()
+  await expect(details).toContainText('Bravo note')
+  await expect(details).toContainText('Sign in required')
+  await expect(page.getByRole('button', { name: 'Select Bravo' })).toHaveAttribute('aria-pressed', 'true')
 })

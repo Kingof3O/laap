@@ -104,7 +104,6 @@ pub fn run() {
             commands::session::open_external_url,
             commands::updater::get_app_version,
             commands::updater::check_github_update,
-            commands::updater::native_download_and_install_update,
             commands::window::window_minimize,
             commands::window::window_toggle_maximize,
             commands::window::window_is_maximized,

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { LayoutGrid, List, Sparkles, Monitor } from 'lucide-react'
+import { LayoutGrid, List } from 'lucide-react'
 import { VIEW_MODE_KEY } from '../../../lib/constants'
 import type { ViewMode } from '../../../lib/types'
 
@@ -114,24 +114,15 @@ export function AppearanceSettings({ disabled = false }: AppearanceSettingsProps
           </div>
           <input
             type="checkbox"
+            aria-label="Reduced motion"
             checked={reducedMotion}
             onChange={(e) => handleReducedMotionToggle(e.target.checked)}
             disabled={disabled}
-            style={{ accentColor: 'var(--color-gold-500)', cursor: 'pointer', width: '16px', height: '16px' }}
+            className="settings-switch"
           />
         </div>
       </div>
 
-      {/* Hextech Theme Information */}
-      <div className="settings-card">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: 'var(--color-gold-400)' }}>
-          <Sparkles size={16} />
-          <span style={{ fontSize: '13px', fontWeight: 600 }}>Hextech Midnight Palette</span>
-        </div>
-        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
-          LAAP V2 utilizes a custom dark-first Hextech aesthetic featuring deep navy canvas (<code>#070D17</code>), elevated glass surfaces (<code>#101B2C</code>), antique gold borders (<code>#C8AA6E</code>), and system-accelerated typography.
-        </p>
-      </div>
     </div>
   )
 }

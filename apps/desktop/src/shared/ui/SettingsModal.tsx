@@ -110,9 +110,7 @@ export function SettingsModal({
           <div className="settings-content-pane settings-body">
             {activeCategory === 'general' && (
               <div className="settings-section">
-                {launcher ? (
-                  <LauncherSettingsPanel launcher={launcher} disabled={busy} />
-                ) : null}
+                <div className="settings-section-header"><h3 className="settings-section-title">General</h3><p className="settings-section-desc">Manage your local session and account.</p></div>
 
                 {/* Security Status Card */}
                 <div
@@ -235,7 +233,7 @@ export function SettingsModal({
             {activeCategory === 'riot' && (
               <div className="settings-section">
                 {launcher ? (
-                  <LauncherSettingsPanel launcher={launcher} disabled={busy} />
+                  <LauncherSettingsPanel launcher={launcher} disabled={busy} section="riot" />
                 ) : (
                   <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
                     Launcher controller is currently unavailable.
@@ -270,7 +268,7 @@ export function SettingsModal({
                   </p>
                 </div>
                 {launcher ? (
-                  <LauncherSettingsPanel launcher={launcher} disabled={busy} />
+                  <LauncherSettingsPanel launcher={launcher} disabled={busy} section="presence" />
                 ) : null}
               </div>
             )}

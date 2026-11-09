@@ -133,9 +133,7 @@ export function useUpdateChecker() {
 
       try {
         if (hasTauri) {
-          const res = await invokeTauri<NativeUpdateResult>('check_github_update', {
-            customVersion: currentVersion,
-          })
+          const res = await invokeTauri<NativeUpdateResult>('check_github_update')
           setLastChecked(new Date())
 
           const releaseInfo: GitHubReleaseInfo = {
@@ -262,34 +260,9 @@ export function useUpdateChecker() {
   )
 
   const downloadAndInstallUpdate = useCallback(async () => {
-    if (!latestRelease?.downloadUrl) {
-      throw new Error('No verified download URL available for this platform.')
-    }
-
-    setStatus('downloading')
-    setInstallError(null)
-
-    try {
-      if (hasTauri) {
-        await invokeTauri('native_download_and_install_update', {
-          downloadUrl: latestRelease.downloadUrl,
-          signature: latestRelease.signature,
-        })
-        setStatus('ready')
-      } else {
-        // In browser mock, simulate short progress and complete
-        setDownloadProgress({ downloaded: 50, total: 100, percentage: 50 })
-        await new Promise((r) => setTimeout(r, 400))
-        setDownloadProgress({ downloaded: 100, total: 100, percentage: 100 })
-        setStatus('ready')
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      setInstallError(msg)
-      setStatus('error')
-      throw err
-    }
-  }, [latestRelease])
+    setInstallError('Automatic installation is unavailable until signed updates are configured. Open the release page to update manually.')
+    setStatus('error')
+  }, [])
 
   // Auto-check on launch if enabled and not offline-only browser test
   useEffect(() => {

@@ -1,8 +1,7 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
-use std::io::Write;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 
 pub const GITHUB_REPO: &str = "Kingof3O/laap";
 
@@ -219,9 +218,8 @@ pub fn get_app_version(app: AppHandle) -> String {
 #[tauri::command]
 pub async fn check_github_update(
     app: AppHandle,
-    custom_version: Option<String>,
 ) -> Result<UpdateCheckResult, String> {
-    let current_version = custom_version.unwrap_or_else(|| app.package_info().version.to_string());
+    let current_version = app.package_info().version.to_string();
     let edition = get_app_edition(&app).to_string();
     let platform = get_target_platform().to_string();
 
@@ -260,7 +258,7 @@ pub async fn check_github_update(
                 let platform_info = manifest
                     .platforms
                     .get(&platform)
-                    .or_else(|| manifest.platforms.get("darwin-universal"));
+                    .or_else(|| if platform.starts_with("darwin-") { manifest.platforms.get("darwin-universal") } else { None });
 
                 let (download_url, signature) = match platform_info {
                     Some(info) => (Some(info.url.clone()), Some(info.signature.clone())),
@@ -361,100 +359,6 @@ pub async fn check_github_update(
         edition,
         platform,
     })
-}
-
-#[tauri::command]
-pub async fn native_download_and_install_update(
-    app: AppHandle,
-    download_url: String,
-    signature: Option<String>,
-    public_key: Option<String>,
-) -> Result<String, String> {
-    let client = reqwest::Client::builder()
-        .user_agent("LAAP-Desktop-Updater")
-        .timeout(std::time::Duration::from_secs(120))
-        .build()
-        .map_err(|e| format!("Failed to initialize download client: {e}"))?;
-
-    let res = client
-        .get(&download_url)
-        .send()
-        .await
-        .map_err(|e| format!("Network failure downloading update payload: {e}"))?;
-
-    if !res.status().is_success() {
-        return Err(format!("Download failed with HTTP status {}", res.status()));
-    }
-
-    let total_size = res.content_length().unwrap_or(0);
-    let mut downloaded: u64 = 0;
-    let mut payload_bytes = Vec::with_capacity(total_size as usize);
-
-    let mut stream = res.bytes_stream();
-    use futures_util::StreamExt;
-
-    while let Some(chunk_result) = stream.next().await {
-        let chunk = chunk_result.map_err(|e| format!("Error streaming update chunk: {e}"))?;
-        downloaded += chunk.len() as u64;
-        payload_bytes.extend_from_slice(&chunk);
-
-        let percentage = if total_size > 0 {
-            (downloaded as f64 / total_size as f64) * 100.0
-        } else {
-            0.0
-        };
-
-        let _ = app.emit(
-            "updater-download-progress",
-            DownloadProgress {
-                downloaded,
-                total: total_size,
-                percentage,
-            },
-        );
-    }
-
-    // Cryptographic signature verification
-    let pubkey_to_use = public_key.as_deref().unwrap_or(DEFAULT_UPDATER_PUBKEY);
-    if let Some(ref sig) = signature {
-        verify_ed25519_signature(pubkey_to_use, sig, &payload_bytes).map_err(|e| {
-            format!("SECURITY VIOLATION: {e}. The update artifact was quarantined and rejected.")
-        })?;
-    } else {
-        // Fail closed if signature is missing on production builds
-        #[cfg(not(debug_assertions))]
-        {
-            return Err("SECURITY VIOLATION: Missing cryptographic signature. Unsigned updates are rejected.".into());
-        }
-    }
-
-    // Write verified payload to secure temporary file
-    let temp_dir = std::env::temp_dir();
-    let installer_name = format!("laap-update-{}.exe", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
-    let temp_path = temp_dir.join(&installer_name);
-
-    let mut temp_file = std::fs::File::create(&temp_path)
-        .map_err(|e| format!("Failed to create temporary installer file: {e}"))?;
-    temp_file
-        .write_all(&payload_bytes)
-        .map_err(|e| format!("Failed to write installer payload: {e}"))?;
-
-    // On Windows: Launch the verified installer
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new(&temp_path)
-            .spawn()
-            .map_err(|e| format!("Failed to launch verified installer: {e}"))?;
-
-        // Initiate clean application exit to allow installer to proceed
-        let handle = app.clone();
-        std::thread::spawn(move || {
-            std::thread::sleep(std::time::Duration::from_millis(600));
-            handle.exit(0);
-        });
-    }
-
-    Ok("Update downloaded and verified. Restarting application...".into())
 }
 
 #[cfg(test)]

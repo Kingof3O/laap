@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { AccountCard } from './AccountCard'
 import { AccountListTable } from './AccountListTable'
 import type { ViewMode } from '../../lib/types'
+import { Clock3, FileText, ShieldCheck, Settings2 } from 'lucide-react'
 
 export interface RosterItem {
   id: string
@@ -13,6 +14,7 @@ export interface RosterItem {
   hasSession: boolean
   lastUsedText?: string | null
   rawLastUsed?: string | null
+  createdAt?: string | null
   status?: string
   favorite?: boolean
 }
@@ -108,13 +110,14 @@ export function AccountRosterDisplay({
         </span>
       ) : null}
       {viewMode === 'grid' ? (
+        <div className={items.length <= 2 ? 'roster-workspace' : 'roster-workspace roster-workspace-full'}>
         <div className={gridLayoutClass} role="region" aria-label="Account Roster">
           {items.map((item) => {
             const isLaunching = launchingId === item.id
             const isFailed = failedLaunchId === item.id
             const isActive = activeLaunchId === item.id
             const isRecent = item.id === mostRecentId
-            const isSelected = selectedId === item.id
+            const isSelected = activeHero?.id === item.id
 
             return (
               <AccountCard
@@ -163,6 +166,28 @@ export function AccountRosterDisplay({
               />
             )
           })}
+        </div>
+        {items.length <= 2 && activeHero ? (
+          <aside className="profile-inspector" aria-label="Selected profile details">
+            <div className="inspector-heading">
+              <span className="inspector-eyebrow">SESSION OVERVIEW</span>
+              <h2>Your selected profile.</h2>
+              <p>Review saved details before your next session.</p>
+            </div>
+            <div className="inspector-rule"><span /></div>
+            <div className="inspector-profile">
+              <div className="inspector-symbol" aria-hidden="true"><ShieldCheck size={23} /></div>
+              <div><span className="inspector-label">SELECTED PROFILE</span><strong title={activeHero.name}>{activeHero.name}</strong></div>
+            </div>
+            <dl className="inspector-details">
+              <div><dt><ShieldCheck size={15} /> Session</dt><dd>{activeHero.status || (activeHero.hasSession ? 'Login saved' : 'Sign in required')}</dd></div>
+              <div><dt><Clock3 size={15} /> Last played</dt><dd>{activeHero.lastUsedText || 'Never played'}</dd></div>
+              {activeHero.createdAt && Number.isFinite(Date.parse(activeHero.createdAt)) ? <div><dt><Clock3 size={15} /> Profile added</dt><dd>{new Date(activeHero.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</dd></div> : null}
+            </dl>
+            <div className="inspector-notes"><span className="inspector-label"><FileText size={14} /> PROFILE NOTES</span><p>{activeHero.notes || 'No notes added to this profile.'}</p></div>
+            {onEdit ? <button className="inspector-edit" type="button" onClick={() => onEdit(activeHero.id)} disabled={busy}><Settings2 size={15} /> Manage profile <span aria-hidden="true">↗</span></button> : null}
+          </aside>
+        ) : null}
         </div>
       ) : (
         <AccountListTable

@@ -6,6 +6,7 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
+    watch: { ignored: ['**/src-tauri/**'] },
     proxy: {
       '/api': 'http://127.0.0.1:4170',
     },

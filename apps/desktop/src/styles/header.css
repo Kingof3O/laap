@@ -457,10 +457,10 @@
 
 /* Context Menu Popover */
 .context-menu-popover {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 4px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  margin: 0;
   min-width: 170px;
   background: var(--bg-surface-elevated);
   border: 1px solid var(--border-default);
@@ -517,3 +517,17 @@
 .context-menu-item:hover:not(:disabled) .menu-item-icon {
   color: inherit;
 }
+
+/* Unified native shell */
+.titlebar { height: 56px; position: relative; background: var(--bg-surface); }
+.titlebar .header-bar { flex: 1; min-width: 0; height: 100%; position: static; border: 0; background: transparent; padding-right: 10px; }
+.titlebar-mac { height: 56px; padding-left: 74px; }
+.titlebar-controls { flex-shrink: 0; }
+.filter-menu { position: relative; }
+.filter-menu summary { display: flex; align-items: center; gap: 7px; cursor: pointer; list-style: none; padding: 8px 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--bg-surface-elevated); color: var(--text-primary); font-size: 13px; }
+.filter-menu summary::-webkit-details-marker { display: none; }
+.filter-menu summary:focus-visible { outline: 2px solid var(--gold-primary); outline-offset: 2px; }
+.filter-menu-content { position: absolute; z-index: 80; top: calc(100% + 8px); left: 0; display: grid; gap: 10px; min-width: 240px; padding: 14px; border: 1px solid var(--border-modal); border-radius: var(--radius-lg); background: rgba(17, 29, 48, .96); box-shadow: var(--shadow-lg); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+.filter-menu-content .toolbar-region-select { min-width: 0; max-width: none; }
+.filter-menu-content select { width: 100%; }
+.filter-menu-content .sort-control { display: grid; }

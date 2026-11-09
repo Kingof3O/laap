@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { MoreHorizontal } from 'lucide-react'
+import { createPortal } from 'react-dom'
 
 export interface MenuItem {
   id: string
@@ -43,6 +44,14 @@ export function ContextMenu({ items, label = 'More options', className = '' }: C
       }
     }
 
+    const rect = triggerRef.current?.getBoundingClientRect()
+    const menu = menuRef.current
+    if (rect && menu) {
+      const bounds = menu.getBoundingClientRect()
+      menu.style.left = `${Math.max(8, Math.min(rect.right - bounds.width, window.innerWidth - bounds.width - 8))}px`
+      menu.style.top = `${Math.max(8, rect.bottom + bounds.height + 4 <= window.innerHeight ? rect.bottom + 4 : rect.top - bounds.height - 4)}px`
+    }
+    menuRef.current?.querySelector<HTMLButtonElement>('[role=menuitem]:not(:disabled)')?.focus()
     document.addEventListener('mousedown', handleClickOutside)
     document.addEventListener('keydown', handleKeyDown)
     return () => {
@@ -69,13 +78,22 @@ export function ContextMenu({ items, label = 'More options', className = '' }: C
         <MoreHorizontal size={16} />
       </button>
 
-      {open ? (
+      {open ? createPortal(
         <div
           ref={menuRef}
           role="menu"
           aria-label={label}
           className="context-menu-popover"
           onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return
+            e.preventDefault()
+            const buttons = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role=menuitem]:not(:disabled)'))
+            if (!buttons.length) return
+            const current = buttons.indexOf(document.activeElement as HTMLButtonElement)
+            const next = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 : (current + (e.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length
+            buttons[next].focus()
+          }}
         >
           {items.map((item) => (
             <button
@@ -93,7 +111,7 @@ export function ContextMenu({ items, label = 'More options', className = '' }: C
               <span>{item.label}</span>
             </button>
           ))}
-        </div>
+        </div>, document.body
       ) : null}
     </div>
   )

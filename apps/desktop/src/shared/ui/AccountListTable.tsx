@@ -8,6 +8,7 @@ import {
   Play,
   RotateCcw,
   Trash2,
+  Star,
   UploadCloud,
   Zap,
 } from 'lucide-react'
@@ -21,6 +22,7 @@ export interface TableItem {
   notes?: string
   iconAsset?: string | null
   hasSession: boolean
+  favorite?: boolean
   lastUsedText?: string | null
   status?: string
 }
@@ -102,7 +104,7 @@ export function AccountListTable({
                       <ProfileAvatar name={item.name} asset={item.iconAsset} />
                     </div>
                     <div className="table-profile-details">
-                      <span className="table-name">{item.name}</span>
+                      <span className="table-name">{item.name} {item.favorite ? <Star size={13} fill="currentColor" aria-label="Favorite" className="table-favorite" /> : null}</span>
                       {item.rank ? (
                         <span
                           className={`account-rank-label ${getRankTierClass(item.rank)}`}

@@ -330,7 +330,7 @@ export function UpdateModal({
             }}
           >
             <ShieldCheck size={13} style={{ color: 'var(--status-ready)' }} />
-            <span>Cryptographically signed with Minisign Ed25519 and SignPath Authenticode</span>
+            <span>Automatic installation is unavailable. Review the release before updating manually.</span>
           </div>
 
           {/* Action buttons */}
@@ -368,7 +368,7 @@ export function UpdateModal({
                   <CheckCircle2 size={15} />
                   <span>Restart & Apply Update</span>
                 </>
-              ) : release.downloadUrl ? (
+              ) : release.downloadUrl && onInstall ? (
                 <>
                   <Download size={15} />
                   <span>Download & Install Automatically</span>

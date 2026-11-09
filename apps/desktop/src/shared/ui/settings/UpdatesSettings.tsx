@@ -316,7 +316,7 @@ export function UpdatesSettings({
               <RefreshCw size={14} className={checking ? 'animate-spin' : ''} />
               <span>{checking ? 'Checking for updates…' : 'Check for Updates'}</span>
             </button>
-            {!checking && !updateAvailable && lastChecked ? (
+            {!checking && status === 'up-to-date' && lastChecked ? (
               <span
                 style={{
                   display: 'inline-flex',
@@ -386,8 +386,8 @@ export function UpdatesSettings({
         <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
           <strong style={{ color: 'var(--text-secondary)' }}>Privacy & Integrity Guarantee:</strong>
           <br />
-          Update verification queries only official GitHub repository releases and manifests (
-          <code>github.com/{GITHUB_REPO}</code>). Payloads are verified with Ed25519 Minisign signatures before execution. No telemetry, hardware identifiers, account credentials, or saved profiles are transmitted during update checks.
+          Update checks query GitHub releases (
+          <code>github.com/{GITHUB_REPO}</code>). Automatic installation is disabled until signed updates are configured.
         </div>
       </div>
     </div>

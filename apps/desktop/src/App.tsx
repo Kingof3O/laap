@@ -33,6 +33,14 @@ function AppContent() {
       return 'grid'
     }
   })
+  useEffect(() => {
+    const syncViewMode = () => {
+      const mode = localStorage.getItem(VIEW_MODE_KEY)
+      if (mode === 'grid' || mode === 'list') setViewMode(mode)
+    }
+    window.addEventListener('laap:viewmode-change', syncViewMode)
+    return () => window.removeEventListener('laap:viewmode-change', syncViewMode)
+  }, [])
   const [selectedRegion, setSelectedRegion] = useState<Region>('ALL')
   const [selectedRank, setSelectedRank] = useState('all')
   const [rankOptions, setRankOptions] = useState<string[]>([])
@@ -121,7 +129,6 @@ function AppContent() {
     autoCheckOnLaunch,
     setAutoCheckOnLaunch,
     checkForUpdates,
-    downloadAndInstallUpdate,
     dismissUpdate,
     openReleasePage,
   } = useUpdateChecker()
@@ -140,8 +147,9 @@ function AppContent() {
       const release = await checkForUpdates(true)
       if (release && !isNewerVersion(release.version, currentVersion))
         showSuccess(`LAAP Desktop is up to date (v${currentVersion}).`)
-    } catch {
+    } catch (error) {
       showError('Unable to check for updates (Offline/Blocked)')
+      throw error
     }
   }
 
@@ -205,12 +213,10 @@ function AppContent() {
 
   return (
     <div className="app-container">
-      <WindowTitleBar />
-
-      {/* Top Header */}
+      <WindowTitleBar>
       <Header
         appMode={appMode}
-        updateAvailable={!IS_OFFLINE_ONLY && updateAvailable}
+        updateAvailable={updateAvailable}
         onOpenUpdates={() => setShowUpdateModal(true)}
         onModeChange={(m) => {
           if (!IS_OFFLINE_ONLY) setAppMode(m)
@@ -233,6 +239,7 @@ function AppContent() {
           }
         }}
       />
+      </WindowTitleBar>
 
       <PresenceBanner
         launcher={launcher}
@@ -334,15 +341,15 @@ function AppContent() {
           await logout()
           setShowSettingsModal(false)
         }}
-        onCheckUpdates={IS_OFFLINE_ONLY ? undefined : handleManualCheckUpdates}
+        onCheckUpdates={handleManualCheckUpdates}
         checkingUpdates={checkingUpdates}
         updateStatus={updateStatus}
         downloadProgress={downloadProgress}
         installError={installError}
-        onInstallUpdate={downloadAndInstallUpdate}
+        onInstallUpdate={undefined}
         busy={busy || operations.busy}
         lastChecked={lastChecked}
-        updateAvailable={!IS_OFFLINE_ONLY && updateAvailable}
+        updateAvailable={updateAvailable}
         latestRelease={latestRelease}
         autoCheckOnLaunch={autoCheckOnLaunch}
         onToggleAutoCheck={setAutoCheckOnLaunch}
@@ -355,14 +362,14 @@ function AppContent() {
 
       {/* Update Available Modal */}
       <UpdateModal
-        isOpen={!IS_OFFLINE_ONLY && (updateAvailable || showUpdateModal)}
+        isOpen={updateAvailable || showUpdateModal}
         currentVersion={currentVersion}
         release={latestRelease}
         status={updateStatus}
         downloadProgress={downloadProgress}
         installError={installError}
         onDownload={openReleasePage}
-        onInstall={downloadAndInstallUpdate}
+        onInstall={undefined}
         onDismiss={(forever) => {
           dismissUpdate(forever)
           setShowUpdateModal(false)

@@ -370,7 +370,8 @@ export function PersonalRosterView({
         <AccountRosterDisplay
           items={filteredAccounts.map((acc) => ({
             id: acc.id,
-            name: `${acc.favorite ? '★ ' : ''}${acc.name}`,
+            name: acc.name,
+            favorite: acc.favorite,
             region: acc.region,
             rank: acc.rank,
             notes: acc.notes,
@@ -388,6 +389,7 @@ export function PersonalRosterView({
               ? new Date(acc.last_used_at).toLocaleString()
               : null,
             rawLastUsed: acc.last_used_at,
+            createdAt: acc.created_at,
           }))}
           viewMode={viewMode}
           isCloud={false}

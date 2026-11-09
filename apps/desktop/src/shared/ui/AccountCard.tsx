@@ -207,7 +207,7 @@ export function AccountCard({
     )
   }
 
-  const displayName = name.replace(/^★\s*/, '')
+  const displayName = name
 
   return (
     <div
@@ -224,9 +224,9 @@ export function AccountCard({
 
           <div className="card-info">
             <div className="card-name-row">
-              <span className="card-name" title={name}>
+              <button type="button" className="card-name" title={name} aria-label={`Select ${name}`} aria-pressed={isSelected} onClick={(event) => { event.stopPropagation(); onSelect?.() }}>
                 {name}
-              </span>
+              </button>
               {isRecent ? (
                 <span className="card-recent-badge">Recent</span>
               ) : null}

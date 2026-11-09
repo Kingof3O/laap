@@ -28,3 +28,6 @@ apps/desktop/dist-bundle/
 
 # Local/CI SignPath build samples and extracted installers
 .signpath/out/
+
+# Isolated local Tauri packaging cache
+apps/desktop/src-tauri/target-v21-package/

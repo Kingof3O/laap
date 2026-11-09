@@ -60,7 +60,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: var(--bg-canvas);
+  background: radial-gradient(ellipse at 85% 0%, rgba(100, 205, 225, 0.08), transparent 42%), radial-gradient(ellipse at 15% 0%, rgba(218, 187, 121, 0.07), transparent 40%), var(--bg-canvas);
 }
 
 .main-viewport {
@@ -315,3 +315,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
+.reduced-motion *, .reduced-motion *::before, .reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+h1, h2, h3, .card-name, .settings-section-title { font-family: var(--font-display); }

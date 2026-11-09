@@ -1,5 +1,5 @@
 import { RegionSelect } from './RegionSelect'
-import { LayoutGrid, List, Plus, Search, X } from 'lucide-react'
+import { LayoutGrid, List, Plus, Search, X, SlidersHorizontal } from 'lucide-react'
 import type { SortOrder } from '../../lib/sorting'
 import type { Region, ViewMode } from '../../lib/types'
 
@@ -48,7 +48,8 @@ export function SubNavbar({
           <input
             type="text"
             className="search-input"
-            placeholder="Search accounts or regions…"
+            aria-label="Search accounts or regions"
+            placeholder="Search profiles…"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
           />
@@ -66,6 +67,9 @@ export function SubNavbar({
           )}
         </div>
 
+        <details className="filter-menu" onKeyDown={(event) => { if (event.key === 'Escape') { event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus() } }}>
+          <summary><SlidersHorizontal size={15} /> Filters{(selectedRegion !== 'ALL' || selectedRank !== 'all') ? ` (${Number(selectedRegion !== 'ALL') + Number(selectedRank !== 'all')})` : ''}</summary>
+          <div className="filter-menu-content">
         <div className="toolbar-region-select">
           <RegionSelect
             label="Filter by region"
@@ -106,15 +110,17 @@ export function SubNavbar({
             >
               <option value="name-asc">Name (A-Z)</option>
               <option value="name-desc">Name (Z-A)</option>
-              <option value="last-played-desc">Recently played</option>
-              <option value="last-played-asc">Oldest played</option>
-              <option value="date-added-desc">Recently added</option>
-              <option value="date-added-asc">Oldest added</option>
+              <option value="last-played">Recently played</option>
+              <option value="added-desc">Recently added</option>
+              <option value="added-asc">Oldest added</option>
               <option value="rank-desc">Rank (High to Low)</option>
               <option value="rank-asc">Rank (Low to High)</option>
             </select>
           </label>
         ) : null}
+            <button type="button" className="btn-secondary" onClick={() => { onRegionChange('ALL'); onRankChange?.('all'); onSortChange?.('name-asc') }}>Clear filters</button>
+          </div>
+        </details>
       </div>
 
       {/* View Mode & Add Action */}

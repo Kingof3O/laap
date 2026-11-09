@@ -50,7 +50,15 @@ export function SettingsNavRail({
   hasUpdate = false,
 }: SettingsNavRailProps) {
   return (
-    <nav className="settings-nav-rail" aria-label="Settings Categories">
+    <nav className="settings-nav-rail" role="tablist" aria-label="Settings Categories" aria-orientation="vertical" onKeyDown={(event) => {
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+      event.preventDefault()
+      const current = SETTINGS_CATEGORIES.findIndex((category) => category.id === activeCategory)
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? SETTINGS_CATEGORIES.length - 1 : (current + (event.key === 'ArrowDown' ? 1 : -1) + SETTINGS_CATEGORIES.length) % SETTINGS_CATEGORIES.length
+      onSelectCategory(SETTINGS_CATEGORIES[next].id)
+      const tabs = event.currentTarget.querySelectorAll<HTMLButtonElement>('[role=tab]')
+      tabs[next]?.focus()
+    }}>
       {SETTINGS_CATEGORIES.map((cat) => {
         const Icon = cat.icon
         const isActive = activeCategory === cat.id
@@ -63,6 +71,7 @@ export function SettingsNavRail({
             className={`settings-nav-item ${isActive ? 'active' : ''}`}
             onClick={() => onSelectCategory(cat.id)}
             aria-selected={isActive}
+            tabIndex={isActive ? 0 : -1}
             role="tab"
           >
             <Icon size={16} className="settings-nav-icon" />

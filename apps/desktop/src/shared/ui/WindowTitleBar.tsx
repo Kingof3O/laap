@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Minus, Square, Copy, X } from 'lucide-react'
 import { hasTauri, invokeTauri } from '../../lib/api'
 
-export function WindowTitleBar() {
+export function WindowTitleBar({ children }: { children: ReactNode }) {
   const [maximized, setMaximized] = useState(false)
   const isMac = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('mac')
 
@@ -51,7 +51,7 @@ export function WindowTitleBar() {
   if (isMac) {
     return (
       <div className="titlebar titlebar-mac" data-tauri-drag-region>
-        <div className="titlebar-drag-spacer" data-tauri-drag-region />
+        {children}
       </div>
     )
   }
@@ -60,19 +60,11 @@ export function WindowTitleBar() {
     <div
       className="titlebar"
       data-tauri-drag-region
-      onDoubleClick={handleToggleMaximize}
+      onDoubleClick={(event) => {
+        if ((event.target as HTMLElement).hasAttribute('data-tauri-drag-region')) void handleToggleMaximize()
+      }}
     >
-      <div className="titlebar-left" data-tauri-drag-region>
-        <img
-          src="/logo.webp"
-          alt="LAAP"
-          className="titlebar-logo"
-          data-tauri-drag-region
-        />
-        <span className="titlebar-title" data-tauri-drag-region>
-          LAAP
-        </span>
-      </div>
+      {children}
 
       <div className="titlebar-controls" data-tauri-drag-region="false">
         <button
@@ -81,7 +73,6 @@ export function WindowTitleBar() {
           onClick={handleMinimize}
           title="Minimize"
           aria-label="Minimize"
-          tabIndex={-1}
         >
           <Minus size={14} />
         </button>
@@ -91,7 +82,6 @@ export function WindowTitleBar() {
           onClick={handleToggleMaximize}
           title={maximized ? 'Restore' : 'Maximize'}
           aria-label={maximized ? 'Restore' : 'Maximize'}
-          tabIndex={-1}
         >
           {maximized ? <Copy size={12} /> : <Square size={12} />}
         </button>
@@ -101,7 +91,6 @@ export function WindowTitleBar() {
           onClick={handleClose}
           title="Close to Tray"
           aria-label="Close to Tray"
-          tabIndex={-1}
         >
           <X size={14} />
         </button>

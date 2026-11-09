@@ -58,7 +58,7 @@ export function ProfileAvatar({
       {image ? (
         <img
           src={image}
-          alt={`${name.replace(/^★\s*/, '') || 'Account'} profile icon`}
+          alt={`${name || 'Account'} profile icon`}
           onError={() => {
             setImage(undefined)
             setFailed(true)
@@ -79,7 +79,7 @@ export function ProfileAvatar({
               : 'Account initials'
           }
         >
-          {name.replace(/^★\s*/, '').trim().slice(0, 2).toUpperCase() || '?'}
+          {name.trim().slice(0, 2).toUpperCase() || '?'}
           {failed ? <small aria-hidden="true"> !</small> : null}
         </span>
       )}

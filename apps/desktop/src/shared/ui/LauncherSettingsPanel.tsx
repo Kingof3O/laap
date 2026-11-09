@@ -4,9 +4,11 @@ import type { LauncherController, PresenceMode } from '../../hooks/useLauncher'
 export function LauncherSettingsPanel({
   launcher,
   disabled,
+  section,
 }: {
   launcher: LauncherController
   disabled: boolean
+  section: 'riot' | 'presence'
 }) {
   const { view, loading, busy, error } = launcher
   const [path, setPath] = useState('')
@@ -53,6 +55,7 @@ export function LauncherSettingsPanel({
       className="launcher-settings-panel"
       aria-label="Riot installation and presence"
     >
+      {section === 'riot' && <>
       <h3>
         <FolderSearch size={16} /> Riot installation
       </h3>
@@ -66,7 +69,8 @@ export function LauncherSettingsPanel({
           {view.detected_client.path}
         </code>
       ) : null}
-      {view.presence_supported ? (
+      </>}
+      {section === 'presence' && view.presence_supported ? (
         <>
           <h3>Default presence</h3>
           <label className="field-block">
@@ -89,7 +93,7 @@ export function LauncherSettingsPanel({
           <p>Used when LAAP starts. Change the current session anytime from the header or system menu. New installs start Online.</p>
         </>
       ) : null}
-      {view.windows ? (
+      {section === 'riot' && view.windows ? (
         <>
           <label className="field-block">
             <span className="field-label">
@@ -134,14 +138,14 @@ export function LauncherSettingsPanel({
           {error}
         </p>
       ) : null}
-      <button
+      {section === 'riot' && <button
         type="button"
         className="btn-modal-secondary"
         disabled={busy || loading}
         onClick={() => void launcher.refresh()}
       >
         Detect again
-      </button>
+      </button>}
     </section>
   )
 }
