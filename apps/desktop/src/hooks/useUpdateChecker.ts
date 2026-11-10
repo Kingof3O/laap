@@ -46,7 +46,7 @@ export interface GitHubReleaseInfo {
 
 interface NativeUpdateResult {
   has_update: boolean
-  is_installable: boolean
+  is_installable?: boolean
   current_version: string
   latest_version: string
   release_name: string
@@ -156,7 +156,10 @@ export function useUpdateChecker() {
           const res = await invokeTauri<NativeUpdateResult>('check_github_update')
           setLastChecked(new Date())
 
-          const isInstallable = Boolean(res.is_installable && res.signature && res.download_url)
+          const isInstallable =
+            res.is_installable !== undefined
+              ? Boolean(res.is_installable && res.signature && res.download_url)
+              : Boolean(res.signature && res.download_url)
           const releaseInfo: GitHubReleaseInfo = {
             tagName: `v${res.latest_version}`,
             version: res.latest_version,

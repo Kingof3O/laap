@@ -961,6 +961,7 @@ test('native in-app update checks trigger installation action and guard active m
         if (command === 'check_github_update') {
           return {
             has_update: true,
+            is_installable: true,
             current_version: '1.0.0',
             latest_version: '1.0.1',
             release_name: 'Release v1.0.1',
