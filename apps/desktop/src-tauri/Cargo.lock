@@ -2434,6 +2434,7 @@ dependencies = [
  "getrandom 0.4.3",
  "image",
  "keyring",
+ "minisign-verify",
  "native-tls",
  "openssl",
  "quick-xml",
