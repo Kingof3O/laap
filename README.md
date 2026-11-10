@@ -59,6 +59,9 @@ Play games in complete stealth. LAAP includes an integrated local proxy that let
 - **Ranks & Crests:** Automatic Solo/Duo rank synchronization and custom summoner icon caching directly from Data Dragon.
 - **Quick Search (`Ctrl+K` / `Cmd+K`):** Instantly filter accounts by summoner name, server region, or competitive tier.
 
+### 🔄 Cryptographic In-App Updates
+Both editions include an integrated update engine verified by **Ed25519/Minisign** digital signatures. In the Offline Edition, the native host process checks GitHub releases directly without exposing webview credentials or user telemetry, keeping your launcher secure and up to date without compromising offline privacy.
+
 ### 🪟 Windows Frameless Title Bar & System Tray
 Enjoy a native, borderless desktop window with drag support, maximize/restore toggling, and close-to-tray capability. Quick-switch accounts or change presence directly from your Windows Notification Tray or macOS Menu Bar.
 
@@ -82,6 +85,10 @@ LAAP is distributed in two editions tailored to your workflow:
 
 - **LAAP Offline**: Designed for solo players and privacy purists. All cloud networking is stripped at compile-time, and the webview enforces a strict zero-connection Content Security Policy.
 - **LAAP Team Edition**: Built for esports organizations, collegiate teams, and communities that share accounts with atomic concurrency leasing.
+
+![LAAP Team Edition Shared Accounts](docs/visual-v2-3/final/team-1440.png)
+
+*Team Edition: Shared account roster with atomic checkout leasing, permission tiers, and active status tracking.*
 
 ---
 
@@ -139,7 +146,7 @@ npm --workspace @laap/desktop run test:updater
 npm --workspace @laap/desktop run test:sorting
 npm --workspace @laap/desktop run test:lease-exit
 
-# Run full Playwright UI integration suite (19 tests)
+# Run full Playwright UI integration suite (24 tests)
 npm --workspace @laap/desktop run test:ui
 
 # Run native Rust unit test suite (48 tests)
