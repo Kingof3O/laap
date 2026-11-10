@@ -117,7 +117,7 @@ export function UpdatesSettings({
           }}
         >
           <span>Release Channel:</span>
-          <span style={{ color: 'var(--color-gold-400)', fontWeight: 600 }}>
+          <span style={{ color: 'var(--color-accent-400)', fontWeight: 600 }}>
             Official Stable ({editionLabel})
           </span>
         </div>
@@ -141,14 +141,14 @@ export function UpdatesSettings({
           style={{
             padding: '16px',
             borderRadius: '8px',
-            background: 'rgba(200, 170, 110, 0.1)',
-            border: '1px solid rgba(200, 170, 110, 0.3)',
+            background: 'rgba(201, 166, 255, 0.1)',
+            border: '1px solid rgba(201, 166, 255, 0.3)',
             display: 'flex',
             flexDirection: 'column',
             gap: '10px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-gold-300)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent-300)' }}>
             <Sparkles size={16} />
             <strong style={{ fontSize: '13px' }}>
               Update Available: {latestRelease.tagName} ({latestRelease.name})
@@ -171,7 +171,7 @@ export function UpdatesSettings({
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                <span style={{ color: 'var(--color-gold-300)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ color: 'var(--color-accent-300)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Loader2 size={13} className="animate-spin" /> Downloading {Math.round(downloadProgress.percentage)}%
                 </span>
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
@@ -191,7 +191,7 @@ export function UpdatesSettings({
                   style={{
                     width: `${Math.min(100, Math.max(0, downloadProgress.percentage))}%`,
                     height: '100%',
-                    background: 'var(--color-gold-400)',
+                    background: 'var(--color-accent-400)',
                     transition: 'width 0.2s ease',
                   }}
                 />
@@ -360,10 +360,11 @@ export function UpdatesSettings({
         >
           <input
             type="checkbox"
+            className="settings-switch"
             checked={autoCheckOnLaunch}
             onChange={(e) => onToggleAutoCheck(e.target.checked)}
             disabled={disabled || isBusy}
-            style={{ accentColor: 'var(--color-gold-500)', cursor: 'pointer' }}
+            style={{ accentColor: 'var(--color-accent-500)', cursor: 'pointer' }}
           />
           <span>Check for updates automatically on application startup</span>
         </label>
@@ -382,7 +383,7 @@ export function UpdatesSettings({
           alignItems: 'flex-start',
         }}
       >
-        <ShieldCheck size={18} style={{ color: 'var(--color-gold-400)', flexShrink: 0, marginTop: '2px' }} />
+        <ShieldCheck size={18} style={{ color: 'var(--color-accent-400)', flexShrink: 0, marginTop: '2px' }} />
         <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
           <strong style={{ color: 'var(--text-secondary)' }}>Privacy & Integrity Guarantee:</strong>
           <br />

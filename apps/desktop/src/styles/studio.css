@@ -4,177 +4,12 @@
   gap: 22px;
   padding: 20px 24px 36px;
   width: 100%;
-  max-width: 1600px;
   margin: 0 auto;
 }
 
 .studio-roster-stage {
   width: 100%;
   min-width: 0;
-}
-
-/* ========================================================================= */
-/* HERO QUICK-RESUME STRIP (Layout A)                                        */
-/* ========================================================================= */
-.hero-resume-strip {
-  background: linear-gradient(135deg, rgba(12, 23, 46, 0.95) 0%, rgba(9, 20, 40, 0.95) 50%, rgba(6, 13, 26, 0.98) 100%);
-  border: 1px solid rgba(200, 170, 110, 0.35);
-  border-radius: 16px;
-  padding: 22px 28px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(200, 170, 110, 0.2);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-.hero-resume-strip::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent 0%, var(--gold-primary) 30%, var(--sapphire-blue) 70%, transparent 100%);
-  opacity: 0.85;
-}
-
-.hero-resume-left {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  min-width: 0;
-}
-
-.hero-avatar {
-  width: 60px;
-  height: 60px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #1C283F 0%, #0A1220 100%);
-  border: 2px solid var(--gold-primary);
-  display: grid;
-  place-items: center;
-  position: relative;
-  flex-shrink: 0;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-}
-
-.hero-avatar-initials {
-  font-size: 20px;
-  font-weight: 900;
-  color: var(--gold-light);
-  letter-spacing: 0.05em;
-}
-
-.hero-region-badge {
-  position: absolute;
-  bottom: -4px;
-  right: -4px;
-  font-size: 11px;
-  font-weight: 800;
-  padding: 2px 6px;
-  border-radius: 5px;
-  background: #0A1220;
-  border: 1px solid var(--sapphire-blue);
-  color: var(--sapphire-blue-light);
-  line-height: 1.2;
-}
-
-.hero-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.hero-label-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-}
-
-.hero-badge-title {
-  color: var(--sapphire-blue-light);
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.hero-dot {
-  color: var(--text-muted);
-}
-
-.hero-timestamp {
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.hero-name {
-  font-size: 22px;
-  font-weight: 800;
-  color: #FFFFFF;
-  letter-spacing: 0.02em;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.hero-meta-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 2px;
-}
-
-.hero-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.btn-hero-play {
-  height: 44px;
-  padding: 0 28px;
-  border-radius: 9px;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  color: #03070E;
-  background: var(--gold-gradient);
-  border: 1px solid #FFE4A0;
-  box-shadow: 0 6px 20px rgba(200, 170, 110, 0.4);
-  cursor: pointer;
-  transition: all 0.16s ease;
-}
-
-.btn-hero-play:hover:not(:disabled) {
-  background: var(--gold-gradient-hover);
-  box-shadow: 0 8px 24px rgba(200, 170, 110, 0.6), 0 0 16px rgba(59, 130, 246, 0.4);
-  transform: translateY(-1px);
-}
-
-.btn-hero-play:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.btn-hero-play:disabled {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.06);
-  color: var(--text-muted);
-  cursor: not-allowed;
-  box-shadow: none;
 }
 
 /* Tactical Overview Rail */
@@ -274,22 +109,22 @@
   width: 100%;
   height: 36px;
   border-radius: 7px;
-  background: var(--gold-gradient);
-  color: #07090E;
+  background: var(--accent-gradient);
+  color: #0a0811;
   font-size: 13px;
   font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1px solid var(--gold-border);
-  box-shadow: 0 2px 10px rgba(212, 158, 53, 0.25);
+  border: 1px solid var(--accent-border);
+  box-shadow: 0 2px 10px rgba(156, 118, 219, 0.25);
   cursor: pointer;
 }
 
 .inspector-launch-btn:hover:not(:disabled) {
-  background: var(--gold-gradient-hover);
-  box-shadow: 0 4px 16px rgba(229, 184, 92, 0.4);
+  background: var(--accent-gradient-hover);
+  box-shadow: 0 4px 16px rgba(201, 166, 255, 0.4);
   transform: translateY(-1px);
 }
 
@@ -386,7 +221,7 @@
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 700;
-  color: var(--gold-secondary);
+  color: var(--accent-secondary);
 }
 
 .region-bar-track {

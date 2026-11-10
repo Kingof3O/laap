@@ -93,8 +93,8 @@
 
 .hextech-input:focus,
 .hextech-select:focus {
-  border-color: var(--gold-primary);
-  box-shadow: 0 0 0 1px var(--gold-primary), 0 0 12px rgba(229, 184, 92, 0.2);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 1px var(--accent-primary), 0 0 12px rgba(201, 166, 255, 0.2);
 }
 
 /* Radiant Gold Modal Primary Action */
@@ -102,13 +102,13 @@
   height: 36px;
   padding: 0 18px;
   border-radius: 7px;
-  background: var(--gold-gradient);
-  color: #07090E;
+  background: var(--accent-gradient);
+  color: #0a0811;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.02em;
-  border: 1px solid var(--gold-border);
-  box-shadow: 0 2px 10px rgba(212, 158, 53, 0.25);
+  border: 1px solid var(--accent-border);
+  box-shadow: 0 2px 10px rgba(156, 118, 219, 0.25);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -117,8 +117,8 @@
 }
 
 .btn-modal-primary:hover:not(:disabled) {
-  background: var(--gold-gradient-hover);
-  box-shadow: 0 4px 16px rgba(229, 184, 92, 0.4);
+  background: var(--accent-gradient-hover);
+  box-shadow: 0 4px 16px rgba(201, 166, 255, 0.4);
   transform: translateY(-1px);
 }
 
@@ -193,9 +193,9 @@
   width: 44px;
   height: 44px;
   border-radius: 10px;
-  background: var(--gold-surface);
-  border: 1px solid rgba(229, 184, 92, 0.4);
-  color: var(--gold-light);
+  background: var(--accent-surface);
+  border: 1px solid rgba(201, 166, 255, 0.4);
+  color: var(--accent-light);
   display: grid;
   place-items: center;
   margin: 0 auto;
@@ -281,9 +281,9 @@
 }
 
 .settings-nav-item.active {
-  color: var(--color-gold-300);
-  background: rgba(200, 170, 110, 0.12);
-  border-left: 2px solid var(--color-gold-500);
+  color: var(--color-accent-300);
+  background: rgba(201, 166, 255, 0.12);
+  border-left: 2px solid var(--color-accent-500);
   font-weight: 600;
 }
 
@@ -293,7 +293,7 @@
   padding: 1px 6px;
   border-radius: 10px;
   background: var(--status-ready);
-  color: #070D17;
+  color: #100d19;
   margin-left: auto;
 }
 

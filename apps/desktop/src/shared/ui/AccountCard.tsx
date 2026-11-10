@@ -97,10 +97,10 @@ export function AccountCard({
     })
   }
 
-  if (onSync) {
+  if (onSync && (!isCloud || canManage)) {
     menuItems.push({
       id: 'sync',
-      label: 'Sync Icon & Rank',
+      label: isCloud ? 'Sync Session' : 'Sync Icon & Rank',
       icon: <RotateCcw size={14} />,
       onClick: onSync,
     })
@@ -115,7 +115,7 @@ export function AccountCard({
     })
   }
 
-  if (onForceRelease) {
+  if (onForceRelease && canManage && isLeased) {
     menuItems.push({
       id: 'force-release',
       label: 'Force Release Lease',
@@ -125,7 +125,7 @@ export function AccountCard({
     })
   }
 
-  if (onRevokeSession) {
+  if (onRevokeSession && canManage && hasSession) {
     menuItems.push({
       id: 'revoke',
       label: 'Revoke Cloud Session',
@@ -135,7 +135,7 @@ export function AccountCard({
     })
   }
 
-  if (canManage || onDelete) {
+  if (!isCloud || canManage) {
     menuItems.push({
       id: 'delete',
       label: isCloud ? 'Delete Account' : 'Remove Profile',

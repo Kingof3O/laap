@@ -63,7 +63,7 @@ export function AdvancedSettings({ onResetRiot, busy }: AdvancedSettingsProps) {
 
       {/* Orphaned Session Recovery */}
       <div className="settings-card">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-gold-400)', marginBottom: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent-400)', marginBottom: '6px' }}>
           <RefreshCw size={16} />
           <strong style={{ fontSize: '13px' }}>Recover Orphaned Sessions</strong>
         </div>

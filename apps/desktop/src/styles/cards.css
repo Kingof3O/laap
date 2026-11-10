@@ -20,7 +20,7 @@
 }
 
 .roster-card {
-  background: linear-gradient(145deg, rgba(38, 59, 87, 0.68), var(--bg-card) 65%);
+  background: linear-gradient(145deg, rgba(57, 45, 76, 0.68), var(--bg-card) 65%);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   border: 1px solid var(--border-card);
@@ -45,13 +45,13 @@
 }
 
 .roster-card:focus-within {
-  border-color: var(--gold-border);
+  border-color: var(--accent-border);
 }
 
 .roster-card-selected {
   background: var(--bg-card-selected);
-  border-color: var(--gold-primary);
-  box-shadow: 0 0 0 1px var(--gold-primary), var(--shadow-card-hover);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 1px var(--accent-primary), var(--shadow-card-hover);
 }
 
 .card-top-row {
@@ -74,7 +74,7 @@
   height: 44px;
   border-radius: var(--radius-md);
   background: var(--bg-surface-elevated);
-  border: 1px solid var(--gold-border-subtle);
+  border: 1px solid var(--accent-border-subtle);
   display: grid;
   place-items: center;
   position: relative;
@@ -84,7 +84,7 @@
 .avatar-initials {
   font-size: 14px;
   font-weight: 700;
-  color: var(--gold-light);
+  color: var(--accent-light);
   letter-spacing: 0.04em;
 }
 
@@ -97,8 +97,8 @@
   padding: 1px 5px;
   border-radius: var(--radius-xs);
   background: var(--bg-canvas);
-  border: 1px solid var(--sapphire-blue);
-  color: var(--sapphire-blue-light);
+  border: 1px solid var(--ambient-blue);
+  color: var(--ambient-blue-light);
   line-height: 1.2;
 }
 
@@ -146,12 +146,12 @@
 }
 
 .card-favorite-btn:hover {
-  color: var(--gold-primary);
-  background: var(--gold-surface);
+  color: var(--accent-primary);
+  background: var(--accent-surface);
 }
 
 .card-favorite-btn-active {
-  color: var(--gold-primary);
+  color: var(--accent-primary);
 }
 
 .card-meta {
@@ -207,7 +207,7 @@
   justify-content: center;
   gap: 6px;
   color: var(--text-inverse);
-  background: var(--gold-gradient);
+  background: var(--accent-gradient);
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: var(--shadow-sm);
   cursor: pointer;
@@ -215,7 +215,7 @@
 }
 
 .btn-launch-primary:hover:not(:disabled) {
-  background: var(--gold-gradient-hover);
+  background: var(--accent-gradient-hover);
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
 }
@@ -252,8 +252,8 @@
   padding: 2px 8px;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-full);
-  color: var(--gold-light);
-  background: var(--gold-surface);
+  color: var(--accent-light);
+  background: var(--accent-surface);
   font-size: 11px;
   font-weight: 600;
   line-height: 1.4;
@@ -265,8 +265,8 @@
 
 .card-name-row, .card-meta-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .card-meta-row { flex-wrap: wrap; }
-.card-region-badge { position: absolute; right: -5px; bottom: -5px; padding: 1px 4px; border-radius: 3px; background: var(--bg-canvas); border: 1px solid var(--sapphire-blue); color: var(--sapphire-blue-light); font-size: 10px; line-height: 1.2; }
-.card-recent-badge { color: var(--gold-light); font-size: 11px; white-space: nowrap; }
+.card-region-badge { position: absolute; right: -5px; bottom: -5px; padding: 1px 4px; border-radius: 3px; background: var(--bg-canvas); border: 1px solid var(--ambient-blue); color: var(--ambient-blue-light); font-size: 10px; line-height: 1.2; }
+.card-recent-badge { color: var(--accent-light); font-size: 11px; white-space: nowrap; }
 .card-status-pill { font-size: 11px; line-height: 1.4; color: var(--text-secondary); }
 .card-status-ready { color: var(--status-ready); }
 .card-status-warn { color: var(--status-warning); }

@@ -1,4 +1,13 @@
 import { expect, test, type Page } from '@playwright/test'
+async function choosePresence(page: Page, mode: 'Online' | 'Appear offline') {
+  await page.getByRole('button', { name: /^Online presence:/ }).click()
+  await page.getByRole('group', { name: 'Presence options' }).getByRole('button', { name: mode, exact: true }).click()
+}
+async function presenceMessage(page: Page, text: string) {
+  const trigger = page.getByRole('button', { name: /^Online presence:/ })
+  if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click()
+  await expect(page.getByRole('group', { name: 'Presence options' })).toContainText(text)
+}
 async function launcherFixture(
   page: Page,
   options: { enabled?: boolean; client?: boolean; game?: boolean; setupFailed?: boolean } = {},
@@ -177,7 +186,7 @@ test('custom-drive settings remain editable while presence setup is automatic', 
     dialog.getByLabel('Enable LAAP Presence for future logins'),
   ).toHaveCount(0)
   await expect(
-    page.getByLabel('Online presence', { exact: true }),
+    page.getByRole('button', { name: /^Online presence:/ }),
   ).toBeVisible()
   const { mkdirSync } = await import('node:fs')
   mkdirSync('../../.artifacts/launcher', { recursive: true })
@@ -192,11 +201,9 @@ test('startup presence is saved and live toggles require confirmation without re
 }) => {
   await launcherFixture(page, { enabled: true })
   await page.goto('/')
-  const select = page.getByLabel('Online presence', { exact: true })
-  await select.selectOption('offline')
-  await expect(page.locator('.presence-status')).toContainText(
-    'Appear offline on next login',
-  )
+  await choosePresence(page, 'Appear offline')
+  await presenceMessage(page, 'Appear offline on next login')
+  await page.keyboard.press('Escape')
   expect(
     await page.evaluate(() =>
       (window as any).launcherFixture.calls.filter(
@@ -208,21 +215,12 @@ test('startup presence is saved and live toggles require confirmation without re
     ;(window as any).launcherFixture.delayPresence = true
   })
   await page.getByRole('button', { name: 'Play', exact: true }).first().click()
-  await expect(page.locator('.presence-status')).toContainText(
-    'Applying presence…',
-  )
-  await expect(page.locator('.presence-status')).not.toContainText(
-    'LAAP Presence: offline filter is active',
-  )
-  await expect(select).toBeDisabled()
+  await presenceMessage(page, 'Applying presence…')
+  await expect(page.getByRole('group', { name: 'Presence options' })).not.toContainText('LAAP Presence: offline filter is active')
   await page.evaluate(() => (window as any).launcherFixture.finishPresence())
-  await expect(page.locator('.presence-status')).toContainText(
-    'LAAP Presence: offline filter is active',
-  )
-  await select.selectOption('online')
-  await expect(page.locator('.presence-status')).toContainText(
-    'LAAP Presence: online filter is active',
-  )
+  await expect(page.getByRole('group', { name: 'Presence options' })).toContainText('LAAP Presence: offline filter is active')
+  await page.getByRole('group', { name: 'Presence options' }).getByRole('button', { name: 'Online', exact: true }).click()
+  await presenceMessage(page, 'LAAP Presence: online filter is active')
   expect(
     await page.evaluate(() =>
       (window as any).launcherFixture.calls.filter(
@@ -237,21 +235,12 @@ test('a normally opened client requires an explicit guarded restart to enable pr
 }) => {
   await launcherFixture(page, { enabled: true, client: true, game: true })
   await page.goto('/')
-  await page
-    .getByLabel('Online presence', { exact: true })
-    .selectOption('offline')
-  await expect(page.locator('.presence-status')).toContainText(
-    'Restart Riot with presence controls',
-  )
-  await expect(page.locator('.presence-status')).not.toContainText(
-    'LAAP Presence: offline filter is active',
-  )
-  await page
-    .getByRole('button', {
-      name: 'Restart Riot with presence controls',
-      exact: true,
-    })
-    .click()
+  await choosePresence(page, 'Appear offline')
+  await expect(page.getByRole('button', { name: /Online presence: Restart required/ })).toBeVisible()
+  await expect(page.locator('.presence-status')).toHaveCount(0)
+  await page.getByRole('button', { name: /Online presence: Restart required/ }).click()
+  await expect(page.getByRole('group', { name: 'Presence options' })).toContainText('Restart Riot to apply your selected presence mode.')
+  await page.getByRole('button', { name: 'Apply presence · Restart Riot', exact: true }).click()
   await expect(page.getByRole('dialog')).toContainText(
     'A match is currently in progress',
   )
@@ -265,9 +254,7 @@ test('a normally opened client requires an explicit guarded restart to enable pr
   await page
     .getByRole('button', { name: 'Exit game and continue', exact: true })
     .click()
-  await expect(page.locator('.presence-status')).toContainText(
-    'LAAP Presence: offline filter is active',
-  )
+  await presenceMessage(page, 'LAAP Presence: offline filter is active')
   const restarts = await page.evaluate(() =>
     (window as any).launcherFixture.calls.filter(
       (c: any) => c.command === 'restart_riot_presence',
@@ -282,9 +269,7 @@ test('presence is always in the header and setup controls are absent from Settin
 }) => {
   await launcherFixture(page, { enabled: true })
   await page.goto('/')
-  await expect(page.getByLabel('Online presence', { exact: true })).toHaveValue(
-    'online',
-  )
+  await expect(page.getByRole('button', { name: /^Online presence:/ })).toContainText('Online')
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   await expect(page.getByRole('dialog')).not.toContainText(
     'Enable LAAP Presence for future logins',
@@ -304,18 +289,19 @@ test('failed setup is visible and Online bypass requires a separate explicit cho
   await expect(banner).toContainText('certificate provider unreachable')
   await expect(page.getByRole('button', { name: 'Retry presence', exact: true })).toBeVisible()
   expect(await page.evaluate(() => (window as any).launcherFixture.bypass)).toBe(false)
-  await page.getByLabel('Online presence', { exact: true }).selectOption('offline')
+  await choosePresence(page, 'Appear offline')
   await expect(page.getByRole('button', { name: 'Allow normal Online launch', exact: true })).toHaveCount(0)
-  await page.getByLabel('Online presence', { exact: true }).selectOption('online')
+  await choosePresence(page, 'Online')
+  await page.getByRole('button', { name: /^Online presence:/ }).click()
   await page.getByRole('button', { name: 'Allow normal Online launch', exact: true }).click()
-  await expect(banner).toContainText('Normal Online launch allowed')
+  await expect(page.getByRole('group', { name: 'Presence options' })).toContainText('Normal Online launch allowed')
   expect(await page.evaluate(() => (window as any).launcherFixture.bypass)).toBe(true)
 })
 
 test('startup default is saved separately without changing live presence', async ({ page }) => {
   await launcherFixture(page)
   await page.goto('/')
-  await expect(page.getByLabel('Online presence', { exact: true })).toHaveValue('online')
+  await expect(page.getByRole('button', { name: /^Online presence:/ })).toContainText('Online')
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Settings', exact: true })
   await dialog.getByRole('tab', { name: 'Presence', exact: true }).click()
@@ -323,7 +309,7 @@ test('startup default is saved separately without changing live presence', async
   await dialog.getByRole('button', { name: 'Save launcher settings', exact: true }).click()
   await expect(dialog).toContainText('Launcher settings saved')
   expect(await page.evaluate(() => (window as any).launcherFixture.view.settings.startup_presence)).toBe('offline')
-  await expect(page.getByLabel('Online presence', { exact: true })).toHaveValue('online')
+  await expect(page.getByRole('button', { name: /^Online presence:/ })).toContainText('Online')
   await dialog.getByRole('button', { name: 'Close modal', exact: true }).click()
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   await expect(page.getByRole('dialog').getByLabel('Default presence on startup', { exact: true })).toHaveValue('offline')

@@ -48,7 +48,7 @@
   border: 1px solid var(--border-subtle);
   font-weight: 700;
   font-size: 10px;
-  color: var(--gold-light);
+  color: var(--accent-light);
   display: grid;
   place-items: center;
 }
@@ -101,8 +101,8 @@
   height: 26px;
   padding: 0 10px;
   border-radius: 5px;
-  background: linear-gradient(135deg, #C8AA6E, #A0824B);
-  color: #090B10;
+  background: linear-gradient(135deg, #c9a6ff, #A0824B);
+  color: #0a0811;
   font-size: 11px;
   font-weight: 700;
   display: inline-flex;
@@ -149,4 +149,4 @@
   min-width: 0;
 }
 
-.table-favorite { color: var(--gold-primary); vertical-align: middle; margin-left: 4px; }
+.table-favorite { color: var(--accent-primary); vertical-align: middle; margin-left: 4px; }

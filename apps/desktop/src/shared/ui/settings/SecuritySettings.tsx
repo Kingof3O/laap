@@ -59,7 +59,7 @@ export function SecuritySettings({ busy = false }: SecuritySettingsProps) {
         }}
       >
         <div className="settings-card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-gold-400)', marginBottom: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent-400)', marginBottom: '6px' }}>
             <Lock size={15} />
             <strong style={{ fontSize: '12px' }}>Encryption Standard</strong>
           </div>
@@ -69,7 +69,7 @@ export function SecuritySettings({ busy = false }: SecuritySettingsProps) {
         </div>
 
         <div className="settings-card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-gold-400)', marginBottom: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent-400)', marginBottom: '6px' }}>
             <Database size={15} />
             <strong style={{ fontSize: '12px' }}>Zero Plaintext Storage</strong>
           </div>
@@ -79,7 +79,7 @@ export function SecuritySettings({ busy = false }: SecuritySettingsProps) {
         </div>
 
         <div className="settings-card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-gold-400)', marginBottom: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent-400)', marginBottom: '6px' }}>
             <FileCheck size={15} />
             <strong style={{ fontSize: '12px' }}>Network Isolation</strong>
           </div>

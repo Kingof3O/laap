@@ -5,51 +5,24 @@
 
 :root {
   color-scheme: dark;
-  --color-gold-300: #f1d9a1;
-  --color-gold-400: #dabb79;
-  --color-gold-500: #c5a45f;
-  --border-gold-focus: #dabb79;
-  --gold-secondary: #f1d9a1;
-  --border-color: rgba(255,255,255,.10);
   --status-warn: var(--status-warning);
 
-  /* Font Family - Native system font stack (strictly local, offline-safe) */
+  /* Local font families */
   --font-display: Sora, 'Segoe UI', sans-serif;
   --font-body: Manrope, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, ui-monospace, monospace;
 
-  /* Core Canvas & Surfaces (Refined Midnight Navy & Restrained Glass) */
-  --bg-canvas: #080C17;
-  --bg-surface: #111D30;
-  --bg-surface-elevated: #1C2D45;
-  --bg-surface-hover: #1E2D44;
-  --bg-surface-active: #243550;
+  /* Canvas and surfaces */
 
-  /* Card Surfaces (Restrained, subtle glass without heavy blur or aggressive scale) */
-  --bg-card: rgba(16, 27, 44, 0.72);
-  --bg-card-hover: rgba(25, 38, 58, 0.88);
-  --bg-card-selected: rgba(28, 44, 68, 0.95);
-  --bg-card-interactive: rgba(16, 27, 44, 0.5);
+  /* Card surfaces */
+  --bg-card-interactive: rgba(36, 29, 52, 0.5);
 
-  /* Hextech Antique Gold Accents (Restrained, elegant, non-blinding) */
-  --gold-primary: #DABB79;
-  --gold-hover: #DFBA73;
-  --gold-light: #F0E6D2;
-  --gold-active: #B58A38;
-  --gold-deep: #966B1E;
-  --gold-dim: rgba(200, 170, 110, 0.18);
-  --gold-surface: rgba(200, 170, 110, 0.08);
-  --gold-surface-hover: rgba(200, 170, 110, 0.14);
-  --gold-border: rgba(200, 170, 110, 0.35);
-  --gold-border-subtle: rgba(200, 170, 110, 0.18);
-  --gold-gradient: linear-gradient(135deg, #DABB79 0%, #A47D32 100%);
-  --gold-gradient-hover: linear-gradient(135deg, #DFBA73 0%, #BD892B 100%);
+  /* Accent */
+  --accent-deep: #7959af;
 
-  /* Sapphire & Cobalt Blue Secondary Accents */
-  --sapphire-blue: #64CDE1;
-  --sapphire-blue-light: #93C5FD;
-  --sapphire-blue-bg: rgba(59, 130, 246, 0.08);
-  --sapphire-blue-border: rgba(59, 130, 246, 0.25);
+  /* Secondary illumination */
+  --ambient-blue-bg: rgba(168, 155, 217, 0.08);
+  --ambient-blue-border: rgba(168, 155, 217, 0.25);
 
   /* Semantic Status Tokens */
   --status-ready: #34B899;
@@ -63,10 +36,8 @@
   --status-danger: #E26C73;
   --status-danger-bg: rgba(226, 108, 115, 0.10);
   --status-danger-border: rgba(226, 108, 115, 0.30);
-
-  --status-info: #64CDE1;
-  --status-info-bg: rgba(59, 130, 246, 0.10);
-  --status-info-border: rgba(59, 130, 246, 0.30);
+  --status-info-bg: rgba(168, 155, 217, 0.10);
+  --status-info-border: rgba(168, 155, 217, 0.30);
 
   --status-leased: #E5AC59;
   --status-leased-bg: rgba(229, 172, 89, 0.10);
@@ -75,10 +46,6 @@
   /* Borders & Separation (Clean, subtle, structural) */
   --border-subtle: rgba(255, 255, 255, 0.06);
   --border-default: rgba(255, 255, 255, 0.10);
-  --border-card: rgba(200, 170, 110, 0.16);
-  --border-card-hover: rgba(200, 170, 110, 0.40);
-  --border-card-selected: #DABB79;
-  --border-modal: rgba(200, 170, 110, 0.28);
   --border-divider: rgba(255, 255, 255, 0.07);
 
   /* Surface Highlights & Shadows */
@@ -90,11 +57,7 @@
   --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.55);
 
   /* Typography Colors (High contrast, readable, accessible) */
-  --text-primary: #E9EDF5;
-  --text-secondary: #A9B6CA;
-  --text-muted: #8594A9;
-  --text-gold: #F0E6D2;
-  --text-inverse: #080C17;
+  --text-accent: #eee3fa;
 
   /* Radii */
   --radius-xs: 4px;
@@ -107,4 +70,15 @@
   /* Transitions */
   --transition-fast: 120ms cubic-bezier(0.16, 1, 0.3, 1);
   --transition-normal: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  --velvet-canvas: #100d19; --velvet-surface: #241d34; --velvet-raised: #392d4c;
+  --velvet-glass: #392d4c; --velvet-accent: #c9a6ff; --velvet-light: #a89bd9; --velvet-text: #f8f2ff;
+  --bg-canvas: var(--velvet-canvas); --bg-surface: var(--velvet-surface); --bg-surface-elevated: var(--velvet-raised); --bg-surface-hover: #403353; --bg-surface-active: #493b5e;
+  --bg-card: rgba(36, 29, 52,.88); --bg-card-hover: rgba(57, 45, 76,.96); --bg-card-selected: rgba(66, 49, 86,.96);
+  --text-primary: var(--velvet-text); --text-secondary: #c3b5d2; --text-muted: #ac9dc2; --text-inverse: #20132f;
+  --accent-primary: var(--velvet-accent); --accent-hover: #dcc7ff; --accent-light: #e5d6ff; --accent-active: #9c76db; --accent-secondary: var(--velvet-accent);
+  --color-accent-300: #e5d6ff; --color-accent-400: var(--velvet-accent); --color-accent-500: #9c76db; --border-accent-focus: var(--velvet-accent);
+  --accent-dim: rgba(201, 166, 255,.18); --accent-surface: rgba(201, 166, 255,.08); --accent-surface-hover: rgba(201, 166, 255,.14); --accent-border: rgba(201, 166, 255,.36); --accent-border-subtle: rgba(201, 166, 255,.2);
+  --accent-gradient: linear-gradient(135deg,#e5d6ff,#aa85e6); --accent-gradient-hover: linear-gradient(135deg,#eee4ff,#c9a6ff);
+  --border-card: rgba(168,155,190,.18); --border-card-hover: rgba(201, 166, 255,.4); --border-card-selected: var(--velvet-accent); --border-modal: rgba(168,155,190,.25); --border-color: #54456f;
+  --ambient-blue: var(--velvet-light); --ambient-blue-light: #d1c4f1; --status-info: var(--velvet-light);
 }

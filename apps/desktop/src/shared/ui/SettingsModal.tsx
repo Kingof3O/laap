@@ -214,11 +214,11 @@ export function SettingsModal({
                       LAAP Tactical Launcher
                     </div>
                     <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                      Developed by Hussien Salah
+                      Account launcher
                     </div>
                   </div>
                   <div
-                    style={{ fontSize: '11px', color: 'var(--color-gold-400)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}
+                    style={{ fontSize: '11px', color: 'var(--color-accent-400)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}
                   >
                     v{currentVersion}
                   </div>

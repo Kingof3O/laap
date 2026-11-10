@@ -16,10 +16,21 @@ LAAP V2 transforms account management into a refined, native desktop experience.
 
 Windows installers are currently unsigned while the SignPath Foundation application awaits review. Windows may display Microsoft Defender SmartScreen's unknown-publisher warning. See the [code-signing policy](CODE_SIGNING.md) and [privacy policy](PRIVACY.md).
 
-## What's New in LAAP V2
+## Desktop preview
 
-- **Refined Hextech Design System:** Dark-first aesthetic featuring deep midnight canvas (`#070D17`), elevated surfaces (`#101B2C`), antique gold accents (`#C8AA6E`), and restrained glass blur.
-- **Unified Single-Presentation Roster:** Eliminated the redundant hero account panel. Every profile appears once in a responsive grid or compact table, with subtle badges for the most recently played account.
+![Velvet Amethyst roster with account details](docs/visual-v2-3/maximized/open-1920-2.png)
+
+![Settings and About page](docs/visual-v2-3/final/settings-about-960.png)
+
+These previews use test profiles and simulated application state. More captures and verification details are available in the [V2.3 report](docs/LAAP_V2_3_FINAL_REPORT.md).
+
+## What's New in LAAP V2.3
+
+- **Velvet Amethyst design:** Layered violet surfaces, lavender actions, locally bundled typography, and an atmospheric desktop background.
+- **Optional profile details:** Show or hide a persistent inspector with the selected account's saved information.
+- **Contextual presence:** Requested and applied presence states are shown in the header, with the guarded restart action available when needed.
+- **Quieter profile sync:** Routine background checks avoid repeatedly displaying a foreground syncing state.
+- **Responsive roster:** Manage profiles in a grid or compact table, with favorites and recent-account indicators.
 - **Custom Native Titlebar:** Windows frameless title bar with native window dragging, maximize/restore, minimize, and seamless integration with the close-to-tray lifecycle.
 - **Contextual Context Menus:** Replaced cluttered multi-button card layouts with a clean primary launch action and an accessible context menu for secondary operations.
 - **Two-Column Settings Workspace:** Spacious 900px configuration modal organized into modular categories (General, Appearance, Riot Client, Presence, Updates, Security & Storage, Advanced, About).

@@ -100,7 +100,7 @@ export function EmptyState({
                 <Zap
                   size={14}
                   style={{
-                    color: 'var(--gold-primary)',
+                    color: 'var(--accent-primary)',
                     marginRight: '6px',
                     flexShrink: 0,
                   }}
@@ -129,7 +129,7 @@ export function EmptyState({
             <Zap
               size={14}
               style={{
-                color: 'var(--gold-primary)',
+                color: 'var(--accent-primary)',
                 marginRight: '4px',
                 flexShrink: 0,
               }}

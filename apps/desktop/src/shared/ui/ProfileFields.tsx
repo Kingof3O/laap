@@ -124,6 +124,8 @@ export function ProfileFields({
           <small>Mark this account with a star in your roster.</small>
         </span>
       </label>
+      <details className="profile-advanced">
+        <summary>Advanced customization</summary>
       <div className="profile-tools-grid">
         <IconPicker
           value={customization}
@@ -197,6 +199,7 @@ export function ProfileFields({
           </p>
         </section>
       </div>
+      </details>
     </>
   )
 }

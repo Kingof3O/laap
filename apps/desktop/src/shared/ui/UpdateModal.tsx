@@ -94,12 +94,12 @@ export function UpdateModal({
                 width: '32px',
                 height: '32px',
                 borderRadius: '8px',
-                background: 'rgba(200, 170, 110, 0.15)',
-                border: '1px solid rgba(200, 170, 110, 0.3)',
+                background: 'rgba(201, 166, 255, 0.15)',
+                border: '1px solid rgba(201, 166, 255, 0.3)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: 'var(--color-gold-400)',
+                color: 'var(--color-accent-400)',
               }}
             >
               <Sparkles size={16} />
@@ -143,7 +143,7 @@ export function UpdateModal({
                 style={{
                   fontSize: '16px',
                   fontWeight: 700,
-                  color: 'var(--color-gold-300)',
+                  color: 'var(--color-accent-300)',
                   marginTop: '2px',
                   fontFamily: 'var(--font-mono)',
                 }}
@@ -206,16 +206,16 @@ export function UpdateModal({
             <div
               style={{
                 padding: '12px 14px',
-                background: 'rgba(200, 170, 110, 0.08)',
+                background: 'rgba(201, 166, 255, 0.08)',
                 borderRadius: '8px',
-                border: '1px solid rgba(200, 170, 110, 0.25)',
+                border: '1px solid rgba(201, 166, 255, 0.25)',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '8px',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                <span style={{ color: 'var(--color-gold-300)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ color: 'var(--color-accent-300)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Loader2 size={13} className="animate-spin" /> Downloading update package…
                 </span>
                 <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', fontWeight: 600 }}>
@@ -235,7 +235,7 @@ export function UpdateModal({
                   style={{
                     width: `${Math.min(100, Math.max(0, downloadProgress.percentage))}%`,
                     height: '100%',
-                    background: 'var(--color-gold-400)',
+                    background: 'var(--color-accent-400)',
                     transition: 'width 0.2s ease',
                   }}
                 />

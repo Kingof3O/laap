@@ -543,6 +543,7 @@ test('profile notes and cached avatars survive reload; editor preview, regions a
   const root = path.resolve('../../.artifacts/profile-editor')
   mkdirSync(root, { recursive: true })
   await dialog.screenshot({ path: path.join(root, 'edit-profile.png') })
+  await dialog.getByText('Advanced customization', { exact: true }).click()
   await dialog
     .getByLabel('Auto-sync rank on game login', { exact: true })
     .check()
@@ -555,6 +556,7 @@ test('profile notes and cached avatars survive reload; editor preview, regions a
   await dialog
     .getByRole('button', { name: 'League icons', exact: true })
     .click()
+  await dialog.getByRole('button', { name: 'Select Icon #685', exact: true }).scrollIntoViewIfNeeded()
   await expect(
     dialog.getByRole('button', { name: 'Select Icon #685', exact: true }),
   ).toBeEnabled()
@@ -640,15 +642,10 @@ test('sync reports pending, partial failure, and manual retry without fake perce
     }
   })
   await page.goto('/')
-  const panel = page.locator('.sync-status')
-  await expect(panel).toContainText('Syncing enabled icons')
-  const { mkdirSync } = await import('node:fs')
-  mkdirSync('../../.artifacts/sync-feedback', { recursive: true })
-  await page.screenshot({ path: '../../.artifacts/sync-feedback/syncing.png' })
-
-  await expect(
-    panel.getByRole('button', { name: 'Syncing…', exact: true }),
-  ).toBeDisabled()
+  const panel = page.locator('.sync-compact')
+  await expect(panel).toContainText('Enabled')
+  await expect(panel).not.toContainText('Syncing…')
+  await panel.locator('summary').click()
   await page.evaluate(() =>
     (window as any).finishSync({
       changed: false,
@@ -670,7 +667,7 @@ test('sync reports pending, partial failure, and manual retry without fake perce
     }),
   )
   await expect(panel).toContainText('already up to date')
-  await expect(panel).toContainText('Last attempt:')
+  await expect(panel).toContainText('Last checked:')
   await expect(
     panel.getByRole('button', { name: 'Sync now', exact: true }),
   ).toBeEnabled()
@@ -825,6 +822,7 @@ test('failed icon previews show an error and retry downloads successfully', asyn
     .getByRole('button', { name: 'Edit Main', exact: true })
     .first()
     .click()
+  await page.getByText('Advanced customization', { exact: true }).click()
   await page.getByRole('button', { name: 'League icons', exact: true }).click()
   await page
     .getByRole('button', { name: 'Load online previews', exact: true })
@@ -948,14 +946,16 @@ test('offline edition checks updates through native IPC and menus support keyboa
 
 test('the selected profile inspector follows roster selection and its real notes', async ({ page }) => {
   await page.addInitScript(() => {
+    let profiles = [
+      { id: 'a', name: 'Alpha', region: 'EUW', rank: null, notes: 'Alpha note', favorite: false, session_status: 'saved', has_session: true, created_at: '2026-01-01', last_used_at: null },
+      { id: 'b', name: 'Bravo', region: 'NA', rank: null, notes: 'Bravo note', favorite: false, session_status: 'missing', has_session: false, created_at: '2026-01-02', last_used_at: null },
+    ]
     ;(window as any).__TAURI_INTERNALS__ = {
       metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } }, transformCallback: () => 1, unregisterCallback: () => {},
       invoke: async (command: string) => {
         if (command === 'runtime_snapshot') return { riot_client: false, league_client: false, league_game: false, valorant_game: false }
-        if (command === 'list_local_accounts') return [
-          { id: 'a', name: 'Alpha', region: 'EUW', rank: null, notes: 'Alpha note', favorite: false, session_status: 'saved', has_session: true, created_at: '2026-01-01', last_used_at: null },
-          { id: 'b', name: 'Bravo', region: 'NA', rank: null, notes: 'Bravo note', favorite: false, session_status: 'missing', has_session: false, created_at: '2026-01-02', last_used_at: null },
-        ]
+        if (command === 'list_local_accounts') return profiles
+        if (command === 'delete_local_account') { profiles = profiles.filter((item) => item.id !== 'b'); return null }
         return null
       },
     }
@@ -967,4 +967,69 @@ test('the selected profile inspector follows roster selection and its real notes
   await expect(details).toContainText('Bravo note')
   await expect(details).toContainText('Sign in required')
   await expect(page.getByRole('button', { name: 'Select Bravo' })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: 'Hide details', exact: true }).click()
+  await expect(details).toHaveCount(0)
+  await page.reload()
+  await expect(details).toHaveCount(0)
+  await page.getByRole('button', { name: 'Show details', exact: true }).click()
+  await page.getByRole('button', { name: 'Select Bravo' }).click()
+  await page.getByRole('textbox', { name: 'Search accounts or regions' }).fill('Alpha')
+  await expect(details).toContainText('Alpha note')
+  await expect(details).not.toContainText('Bravo note')
+  await page.getByRole('textbox', { name: 'Search accounts or regions' }).fill('')
+  await page.getByRole('button', { name: 'Select Bravo' }).click()
+  await page.getByRole('button', { name: 'Options for Bravo' }).click()
+  await page.getByRole('menuitem', { name: 'Remove Profile' }).click()
+  await page.getByRole('dialog', { name: 'DeleteConfirm' }).getByRole('button', { name: 'Remove Profile' }).click()
+  await expect(details).toContainText('Alpha note')
+  await expect(details).not.toContainText('Bravo note')
+})
+
+test('background no-op synchronization leaves the roster stable', async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = window.setInterval.bind(window)
+    window.setInterval = ((handler: TimerHandler, timeout?: number, ...args: any[]) => original(handler, timeout === 20000 ? 250 : timeout, ...args)) as typeof window.setInterval
+    ;(window as any).polls = 0
+    ;(window as any).pollFailure = false
+    ;(window as any).__TAURI_INTERNALS__ = { invoke: async (command: string) => {
+      if (command === 'runtime_snapshot') return { riot_client: false, league_client: false, league_game: false, valorant_game: false }
+      if (command === 'list_local_accounts') return [{ id:'p', name:'Polling', region:'EUW', rank:null, notes:'', favorite:false, session_status:'saved', has_session:true, created_at:'2026-01-01', last_used_at:null, customization:{ auto_sync_icon:true, auto_sync_rank:false } }]
+      if (command === 'sync_profile_customizations') { (window as any).polls++; if ((window as any).pollFailure) throw Error('fixture failure'); return { changed:false, state:'success', message:null } }
+      return null
+    }}
+  })
+  await page.goto('/')
+  const panel = page.locator('.sync-compact')
+  const card = page.locator('.roster-card')
+  await expect(card).toBeVisible()
+  const before = await card.boundingBox()
+  await expect.poll(() => page.evaluate(() => (window as any).polls)).toBeGreaterThanOrEqual(3)
+  expect(await card.boundingBox()).toEqual(before)
+  await expect(panel).not.toContainText('Syncing…')
+  await expect(panel).not.toHaveClass(/sync-status-syncing/)
+  await page.evaluate(() => { (window as any).pollFailure = true })
+  await expect(panel).toHaveClass(/sync-status-error/)
+  await page.evaluate(() => { (window as any).pollFailure = false })
+  await expect(panel).toHaveClass(/sync-status-success/)
+})
+
+test('toolbar shortcut, filter dismissal, and About branding', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible()
+  await page.keyboard.press('Control+k')
+  await expect(page.getByRole('textbox', { name: 'Search accounts or regions' })).toBeFocused()
+  await page.getByText('Filters', { exact: true }).click()
+  await expect(page.getByLabel('Filter by region')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByLabel('Filter by region')).not.toBeVisible()
+  await expect(page.getByText('Filters', { exact: true })).toBeFocused()
+  await page.getByText('Filters', { exact: true }).click()
+  await page.getByRole('textbox', { name: 'Search accounts or regions' }).click()
+  await expect(page.getByLabel('Filter by region')).not.toBeVisible()
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.getByRole('tab', { name: 'About', exact: true }).click()
+  const about = page.getByLabel('About LAAP')
+  await expect(about.getByRole('img', { name: 'LAAP' })).toHaveAttribute('src', '/logo.webp')
+  await expect(about).not.toContainText('Created by')
+  await expect(about).not.toContainText('Hussien Salah')
 })

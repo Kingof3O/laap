@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { RegionSelect } from './RegionSelect'
 import { LayoutGrid, List, Plus, Search, X, SlidersHorizontal } from 'lucide-react'
 import type { SortOrder } from '../../lib/sorting'
@@ -38,6 +39,12 @@ export function SubNavbar({
 }: SubNavbarProps) {
   const isMac = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('mac')
   const shortcutHint = isMac ? '⌘K' : 'Ctrl+K'
+  const filtersRef = useRef<HTMLDetailsElement>(null)
+  useEffect(() => {
+    const dismiss = (event: MouseEvent) => { if (filtersRef.current?.open && !filtersRef.current.contains(event.target as Node)) filtersRef.current.open = false }
+    document.addEventListener('mousedown', dismiss)
+    return () => document.removeEventListener('mousedown', dismiss)
+  }, [])
 
   return (
     <div className="sub-navbar">
@@ -67,7 +74,7 @@ export function SubNavbar({
           )}
         </div>
 
-        <details className="filter-menu" onKeyDown={(event) => { if (event.key === 'Escape') { event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus() } }}>
+        <details ref={filtersRef} className="filter-menu" onKeyDown={(event) => { if (event.key === 'Escape') { event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus() } }}>
           <summary><SlidersHorizontal size={15} /> Filters{(selectedRegion !== 'ALL' || selectedRank !== 'all') ? ` (${Number(selectedRegion !== 'ALL') + Number(selectedRank !== 'all')})` : ''}</summary>
           <div className="filter-menu-content">
         <div className="toolbar-region-select">
@@ -125,7 +132,7 @@ export function SubNavbar({
 
       {/* View Mode & Add Action */}
       <div className="view-action-controls">
-        <span className="badge badge-muted" style={{ padding: '5px 10px', fontSize: '12px' }}>
+        <span className="account-count">
           {totalCount} {totalCount === 1 ? 'Profile' : 'Profiles'}
         </span>
 
@@ -136,6 +143,7 @@ export function SubNavbar({
             onClick={() => onViewModeChange('grid')}
             title="Grid View"
             aria-label="Grid View"
+            aria-pressed={viewMode === 'grid'}
           >
             <LayoutGrid size={15} />
           </button>
@@ -145,6 +153,7 @@ export function SubNavbar({
             onClick={() => onViewModeChange('list')}
             title="List View"
             aria-label="List View"
+            aria-pressed={viewMode === 'list'}
           >
             <List size={15} />
           </button>

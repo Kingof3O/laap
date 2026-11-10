@@ -309,47 +309,14 @@ export function PersonalRosterView({
   return (
     <div>
       {syncEnabled ? (
-        <div
-          className={`sync-status sync-status-${syncState}`}
-          role="status"
-          aria-live="polite"
-          aria-busy={syncState === 'syncing'}
-        >
-          <div>
-            <strong>
-              {syncState === 'syncing' ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <RefreshCw size={14} />
-              )}{' '}
-              Icon & rank sync
-            </strong>
-            <p>
-              {syncMessage ??
-                'Only saved auto-sync options are updated. Open the matching League account, then sync.'}
-            </p>
-            {lastSyncAt ? (
-              <small>
-                Last attempt: {lastSyncAt.toLocaleTimeString()}
-                {lastSuccessfulSyncAt
-                  ? ` · Last successful check: ${lastSuccessfulSyncAt.toLocaleTimeString()}`
-                  : ''}
-              </small>
-            ) : null}
+        <details className={`sync-compact sync-status-${syncState}`}>
+          <summary><RefreshCw size={15} /> <span>Icon & rank sync</span><span className="sync-compact-state">{syncState === 'syncing' ? 'Syncing…' : syncState === 'error' ? 'Needs attention' : syncState === 'waiting' ? 'Waiting' : syncState === 'success' ? 'Up to date' : 'Enabled'}</span></summary>
+          <div className="sync-compact-panel">
+            <p role="status">{syncMessage ?? 'Checks enabled profile options when League Client is available.'}</p>
+            {lastSyncAt ? <small>Last checked: {lastSyncAt.toLocaleTimeString()}{lastSuccessfulSyncAt ? ` · Last successful: ${lastSuccessfulSyncAt.toLocaleTimeString()}` : ''}</small> : null}
+            <button type="button" className="btn-secondary" disabled={syncState === 'syncing' || blocked} onClick={() => void syncNow()}>{syncState === 'syncing' ? 'Syncing…' : syncState === 'error' ? 'Retry sync' : 'Sync now'}</button>
           </div>
-          <button
-            type="button"
-            className="btn-modal-secondary"
-            disabled={syncState === 'syncing' || blocked}
-            onClick={() => void syncNow()}
-          >
-            {syncState === 'syncing'
-              ? 'Syncing…'
-              : syncState === 'error'
-                ? 'Retry sync'
-                : 'Sync now'}
-          </button>
-        </div>
+        </details>
       ) : null}
       {loading || error ? (
         <AccountLoadState

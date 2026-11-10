@@ -153,7 +153,7 @@ export function SyncAccountModal({
             >
               <Zap
                 size={15}
-                style={{ color: 'var(--gold-primary)', flexShrink: 0 }}
+                style={{ color: 'var(--accent-primary)', flexShrink: 0 }}
               />
               <div style={{ textAlign: 'left' }}>
                 <div

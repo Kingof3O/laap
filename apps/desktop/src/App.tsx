@@ -225,7 +225,7 @@ function AppContent() {
         onRefresh={() => window.dispatchEvent(new Event('laap:refresh'))}
         onOpenSettings={() => setShowSettingsModal(true)}
         isOfflineOnly={IS_OFFLINE_ONLY}
-        presenceControl={<PresenceSelect launcher={launcher} />}
+        presenceControl={<PresenceSelect launcher={launcher} operationBusy={operations.busy || operations.provisioning} />}
         riotRunning={operations.running}
         operationBusy={operations.busy || operations.provisioning}
         onStopRiot={async () => {

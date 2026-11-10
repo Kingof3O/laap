@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { AccountCard } from './AccountCard'
 import { AccountListTable } from './AccountListTable'
 import type { ViewMode } from '../../lib/types'
-import { Clock3, FileText, ShieldCheck, Settings2 } from 'lucide-react'
+import { PanelRightOpen } from 'lucide-react'
+import { ProfileInspector } from './ProfileInspector'
 
 export interface RosterItem {
   id: string
@@ -63,6 +64,10 @@ export function AccountRosterDisplay({
   onToggleFavorite,
 }: AccountRosterDisplayProps) {
   const [selectedId, setSelectedId] = useState<string | null>(items[0]?.id ?? null)
+  const [detailsOpen, setDetailsOpen] = useState(() => {
+    try { const value = localStorage.getItem('laap_profile_details'); return value === 'false' ? false : true } catch { return true }
+  })
+  const toggleDetails = (open: boolean) => { setDetailsOpen(open); try { localStorage.setItem('laap_profile_details', String(open)) } catch { /* preference is optional */ } }
 
   // Find the most recently played account ID to subtly badge it (without repeating it in a hero strip)
   const mostRecentId = useMemo(() => {
@@ -109,8 +114,9 @@ export function AccountRosterDisplay({
           {activeHero.notes}
         </span>
       ) : null}
+      {viewMode === 'grid' && activeHero ? <div className="roster-heading"><div><span className="roster-kicker">{isCloud ? 'SHARED ACCOUNTS' : 'YOUR ACCOUNTS'}</span><h1>Choose your next session</h1></div><button type="button" className="details-toggle" aria-expanded={detailsOpen} aria-controls="profile-inspector" onClick={() => toggleDetails(!detailsOpen)}><PanelRightOpen size={16} />{detailsOpen ? 'Hide details' : 'Show details'}</button></div> : null}
       {viewMode === 'grid' ? (
-        <div className={items.length <= 2 ? 'roster-workspace' : 'roster-workspace roster-workspace-full'}>
+        <div className={detailsOpen && activeHero ? 'roster-workspace' : 'roster-workspace roster-workspace-full'}>
         <div className={gridLayoutClass} role="region" aria-label="Account Roster">
           {items.map((item) => {
             const isLaunching = launchingId === item.id
@@ -167,27 +173,7 @@ export function AccountRosterDisplay({
             )
           })}
         </div>
-        {items.length <= 2 && activeHero ? (
-          <aside className="profile-inspector" aria-label="Selected profile details">
-            <div className="inspector-heading">
-              <span className="inspector-eyebrow">SESSION OVERVIEW</span>
-              <h2>Your selected profile.</h2>
-              <p>Review saved details before your next session.</p>
-            </div>
-            <div className="inspector-rule"><span /></div>
-            <div className="inspector-profile">
-              <div className="inspector-symbol" aria-hidden="true"><ShieldCheck size={23} /></div>
-              <div><span className="inspector-label">SELECTED PROFILE</span><strong title={activeHero.name}>{activeHero.name}</strong></div>
-            </div>
-            <dl className="inspector-details">
-              <div><dt><ShieldCheck size={15} /> Session</dt><dd>{activeHero.status || (activeHero.hasSession ? 'Login saved' : 'Sign in required')}</dd></div>
-              <div><dt><Clock3 size={15} /> Last played</dt><dd>{activeHero.lastUsedText || 'Never played'}</dd></div>
-              {activeHero.createdAt && Number.isFinite(Date.parse(activeHero.createdAt)) ? <div><dt><Clock3 size={15} /> Profile added</dt><dd>{new Date(activeHero.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</dd></div> : null}
-            </dl>
-            <div className="inspector-notes"><span className="inspector-label"><FileText size={14} /> PROFILE NOTES</span><p>{activeHero.notes || 'No notes added to this profile.'}</p></div>
-            {onEdit ? <button className="inspector-edit" type="button" onClick={() => onEdit(activeHero.id)} disabled={busy}><Settings2 size={15} /> Manage profile <span aria-hidden="true">↗</span></button> : null}
-          </aside>
-        ) : null}
+        {detailsOpen && activeHero ? <ProfileInspector account={activeHero} busy={busy} onClose={() => toggleDetails(false)} onEdit={onEdit ? () => onEdit(activeHero.id) : undefined} /> : null}
         </div>
       ) : (
         <AccountListTable

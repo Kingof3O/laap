@@ -4,7 +4,7 @@
   max-width: 760px;
   max-height: calc(100dvh - 40px);
   overflow: hidden;
-  border-color: rgba(229, 184, 92, 0.22);
+  border-color: rgba(201, 166, 255, 0.22);
   border-radius: 18px;
   animation: profile-enter 0.16s ease-out;
 }
@@ -28,7 +28,7 @@
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.14em;
-  color: var(--gold-primary);
+  color: var(--accent-primary);
 }
 .profile-modal-header h2 {
   margin: 0;
@@ -56,7 +56,7 @@
   color: var(--text-secondary);
 }
 .profile-modal-close:hover {
-  border-color: var(--gold-primary);
+  border-color: var(--accent-primary);
   color: var(--text-primary);
 }
 .profile-preview {
@@ -78,11 +78,11 @@
   width: 68px;
   height: 68px;
   flex-shrink: 0;
-  border: 1px solid var(--gold-border);
+  border: 1px solid var(--accent-border);
   border-radius: 15px;
   position: relative;
   background: var(--bg-card);
-  color: var(--gold-light);
+  color: var(--accent-light);
   font-size: 23px;
 }
 .profile-avatar-image {
@@ -109,7 +109,7 @@
   padding: 4px;
   width: 23px;
   height: 23px;
-  color: var(--gold-primary);
+  color: var(--accent-primary);
   background: var(--bg-surface);
   border-radius: 50%;
 }
@@ -141,7 +141,7 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  color: var(--gold-light);
+  color: var(--accent-light);
 }
 .rank-crest {
   display: inline-block;
@@ -181,8 +181,8 @@
 }
 .profile-modal .hextech-input:focus,
 .profile-modal .hextech-select:focus {
-  border-color: var(--gold-primary);
-  box-shadow: 0 0 0 3px rgba(229, 184, 92, 0.1);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(201, 166, 255, 0.1);
 }
 .profile-modal .field-label {
   display: flex;
@@ -219,13 +219,13 @@
 }
 .profile-favorite-toggle input,
 .profile-sync-toggle input {
-  accent-color: var(--gold-primary);
+  accent-color: var(--accent-primary);
   width: 15px;
   height: 15px;
   flex-shrink: 0;
 }
 .profile-favorite-toggle svg {
-  color: var(--gold-primary);
+  color: var(--accent-primary);
 }
 .profile-favorite-toggle small,
 .profile-sync-toggle small {
@@ -249,7 +249,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 14px;
-  color: var(--gold-primary);
+  color: var(--accent-primary);
 }
 .profile-section-heading h3 {
   font-size: 12px;
@@ -366,8 +366,8 @@
 }
 .icon-tile:hover,
 .icon-tile-selected {
-  border-color: var(--gold-primary);
-  background: var(--gold-surface);
+  border-color: var(--accent-primary);
+  background: var(--accent-surface);
 }
 .icon-browser-footer {
   color: var(--text-muted);
@@ -463,8 +463,8 @@
 }
 .rank-option-active,
 .rank-option[aria-selected='true'] {
-  background: var(--gold-surface);
-  color: var(--gold-light);
+  background: var(--accent-surface);
+  color: var(--accent-light);
 }
 .rank-option small {
   margin-left: auto;
@@ -576,9 +576,9 @@
   gap: 16px;
   margin: 12px 24px;
   padding: 14px 16px;
-  border: 1px solid #33445f;
+  border: 1px solid #54456f;
   border-radius: 10px;
-  background: #0d192b;
+  background: #1a1426;
   color: #d0dbea;
   font-size: 12px;
 }
@@ -612,9 +612,9 @@
   width: min(760px, calc(100% - 40px));
   box-sizing: border-box;
   padding: 16px 20px;
-  border: 1px solid var(--border-color, #4e5d73);
+  border: 1px solid var(--border-color, #54456f);
   border-radius: 12px;
-  background: #101e32;
+  background: #241d34;
   color: #e8edf6;
   box-shadow: 0 8px 30px #0008;
   font-size: 13px;
@@ -646,7 +646,7 @@
   display: grid;
   gap: 12px;
   padding-bottom: 20px;
-  border-bottom: 1px solid #33445f;
+  border-bottom: 1px solid #54456f;
   margin-bottom: 16px;
 }
 .launcher-settings-panel h3 {
@@ -666,8 +666,8 @@
   display: block;
   padding: 10px;
   overflow-wrap: anywhere;
-  color: #a9d9ff;
-  background: #06111e;
+  color: #d1c4f1;
+  background: #0a0811;
   border-radius: 6px;
   font-size: 11px;
 }
@@ -679,8 +679,8 @@
   color: var(--text-secondary);
 }
 .presence-select select {
-  background: #101e32;
-  border: 1px solid #33445f;
+  background: #241d34;
+  border: 1px solid #54456f;
   color: #e8edf6;
   border-radius: 6px;
   padding: 7px;
@@ -691,10 +691,10 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 24px;
-  background: #101e32;
+  background: #241d34;
   color: #c8d9ed;
   font-size: 12px;
-  border-bottom: 1px solid #33445f;
+  border-bottom: 1px solid #54456f;
 }
 .presence-status > span {
   display: flex;

@@ -17,12 +17,12 @@ body {
   background-image:
     radial-gradient(
       ellipse 80% 50% at 50% -10%,
-      rgba(200, 170, 110, 0.04),
+      rgba(201, 166, 255, 0.04),
       transparent
     ),
     radial-gradient(
       ellipse 60% 30% at 80% 10%,
-      rgba(59, 130, 246, 0.03),
+      rgba(168, 155, 217, 0.03),
       transparent
     );
 }
@@ -42,7 +42,7 @@ button {
 }
 
 button:focus-visible {
-  outline: 2px solid var(--gold-primary);
+  outline: 2px solid var(--accent-primary);
   outline-offset: 2px;
 }
 
@@ -52,7 +52,7 @@ input, select, textarea {
 }
 
 input:focus-visible, select:focus-visible, textarea:focus-visible {
-  outline: 2px solid var(--gold-primary);
+  outline: 2px solid var(--accent-primary);
   outline-offset: 1px;
 }
 
@@ -60,7 +60,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: radial-gradient(ellipse at 85% 0%, rgba(100, 205, 225, 0.08), transparent 42%), radial-gradient(ellipse at 15% 0%, rgba(218, 187, 121, 0.07), transparent 40%), var(--bg-canvas);
+  background: radial-gradient(ellipse at 85% 0%, rgba(168, 155, 217, 0.08), transparent 42%), radial-gradient(ellipse at 15% 0%, rgba(201, 166, 255, 0.07), transparent 40%), var(--bg-canvas);
 }
 
 .main-viewport {
@@ -77,7 +77,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(7, 13, 23, 0.6);
+  background: rgba(10, 8, 17, 0.6);
 }
 
 ::-webkit-scrollbar-thumb {
@@ -86,7 +86,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(200, 170, 110, 0.45);
+  background: rgba(201, 166, 255, 0.45);
 }
 
 /* Common Interactive Controls */
@@ -100,14 +100,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-inverse);
-  background: var(--gold-gradient);
+  background: var(--accent-gradient);
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: var(--shadow-sm);
   transition: all var(--transition-fast);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--gold-gradient-hover);
+  background: var(--accent-gradient-hover);
   box-shadow: var(--shadow-md);
 }
 
@@ -139,7 +139,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 
 .btn-secondary:hover:not(:disabled) {
   background: var(--bg-surface-hover);
-  border-color: var(--gold-border-subtle);
+  border-color: var(--accent-border-subtle);
   color: #FFFFFF;
 }
 
@@ -232,9 +232,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 
 .badge-gold {
-  background: var(--gold-surface);
-  border: 1px solid var(--gold-border-subtle);
-  color: var(--gold-light);
+  background: var(--accent-surface);
+  border: 1px solid var(--accent-border-subtle);
+  color: var(--accent-light);
 }
 
 .badge-muted {
@@ -262,9 +262,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   display: grid;
   place-items: center;
   border-radius: var(--radius-md);
-  background: var(--gold-surface);
-  border: 1px solid var(--gold-border-subtle);
-  color: var(--gold-light);
+  background: var(--accent-surface);
+  border: 1px solid var(--accent-border-subtle);
+  color: var(--accent-light);
 }
 
 @keyframes laap-spin {
@@ -282,7 +282,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   width: 20px;
   height: 20px;
   border: 2px solid var(--border-default);
-  border-top-color: var(--gold-primary);
+  border-top-color: var(--accent-primary);
   border-radius: 50%;
 }
 

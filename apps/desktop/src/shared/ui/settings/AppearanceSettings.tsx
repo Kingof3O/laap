@@ -71,7 +71,7 @@ export function AppearanceSettings({ disabled = false }: AppearanceSettingsProps
               alignItems: 'center',
               justifyContent: 'center',
               gap: '8px',
-              border: viewMode === 'grid' ? '1px solid var(--border-gold-focus)' : undefined,
+              border: viewMode === 'grid' ? '1px solid var(--border-accent-focus)' : undefined,
               background: viewMode === 'grid' ? 'var(--bg-card-selected)' : undefined,
             }}
           >
@@ -91,7 +91,7 @@ export function AppearanceSettings({ disabled = false }: AppearanceSettingsProps
               alignItems: 'center',
               justifyContent: 'center',
               gap: '8px',
-              border: viewMode === 'list' ? '1px solid var(--border-gold-focus)' : undefined,
+              border: viewMode === 'list' ? '1px solid var(--border-accent-focus)' : undefined,
               background: viewMode === 'list' ? 'var(--bg-card-selected)' : undefined,
             }}
           >
