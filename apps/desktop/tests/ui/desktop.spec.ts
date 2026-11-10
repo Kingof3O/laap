@@ -924,8 +924,8 @@ test('offline edition checks updates through native IPC and menus support keyboa
       invoke: async (command: string) => {
         if (command === 'runtime_snapshot') return { riot_client: false, league_client: false, league_game: false, valorant_game: false }
         if (command === 'list_local_accounts') return [{ id: 'one', name: 'One', region: 'EUW', rank: null, notes: '', favorite: false, session_status: 'saved', has_session: true, created_at: '2026-01-01', last_used_at: null }]
-        if (command === 'get_app_version') return '0.4.8'
-        if (command === 'check_github_update') { (window as any).updateChecks++; return { has_update: false, current_version: '0.4.8', latest_version: '0.4.8', release_name: 'Current', release_notes: '', published_at: '', html_url: 'https://github.com/Kingof3O/laap/releases', edition: 'offline', platform: 'windows-x86_64' } }
+        if (command === 'get_app_version') return '1.0.0'
+        if (command === 'check_github_update') { (window as any).updateChecks++; return { has_update: false, current_version: '1.0.0', latest_version: '1.0.0', release_name: 'Current', release_notes: '', published_at: '', html_url: 'https://github.com/Kingof3O/laap/releases', edition: 'offline', platform: 'windows-x86_64' } }
         return null
       },
     }

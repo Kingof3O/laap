@@ -9,7 +9,7 @@ import {
 import { parseSemver, isNewerVersion } from '../lib/version'
 
 export { parseSemver, isNewerVersion }
-export const APP_VERSION = '0.4.8'
+export const APP_VERSION = '1.0.0'
 export const GITHUB_REPO = 'Kingof3O/laap'
 const DISMISSED_KEY = 'laap_dismissed_update_version'
 const AUTO_CHECK_KEY = 'laap_auto_check_updates'
@@ -70,10 +70,10 @@ export function useUpdateChecker() {
   const [autoCheckOnLaunch, setAutoCheckOnLaunchState] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem(AUTO_CHECK_KEY)
-      if (saved === null) return !IS_OFFLINE_ONLY
+      if (saved === null) return true
       return saved === 'true'
     } catch {
-      return !IS_OFFLINE_ONLY
+      return true
     }
   })
 

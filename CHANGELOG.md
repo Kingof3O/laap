@@ -5,6 +5,17 @@ All notable changes to the **LAAP** project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-11-10
+
+### Added
+- **Velvet Amethyst Design System**: Complete desktop interface visual overhaul with modern dark theme, royal amethyst accents, ergonomic typography, and keyboard-first accessibility.
+- **In-App Update Engine for All Editions**: Native updater support for both Team and Offline Editions with Ed25519 cryptographic signature verification, edition isolation, and automatic/manual check controls in Settings.
+- **Profile Inspector & Workspace Density**: Dedicated profile inspector panel, dual grid/list views, fast region/rank filtering, and search.
+- **Zero-Telemetry Offline Mode**: Completely offline-capable vault with hardware-bound encryption and zero external network calls without user consent.
+
+### Changed
+- Promoted application to official **v1.0.0** stable release across desktop core, Tauri bundles, and workspace packages.
+
 ## [0.4.8] - 2026-11-08
 
 ### Fixed

@@ -9,8 +9,8 @@ for (const [width,height] of [[960,640],[1160,760],[1440,900]]) {
   window.__TAURI_INTERNALS__={metadata:{currentWindow:{label:'main'},currentWebview:{label:'main'}},transformCallback:()=>1,unregisterCallback:()=>{},invoke:async(cmd)=>{
    if(cmd==='runtime_snapshot') return {riot_client:false,league_client:false,league_game:false,valorant_game:false};
    if(cmd==='list_local_accounts') return [{id:'one',name:'Main Profile',region:'EUW',rank:'Diamond II',notes:'Climb with the evening team.',favorite:true,session_status:'saved',has_session:true,created_at:'2026-01-01',last_used_at:null},{id:'two',name:'Second Profile',region:'NA',rank:'Gold I',notes:'',favorite:false,session_status:'saved',has_session:true,created_at:'2026-01-01',last_used_at:null}];
-   if(cmd==='get_app_version') return '0.4.8';
-   if(cmd==='check_github_update') {if(window.testUpdateMode==='error') throw Error('Test network failure'); return {has_update:true,current_version:'0.4.8',latest_version:'0.4.9',release_name:'Test release',release_notes:'Release notes fixture.',published_at:'2026-01-01',html_url:'https://github.com/Kingof3O/laap/releases',edition:'offline',platform:'windows-x86_64'};}
+   if(cmd==='get_app_version') return '1.0.0';
+   if(cmd==='check_github_update') {if(window.testUpdateMode==='error') throw Error('Test network failure'); return {has_update:true,current_version:'1.0.0',latest_version:'1.0.1',release_name:'Test release',release_notes:'Release notes fixture.',published_at:'2026-01-01',html_url:'https://github.com/Kingof3O/laap/releases',edition:'offline',platform:'windows-x86_64'};}
    return null;
   }};
  });

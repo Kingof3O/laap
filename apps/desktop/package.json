@@ -2,7 +2,7 @@
   "name": "@laap/desktop",
   "private": true,
   "type": "module",
-  "version": "0.4.8",
+  "version": "1.0.0",
   "scripts": {
     "dev": "vite",
     "dev:offline": "vite --mode offline",
