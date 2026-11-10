@@ -1,0 +1,11 @@
+# LAAP Community API
+
+The Community API hosts temporary metadata-only party rooms and a read-only, operator-approved package catalog. It is separate from the legacy API and account storage. There are no account, session, lease, or identity-provider routes.
+
+Use Node 24 and run `npm --workspace @laap/community-api start`. It binds to `127.0.0.1:4171` by default. `LAAP_COMMUNITY_HOST`, `LAAP_COMMUNITY_PORT`, and `LAAP_COMMUNITY_ORIGINS` configure the listener and its exact HTTP/WebSocket origin allowlist. The WebSocket route is `/v1/rooms/events`. The integration tests exercise the real loopback server.
+
+Catalog hosting is enabled when `LAAP_APPROVED_CATALOG_DIR` points to a directory controlled by the operator. Review every creator's rights, validate the original package with the Studio library, and scan it before approval. Place the archive and its manifest at `<archive-sha256>.zip` and `<archive-sha256>.json`. Restart after approving or removing an item. Manifests must declare redistribution rights, and the server verifies archive hashes at startup and again before download. Studio validates the complete archive again before storage. The service has no public package-upload route. A bounded report endpoint accepts package issue reports into a separate SQLite database. Operator-only moderation routes require LAAP_MODERATION_TOKEN, a service-specific bearer secret of at least 32 characters. Blocking a package immediately removes it from listings and downloads. The legacy account service is never consulted.
+
+For an approved hosted build, terminate TLS at an operator-controlled reverse proxy, use a restricted origin allowlist and upstream rate limits, and set `VITE_COMMUNITY_RELAY_URL=wss://<reviewed-host>/v1/rooms/events` at build time. The Studio and Complete Tauri overlays must pin that exact `wss:` origin and its `https:` counterpart in `connect-src`. Browser previews use the loopback service in development. Production binaries are intentionally built without a relay until its origin and operating controls are available. Party rooms are in-memory, so a process restart ends active rooms.
+
+Party chat is separately consented and stays in member memory. Members can revoke chat consent and hosts can remove members. Seven-client synchronization, chat consent and host removal are covered by the real WebSocket integration test.

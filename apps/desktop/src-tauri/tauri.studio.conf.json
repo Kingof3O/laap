@@ -1,0 +1,62 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LAAP Studio",
+  "version": "1.0.0",
+  "identifier": "com.laap.studio",
+  "build": {
+    "beforeDevCommand": "python ../../scripts/build_catalog_seed.py && npm run dev:studio",
+    "beforeBuildCommand": "python ../../scripts/build_catalog_seed.py && npm run build:studio",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist",
+    "features": [
+      "studio"
+    ]
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "LAAP Studio",
+        "width": 1160,
+        "height": 760,
+        "minWidth": 960,
+        "minHeight": 640
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data: https://ddragon.leagueoflegends.com; connect-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'",
+      "devCsp": "default-src 'self'; img-src 'self' data: https://ddragon.leagueoflegends.com; connect-src 'self' http://127.0.0.1:4171 ws://127.0.0.1:4171 ws://localhost:1420; style-src 'self' 'unsafe-inline'; font-src 'self'"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVBN0E0RkU3NDhEMUU3RjgKUldUNDU5Rkk1MDk2V3NlVU5UeE9sYmdSQWkxaUJTSWpjdER1QzNmVFpNTmdEanpxMWlhS0Q0NnAK",
+      "endpoints": [
+        "https://github.com/Kingof3O/laap/releases/latest/download/latest-studio.json"
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "targets": "all",
+    "createUpdaterArtifacts": true,
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "headerImage": "icons/nsis-header.bmp",
+        "sidebarImage": "icons/nsis-sidebar.bmp",
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    },
+    "resources": {
+      "resources/catalog/": "catalog/"
+    }
+  }
+}

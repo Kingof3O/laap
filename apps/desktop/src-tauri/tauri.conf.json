@@ -4,15 +4,15 @@
   "version": "1.0.0",
   "identifier": "com.laaP.desktop",
   "build": {
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "python ../../scripts/build_catalog_seed.py && npm run dev",
+    "beforeBuildCommand": "python ../../scripts/build_catalog_seed.py && npm run build",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
-        "title": "LAAP Desktop",
+        "title": "LAAP Complete",
         "width": 1160,
         "height": 760,
         "minWidth": 960,
@@ -20,7 +20,8 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com https://*.supabase.co https://laap-api.hussiensalah100.workers.dev http://127.0.0.1:4170"
+      "csp": "default-src 'self'; img-src 'self' data: https://ddragon.leagueoflegends.com; connect-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'",
+      "devCsp": "default-src 'self'; img-src 'self' data: https://ddragon.leagueoflegends.com; connect-src 'self' http://127.0.0.1:4171 ws://127.0.0.1:4171 ws://localhost:1420; style-src 'self' 'unsafe-inline'; font-src 'self'"
     }
   },
   "plugins": {
@@ -50,6 +51,9 @@
         "installMode": "currentUser",
         "displayLanguageSelector": false
       }
+    },
+    "resources": {
+      "resources/catalog/": "catalog/"
     }
   }
 }

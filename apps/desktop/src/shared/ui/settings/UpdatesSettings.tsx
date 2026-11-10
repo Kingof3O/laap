@@ -1,3 +1,4 @@
+import { product } from '../../../product/flavors'
 import { useState } from 'react'
 import {
   RefreshCw,
@@ -10,7 +11,7 @@ import {
   Loader2,
   AlertTriangle,
 } from 'lucide-react'
-import { IS_OFFLINE_ONLY, openExternalUrl } from '../../../lib/api'
+import { openExternalUrl } from '../../../lib/api'
 import type { GitHubReleaseInfo, UpdateStatus, DownloadProgress } from '../../../hooks/useUpdateChecker'
 import { GITHUB_REPO } from '../../../hooks/useUpdateChecker'
 
@@ -59,7 +60,7 @@ export function UpdatesSettings({
     }
   }
 
-  const editionLabel = IS_OFFLINE_ONLY ? 'Offline Edition' : 'Team Edition'
+  const editionLabel = product.name
   const isDownloading = status === 'downloading'
   const isVerifying = status === 'verifying'
   const isReady = status === 'ready'

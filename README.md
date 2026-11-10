@@ -8,7 +8,6 @@
     <a href="https://github.com/Kingof3O/laap/actions"><img src="https://img.shields.io/github/actions/workflow/status/Kingof3O/laap/test-and-lint.yml?branch=main&style=flat-square&label=build" alt="Build Status" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="MIT License" /></a>
     <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS-informational?style=flat-square" alt="Supported Platforms" />
-    <img src="https://img.shields.io/badge/anti--cheat-100%25%20safe-success?style=flat-square" alt="Anti-Cheat Safe" />
   </p>
 
   <p>
@@ -31,6 +30,16 @@ Featuring a dark-first, refined **Velvet Amethyst** aesthetic, LAAP delivers the
 
 ---
 
+## First-launch Studio content
+
+Studio and Complete installers include a verified catalog pack so browsing can start without a download. The current pack contains 173 champions, 9,268 cosmetic metadata records and 2,136 available public previews, totaling approximately 106 MiB. Catalog metadata refreshes from Riot Data Dragon and keeps a local fallback. Provider-unavailable artwork is labeled explicitly.
+
+The initial workspace shows actual local catalog, preset and package counts. Basic retains its local-launcher scope.
+
+![LAAP Studio native first-launch overview](docs/visual-three-editions/studio-native-overview.png)
+
+*Native Studio first launch with the included catalog. Hosted services require configuration.*
+
 ## Desktop Showcase
 
 ![LAAP Desktop Roster and Inspector](docs/visual-v2-3/maximized/open-1920-2.png)
@@ -44,8 +53,9 @@ Featuring a dark-first, refined **Velvet Amethyst** aesthetic, LAAP delivers the
 ### ⚡ 1-Click Fast Account Switching
 Switch seamlessly between your main, smurfs, and alternate accounts in seconds. LAAP securely restores your active Riot Client session handshakes, launches the official client directly into League of Legends, and updates your last-played history without touching game memory.
 
-### 🛡️ 100% Anti-Cheat Safe (Zero Ban Risk)
-LAAP operates strictly external to game processes. It performs **no DLL injection, no game memory inspection, no asset modification, and no gameplay automation**. It interfaces exclusively with official Riot Client configuration mechanisms, making it fully compliant with Riot Games Terms of Service and Vanguard protections.
+### Game integrity
+
+LAAP does not inject DLLs, read game memory, bypass anti-cheat, unlock paid skins, or automate gameplay. Riot can change its client and policies. LAAP is an independent project and cannot guarantee account outcomes.
 
 ### 🔒 Military-Grade Encrypted Vault
 Your session material is protected with **AES-256-GCM** authenticated encryption. Encryption keys are generated randomly and stored directly in your operating system's secure credential store (**Windows Credential Manager** or **macOS Keychain**). Your Riot passwords are never stored in plaintext on disk or transmitted across networks.
@@ -60,7 +70,7 @@ Play games in complete stealth. LAAP includes an integrated local proxy that let
 - **Quick Search (`Ctrl+K` / `Cmd+K`):** Instantly filter accounts by summoner name, server region, or competitive tier.
 
 ### 🔄 Cryptographic In-App Updates
-Both editions include an integrated update engine verified by **Ed25519/Minisign** digital signatures. In the Offline Edition, the native host process checks GitHub releases directly without exposing webview credentials or user telemetry, keeping your launcher secure and up to date without compromising offline privacy.
+Basic and Complete retain the existing native **Ed25519/Minisign** update channels. Studio has a separate channel and cannot install updates until a verified Studio signing key and signed artifacts are available.
 
 ### 🪟 Windows Frameless Title Bar & System Tray
 Enjoy a native, borderless desktop window with drag support, maximize/restore toggling, and close-to-tray capability. Quick-switch accounts or change presence directly from your Windows Notification Tray or macOS Menu Bar.
@@ -69,26 +79,19 @@ Enjoy a native, borderless desktop window with drag support, maximize/restore to
 
 ## Choose Your Edition
 
-LAAP is distributed in two editions tailored to your workflow:
+This source tree builds three editions. The public Releases page may still show the previous Offline and Team installers.
 
-| Feature | LAAP Offline (Community) | LAAP Team Edition |
-| :--- | :---: | :---: |
-| **Personal Account Roster** | ✅ Included | ✅ Included |
-| **1-Click Launch & Safe Switch** | ✅ Included | ✅ Included |
-| **AES-256-GCM Local Vault** | ✅ Included | ✅ Included |
-| **Stealth LAAP Presence** | ✅ Included | ✅ Included |
-| **Profile Notes, Ranks & Avatars** | ✅ Included | ✅ Included |
-| **Zero-Network Privacy Sandbox** | ✅ Strict (`connect-src 'none'`) | Standard |
-| **In-App Update Verification** | ✅ Native Host (Zero Telemetry) | ✅ Automatic / Native |
-| **Shared Accounts & Team Leases** | ❌ None (100% Offline) | ✅ Multi-user Team Pool |
-| **Team Role-Based Access Control** | ❌ None | ✅ Admin / Member Roles |
+| Capability | LAAP Basic | LAAP Studio | LAAP Complete |
+| --- | --- | --- | --- |
+| Encrypted local roster, launch, switch, and Presence | Included | Absent | Included |
+| Cosmetic catalog, presets, image package library, creator export, and theme preview | Absent | Included | Included |
+| Local profile preset links | Absent | Absent | Included |
+| Optional party relay and approved package catalog | Absent | Configured service required | Configured service required |
+| Riot account sharing and Team leases | Retired | Absent | Retired |
 
-- **LAAP Offline**: Designed for solo players and privacy purists. All cloud networking is stripped at compile-time, and the webview enforces a strict zero-connection Content Security Policy.
-- **LAAP Team Edition**: Built for esports organizations, collegiate teams, and communities that share accounts with atomic concurrency leasing.
+Basic keeps the Offline installation identity. Complete keeps the former Team identity to support a future signed upgrade. Both use the existing local vault. Studio stores customization data separately and excludes account IPC. The legacy service remains available to its existing deployments pending an authorized sunset.
 
-![LAAP Team Edition Shared Accounts](docs/visual-v2-3/final/team-1440.png)
-
-*Team Edition: Shared account roster with atomic checkout leasing, permission tiers, and active status tracking.*
+See the [implementation and verification report](docs/LAAP_THREE_EDITION_IMPLEMENTATION.md) for coverage, build names, migration limits, and release gates.
 
 ---
 
@@ -128,11 +131,14 @@ cd laap
 # Install dependencies
 npm ci
 
-# Run Team Edition (Native Desktop)
+# Run Complete (Native Desktop)
 npm --workspace @laap/desktop run tauri dev
 
-# Run Offline Edition (Native Desktop)
+# Run Basic (Native Desktop)
 npm --workspace @laap/desktop run tauri:offline
+
+# Run Studio (Native Desktop)
+npm --workspace @laap/desktop run tauri:studio
 
 # Quick Browser UI Preview (Vite)
 npm --workspace @laap/desktop run dev
@@ -146,7 +152,7 @@ npm --workspace @laap/desktop run test:updater
 npm --workspace @laap/desktop run test:sorting
 npm --workspace @laap/desktop run test:lease-exit
 
-# Run full Playwright UI integration suite (24 tests)
+# Run Basic Playwright regression suite
 npm --workspace @laap/desktop run test:ui
 
 # Run native Rust unit test suite (48 tests)

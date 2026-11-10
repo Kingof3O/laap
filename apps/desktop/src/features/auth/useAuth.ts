@@ -1,13 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import {
-  ApiError,
-  IS_OFFLINE_ONLY,
-  apiRequest,
-  clearStoredToken,
-  loadStoredToken,
-  setRuntimeToken,
-  storeAuthToken,
-} from '../../lib/api'
+import { ApiError, IS_OFFLINE_ONLY, apiRequest, clearStoredToken, loadStoredToken, setRuntimeToken, storeAuthToken } from '../../lib/legacyTeamApi'
 import type { User } from '../../lib/types'
 
 export function useAuth() {

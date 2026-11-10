@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import type { LauncherController } from '../../hooks/useLauncher'
 import { LauncherSettingsPanel } from './LauncherSettingsPanel'
-import { IS_OFFLINE_ONLY } from '../../lib/api'
+import { product } from '../../product/flavors'
 import { useDialog } from '../hooks/useDialog'
-import { LogOut, RotateCcw, ShieldCheck, X } from 'lucide-react'
-import type { User } from '../../lib/types'
+import { RotateCcw, ShieldCheck, X } from 'lucide-react'
 import {
   APP_VERSION,
   type GitHubReleaseInfo,
@@ -22,11 +21,9 @@ import { AdvancedSettings } from './settings/AdvancedSettings'
 import { AboutSettings } from './settings/AboutSettings'
 
 export interface SettingsModalProps {
-  user: User | null
   isOpen: boolean
   onClose: () => void
   onResetRiot: () => Promise<void>
-  onLogout: () => Promise<void>
   onCheckUpdates?: () => Promise<void> | void
   checkingUpdates?: boolean
   updateStatus?: UpdateStatus
@@ -45,11 +42,9 @@ export interface SettingsModalProps {
 }
 
 export function SettingsModal({
-  user,
   isOpen,
   onClose,
   onResetRiot,
-  onLogout,
   onCheckUpdates,
   checkingUpdates = false,
   updateStatus = 'idle',
@@ -85,7 +80,7 @@ export function SettingsModal({
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <h2 className="modal-title">Launcher Configuration</h2>
             <span className="badge-gold" style={{ fontSize: '10px' }}>
-              {IS_OFFLINE_ONLY ? 'Offline Edition' : 'Team Edition'}
+              {product.name}
             </span>
           </div>
           <button
@@ -136,9 +131,7 @@ export function SettingsModal({
                         color: '#FFFFFF',
                       }}
                     >
-                      {IS_OFFLINE_ONLY
-                        ? 'Local Vault Encrypted'
-                        : 'Local device identity'}
+                      {'Local Vault Encrypted'}
                     </div>
                     <div
                       style={{
@@ -147,9 +140,7 @@ export function SettingsModal({
                         marginTop: '2px',
                       }}
                     >
-                      {IS_OFFLINE_ONLY
-                        ? 'AES-GCM encrypted local vault. Icons, rank sync and LAAP Presence setup can use the network.'
-                        : 'Your local identity is used for shared-account access.'}
+                      {'AES-GCM encrypted local vault. Icons, rank sync and LAAP Presence setup can use the network.'}
                     </div>
                   </div>
                 </div>
@@ -173,25 +164,7 @@ export function SettingsModal({
                     <span>Clean Active Riot Session & Reset</span>
                   </button>
 
-                  {user ? (
-                    <button
-                      type="button"
-                      className="btn-modal-secondary"
-                      onClick={() => void onLogout()}
-                      disabled={busy}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        height: '36px',
-                        color: '#fca5a5',
-                      }}
-                    >
-                      <LogOut size={13} />
-                      <span>Sign Out ({user.displayName})</span>
-                    </button>
-                  ) : null}
+
                 </div>
 
                 {/* About Strip */}

@@ -1,7 +1,8 @@
+import type { ReactNode } from 'react'
 import { Clock3, FileText, Settings2, ShieldCheck, X } from 'lucide-react'
 import type { RosterItem } from './AccountRosterDisplay'
 
-export function ProfileInspector({ account, busy, onClose, onEdit }: { account: RosterItem; busy: boolean; onClose: () => void; onEdit?: () => void }) {
+export function ProfileInspector({ account, busy, onClose, onEdit, actions }: { account: RosterItem; busy: boolean; onClose: () => void; onEdit?: () => void; actions?: ReactNode }) {
   const added = account.createdAt && Number.isFinite(Date.parse(account.createdAt)) ? new Date(account.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : null
   return <aside id="profile-inspector" className="profile-inspector" aria-label="Selected profile details">
     <div className="inspector-top"><div><span className="inspector-eyebrow">SELECTED ACCOUNT</span><h2>Account details</h2></div><button type="button" className="icon-btn" onClick={onClose} aria-label="Hide account details"><X size={18}/></button></div>
@@ -13,5 +14,6 @@ export function ProfileInspector({ account, busy, onClose, onEdit }: { account: 
     </dl>
     {account.notes !== undefined ? <div className="inspector-notes"><span className="inspector-label"><FileText size={14}/> Notes</span><p>{account.notes || 'No notes added.'}</p></div> : null}
     {onEdit ? <button className="inspector-edit" type="button" onClick={onEdit} disabled={busy}><Settings2 size={15}/> Manage profile <span aria-hidden="true">↗</span></button> : null}
+    {actions}
   </aside>
 }

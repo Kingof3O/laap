@@ -1,14 +1,11 @@
 import type { ReactNode } from 'react'
-import { ArrowUpCircle, Database, Gamepad2, RefreshCw, Settings, Square } from 'lucide-react'
-import type { AppMode, User } from '../../lib/types'
+import { ArrowUpCircle, RefreshCw, Settings, Square } from 'lucide-react'
+import { product } from '../../product/flavors'
 
 export interface HeaderProps {
-  appMode: AppMode
-  onModeChange: (mode: AppMode) => void
-  user: User | null
-  onRefresh: () => void
+  navigation?: ReactNode
+  onRefresh?: () => void
   onOpenSettings: () => void
-  isOfflineOnly?: boolean
   riotRunning?: boolean
   operationBusy?: boolean
   presenceControl?: ReactNode
@@ -18,12 +15,8 @@ export interface HeaderProps {
 }
 
 export function Header({
-  appMode,
-  onModeChange,
-  user,
-  onRefresh,
+  navigation,  onRefresh,
   onOpenSettings,
-  isOfflineOnly = false,
   riotRunning = false,
   operationBusy = false,
   onStopRiot,
@@ -40,36 +33,10 @@ export function Header({
           alt="LAAP"
           style={{ height: '24px', width: 'auto', objectFit: 'contain' }}
         />
-        <span
-          className={`brand-edition-tag ${isOfflineOnly ? 'brand-edition-offline' : 'brand-edition-team'}`}
-        >
-          {isOfflineOnly ? 'Offline Edition' : 'Team Edition'}
-        </span>
+        <span className="brand-edition-tag">{product.name}</span>
       </div>
 
-      {/* Mode Navigation Switcher (Team Edition only) */}
-      {!isOfflineOnly ? (
-        <nav className="mode-nav" aria-label="Launcher Modes">
-          <button
-            type="button"
-            disabled={operationBusy}
-            className={`mode-pill ${appMode === 'local' ? 'mode-pill-active' : ''}`}
-            onClick={() => onModeChange('local')}
-          >
-            <Gamepad2 size={15} />
-            <span>Personal Roster</span>
-          </button>
-          <button
-            type="button"
-            disabled={operationBusy}
-            className={`mode-pill ${appMode === 'cloud' ? 'mode-pill-active' : ''}`}
-            onClick={() => onModeChange('cloud')}
-          >
-            <Database size={15} />
-            <span>Shared Accounts</span>
-          </button>
-        </nav>
-      ) : null}
+      {navigation}
 
       {/* Header Utilities */}
       <div className="header-utilities">
@@ -102,23 +69,7 @@ export function Header({
           </button>
         ) : null}
 
-        {!isOfflineOnly && user ? (
-          <div
-            className="profile-badge"
-            onClick={onOpenSettings}
-            role="button"
-            tabIndex={0}
-            title="Account settings"
-          >
-            <div className="profile-avatar">
-              {user.displayName.slice(0, 2).toUpperCase()}
-            </div>
-            <span className="profile-name">{user.displayName}</span>
-            <span className="profile-role-tag">{user.role}</span>
-          </div>
-        ) : null}
-
-        <button
+        {onRefresh && <button
           type="button"
           className="header-icon-btn"
           onClick={onRefresh}
@@ -127,7 +78,7 @@ export function Header({
           disabled={operationBusy}
         >
           <RefreshCw size={15} />
-        </button>
+        </button>}
 
         <button
           type="button"

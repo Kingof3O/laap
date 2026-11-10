@@ -1,5 +1,8 @@
 # Security and storage model
 
+> The [three-edition implementation report](LAAP_THREE_EDITION_IMPLEMENTATION.md) documents the current desktop command boundaries and the separate Community API. References to Team below describe the historical product.
+
+
 Checked against LAAP V2 source. This describes implementation boundaries, not a security certification.
 
 ## Local profiles

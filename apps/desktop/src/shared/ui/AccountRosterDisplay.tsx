@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { AccountCard } from './AccountCard'
 import { AccountListTable } from './AccountListTable'
@@ -35,6 +36,7 @@ export interface AccountRosterDisplayProps {
   onRefreshSession?: (id: string) => void
   onLaunch: (id: string) => void
   onSync?: (id: string) => void
+  profileActions?: (account: RosterItem) => ReactNode
   onPushToCloud?: (id: string) => void
   onForceRelease?: (id: string) => void
   onRevokeSession?: (id: string) => void
@@ -58,6 +60,7 @@ export function AccountRosterDisplay({
   onLaunch,
   onSync,
   onPushToCloud,
+  profileActions,
   onForceRelease,
   onRevokeSession,
   onDelete,
@@ -173,7 +176,7 @@ export function AccountRosterDisplay({
             )
           })}
         </div>
-        {detailsOpen && activeHero ? <ProfileInspector account={activeHero} busy={busy} onClose={() => toggleDetails(false)} onEdit={onEdit ? () => onEdit(activeHero.id) : undefined} /> : null}
+        {detailsOpen && activeHero ? <ProfileInspector account={activeHero} busy={busy} onClose={() => toggleDetails(false)} onEdit={onEdit ? () => onEdit(activeHero.id) : undefined} actions={profileActions?.(activeHero)} /> : null}
         </div>
       ) : (
         <AccountListTable

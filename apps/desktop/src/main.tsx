@@ -1,6 +1,12 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import App from './App'
+import { lazy, Suspense } from 'react'
+
+const App = import.meta.env.MODE === 'studio'
+  ? lazy(() => import('./features/customization/StudioApp'))
+  : import.meta.env.MODE === 'offline' || import.meta.env.MODE === 'basic'
+    ? lazy(() => import('./App'))
+    : lazy(() => import('./features/customization/CompleteApp'))
 import { ErrorBoundary } from './shared/ui/ErrorBoundary'
 import './index.css'
 
@@ -11,7 +17,7 @@ try {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
+      <Suspense fallback={null}><App /></Suspense>
     </ErrorBoundary>
   </StrictMode>,
 )

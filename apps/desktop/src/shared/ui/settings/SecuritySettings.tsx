@@ -1,5 +1,4 @@
 import { ShieldCheck, Lock, Database, FileCheck } from 'lucide-react'
-import { IS_OFFLINE_ONLY } from '../../../lib/api'
 
 interface SecuritySettingsProps {
   busy?: boolean
@@ -33,7 +32,7 @@ export function SecuritySettings({ busy = false }: SecuritySettingsProps) {
         />
         <div>
           <div style={{ fontSize: '14px', fontWeight: 600, color: '#FFFFFF' }}>
-            {IS_OFFLINE_ONLY ? 'Local Vault Encrypted' : 'Local device identity'}
+            {'Local Vault Encrypted'}
           </div>
           <div
             style={{
@@ -42,9 +41,7 @@ export function SecuritySettings({ busy = false }: SecuritySettingsProps) {
               marginTop: '2px',
             }}
           >
-            {IS_OFFLINE_ONLY
-              ? 'AES-GCM encrypted local vault. Icons, rank sync and LAAP Presence setup can use the network.'
-              : 'Your local identity is used for shared-account access.'}
+            {'AES-GCM encrypted local vault. Icons, rank sync and LAAP Presence setup can use the network.'}
           </div>
         </div>
       </div>
@@ -84,9 +81,7 @@ export function SecuritySettings({ busy = false }: SecuritySettingsProps) {
             <strong style={{ fontSize: '12px' }}>Network Isolation</strong>
           </div>
           <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            {IS_OFFLINE_ONLY
-              ? 'Offline Edition webview is strictly restricted with connect-src \'none\' CSP. Host network calls are manual and direct only.'
-              : 'End-to-end authenticated API sessions with role-based access control for cloud leases.'}
+            {'Offline Edition webview is strictly restricted with connect-src \'none\' CSP. Host network calls are manual and direct only.'}
           </div>
         </div>
       </div>

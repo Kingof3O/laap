@@ -1,13 +1,14 @@
-pub mod auth;
-pub mod device;
+#[cfg(not(feature = "studio"))]
 pub mod local_accounts;
+#[cfg(not(feature = "studio"))]
 pub mod session;
 pub mod updater;
 pub mod window;
 
+#[cfg(not(feature = "studio"))]
 pub use session::launch_riot_client;
 
-#[cfg(test)]
+#[cfg(all(test, not(feature = "studio")))]
 mod tests {
     use super::session::LEAGUE_LAUNCH_ARGS;
 

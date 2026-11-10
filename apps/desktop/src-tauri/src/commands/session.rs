@@ -1,5 +1,4 @@
 use crate::riot::{RiotProvisioner, RiotSessionManager};
-use std::process::Command;
 use std::sync::Mutex;
 
 pub const LEAGUE_LAUNCH_ARGS: [&str; 2] = [
@@ -408,41 +407,4 @@ pub fn launch_local(id: &str, confirmed: bool) -> Result<(), String> {
     let store = crate::local_store::LocalStore::new()?;
     switch_session_unlocked(&store.session_for(id)?, confirmed, &format!("local:{id}"))?;
     store.mark_played(id)
-}
-
-/// Opens an external URL in the user's default system browser.
-#[tauri::command]
-pub fn open_external_url(url: String) -> Result<(), String> {
-    if !(url.starts_with("https://github.com/Kingof3O/laap/")
-        || url == "https://github.com/Kingof3O/laap")
-        || url
-            .chars()
-            .any(|character| matches!(character, '\r' | '\n' | '&' | '|' | '<' | '>' | '^' | '%'))
-    {
-        return Err("External URL is not allowed".to_string());
-    }
-    #[cfg(target_os = "macos")]
-    {
-        Command::new("open")
-            .arg(&url)
-            .spawn()
-            .map(|_| ())
-            .map_err(|e| e.to_string())
-    }
-    #[cfg(target_os = "windows")]
-    {
-        Command::new("cmd")
-            .args(["/C", "start", "", &url])
-            .spawn()
-            .map(|_| ())
-            .map_err(|e| e.to_string())
-    }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    {
-        Command::new("xdg-open")
-            .arg(&url)
-            .spawn()
-            .map(|_| ())
-            .map_err(|e| e.to_string())
-    }
 }

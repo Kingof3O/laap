@@ -140,6 +140,17 @@ export function parseCliArgs(argv) {
   return args
 }
 
+const UPDATE_EDITION_NAMES = new Set(['team', 'offline', 'studio'])
+
+function matchesEdition(filename, edition) {
+  const lower = filename.toLowerCase()
+  const offline = lower.includes('offline')
+  const studio = lower.includes('studio')
+  return edition === 'studio' ? studio && !offline && !lower.includes('desktop')
+    : edition === 'offline' ? offline && !studio
+    : edition === 'team' && !offline && !studio
+}
+
 export function generateManifest(options) {
   const {
     version,
@@ -158,8 +169,8 @@ export function generateManifest(options) {
     throw new Error(`Invalid semver version: ${version}`)
   }
 
-  if (edition !== 'team' && edition !== 'offline') {
-    throw new Error(`Invalid edition: ${edition}. Expected 'team' or 'offline'.`)
+  if (!UPDATE_EDITION_NAMES.has(edition)) {
+    throw new Error(`Invalid edition: ${edition}. Expected team, offline, or studio.`)
   }
 
   const platforms = {}
@@ -218,16 +229,7 @@ export function generateManifest(options) {
     // Skip .sig and .json files
     if (lower.endsWith('.sig') || lower.endsWith('.json')) continue
 
-    // Strict Edition Filtering:
-    // Offline assets MUST contain 'offline' (case-insensitive) in the filename.
-    // Team assets MUST NOT contain 'offline' in the filename.
-    const isOfflineAsset = lower.includes('offline')
-    if (edition === 'offline' && !isOfflineAsset) {
-      continue
-    }
-    if (edition === 'team' && isOfflineAsset) {
-      continue
-    }
+    if (!matchesEdition(filename, edition)) continue
 
     // Windows x86_64 updater bundle (.nsis.zip, .zip, or standalone signed installer .exe)
     if (lower.includes('x64') || lower.includes('x86_64') || lower.endsWith('.exe') || lower.endsWith('.nsis.zip')) {
@@ -285,7 +287,7 @@ export function validateManifest(manifest, options = {}) {
     errors.push(`Manifest version invalid: "${manifest.version}"`)
   }
 
-  if (manifest.edition !== 'team' && manifest.edition !== 'offline') {
+  if (!UPDATE_EDITION_NAMES.has(manifest.edition)) {
     errors.push(`Manifest edition invalid: "${manifest.edition}"`)
   }
 
@@ -338,7 +340,17 @@ export function validateManifest(manifest, options = {}) {
     }
 
     // Cryptographic signature verification against actual artifact file bytes
-    const assetFilename = path.basename(new URL(entry.url).pathname)
+    let assetFilename
+    try {
+      assetFilename = decodeURIComponent(path.basename(new URL(entry.url).pathname))
+    } catch {
+      errors.push(`Invalid URL for platform "${key}"`)
+      continue
+    }
+    if (!matchesEdition(assetFilename, manifest.edition)) {
+      errors.push(`Artifact "${assetFilename}" does not match the ${manifest.edition} update channel.`)
+      continue
+    }
     const artifactPath = artifactFileMap.get(assetFilename)
 
     if (artifactPath && fs.existsSync(artifactPath)) {

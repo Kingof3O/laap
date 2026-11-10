@@ -2,10 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   hasTauri,
   invokeTauri,
-  IS_OFFLINE_ONLY,
   listenTauriEvent,
   openExternalUrl,
 } from '../lib/api'
+import { flavor } from '../product/flavors'
 import { parseSemver, isNewerVersion } from '../lib/version'
 
 export { parseSemver, isNewerVersion }
@@ -139,7 +139,7 @@ export function useUpdateChecker() {
 
   const checkForUpdates = useCallback(
     async (manual = false): Promise<GitHubReleaseInfo | null> => {
-      if (!hasTauri && IS_OFFLINE_ONLY) {
+      if (!hasTauri && flavor === 'basic') {
         if (manual) {
           throw new Error('Update checks are not available in offline browser mode.')
         }
@@ -349,7 +349,7 @@ export function useUpdateChecker() {
 
   // Auto-check on launch if enabled and not offline-only browser test
   useEffect(() => {
-    if (autoCheckOnLaunch && (hasTauri || !IS_OFFLINE_ONLY)) {
+    if (autoCheckOnLaunch && (hasTauri || flavor !== 'basic')) {
       void checkForUpdates(false)
     }
   }, [autoCheckOnLaunch, checkForUpdates])

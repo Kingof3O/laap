@@ -42,24 +42,26 @@ interface SettingsNavRailProps {
   activeCategory: SettingsCategory
   onSelectCategory: (category: SettingsCategory) => void
   hasUpdate?: boolean
+  categories?: CategoryItem[]
 }
 
 export function SettingsNavRail({
   activeCategory,
   onSelectCategory,
   hasUpdate = false,
+  categories = SETTINGS_CATEGORIES,
 }: SettingsNavRailProps) {
   return (
     <nav className="settings-nav-rail" role="tablist" aria-label="Settings Categories" aria-orientation="vertical" onKeyDown={(event) => {
       if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
       event.preventDefault()
-      const current = SETTINGS_CATEGORIES.findIndex((category) => category.id === activeCategory)
-      const next = event.key === 'Home' ? 0 : event.key === 'End' ? SETTINGS_CATEGORIES.length - 1 : (current + (event.key === 'ArrowDown' ? 1 : -1) + SETTINGS_CATEGORIES.length) % SETTINGS_CATEGORIES.length
-      onSelectCategory(SETTINGS_CATEGORIES[next].id)
+      const current = categories.findIndex((category) => category.id === activeCategory)
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? categories.length - 1 : (current + (event.key === 'ArrowDown' ? 1 : -1) + categories.length) % categories.length
+      onSelectCategory(categories[next].id)
       const tabs = event.currentTarget.querySelectorAll<HTMLButtonElement>('[role=tab]')
       tabs[next]?.focus()
     }}>
-      {SETTINGS_CATEGORIES.map((cat) => {
+      {categories.map((cat) => {
         const Icon = cat.icon
         const isActive = activeCategory === cat.id
         const isUpdateTab = cat.id === 'updates'

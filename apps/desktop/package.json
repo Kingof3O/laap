@@ -15,7 +15,10 @@
     "test:lease-exit": "node --experimental-strip-types --test tests/lease-exit.test.ts",
     "test:sorting": "node --experimental-strip-types --test tests/sorting.test.ts",
     "test:updater": "node --experimental-strip-types --test tests/updater.test.ts tests/windows-upgrade-simulation.test.ts",
-    "test:ui": "playwright test"
+    "test:ui": "playwright test",
+    "dev:studio": "vite --mode studio",
+    "build:studio": "tsc -b && vite build --mode studio",
+    "tauri:studio": "tauri dev --config src-tauri/tauri.studio.conf.json"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.2.0",

@@ -5,9 +5,10 @@ import type { ViewMode } from '../../../lib/types'
 
 interface AppearanceSettingsProps {
   disabled?: boolean
+  showRosterLayout?: boolean
 }
 
-export function AppearanceSettings({ disabled = false }: AppearanceSettingsProps) {
+export function AppearanceSettings({ disabled = false, showRosterLayout = true }: AppearanceSettingsProps) {
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     try {
       return (localStorage.getItem(VIEW_MODE_KEY) as ViewMode) || 'grid'
@@ -54,7 +55,7 @@ export function AppearanceSettings({ disabled = false }: AppearanceSettingsProps
       </div>
 
       {/* Roster Layout Mode */}
-      <div className="settings-card">
+      {showRosterLayout && <div className="settings-card">
         <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
           Default Roster Layout
         </div>
@@ -99,7 +100,7 @@ export function AppearanceSettings({ disabled = false }: AppearanceSettingsProps
             <span>Compact Table</span>
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* Visual Motion */}
       <div className="settings-card">

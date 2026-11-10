@@ -1,6 +1,6 @@
 # Privacy policy
 
-Updated 2026-10-14. This policy covers LAAP Desktop (Team Edition) and LAAP Offline distributed through the official [GitHub repository](https://github.com/Kingof3O/laap).
+Updated 2026-11-11 for Basic, Studio, and Complete development builds from the official [GitHub repository](https://github.com/Kingof3O/laap).
 
 ## Local profile data and Riot login sessions
 
@@ -20,13 +20,15 @@ Opted-in icon/rank sync reads the local League Client API on 127.0.0.1 using tem
 
 Presence setup fetches and caches a public TLS compatibility certificate from `https://mln.cx/deceive/localhost.pfx`. A failed DNS route can query Google's DNS-over-HTTPS service for that provider's hostname. No profile data, Riot token, or chat content is sent to either service; those providers can see normal connection metadata. The certificate provider does not publish a privacy policy linked by the project, so it must not be described as having one.
 
-The presence service uses local configuration/chat listeners and forwards the routed client's configuration and authenticated chat traffic to Riot's own services. Online/offline mode modifies global presence messages. Credentials and chat payloads remain in memory and are not logged or stored by LAAP. LAAP does not change the system trust store or install a root certificate. LAAP Presence prepares automatically on startup in Windows and macOS releases, including Offline Edition. Offline Edition therefore means a local roster, not an unconditional promise of zero network traffic.
+The presence service uses local configuration/chat listeners and forwards the routed client's configuration and authenticated chat traffic to Riot's own services. Online/offline mode modifies global presence messages. Credentials and chat payloads remain in memory and are not logged or stored by LAAP. LAAP does not change the system trust store or install a root certificate. LAAP Presence prepares automatically on startup in Windows and macOS releases, including Basic. The local roster works independently from the optional network services described here.
 
-## Team Edition and updates
+## Updates and community services
 
-If you sign in to Team Edition, LAAP connects to the configured LAAP API (the public default is `https://laap-api.hussiensalah100.workers.dev`). Team login details, device registration/public keys, account assignments, lease activity, and administrator-requested session uploads go to that service. The server stores encrypted session blobs and operational audit/lease records; authorized lease owners can receive decrypted session material. This is an explicit Team feature and is disabled in Offline Edition. Remembered LAAP authentication tokens use the local OS keychain.
+Basic and Complete check GitHub on their existing native update channels. Studio checks its own channel. GitHub receives ordinary HTTPS request metadata. New desktop builds do not sign in to the legacy Team service or send Riot sessions to it. Older Team installations use the historical service and policies until migration. Its server and stored data have not been decommissioned by this change.
 
-Team Edition checks GitHub for release information. GitHub receives ordinary HTTPS request metadata. Offline Edition disables cloud authentication and update polling. LAAP contains no advertising or analytics SDK and does not upload crash dumps automatically.
+Studio and Complete can request public cosmetic metadata and images from Riot Data Dragon. The optional Community API is a separate service. Party rooms use temporary IDs and membership credentials held in memory. The relay can see the connection address, room membership, and explicitly shared cosmetic IDs. Room data expires after an hour. Loading and downloading approved packages discloses ordinary request metadata and package identifiers. The desktop sends no Riot session, vault contents, or local account identifier to the Community API. Community activity is optional and requires a configured service.
+
+LAAP does not upload crash dumps automatically and does not include an advertising or analytics SDK.
 
 ## Signing and third-party services
 

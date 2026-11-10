@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { apiRequest, hasTauri, invokeTauri } from '../../lib/api'
+import { apiRequest } from '../../lib/legacyTeamApi'
+import { hasTauri, invokeTauri } from '../../lib/api'
 import type { User } from '../../lib/types'
 
 export interface DeviceState {

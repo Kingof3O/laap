@@ -1,5 +1,8 @@
 # Architecture
 
+> This document describes the legacy launcher and Team service architecture. The active Basic, Studio, and Complete builds use the boundaries documented in the [three-edition implementation report](LAAP_THREE_EDITION_IMPLEMENTATION.md). The legacy API and admin remain in the repository for retention and migration.
+
+
 Checked against v0.4.5 source on 2026-10-14.
 
 ## Components

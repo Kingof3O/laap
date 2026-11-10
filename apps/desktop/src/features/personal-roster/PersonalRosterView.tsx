@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -30,15 +31,10 @@ interface Props {
   onRankOptionsChange: (ranks: string[]) => void
   sortOrder: SortOrder
   viewMode: ViewMode
-  isAdmin: boolean
+  profileActions?: ComponentProps<typeof AccountRosterDisplay>['profileActions']
   showAddModal: boolean
   onCloseAddModal: () => void
   onOpenAddModal: () => void
-  onPushToCloud?: (
-    name: string,
-    region: string,
-    sessionBlob: string,
-  ) => Promise<void>
   onCountChange?: (count: number) => void
 }
 export function PersonalRosterView({
@@ -50,11 +46,10 @@ export function PersonalRosterView({
   onRankOptionsChange,
   sortOrder,
   viewMode,
-  isAdmin,
   showAddModal,
+  profileActions,
   onCloseAddModal,
   onOpenAddModal,
-  onPushToCloud,
   onCountChange,
 }: Props) {
   const { showSuccess, showError } = useToast()
@@ -93,7 +88,6 @@ export function PersonalRosterView({
     pollSandbox,
     completeSandbox,
     provisioning,
-    getFullAccount,
   } = useLocalAccounts()
   const modalOpen = showAddModal || !!refreshTarget
   const close = () => {
@@ -273,19 +267,6 @@ export function PersonalRosterView({
       setBusy(false)
     }
   }
-  const push = async (id: string) => {
-    if (!onPushToCloud) return
-    setBusy(true)
-    try {
-      const full = await getFullAccount(id)
-      await onPushToCloud(full.name, full.region, full.session_blob)
-      showSuccess('Profile published.')
-    } catch (cause) {
-      showError(String(cause))
-    } finally {
-      setBusy(false)
-    }
-  }
   const handleToggleFavorite = async (id: string) => {
     const account = localAccounts.find((a) => a.id === id)
     if (!account) return
@@ -335,6 +316,7 @@ export function PersonalRosterView({
         />
       ) : (
         <AccountRosterDisplay
+          profileActions={profileActions}
           items={filteredAccounts.map((acc) => ({
             id: acc.id,
             name: acc.name,
@@ -379,7 +361,6 @@ export function PersonalRosterView({
             setCaptured(null)
             setRefreshTarget(localAccounts.find((a) => a.id === id) ?? null)
           }}
-          onPushToCloud={isAdmin && onPushToCloud ? push : undefined}
           onDelete={(id, name) => setDeleteTarget({ id, name })}
           onToggleFavorite={handleToggleFavorite}
         />

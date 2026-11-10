@@ -31,3 +31,8 @@ apps/desktop/dist-bundle/
 
 # Isolated local Tauri packaging cache
 apps/desktop/src-tauri/target-v21-package/
+
+# Generated first-launch Data Dragon packs; reproduce with scripts/build_catalog_seed.py
+apps/desktop/src-tauri/resources/catalog/*.zip
+apps/desktop/src-tauri/resources/catalog/*.json
+apps/desktop/src-tauri/resources/catalog/*.tmp

@@ -7,12 +7,15 @@
     "beforeDevCommand": "npm run dev:offline",
     "beforeBuildCommand": "npm run build:offline",
     "devUrl": "http://localhost:1420",
-    "frontendDist": "../dist"
+    "frontendDist": "../dist",
+    "features": [
+      "basic"
+    ]
   },
   "app": {
     "windows": [
       {
-        "title": "LAAP Offline",
+        "title": "LAAP Basic",
         "width": 1160,
         "height": 760,
         "minWidth": 960,
@@ -20,7 +23,8 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data:; connect-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'"
+      "csp": "default-src 'self'; img-src 'self' data:; connect-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'",
+      "devCsp": "default-src 'self'; img-src 'self' data:; connect-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'"
     }
   },
   "plugins": {
@@ -50,6 +54,7 @@
         "installMode": "currentUser",
         "displayLanguageSelector": false
       }
-    }
+    },
+    "resources": []
   }
 }

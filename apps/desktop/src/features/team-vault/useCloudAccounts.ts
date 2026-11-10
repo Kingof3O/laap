@@ -1,7 +1,8 @@
 import { useNativeClose } from '../../shared/hooks/useNativeClose'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRiotOperations } from '../../context/RiotOperations'
-import { ApiError, apiRequest, hasTauri, invokeTauri } from '../../lib/api'
+import { ApiError, apiRequest } from '../../lib/legacyTeamApi'
+import { hasTauri, invokeTauri } from '../../lib/api'
 import { useDevice } from '../device'
 import type { Account, User } from '../../lib/types'
 

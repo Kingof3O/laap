@@ -12,7 +12,7 @@ test('browser IPC failure is explicit and offline builds make no external reques
   await expect(page.getByRole('alert')).toContainText(
     'Tauri IPC bridge unavailable',
   )
-  await expect(page.getByText('Offline Edition', { exact: true })).toBeVisible()
+  await expect(page.getByText('LAAP Basic', { exact: true })).toBeVisible()
   await expect(page.locator('.roster-card')).toHaveCount(0)
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   await expect(page.getByText('Local Vault Encrypted')).toBeVisible()
