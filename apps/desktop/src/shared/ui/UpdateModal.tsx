@@ -330,7 +330,11 @@ export function UpdateModal({
             }}
           >
             <ShieldCheck size={13} style={{ color: 'var(--status-ready)' }} />
-            <span>Automatic installation is unavailable. Review the release before updating manually.</span>
+            <span>
+              {onInstall
+                ? 'Cryptographically verified update via Ed25519 digital signatures. Active matches and Riot sessions are guarded before restart.'
+                : 'Automatic installation is available in desktop builds. Review release details to update.'}
+            </span>
           </div>
 
           {/* Action buttons */}

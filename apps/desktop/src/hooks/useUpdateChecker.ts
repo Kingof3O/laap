@@ -97,10 +97,22 @@ export function useUpdateChecker() {
     }
   }, [])
 
-  // Listen to native download progress events
+  // Listen to native download progress and status events
   useEffect(() => {
     if (!hasTauri) return
-    let unlisten: (() => void) | undefined
+    const unlisteners: Array<() => void> = []
+
+    void listenTauriEvent<DownloadProgress>('laap:update-download-progress', (progress) => {
+      setDownloadProgress(progress)
+      if (progress.percentage >= 100) {
+        setStatus('verifying')
+      } else {
+        setStatus('downloading')
+      }
+    }).then((fn) => {
+      unlisteners.push(fn)
+    })
+
     void listenTauriEvent<DownloadProgress>('updater-download-progress', (progress) => {
       setDownloadProgress(progress)
       if (progress.percentage >= 100) {
@@ -109,11 +121,17 @@ export function useUpdateChecker() {
         setStatus('downloading')
       }
     }).then((fn) => {
-      unlisten = fn
+      unlisteners.push(fn)
+    })
+
+    void listenTauriEvent<UpdateStatus>('laap:update-status', (newStatus) => {
+      setStatus(newStatus)
+    }).then((fn) => {
+      unlisteners.push(fn)
     })
 
     return () => {
-      unlisten?.()
+      unlisteners.forEach((fn) => fn())
     }
   }, [])
 
@@ -259,10 +277,60 @@ export function useUpdateChecker() {
     [currentVersion],
   )
 
-  const downloadAndInstallUpdate = useCallback(async () => {
-    setInstallError('Automatic installation is unavailable until signed updates are configured. Open the release page to update manually.')
-    setStatus('error')
-  }, [])
+  const downloadAndInstallUpdate = useCallback(
+    async (forceCloseRiot = false): Promise<void> => {
+      if (!hasTauri) {
+        setInstallError('Native update installation is only available in the desktop application.')
+        setStatus('error')
+        return
+      }
+
+      setInstallError(null)
+      setStatus('downloading')
+      setDownloadProgress({ downloaded: 0, total: 0, percentage: 0 })
+
+      try {
+        // Step 1: Preflight safety check
+        const preflight = await invokeTauri<{
+          safe: boolean
+          active_match: boolean
+          riot_running: boolean
+          provisioning_busy: boolean
+          reason?: string
+        }>('get_updater_preflight_status')
+
+        if (!preflight.safe) {
+          const reason =
+            preflight.reason ||
+            (preflight.active_match
+              ? 'An active match is in progress. Installation deferred until match concludes.'
+              : 'A provisioning session is in progress. Complete it before updating.')
+          setInstallError(reason)
+          setStatus('error')
+          throw new Error(reason)
+        }
+
+        // Step 2: Native download, verification & installation
+        const res = await invokeTauri<{
+          success: boolean
+          installed_version: string
+          message: string
+        }>('native_install_update', { forceCloseRiot })
+
+        if (res.success) {
+          setStatus('ready')
+        } else {
+          throw new Error(res.message || 'Update installation failed.')
+        }
+      } catch (cause) {
+        const msg = cause instanceof Error ? cause.message : String(cause)
+        setInstallError(msg)
+        setStatus('error')
+        throw cause
+      }
+    },
+    [],
+  )
 
   // Auto-check on launch if enabled and not offline-only browser test
   useEffect(() => {

@@ -1,7 +1,10 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter};
+use tauri_plugin_updater::UpdaterExt;
 
 pub const GITHUB_REPO: &str = "Kingof3O/laap";
 
@@ -24,11 +27,27 @@ pub struct UpdateCheckResult {
     pub platform: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DownloadProgress {
     pub downloaded: u64,
     pub total: u64,
     pub percentage: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PreflightSafetyStatus {
+    pub safe: bool,
+    pub active_match: bool,
+    pub riot_running: bool,
+    pub provisioning_busy: bool,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstallUpdateResult {
+    pub success: bool,
+    pub installed_version: String,
+    pub message: String,
 }
 
 #[derive(Deserialize)]
@@ -216,12 +235,165 @@ pub fn get_app_version(app: AppHandle) -> String {
 }
 
 #[tauri::command]
+pub fn get_updater_preflight_status() -> PreflightSafetyStatus {
+    let provisioning_busy = crate::commands::session::owns_provisioning();
+    let snapshot = crate::riot::runtime_snapshot();
+    let active_match = snapshot.active_match();
+    let riot_running = snapshot.running();
+
+    let (safe, reason) = if provisioning_busy {
+        (
+            false,
+            Some("A Riot provisioning or account capture session is currently active. Please complete or cancel it before updating.".to_string()),
+        )
+    } else if active_match {
+        (
+            false,
+            Some("An active League of Legends or Valorant match was detected. To prevent game disconnection, updates are blocked until your match concludes.".to_string()),
+        )
+    } else {
+        (true, None)
+    };
+
+    PreflightSafetyStatus {
+        safe,
+        active_match,
+        riot_running,
+        provisioning_busy,
+        reason,
+    }
+}
+
+#[tauri::command]
+pub async fn native_install_update(
+    app: AppHandle,
+    force_close_riot: Option<bool>,
+) -> Result<InstallUpdateResult, String> {
+    // 1. Safety preflight check
+    let preflight = get_updater_preflight_status();
+    if !preflight.safe {
+        return Err(preflight
+            .reason
+            .unwrap_or_else(|| "Preflight safety check failed: update deferred.".into()));
+    }
+
+    // 2. Query official Tauri updater
+    let updater = app
+        .updater()
+        .map_err(|e| format!("Failed to initialize native updater plugin: {e}"))?;
+
+    let update = updater
+        .check()
+        .await
+        .map_err(|e| format!("Native updater check failed: {e}"))?;
+
+    let update = match update {
+        Some(u) => u,
+        None => return Err("No signed update is currently available to install.".into()),
+    };
+
+    let target_version = update.version.clone();
+    let current_version = app.package_info().version.to_string();
+
+    if !is_newer(&target_version, &current_version) {
+        return Err(format!(
+            "Remote version ({target_version}) is not newer than currently installed ({current_version})"
+        ));
+    }
+
+    // 3. Emit downloading status & download payload with progress
+    let _ = app.emit("laap:update-status", "downloading");
+
+    let app_clone = app.clone();
+    let downloaded_bytes = Arc::new(AtomicU64::new(0));
+    let downloaded_ref = downloaded_bytes.clone();
+
+    let bytes = update
+        .download(
+            move |chunk_len, total_len| {
+                let downloaded = downloaded_ref.fetch_add(chunk_len as u64, Ordering::Relaxed)
+                    + (chunk_len as u64);
+                let total = total_len.unwrap_or(0);
+                let percentage = if total > 0 {
+                    (downloaded as f64 / total as f64) * 100.0
+                } else {
+                    0.0
+                };
+                let _ = app_clone.emit(
+                    "laap:update-download-progress",
+                    DownloadProgress {
+                        downloaded,
+                        total,
+                        percentage: percentage.min(100.0),
+                    },
+                );
+            },
+            || {
+                // Download complete
+            },
+        )
+        .await
+        .map_err(|e| format!("Update download or cryptographic signature verification failed: {e}"))?;
+
+    // 4. Emit verifying & ready status
+    let _ = app.emit("laap:update-status", "verifying");
+    let _ = app.emit("laap:update-status", "ready");
+
+    // 5. Cleanup before applying installer
+    if force_close_riot.unwrap_or(false) && preflight.riot_running {
+        let _ = crate::riot::terminate_riot_processes();
+    }
+
+    let _ = crate::presence::stop_proxy();
+    let _ = crate::tray::prepare_quit(true).await;
+
+    let _ = app.emit("laap:update-status", "installing");
+
+    // 6. Apply update
+    update
+        .install(bytes)
+        .map_err(|e| format!("Failed to apply update installer: {e}"))?;
+
+    #[cfg(target_os = "macos")]
+    {
+        let _ = app.restart();
+    }
+
+    Ok(InstallUpdateResult {
+        success: true,
+        installed_version: target_version,
+        message: "Update applied successfully. Application is restarting...".into(),
+    })
+}
+
+#[tauri::command]
 pub async fn check_github_update(
     app: AppHandle,
 ) -> Result<UpdateCheckResult, String> {
     let current_version = app.package_info().version.to_string();
     let edition = get_app_edition(&app).to_string();
     let platform = get_target_platform().to_string();
+
+    // 1. First check official Tauri updater plugin (handles cryptographic signature & official endpoints)
+    if let Ok(updater) = app.updater() {
+        if let Ok(Some(update)) = updater.check().await {
+            let remote_ver = update.version.trim_start_matches('v').to_string();
+            let has_update = is_newer(&remote_ver, &current_version);
+            return Ok(UpdateCheckResult {
+                has_update,
+                current_version: current_version.clone(),
+                latest_version: remote_ver,
+                release_name: format!("Release v{}", update.version),
+                release_notes: update.body.unwrap_or_default(),
+                published_at: update.date.map(|d| d.to_string()).unwrap_or_default(),
+                html_url: format!("https://github.com/{}/releases/latest", GITHUB_REPO),
+                download_url: Some(format!("https://github.com/{}/releases/latest", GITHUB_REPO)),
+                signature: Some("official-tauri-updater-signed".to_string()),
+                edition,
+                platform,
+            });
+        }
+    }
 
     let client = reqwest::Client::builder()
         .user_agent("LAAP-Desktop-Updater")

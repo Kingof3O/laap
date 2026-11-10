@@ -129,6 +129,7 @@ function AppContent() {
     autoCheckOnLaunch,
     setAutoCheckOnLaunch,
     checkForUpdates,
+    downloadAndInstallUpdate,
     dismissUpdate,
     openReleasePage,
   } = useUpdateChecker()
@@ -346,7 +347,7 @@ function AppContent() {
         updateStatus={updateStatus}
         downloadProgress={downloadProgress}
         installError={installError}
-        onInstallUpdate={undefined}
+        onInstallUpdate={downloadAndInstallUpdate}
         busy={busy || operations.busy}
         lastChecked={lastChecked}
         updateAvailable={updateAvailable}
@@ -369,7 +370,7 @@ function AppContent() {
         downloadProgress={downloadProgress}
         installError={installError}
         onDownload={openReleasePage}
-        onInstall={undefined}
+        onInstall={downloadAndInstallUpdate}
         onDismiss={(forever) => {
           dismissUpdate(forever)
           setShowUpdateModal(false)

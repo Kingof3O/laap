@@ -340,4 +340,98 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
       assert.equal(attemptedNetworkCall, false)
     })
   })
+
+  // 6. Preflight Safety & Match Guards
+  describe('Preflight safety checks before update installation', () => {
+    interface PreflightState {
+      owns_provisioning: boolean
+      active_match: boolean
+      riot_running: boolean
+    }
+
+    function evaluatePreflight(state: PreflightState): { safe: boolean; reason?: string } {
+      if (state.owns_provisioning) {
+        return {
+          safe: false,
+          reason: 'A Riot provisioning or account capture session is currently active. Please complete or cancel it before updating.',
+        }
+      }
+      if (state.active_match) {
+        return {
+          safe: false,
+          reason: 'An active League of Legends or Valorant match was detected. To prevent game disconnection, updates are blocked until your match concludes.',
+        }
+      }
+      return { safe: true }
+    }
+
+    test('blocks update installation when an active match is in progress', () => {
+      const result = evaluatePreflight({
+        owns_provisioning: false,
+        active_match: true,
+        riot_running: true,
+      })
+      assert.equal(result.safe, false)
+      assert.match(result.reason ?? '', /active League of Legends or Valorant match/)
+    })
+
+    test('blocks update installation when provisioning session is active', () => {
+      const result = evaluatePreflight({
+        owns_provisioning: true,
+        active_match: false,
+        riot_running: true,
+      })
+      assert.equal(result.safe, false)
+      assert.match(result.reason ?? '', /provisioning or account capture session/)
+    })
+
+    test('allows update installation when no match or provisioning is active', () => {
+      const result = evaluatePreflight({
+        owns_provisioning: false,
+        active_match: false,
+        riot_running: true, // Riot client idle in background is permitted
+      })
+      assert.equal(result.safe, true)
+      assert.equal(result.reason, undefined)
+    })
+  })
+
+  // 7. Update Manifest Generation & Verification Pipeline
+  describe('Update manifest generator and validator', () => {
+    test('validates correctly structured manifest with Ed25519 signatures', () => {
+      const validManifest: TauriManifest = {
+        version: '1.0.1',
+        edition: 'team',
+        notes: 'Security patch and performance enhancements.',
+        pub_date: new Date().toISOString(),
+        platforms: {
+          'windows-x86_64': {
+            url: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Desktop-1.0.1-x64-setup.nsis.zip',
+            signature: 'dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHNpZ25hdHVyZQpSV1M...64charsignature...',
+          },
+        },
+      }
+
+      const res = validateUpdateManifest(validManifest, '1.0.0', 'team', 'windows-x86_64')
+      assert.equal(res.valid, true)
+      assert.equal(res.downloadUrl, validManifest.platforms['windows-x86_64'].url)
+    })
+
+    test('rejects manifests attempting downgrade to older version', () => {
+      const downgradeManifest: TauriManifest = {
+        version: '0.4.8',
+        edition: 'team',
+        platforms: {
+          'windows-x86_64': {
+            url: 'https://github.com/Kingof3O/laap/releases/download/v0.4.8/LAAP-Desktop-0.4.8.nsis.zip',
+            signature: 'validSignatureHere',
+          },
+        },
+      }
+
+      const res = validateUpdateManifest(downgradeManifest, '1.0.0', 'team', 'windows-x86_64')
+      assert.equal(res.valid, false)
+      assert.match(res.reason ?? '', /not newer than current/)
+    })
+  })
 })

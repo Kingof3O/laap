@@ -388,7 +388,7 @@ export function UpdatesSettings({
           <strong style={{ color: 'var(--text-secondary)' }}>Privacy & Integrity Guarantee:</strong>
           <br />
           Update checks query GitHub releases (
-          <code>github.com/{GITHUB_REPO}</code>). Automatic installation is disabled until signed updates are configured.
+          <code>github.com/{GITHUB_REPO}</code>). Cryptographic updates are verified against pinned Ed25519 public keys before installation.
         </div>
       </div>
     </div>

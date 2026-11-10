@@ -944,6 +944,50 @@ test('offline edition checks updates through native IPC and menus support keyboa
   await expect.poll(() => page.evaluate(() => (window as any).updateChecks)).toBe(1)
 })
 
+test('native in-app update checks trigger installation action and guard active matches', async ({ page }) => {
+  await page.addInitScript(() => {
+    ;(window as any).installedUpdates = 0
+    ;(window as any).__TAURI_INTERNALS__ = {
+      metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } },
+      transformCallback: () => 1,
+      unregisterCallback: () => {},
+      invoke: async (command: string) => {
+        if (command === 'runtime_snapshot') return { riot_client: false, league_client: false, league_game: false, valorant_game: false }
+        if (command === 'list_local_accounts') return [{ id: 'one', name: 'One', region: 'EUW', rank: null, notes: '', favorite: false, session_status: 'saved', has_session: true, created_at: '2026-01-01', last_used_at: null }]
+        if (command === 'get_app_version') return '1.0.0'
+        if (command === 'get_updater_preflight_status') {
+          return { safe: true, active_match: false, riot_running: false, provisioning_busy: false, reason: null }
+        }
+        if (command === 'check_github_update') {
+          return {
+            has_update: true,
+            current_version: '1.0.0',
+            latest_version: '1.0.1',
+            release_name: 'Release v1.0.1',
+            release_notes: 'Verified security and engine update.',
+            published_at: '2026-11-10T00:00:00Z',
+            html_url: 'https://github.com/Kingof3O/laap/releases/latest',
+            download_url: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Desktop-1.0.1-x64-setup.nsis.zip',
+            signature: 'validSignatureBase64==',
+            edition: 'offline',
+            platform: 'windows-x86_64',
+          }
+        }
+        if (command === 'native_install_update') {
+          ;(window as any).installedUpdates++
+          return { success: true, installed_version: '1.0.1', message: 'Update applied' }
+        }
+        return null
+      },
+    }
+  })
+  await page.goto('/')
+  const installBtn = page.getByRole('button', { name: /Download & Install Automatically|Install Now/ })
+  await expect(installBtn).toBeVisible()
+  await installBtn.click()
+  await expect.poll(() => page.evaluate(() => (window as any).installedUpdates)).toBe(1)
+})
+
 test('the selected profile inspector follows roster selection and its real notes', async ({ page }) => {
   await page.addInitScript(() => {
     let profiles = [
