@@ -15,6 +15,7 @@ pub const DEFAULT_UPDATER_PUBKEY: &str =
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateCheckResult {
     pub has_update: bool,
+    pub is_installable: bool,
     pub current_version: String,
     pub latest_version: String,
     pub release_name: String,
@@ -25,6 +26,19 @@ pub struct UpdateCheckResult {
     pub signature: Option<String>,
     pub edition: String,
     pub platform: String,
+}
+
+static INSTALL_TRANSITION_ACTIVE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Returns whether an update installation transition is currently in progress.
+pub fn is_install_transition_active() -> bool {
+    INSTALL_TRANSITION_ACTIVE.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+/// Explicitly updates the update installation transition state.
+pub fn set_install_transition_active(active: bool) {
+    INSTALL_TRANSITION_ACTIVE.store(active, std::sync::atomic::Ordering::SeqCst);
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -234,23 +248,100 @@ pub fn validate_manifest_edition(
     download_url: &str,
     app_edition: &str,
 ) -> Result<(), String> {
-    if let Some(declared) = manifest_edition {
-        if !declared.eq_ignore_ascii_case(app_edition) {
-            return Err(format!(
-                "Edition isolation violation: Manifest declared edition '{declared}' does not match installed application edition '{app_edition}'"
-            ));
+    // 1. Mandatory edition metadata enforcement: fail closed on missing, empty, or whitespace-only edition
+    let declared = match manifest_edition {
+        Some(e) if !e.trim().is_empty() => e.trim(),
+        _ => {
+            return Err("Security violation: Missing mandatory edition metadata in update manifest. Updates without explicit edition metadata are rejected.".to_string());
         }
+    };
+
+    if !declared.eq_ignore_ascii_case(app_edition) {
+        return Err(format!(
+            "Edition isolation violation: Manifest declared edition '{declared}' does not match installed application edition '{app_edition}'"
+        ));
     }
 
-    let url_lower = download_url.to_lowercase();
-    if app_edition == "offline" && !url_lower.contains("offline") {
-        return Err("Edition isolation violation: Offline edition cannot install non-offline update bundle.".into());
+    // 2. Reliable artifact identity checks on download URL and file basename
+    let _url_lower = download_url.to_lowercase();
+    let file_name = download_url
+        .split('/')
+        .last()
+        .unwrap_or("")
+        .to_lowercase();
+
+    if file_name.is_empty() {
+        return Err("Security violation: Download URL has no valid artifact filename.".to_string());
     }
-    if app_edition == "team" && url_lower.contains("offline") {
-        return Err("Edition isolation violation: Team edition cannot install offline update bundle.".into());
+
+    // Verify edition naming pattern in artifact identity
+    if app_edition == "offline" {
+        if !file_name.contains("offline") {
+            return Err(format!(
+                "Artifact identity mismatch: Offline edition cannot install update artifact '{file_name}' lacking 'offline' identity marker."
+            ));
+        }
+        if file_name.contains("desktop") && !file_name.contains("offline") {
+            return Err(format!(
+                "Artifact identity mismatch: Offline edition rejected Team/Desktop artifact '{file_name}'."
+            ));
+        }
+    } else if app_edition == "team" {
+        if file_name.contains("offline") {
+            return Err(format!(
+                "Artifact identity mismatch: Team edition cannot install update artifact '{file_name}' containing 'offline' identity marker."
+            ));
+        }
+        if !file_name.contains("desktop") && !file_name.contains("team") && !file_name.contains("laap") {
+            return Err(format!(
+                "Artifact identity mismatch: Team edition update artifact '{file_name}' lacks recognized team identity."
+            ));
+        }
+    } else {
+        return Err(format!("Unrecognized application edition '{app_edition}'."));
+    }
+
+    // Verify valid artifact extension for platform
+    let valid_extensions = [".zip", ".nsis.zip", ".exe", ".msi", ".dmg", ".tar.gz", ".app.tar.gz"];
+    if !valid_extensions.iter().any(|ext| file_name.ends_with(ext)) {
+        return Err(format!(
+            "Security violation: Artifact '{file_name}' has invalid or untrusted extension for update payload."
+        ));
     }
 
     Ok(())
+}
+
+/// Validates downloaded payload bytes for non-emptiness, valid container magic bytes, and signature integrity
+pub fn validate_payload_bytes(
+    bytes: &[u8],
+    signature_str: &str,
+    public_key_str: &str,
+) -> Result<(), String> {
+    if bytes.is_empty() {
+        return Err("Security violation: Downloaded update payload is empty (0 bytes).".into());
+    }
+
+    // Header magic checks for reliable artifact verification
+    #[cfg(target_os = "windows")]
+    {
+        let is_zip = bytes.len() >= 4 && &bytes[0..4] == b"PK\x03\x04";
+        let is_pe = bytes.len() >= 2 && &bytes[0..2] == b"MZ";
+        if !is_zip && !is_pe {
+            return Err("Security violation: Downloaded Windows update payload lacks valid ZIP or PE magic header.".into());
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let is_gzip = bytes.len() >= 2 && bytes[0] == 0x1f && bytes[1] == 0x8b;
+        if !is_gzip {
+            return Err("Security violation: Downloaded macOS update payload lacks valid gzip magic header.".into());
+        }
+    }
+
+    // Verify cryptographic Ed25519 signature
+    verify_ed25519_signature(public_key_str, signature_str, bytes)
 }
 
 #[tauri::command]
@@ -293,6 +384,26 @@ pub async fn native_install_update(
     app: AppHandle,
     force_close_riot: Option<bool>,
 ) -> Result<InstallUpdateResult, String> {
+    // 0. Prevent simultaneous launches during update installation transition
+    if INSTALL_TRANSITION_ACTIVE
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err("An update installation transition is already in progress. Simultaneous installer launches are blocked.".into());
+    }
+
+    struct TransitionGuard {
+        active: bool,
+    }
+    impl Drop for TransitionGuard {
+        fn drop(&mut self) {
+            if self.active {
+                INSTALL_TRANSITION_ACTIVE.store(false, Ordering::SeqCst);
+            }
+        }
+    }
+    let mut transition_guard = TransitionGuard { active: true };
+
     // 1. Initial preflight safety check before initiating network download
     let initial_preflight = get_updater_preflight_status();
     if !initial_preflight.safe {
@@ -326,7 +437,7 @@ pub async fn native_install_update(
         ));
     }
 
-    // Enforce edition isolation on updater manifest and download URL
+    // Enforce edition isolation and artifact identity on updater manifest and download URL
     let app_edition = get_app_edition(&app);
     let declared_edition = update.raw_json.get("edition").and_then(|v| v.as_str());
     if let Err(e) = validate_manifest_edition(declared_edition, update.download_url.as_str(), app_edition) {
@@ -370,6 +481,14 @@ pub async fn native_install_update(
 
     // 4. Emit verifying & ready status
     let _ = app.emit("laap:update-status", "verifying");
+
+    // Cryptographically verify downloaded payload bytes, container magic headers, and size
+    validate_payload_bytes(&bytes, &update.signature, DEFAULT_UPDATER_PUBKEY)
+        .map_err(|e| {
+            let _ = app.emit("laap:update-status", "error");
+            e
+        })?;
+
     let _ = app.emit("laap:update-status", "ready");
 
     // 5. CRITICAL TIMING GAP ELIMINATION: Post-download, immediate pre-installation safety check
@@ -388,37 +507,47 @@ pub async fn native_install_update(
         return Err(e);
     }
 
-    // 6. Cleanup before applying installer with defensive error handling
+    // 6. Cleanup before applying installer: NEVER ignore failures of mandatory safety operations
     if force_close_riot.unwrap_or(false) && immediate_preflight.riot_running {
-        if let Err(e) = crate::riot::terminate_riot_processes() {
-            eprintln!("Non-fatal warning terminating Riot processes before update: {e}");
-        }
-        let recheck = crate::riot::runtime_snapshot();
-        if recheck.active_match() {
-            let _ = app.emit("laap:update-status", "deferred");
-            return Err("INSTALLATION_DEFERRED: Active match detected during process shutdown. Aborting installation to protect active game.".into());
-        }
+        crate::riot::terminate_riot_processes()
+            .map_err(|e| format!("Mandatory safety operation failed: unable to terminate Riot processes before update: {e}"))?;
     }
 
-    if let Err(e) = crate::presence::stop_proxy() {
-        eprintln!("Non-fatal warning stopping presence proxy before update: {e}");
-    }
-    if let Err(e) = crate::tray::prepare_quit(true).await {
-        eprintln!("Non-fatal warning preparing tray quit before update: {e}");
+    crate::presence::stop_proxy()
+        .map_err(|e| format!("Mandatory safety operation failed: unable to stop presence proxy before update: {e}"))?;
+
+    crate::tray::prepare_quit(true).await
+        .map_err(|e| format!("Mandatory safety operation failed: unable to prepare tray quit before update: {e}"))?;
+
+    // CRITICAL: Recheck protected Riot operations immediately before installer execution
+    let final_preflight = get_updater_preflight_status();
+    if !final_preflight.safe {
+        let _ = app.emit("laap:update-status", "deferred");
+        let reason = final_preflight.reason.unwrap_or_else(|| {
+            "A protected Riot operation was detected during final pre-installation inspection. Installation safely deferred.".into()
+        });
+        return Err(format!("INSTALLATION_DEFERRED: {reason}"));
     }
 
     let _ = app.emit("laap:update-status", "installing");
 
+    // We are now handing off execution to the installer / relaunch
+    transition_guard.active = false;
+
     // 7. Apply update
     update
         .install(bytes)
-        .map_err(|e| format!("Failed to apply update installer: {e}"))?;
+        .map_err(|e| {
+            INSTALL_TRANSITION_ACTIVE.store(false, Ordering::SeqCst);
+            format!("Failed to apply update installer: {e}")
+        })?;
 
     #[cfg(target_os = "macos")]
     {
-        let _ = app.restart();
+        app.restart();
     }
 
+    #[cfg(not(target_os = "macos"))]
     Ok(InstallUpdateResult {
         success: true,
         installed_version: target_version,
@@ -441,8 +570,10 @@ pub async fn check_github_update(
             if validate_manifest_edition(declared_edition, update.download_url.as_str(), &edition).is_ok() {
                 let remote_ver = update.version.trim_start_matches('v').to_string();
                 let has_update = is_newer(&remote_ver, &current_version);
+                let has_sig = !update.signature.trim().is_empty();
                 return Ok(UpdateCheckResult {
                     has_update,
+                    is_installable: has_update && has_sig,
                     current_version: current_version.clone(),
                     latest_version: remote_ver,
                     release_name: format!("Release v{}", update.version),
@@ -464,7 +595,7 @@ pub async fn check_github_update(
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {e}"))?;
 
-    // 1. Try fetching edition-specific update manifest (e.g. latest-team.json or latest-offline.json)
+    // 2. Try fetching edition-specific update manifest (e.g. latest-team.json or latest-offline.json)
     let manifest_url = format!(
         "https://github.com/{}/releases/latest/download/latest-{}.json",
         GITHUB_REPO, edition
@@ -478,15 +609,8 @@ pub async fn check_github_update(
     {
         if manifest_res.status().is_success() {
             if let Ok(manifest) = manifest_res.json::<TauriUpdateManifest>().await {
-                // Validate edition if declared in manifest
-                if let Some(ref manifest_edition) = manifest.edition {
-                    if !manifest_edition.eq_ignore_ascii_case(&edition) {
-                        return Err(format!(
-                            "Edition mismatch: App edition is '{edition}' but update manifest is for '{manifest_edition}'"
-                        ));
-                    }
-                }
-
+                // Validate edition declared in manifest
+                let declared_edition = manifest.edition.as_deref();
                 let remote_ver = manifest.version.trim_start_matches('v').to_string();
                 let has_update = is_newer(&remote_ver, &current_version);
 
@@ -500,8 +624,18 @@ pub async fn check_github_update(
                     None => (None, None),
                 };
 
+                let edition_valid = if let Some(ref d_url) = download_url {
+                    validate_manifest_edition(declared_edition, d_url, &edition).is_ok()
+                } else {
+                    false
+                };
+
+                let has_sig = signature.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false);
+                let is_installable = has_update && edition_valid && has_sig && download_url.is_some();
+
                 return Ok(UpdateCheckResult {
                     has_update,
+                    is_installable,
                     current_version: current_version.clone(),
                     latest_version: remote_ver,
                     release_name: format!("Release v{}", manifest.version),
@@ -517,7 +651,7 @@ pub async fn check_github_update(
         }
     }
 
-    // 2. Fallback to GitHub Releases API
+    // 3. Fallback to GitHub Releases API (Advisory Release Notification Only)
     let url = format!("https://api.github.com/repos/{}/releases/latest", GITHUB_REPO);
     let res = client
         .get(&url)
@@ -529,6 +663,7 @@ pub async fn check_github_update(
     if res.status() == reqwest::StatusCode::NOT_FOUND {
         return Ok(UpdateCheckResult {
             has_update: false,
+            is_installable: false,
             current_version: current_version.clone(),
             latest_version: current_version,
             release_name: "No releases found".into(),
@@ -554,6 +689,7 @@ pub async fn check_github_update(
     if release.draft {
         return Ok(UpdateCheckResult {
             has_update: false,
+            is_installable: false,
             current_version: current_version.clone(),
             latest_version: current_version,
             release_name: "".into(),
@@ -579,8 +715,10 @@ pub async fn check_github_update(
 
     let download_url = matching_asset.map(|a| a.browser_download_url.clone());
 
+    // Release notification only: ordinary GitHub release assets are NOT verified in-app update payloads
     Ok(UpdateCheckResult {
         has_update,
+        is_installable: false,
         current_version,
         latest_version: remote_version,
         release_name: release.name.unwrap_or_else(|| release.tag_name.clone()),
@@ -668,18 +806,70 @@ mod tests {
             "offline"
         ).is_err());
 
-        // Defense-in-depth URL filename mismatch fails even if manifest declared edition is None
+        // Mandatory edition metadata enforcement: None or empty fails closed
         assert!(validate_manifest_edition(
             None,
+            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Desktop-1.0.0-x64-setup.nsis.zip",
+            "team"
+        ).is_err());
+
+        assert!(validate_manifest_edition(
+            Some(""),
+            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Desktop-1.0.0-x64-setup.nsis.zip",
+            "team"
+        ).is_err());
+
+        assert!(validate_manifest_edition(
+            Some("   "),
+            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Desktop-1.0.0-x64-setup.nsis.zip",
+            "team"
+        ).is_err());
+
+        // Defense-in-depth URL filename mismatch fails closed
+        assert!(validate_manifest_edition(
+            Some("offline"),
             "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Desktop-1.0.0-x64-setup.nsis.zip",
             "offline"
         ).is_err());
 
         assert!(validate_manifest_edition(
-            None,
+            Some("team"),
             "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Offline-1.0.0-x64-setup.nsis.zip",
             "team"
         ).is_err());
+
+        // Untrusted file extension fails closed
+        assert!(validate_manifest_edition(
+            Some("team"),
+            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Desktop-1.0.0.sh",
+            "team"
+        ).is_err());
+    }
+
+    #[test]
+    fn test_payload_validation_empty_and_tampered() {
+        let fake_sig = STANDARD.encode([0u8; 64]);
+        let fake_pubkey = DEFAULT_UPDATER_PUBKEY;
+
+        // Empty payload rejected
+        assert!(validate_payload_bytes(&[], &fake_sig, fake_pubkey).is_err());
+
+        // Corrupted payload rejected
+        let corrupted_bytes = vec![0u8; 1024];
+        assert!(validate_payload_bytes(&corrupted_bytes, &fake_sig, fake_pubkey).is_err());
+    }
+
+    #[test]
+    fn test_simultaneous_launch_transition_lock() {
+        set_install_transition_active(false);
+        assert!(!is_install_transition_active());
+
+        set_install_transition_active(true);
+        assert!(is_install_transition_active());
+
+        // Reset state
+        set_install_transition_active(false);
+        assert!(!is_install_transition_active());
     }
 
     #[test]

@@ -59,6 +59,7 @@ export function UpdateModal({
   const isReady = status === 'ready'
   const hasError = status === 'error' || Boolean(installError)
   const isBusy = isDownloading || isVerifying
+  const isVerifiedUpdate = Boolean(release.isInstallable && release.signature && onInstall)
 
   const formatBytes = (bytes: number) => {
     if (bytes <= 0) return '0 MB'
@@ -69,8 +70,8 @@ export function UpdateModal({
   const handlePrimaryAction = () => {
     if (isReady) {
       onInstall?.()
-    } else if (release.downloadUrl && onInstall) {
-      onInstall()
+    } else if (isVerifiedUpdate) {
+      onInstall?.()
     } else {
       onDownload()
     }
@@ -105,9 +106,11 @@ export function UpdateModal({
               <Sparkles size={16} />
             </div>
             <div>
-              <h2 className="modal-title">New Update Available</h2>
+              <h2 className="modal-title">
+                {isVerifiedUpdate ? 'New Update Available' : 'New Release Published'}
+              </h2>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                LAAP Tactical Launcher
+                {isVerifiedUpdate ? 'Verified In-App Auto-Update' : 'Advisory Release Notification'}
               </div>
             </div>
           </div>
@@ -329,12 +332,21 @@ export function UpdateModal({
               color: 'var(--text-muted)',
             }}
           >
-            <ShieldCheck size={13} style={{ color: 'var(--status-ready)' }} />
-            <span>
-              {onInstall
-                ? 'Cryptographically verified update via Ed25519 digital signatures. Active matches and Riot sessions are guarded before restart.'
-                : 'Automatic installation is available in desktop builds. Review release details to update.'}
-            </span>
+            {isVerifiedUpdate ? (
+              <>
+                <ShieldCheck size={13} style={{ color: 'var(--status-ready)' }} />
+                <span>
+                  Cryptographically verified update via Ed25519 digital signatures. Active matches and Riot sessions are guarded before restart.
+                </span>
+              </>
+            ) : (
+              <>
+                <ExternalLink size={13} style={{ color: 'var(--text-muted)' }} />
+                <span>
+                  An ordinary installer has been published on GitHub Releases. Automatic in-app update is not configured for this release; download the installer manually to update.
+                </span>
+              </>
+            )}
           </div>
 
           {/* Action buttons */}
@@ -372,14 +384,14 @@ export function UpdateModal({
                   <CheckCircle2 size={15} />
                   <span>Restart & Apply Update</span>
                 </>
-              ) : release.downloadUrl && onInstall ? (
+              ) : isVerifiedUpdate ? (
                 <>
                   <Download size={15} />
                   <span>Download & Install Automatically</span>
                 </>
               ) : (
                 <>
-                  <Download size={15} />
+                  <ExternalLink size={15} />
                   <span>Download from GitHub Releases</span>
                   <ArrowUpRight size={14} style={{ opacity: 0.7 }} />
                 </>

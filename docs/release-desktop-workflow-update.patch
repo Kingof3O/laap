@@ -1,3 +1,5 @@
+diff --git a/.github/workflows/release-desktop.yml b/.github/workflows/release-desktop.yml
+index e9daedb..fd84ad1 100644
 --- a/.github/workflows/release-desktop.yml
 +++ b/.github/workflows/release-desktop.yml
 @@ -85,6 +85,8 @@ jobs:
@@ -19,7 +21,7 @@
  
    signpath-windows:
      needs: signing-release-guard
-@@ -152,10 +156,32 @@ jobs:
+@@ -152,10 +156,39 @@ jobs:
            done
            gh release upload "$RELEASE_TAG" verified-windows/team/*.exe verified-windows/team/*.msi verified-windows/offline/*.exe verified-windows/offline/*.msi verified-windows/manifest.json --clobber
  
@@ -33,18 +35,25 @@
 +      - uses: actions/setup-node@v4
 +        with:
 +          node-version: 22
-+      - name: Download all release assets and generate signed manifests
++          cache: npm
++      - run: npm ci --workspace @laap/desktop --include-workspace-root
++      - name: Download all release assets, sign SignPath payloads if needed, and generate verified manifests
 +        env:
 +          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 +          GH_REPO: ${{ github.repository }}
 +          RELEASE_TAG: ${{ github.ref_name }}
++          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
++          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 +        run: |
 +          mkdir -p release-assets
 +          gh release download "$RELEASE_TAG" --dir release-assets
 +          version="${RELEASE_TAG#v}"
-+          node scripts/generate-update-manifest.mjs --version "$version" --tag "$RELEASE_TAG" --edition team --artifacts-dir release-assets --output latest-team.json
-+          node scripts/generate-update-manifest.mjs --version "$version" --tag "$RELEASE_TAG" --edition offline --artifacts-dir release-assets --output latest-offline.json
-+          gh release upload "$RELEASE_TAG" latest-team.json latest-offline.json --clobber
++          # Generate and verify Team edition updater manifest for all advertised platforms
++          node scripts/generate-update-manifest.mjs --version "$version" --tag "$RELEASE_TAG" --edition team --artifacts-dir release-assets --output latest-team.json --require-all-platforms --require-verification
++          # Generate and verify Offline edition updater manifest for all advertised platforms
++          node scripts/generate-update-manifest.mjs --version "$version" --tag "$RELEASE_TAG" --edition offline --artifacts-dir release-assets --output latest-offline.json --require-all-platforms --require-verification
++          # Upload verified manifests and any newly signed signatures to the release
++          gh release upload "$RELEASE_TAG" latest-team.json latest-offline.json release-assets/*.sig --clobber || gh release upload "$RELEASE_TAG" latest-team.json latest-offline.json --clobber
 +
 +  publish:
 +    needs: [release, signpath-windows, upload-signpath-windows, generate-updater-manifests]

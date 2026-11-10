@@ -41,10 +41,12 @@ export interface GitHubReleaseInfo {
   signature?: string | null
   edition?: string
   platform?: string
+  isInstallable: boolean
 }
 
 interface NativeUpdateResult {
   has_update: boolean
+  is_installable: boolean
   current_version: string
   latest_version: string
   release_name: string
@@ -154,6 +156,7 @@ export function useUpdateChecker() {
           const res = await invokeTauri<NativeUpdateResult>('check_github_update')
           setLastChecked(new Date())
 
+          const isInstallable = Boolean(res.is_installable && res.signature && res.download_url)
           const releaseInfo: GitHubReleaseInfo = {
             tagName: `v${res.latest_version}`,
             version: res.latest_version,
@@ -165,6 +168,7 @@ export function useUpdateChecker() {
             signature: res.signature,
             edition: res.edition,
             platform: res.platform,
+            isInstallable,
           }
 
           setLatestRelease(releaseInfo)
@@ -238,6 +242,7 @@ export function useUpdateChecker() {
             htmlUrl:
               data.html_url || `https://github.com/${GITHUB_REPO}/releases/latest`,
             publishedAt: data.published_at || new Date().toISOString(),
+            isInstallable: false,
           }
 
           setLatestRelease(releaseInfo)
@@ -285,6 +290,13 @@ export function useUpdateChecker() {
         return
       }
 
+      if (!latestRelease?.isInstallable) {
+        const reason = 'Automatic in-app update is only available for cryptographically verified updates. Please download the release installer from GitHub.'
+        setInstallError(reason)
+        setStatus('error')
+        throw new Error(reason)
+      }
+
       setInstallError(null)
       setStatus('downloading')
       setDownloadProgress({ downloaded: 0, total: 0, percentage: 0 })
@@ -329,7 +341,7 @@ export function useUpdateChecker() {
         throw cause
       }
     },
-    [],
+    [latestRelease],
   )
 
   // Auto-check on launch if enabled and not offline-only browser test

@@ -19,6 +19,10 @@ pub fn run() {
     use tauri::{Emitter, Manager};
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if commands::updater::is_install_transition_active() {
+                eprintln!("Blocked simultaneous launch attempt during active update installation transition.");
+                return;
+            }
             tray::show(app);
             let _ = app.emit("laap:tray-intent", tray::TrayIntent::Open);
         }))

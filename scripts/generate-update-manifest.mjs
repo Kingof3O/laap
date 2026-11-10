@@ -2,6 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import child_process from 'node:child_process'
 
 /**
  * Pinned official public key for Minisign / Ed25519 signature verification.
@@ -87,6 +88,45 @@ export function verifyArtifactSignature(fileBytes, signatureStr, pubKeyInput = D
   }
 }
 
+/**
+ * Signs an artifact using Tauri's official CLI signer or provided private key credentials.
+ * Writes a corresponding .sig file alongside the artifact and returns the signature string.
+ */
+export function signArtifact(filePath, options = {}) {
+  const privateKey = options.privateKey || process.env.TAURI_SIGNING_PRIVATE_KEY
+  const password = options.password || options.privateKeyPassword || process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || ''
+
+  if (!privateKey) {
+    return null
+  }
+
+  const sigPath = `${filePath}.sig`
+  try {
+    const env = {
+      ...process.env,
+      TAURI_SIGNING_PRIVATE_KEY: privateKey,
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: password,
+    }
+    // Invoke tauri signer tool
+    child_process.execSync(
+      `npx --workspace @laap/desktop tauri signer sign "${filePath}"`,
+      {
+        env,
+        stdio: 'pipe',
+        encoding: 'utf8',
+      }
+    )
+
+    if (fs.existsSync(sigPath)) {
+      return fs.readFileSync(sigPath, 'utf8').trim()
+    }
+  } catch (err) {
+    console.warn(`Failed to sign artifact with tauri signer: ${filePath}`, err.message)
+  }
+
+  return null
+}
+
 export function parseCliArgs(argv) {
   const args = {}
   for (let i = 2; i < argv.length; i++) {
@@ -109,6 +149,9 @@ export function generateManifest(options) {
     notes = 'LAAP Desktop release update.',
     repo = 'Kingof3O/laap',
     pubDate = new Date().toISOString(),
+    sign = Boolean(options.privateKey || process.env.TAURI_SIGNING_PRIVATE_KEY),
+    privateKey = options.privateKey || process.env.TAURI_SIGNING_PRIVATE_KEY,
+    privateKeyPassword = options.privateKeyPassword || process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD,
   } = options
 
   if (!version || !/^\d+\.\d+\.\d+/.test(version)) {
@@ -139,19 +182,31 @@ export function generateManifest(options) {
   }
   scan(artifactsDir)
 
-  // Helper to read signature file
-  function readSignature(assetPath) {
-    const sigCandidates = [
-      `${assetPath}.sig`,
-      assetPath.replace(/\.zip$/, '.zip.sig'),
-      assetPath.replace(/\.tar\.gz$/, '.tar.gz.sig'),
-      assetPath.replace(/\.exe$/, '.exe.sig'),
-    ]
+  // Helper to read signature file or generate it if private key is present
+  function readOrGenerateSignature(assetPath) {
+    const sigCandidates = [`${assetPath}.sig`]
+    if (assetPath.endsWith('.zip')) {
+      sigCandidates.push(assetPath.slice(0, -4) + '.zip.sig')
+    }
+    if (assetPath.endsWith('.tar.gz')) {
+      sigCandidates.push(assetPath.slice(0, -7) + '.tar.gz.sig')
+    }
+    if (assetPath.endsWith('.exe')) {
+      sigCandidates.push(assetPath.slice(0, -4) + '.exe.sig')
+    }
+
     for (const sigPath of sigCandidates) {
-      if (fs.existsSync(sigPath)) {
+      if (sigPath !== assetPath && fs.existsSync(sigPath)) {
         return fs.readFileSync(sigPath, 'utf8').trim()
       }
     }
+
+    // If auto-signing is enabled and signing credentials exist, sign the artifact
+    if (sign && privateKey) {
+      const createdSig = signArtifact(assetPath, { privateKey, password: privateKeyPassword })
+      if (createdSig) return createdSig
+    }
+
     return null
   }
 
@@ -174,10 +229,10 @@ export function generateManifest(options) {
       continue
     }
 
-    // Windows x86_64 updater bundle (.nsis.zip or standalone signed installer)
+    // Windows x86_64 updater bundle (.nsis.zip, .zip, or standalone signed installer .exe)
     if (lower.includes('x64') || lower.includes('x86_64') || lower.endsWith('.exe') || lower.endsWith('.nsis.zip')) {
       if (lower.endsWith('.nsis.zip') || lower.endsWith('.zip') || lower.endsWith('.exe')) {
-        const sig = readSignature(file)
+        const sig = readOrGenerateSignature(file)
         if (sig) {
           const downloadUrl = `https://github.com/${repo}/releases/download/${tag}/${filename}`
           platforms['windows-x86_64'] = {
@@ -190,10 +245,10 @@ export function generateManifest(options) {
 
     // macOS Universal / Apple Silicon / Intel
     if (lower.endsWith('.tar.gz') || lower.endsWith('.app.tar.gz')) {
-      const sig = readSignature(file)
+      const sig = readOrGenerateSignature(file)
       if (sig) {
         const downloadUrl = `https://github.com/${repo}/releases/download/${tag}/${filename}`
-        if (lower.includes('universal') || lower.includes('darwin-universal')) {
+        if (lower.includes('universal') || lower.includes('darwin-universal') || (!lower.includes('aarch64') && !lower.includes('arm64') && !lower.includes('x86_64') && !lower.includes('x64'))) {
           platforms['darwin-universal'] = { signature: sig, url: downloadUrl }
           platforms['darwin-x86_64'] = { signature: sig, url: downloadUrl }
           platforms['darwin-aarch64'] = { signature: sig, url: downloadUrl }
@@ -223,6 +278,7 @@ export function validateManifest(manifest, options = {}) {
     artifactsDir,
     pubkey = DEFAULT_UPDATER_PUBKEY,
     requireArtifactVerification = false,
+    requireAllPlatforms = options['require-all-platforms'] === 'true' || options['require-all-platforms'] === true,
   } = options
 
   if (!manifest.version || !/^\d+\.\d+\.\d+/.test(manifest.version)) {
@@ -236,6 +292,21 @@ export function validateManifest(manifest, options = {}) {
   const platformKeys = Object.keys(manifest.platforms || {})
   if (platformKeys.length === 0) {
     errors.push('Manifest platforms map is empty. At least one platform target must be present.')
+  }
+
+  if (requireAllPlatforms) {
+    // Both Windows and macOS advertised targets are mandatory for a complete release
+    if (!platformKeys.includes('windows-x86_64')) {
+      errors.push('Missing required advertised platform: "windows-x86_64" in manifest platforms.')
+    }
+    const hasMac =
+      platformKeys.includes('darwin-universal') ||
+      (platformKeys.includes('darwin-x86_64') && platformKeys.includes('darwin-aarch64'))
+    if (!hasMac) {
+      errors.push(
+        'Missing required advertised macOS platform ("darwin-universal" or "darwin-x86_64" + "darwin-aarch64") in manifest platforms.'
+      )
+    }
   }
 
   // Scan artifacts directory to find files by basename if directory is provided
@@ -291,6 +362,76 @@ export function validateManifest(manifest, options = {}) {
   }
 }
 
+/**
+ * Validates that an entire release publication is complete, compatible, and cryptographically verified
+ * across both Team and Offline editions for all advertised platforms.
+ */
+export function validateReleasePublication(options = {}) {
+  const {
+    version = '1.0.0',
+    tag = `v${version}`,
+    artifactsDir = './dist',
+    pubkey = DEFAULT_UPDATER_PUBKEY,
+    requireArtifactVerification = true,
+  } = options
+
+  const errors = []
+
+  let teamManifest, offlineManifest
+  try {
+    teamManifest = generateManifest({
+      version,
+      tag,
+      edition: 'team',
+      artifactsDir,
+    })
+  } catch (err) {
+    errors.push(`Team edition manifest generation failed: ${err.message}`)
+  }
+
+  try {
+    offlineManifest = generateManifest({
+      version,
+      tag,
+      edition: 'offline',
+      artifactsDir,
+    })
+  } catch (err) {
+    errors.push(`Offline edition manifest generation failed: ${err.message}`)
+  }
+
+  if (teamManifest) {
+    const teamVal = validateManifest(teamManifest, {
+      artifactsDir,
+      pubkey,
+      requireArtifactVerification,
+      requireAllPlatforms: true,
+    })
+    if (!teamVal.valid) {
+      errors.push(...teamVal.errors.map((e) => `[Team Edition] ${e}`))
+    }
+  }
+
+  if (offlineManifest) {
+    const offlineVal = validateManifest(offlineManifest, {
+      artifactsDir,
+      pubkey,
+      requireArtifactVerification,
+      requireAllPlatforms: true,
+    })
+    if (!offlineVal.valid) {
+      errors.push(...offlineVal.errors.map((e) => `[Offline Edition] ${e}`))
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    teamManifest,
+    offlineManifest,
+  }
+}
+
 // CLI Execution if executed directly
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'))) {
   const args = parseCliArgs(process.argv)
@@ -302,8 +443,29 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '
   const notes = args.notes || 'LAAP official release update.'
   const pubkey = args.pubkey || process.env.TAURI_UPDATER_PUBKEY || DEFAULT_UPDATER_PUBKEY
   const requireVerification = args['require-verification'] !== 'false'
+  const requireAllPlatforms = args['require-all-platforms'] === 'true'
+  const verifyRelease = args['verify-release'] === 'true'
 
   try {
+    if (verifyRelease) {
+      console.log(`Verifying full dual-edition release publication readiness for ${tag}...`)
+      const pubCheck = validateReleasePublication({
+        version,
+        tag,
+        artifactsDir,
+        pubkey,
+        requireArtifactVerification: requireVerification,
+      })
+      if (!pubCheck.valid) {
+        console.error('Release publication readiness checks FAILED:\n - ' + pubCheck.errors.join('\n - '))
+        process.exit(1)
+      }
+      fs.writeFileSync('./latest-team.json', JSON.stringify(pubCheck.teamManifest, null, 2), 'utf8')
+      fs.writeFileSync('./latest-offline.json', JSON.stringify(pubCheck.offlineManifest, null, 2), 'utf8')
+      console.log('Release publication verified! Successfully generated latest-team.json and latest-offline.json')
+      process.exit(0)
+    }
+
     const manifest = generateManifest({
       version,
       tag,
@@ -316,6 +478,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '
       artifactsDir,
       pubkey,
       requireArtifactVerification: requireVerification,
+      requireAllPlatforms,
     })
 
     if (!validation.valid) {

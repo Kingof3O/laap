@@ -14,7 +14,7 @@
     "check": "cargo check --manifest-path src-tauri/Cargo.toml",
     "test:lease-exit": "node --experimental-strip-types --test tests/lease-exit.test.ts",
     "test:sorting": "node --experimental-strip-types --test tests/sorting.test.ts",
-    "test:updater": "node --experimental-strip-types --test tests/updater.test.ts",
+    "test:updater": "node --experimental-strip-types --test tests/updater.test.ts tests/windows-upgrade-simulation.test.ts",
     "test:ui": "playwright test"
   },
   "dependencies": {

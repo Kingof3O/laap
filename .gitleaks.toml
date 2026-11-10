@@ -1,14 +1,10 @@
 title = "Gitleaks Configuration for LAAP"
 
+[extend]
+useDefault = true
+
 [allowlist]
-description = "Allowlist pinned non-secret updater public keys"
+description = "Allowlist pinned non-secret updater public key"
 regexes = [
   '''dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUzNDM5QzAzQjE1NzQxRjUKUldTY2JicXRCSnBnU0lrcnI3Vk1YTUw0TG1uWmVJNXcxTEtYQXB3QnNXU2s3T0tKWHoxV0h5OHMK'''
-]
-paths = [
-  '''docs/LAAP_SIGNED_AUTO_UPDATE_IMPLEMENTATION\.md''',
-  '''apps/desktop/src-tauri/tauri\.conf\.json''',
-  '''apps/desktop/src-tauri/tauri\.offline\.conf\.json''',
-  '''apps/desktop/src-tauri/src/commands/updater\.rs''',
-  '''scripts/generate-update-manifest\.mjs'''
 ]
