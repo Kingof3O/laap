@@ -10,7 +10,7 @@ pub const GITHUB_REPO: &str = "Kingof3O/laap";
 
 // Embedded public key for minisign/ed25519 signature validation
 pub const DEFAULT_UPDATER_PUBKEY: &str =
-    "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUzNDM5QzAzQjE1NzQxRjUKUldTY2JicXRCSnBnU0lrcnI3Vk1YTUw0TG1uWmVJNXcxTEtYQXB3QnNXU2s3T0tKWHoxV0h5OHMK";
+    "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVBN0E0RkU3NDhEMUU3RjgKUldUNDU5Rkk1MDk2V3NlVU5UeE9sYmdSQWkxaUJTSWpjdER1QzNmVFpNTmdEanpxMWlhS0Q0NnAK";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateCheckResult {
@@ -1057,7 +1057,7 @@ mod tests {
         // 2. DEFAULT_UPDATER_PUBKEY must parse successfully into a Minisign PublicKey struct
         let minisign_pubkey = parse_minisign_public_key(DEFAULT_UPDATER_PUBKEY)
             .expect("DEFAULT_UPDATER_PUBKEY must parse into minisign PublicKey");
-        assert_eq!(minisign_pubkey.untrusted_comment(), Some("untrusted comment: minisign public key: 53439C03B15741F5"));
+        assert_eq!(minisign_pubkey.untrusted_comment(), Some("untrusted comment: minisign public key: 5A7A4FE748D1E7F8"));
     }
 
     #[test]

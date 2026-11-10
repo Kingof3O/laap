@@ -9,7 +9,7 @@ import child_process from 'node:child_process'
  * Matches apps/desktop/src-tauri/tauri.conf.json and tauri.offline.conf.json
  */
 export const DEFAULT_UPDATER_PUBKEY =
-  'dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUzNDM5QzAzQjE1NzQxRjUKUldTY2JicXRCSnBnU0lrcnI3Vk1YTUw0TG1uWmVJNXcxTEtYQXB3QnNXU2s3T0tKWHoxV0h5OHMK'
+  'dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVBN0E0RkU3NDhEMUU3RjgKUldUNDU5Rkk1MDk2V3NlVU5UeE9sYmdSQWkxaUJTSWpjdER1QzNmVFpNTmdEanpxMWlhS0Q0NnAK'
 
 /**
  * Extracts 32 raw bytes of Ed25519 public key from Minisign or raw base64 string

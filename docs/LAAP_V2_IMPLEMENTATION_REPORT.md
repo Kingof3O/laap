@@ -50,7 +50,7 @@ We implemented a robust native updater engine operating in the native host proce
 2. **Cryptographic Signature Verification (`verify_ed25519_signature`):**
    - Supports both raw 64-byte Ed25519 base64 signatures and Minisign formatted signature files (`untrusted comment: ...\n<sig>\ntrusted comment: ...\n<global_sig>`).
    - Uses `ed25519_dalek::Verifier` to verify the payload against the trusted public key:
-     `dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUzNDM5QzAzQjE1NzQxRjUKUldTY2JicXRCSnBnU0lrcnI3Vk1YTUw0TG1uWmVJNXcxTEtYQXB3QnNXU2s3T0tKWHoxV0h5OHMK`
+     `dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVBN0E0RkU3NDhEMUU3RjgKUldUNDU5Rkk1MDk2V3NlVU5UeE9sYmdSQWkxaUJTSWpjdER1QzNmVFpNTmdEanpxMWlhS0Q0NnAK`
    - **Fail-Closed Guarantee:** If the signature is missing, invalid, or corrupted by even a single bit, verification fails with a descriptive `SECURITY VIOLATION: Signature verification failed` error, unlinks the temporary file, and aborts installation immediately.
 
 3. **HTTPS Streaming Download with Real-Time Progress:**

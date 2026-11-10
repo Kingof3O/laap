@@ -186,6 +186,6 @@ The in-app updater code, native IPC commands, preflight safety gates, UI progres
 To activate signed updates for future releases in GitHub Actions:
 1. Configure `TAURI_SIGNING_PRIVATE_KEY` in GitHub Repository Secrets with the Minisign private key matching the pinned public key:
 <!-- gitleaks:allow -->
-   `dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUzNDM5QzAzQjE1NzQxRjUKUldTY2JicXRCSnBnU0lrcnI3Vk1YTUw0TG1uWmVJNXcxTEtYQXB3QnNXU2s3T0tKWHoxV0h5OHMK`
+   `dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVBN0E0RkU3NDhEMUU3RjgKUldUNDU5Rkk1MDk2V3NlVU5UeE9sYmdSQWkxaUJTSWpjdER1QzNmVFpNTmdEanpxMWlhS0Q0NnAK`
 2. If encrypted with a passphrase, configure `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 3. When building releases on tag push (`v*.*.*`), run `scripts/generate-update-manifest.mjs` and upload `latest-team.json` and `latest-offline.json` alongside release assets.
