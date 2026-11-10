@@ -20,6 +20,7 @@ jobs:
       - run: npm --workspace @laap/desktop run build:offline
       - run: npm --workspace @laap/desktop run test:sorting
       - run: npm --workspace @laap/desktop run test:lease-exit
+      - run: npm --workspace @laap/desktop run test:updater
       - run: npx playwright install --with-deps chromium
       - run: npm --workspace @laap/desktop run test:ui
       - run: npm audit --omit=dev
