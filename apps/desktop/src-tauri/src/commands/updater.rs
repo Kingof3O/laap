@@ -1110,9 +1110,32 @@ mod tests {
 
     #[test]
     fn test_live_tauri_cli_signing_integration() {
-        // If npx is available in the environment, run live signing with tauri signer sign
-        let privkey = "dW50cnVzdGVkIGNvbW1lbnQ6IHJzaWduIGVuY3J5cHRlZCBzZWNyZXQga2V5ClJXUlRZMEl5ckFmUXpETUJtbnNkMjZCZmdtQ1dYWVlRMkN3aFlzMk1hbmlWK3FJU3Urb0FBQkFBQUFBQUFBQUFBQUlBQUFBQXlWNVhGVFpVWSs3TTR2MXlUL0x2VDAwU0dOYnlWQ05NYzZVb0NyOUN4N3VJNXI5c0R0ZE1sUkY4bjBQY2JUNUZIUnNqdTlScjhjT1NLR2R2bjdma3ZZWE1NbkFCWFFOOENxZ1o1QTRQQ0xja0FEVlZLU1pVeE9tU0UvTUFMMjNJMjVnN0cxRDhMTTQ9Cg==";
-        let pubkey = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUyN0MzMUQ5QUI0NTNBNUEKUldSYU9rV3IyVEY4VWhuVGRTcHhnVW1vbldzTWZnZVh3VmNudjdVQTNKQzM2SkZlQzg1Qm9PeDMK";
+        // If npx is available in the environment, generate an ephemeral keypair dynamically
+        // and run live signing with tauri signer sign, leaving zero static secret literals in code.
+        let keygen_output = std::process::Command::new("npx")
+            .args(&["--workspace", "@laap/desktop", "tauri", "signer", "generate", "-p", ""])
+            .output();
+
+        let (privkey, pubkey) = match keygen_output {
+            Ok(ref output) if output.status.success() => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let mut lines = stdout.lines();
+                let mut priv_opt = None;
+                let mut pub_opt = None;
+                while let Some(line) = lines.next() {
+                    if line.contains("Private:") {
+                        priv_opt = lines.next().map(|s| s.trim().to_string());
+                    } else if line.contains("Public:") {
+                        pub_opt = lines.next().map(|s| s.trim().to_string());
+                    }
+                }
+                match (priv_opt, pub_opt) {
+                    (Some(privk), Some(pubk)) if !privk.is_empty() && !pubk.is_empty() => (privk, pubk),
+                    _ => return,
+                }
+            }
+            _ => return,
+        };
 
         let temp_dir = std::env::temp_dir();
         let payload_path = temp_dir.join(format!("laap_live_sign_test_{}.bin", std::process::id()));
@@ -1136,7 +1159,7 @@ mod tests {
                 "",
                 payload_path.to_str().unwrap(),
             ])
-            .env("TAURI_SIGNING_PRIVATE_KEY", privkey)
+            .env("TAURI_SIGNING_PRIVATE_KEY", &privkey)
             .output();
 
         if let Ok(output) = sign_result {
@@ -1146,13 +1169,13 @@ mod tests {
                     let sig_content = std::fs::read_to_string(&sig_path).expect("read sig file");
                     
                     // Validate with exact production functions
-                    let valid = validate_payload_bytes(&test_payload, sig_content.trim(), pubkey);
+                    let valid = validate_payload_bytes(&test_payload, sig_content.trim(), &pubkey);
                     assert!(valid.is_ok(), "Live Tauri CLI signature must validate: {:?}", valid);
 
                     // Tamper detection with live signature
                     let mut tampered = test_payload.clone();
                     tampered[6] ^= 0xaa;
-                    let invalid = validate_payload_bytes(&tampered, sig_content.trim(), pubkey);
+                    let invalid = validate_payload_bytes(&tampered, sig_content.trim(), &pubkey);
                     assert!(invalid.is_err(), "Tampered payload must fail verification");
 
                     let _ = std::fs::remove_file(sig_path);
