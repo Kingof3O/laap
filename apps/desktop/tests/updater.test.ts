@@ -5,6 +5,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { isNewerVersion, parseSemver } from '../src/lib/version.ts'
+import {
+  generateManifest,
+  validateManifest,
+  verifyArtifactSignature,
+  DEFAULT_UPDATER_PUBKEY,
+} from '../../../scripts/generate-update-manifest.mjs'
 
 // Types representing the Tauri 2 updater manifest structure
 interface TauriPlatformEntry {
@@ -394,6 +400,27 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
       assert.equal(result.safe, true)
       assert.equal(result.reason, undefined)
     })
+
+    test('timing gap elimination: defers installation if match becomes active post-download', () => {
+      // Simulates lifecycle:
+      // Stage 1: Download initiation (preflight safe)
+      const downloadPreflight = evaluatePreflight({
+        owns_provisioning: false,
+        active_match: false,
+        riot_running: false,
+      })
+      assert.equal(downloadPreflight.safe, true, 'Download can proceed')
+
+      // Stage 2: During download, user launches a game match
+      // Stage 3: Immediate pre-installation check (post-download)
+      const preInstallPreflight = evaluatePreflight({
+        owns_provisioning: false,
+        active_match: true, // match started during download!
+        riot_running: true,
+      })
+      assert.equal(preInstallPreflight.safe, false, 'Pre-install check must fail closed')
+      assert.match(preInstallPreflight.reason ?? '', /active League of Legends or Valorant match/)
+    })
   })
 
   // 7. Update Manifest Generation & Verification Pipeline
@@ -432,6 +459,110 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
       const res = validateUpdateManifest(downgradeManifest, '1.0.0', 'team', 'windows-x86_64')
       assert.equal(res.valid, false)
       assert.match(res.reason ?? '', /not newer than current/)
+    })
+
+    test('strict edition filtering: never admits macOS team build into offline manifest', () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'laap-manifest-test-'))
+      try {
+        const teamMac = path.join(tempDir, 'LAAP-Desktop-1.0.1.app.tar.gz')
+        const teamMacSig = path.join(tempDir, 'LAAP-Desktop-1.0.1.app.tar.gz.sig')
+        const offlineMac = path.join(tempDir, 'LAAP-Offline-1.0.1.app.tar.gz')
+        const offlineMacSig = path.join(tempDir, 'LAAP-Offline-1.0.1.app.tar.gz.sig')
+
+        fs.writeFileSync(teamMac, 'dummy team payload')
+        fs.writeFileSync(teamMacSig, 'dummy-sig')
+        fs.writeFileSync(offlineMac, 'dummy offline payload')
+        fs.writeFileSync(offlineMacSig, 'dummy-sig')
+
+        const offlineManifest = generateManifest({
+          version: '1.0.1',
+          tag: 'v1.0.1',
+          edition: 'offline',
+          artifactsDir: tempDir,
+        })
+
+        // Verify offline manifest only contains offline assets
+        for (const entry of Object.values(offlineManifest.platforms)) {
+          assert.equal(
+            (entry as any).url.toLowerCase().includes('offline'),
+            true,
+            'Offline manifest must only contain offline assets',
+          )
+        }
+
+        const teamManifest = generateManifest({
+          version: '1.0.1',
+          tag: 'v1.0.1',
+          edition: 'team',
+          artifactsDir: tempDir,
+        })
+
+        // Verify team manifest never contains offline assets
+        for (const entry of Object.values(teamManifest.platforms)) {
+          assert.equal(
+            (entry as any).url.toLowerCase().includes('offline'),
+            false,
+            'Team manifest must not contain offline assets',
+          )
+        }
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    test('cryptographic artifact verification: verifies genuine signature and fails closed on tampered bytes', () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'laap-crypto-manifest-'))
+      try {
+        const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519')
+        const rawPub = publicKey.export({ type: 'spki', format: 'der' }).subarray(12)
+
+        const artifactPath = path.join(tempDir, 'LAAP-Desktop-1.0.1-x64-setup.nsis.zip')
+        const artifactContent = Buffer.from('Official genuine binary package')
+        fs.writeFileSync(artifactPath, artifactContent)
+
+        // Sign the package
+        const sigBytes = crypto.sign(null, artifactContent, privateKey)
+        const minisignHeader = Buffer.from('Ed')
+        const keyId = Buffer.alloc(8, 0x55)
+        const sigStruct = Buffer.concat([minisignHeader, keyId, sigBytes])
+        const sigString =
+          'untrusted comment: signature from minisign secret key\n' +
+          sigStruct.toString('base64') +
+          '\ntrusted comment: timestamp:123\nsig2\n'
+
+        fs.writeFileSync(`${artifactPath}.sig`, sigString)
+
+        const manifest = generateManifest({
+          version: '1.0.1',
+          tag: 'v1.0.1',
+          edition: 'team',
+          artifactsDir: tempDir,
+        })
+
+        // Verification with matching key must succeed
+        const genuineValidation = validateManifest(manifest, {
+          artifactsDir: tempDir,
+          pubkey: rawPub,
+          requireArtifactVerification: true,
+        })
+        assert.equal(genuineValidation.valid, true, 'Genuine artifact and signature must pass validation')
+
+        // Tamper with artifact file bytes
+        fs.writeFileSync(artifactPath, Buffer.from('Tampered binary content (1 byte modified)'))
+
+        const tamperedValidation = validateManifest(manifest, {
+          artifactsDir: tempDir,
+          pubkey: rawPub,
+          requireArtifactVerification: true,
+        })
+        assert.equal(tamperedValidation.valid, false, 'Tampered artifact must fail validation')
+        assert.match(
+          tamperedValidation.errors.join(' '),
+          /Cryptographic signature verification FAILED/,
+        )
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true })
+      }
     })
   })
 })

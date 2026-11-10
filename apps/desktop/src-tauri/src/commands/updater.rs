@@ -229,6 +229,30 @@ pub fn verify_ed25519_signature(
         .map_err(|e| format!("Cryptographic signature verification failed: {e}"))
 }
 
+pub fn validate_manifest_edition(
+    manifest_edition: Option<&str>,
+    download_url: &str,
+    app_edition: &str,
+) -> Result<(), String> {
+    if let Some(declared) = manifest_edition {
+        if !declared.eq_ignore_ascii_case(app_edition) {
+            return Err(format!(
+                "Edition isolation violation: Manifest declared edition '{declared}' does not match installed application edition '{app_edition}'"
+            ));
+        }
+    }
+
+    let url_lower = download_url.to_lowercase();
+    if app_edition == "offline" && !url_lower.contains("offline") {
+        return Err("Edition isolation violation: Offline edition cannot install non-offline update bundle.".into());
+    }
+    if app_edition == "team" && url_lower.contains("offline") {
+        return Err("Edition isolation violation: Team edition cannot install offline update bundle.".into());
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 pub fn get_app_version(app: AppHandle) -> String {
     app.package_info().version.to_string()
@@ -269,10 +293,11 @@ pub async fn native_install_update(
     app: AppHandle,
     force_close_riot: Option<bool>,
 ) -> Result<InstallUpdateResult, String> {
-    // 1. Safety preflight check
-    let preflight = get_updater_preflight_status();
-    if !preflight.safe {
-        return Err(preflight
+    // 1. Initial preflight safety check before initiating network download
+    let initial_preflight = get_updater_preflight_status();
+    if !initial_preflight.safe {
+        let _ = app.emit("laap:update-status", "deferred");
+        return Err(initial_preflight
             .reason
             .unwrap_or_else(|| "Preflight safety check failed: update deferred.".into()));
     }
@@ -299,6 +324,14 @@ pub async fn native_install_update(
         return Err(format!(
             "Remote version ({target_version}) is not newer than currently installed ({current_version})"
         ));
+    }
+
+    // Enforce edition isolation on updater manifest and download URL
+    let app_edition = get_app_edition(&app);
+    let declared_edition = update.raw_json.get("edition").and_then(|v| v.as_str());
+    if let Err(e) = validate_manifest_edition(declared_edition, update.download_url.as_str(), app_edition) {
+        let _ = app.emit("laap:update-status", "error");
+        return Err(e);
     }
 
     // 3. Emit downloading status & download payload with progress
@@ -339,17 +372,44 @@ pub async fn native_install_update(
     let _ = app.emit("laap:update-status", "verifying");
     let _ = app.emit("laap:update-status", "ready");
 
-    // 5. Cleanup before applying installer
-    if force_close_riot.unwrap_or(false) && preflight.riot_running {
-        let _ = crate::riot::terminate_riot_processes();
+    // 5. CRITICAL TIMING GAP ELIMINATION: Post-download, immediate pre-installation safety check
+    let immediate_preflight = get_updater_preflight_status();
+    if !immediate_preflight.safe {
+        let _ = app.emit("laap:update-status", "deferred");
+        let reason = immediate_preflight.reason.unwrap_or_else(|| {
+            "An active match or provisioning session was detected after download. Installation safely deferred until match or session concludes.".into()
+        });
+        return Err(format!("INSTALLATION_DEFERRED: {reason}"));
     }
 
-    let _ = crate::presence::stop_proxy();
-    let _ = crate::tray::prepare_quit(true).await;
+    // Re-verify edition isolation immediately before executing installation
+    if let Err(e) = validate_manifest_edition(declared_edition, update.download_url.as_str(), app_edition) {
+        let _ = app.emit("laap:update-status", "error");
+        return Err(e);
+    }
+
+    // 6. Cleanup before applying installer with defensive error handling
+    if force_close_riot.unwrap_or(false) && immediate_preflight.riot_running {
+        if let Err(e) = crate::riot::terminate_riot_processes() {
+            eprintln!("Non-fatal warning terminating Riot processes before update: {e}");
+        }
+        let recheck = crate::riot::runtime_snapshot();
+        if recheck.active_match() {
+            let _ = app.emit("laap:update-status", "deferred");
+            return Err("INSTALLATION_DEFERRED: Active match detected during process shutdown. Aborting installation to protect active game.".into());
+        }
+    }
+
+    if let Err(e) = crate::presence::stop_proxy() {
+        eprintln!("Non-fatal warning stopping presence proxy before update: {e}");
+    }
+    if let Err(e) = crate::tray::prepare_quit(true).await {
+        eprintln!("Non-fatal warning preparing tray quit before update: {e}");
+    }
 
     let _ = app.emit("laap:update-status", "installing");
 
-    // 6. Apply update
+    // 7. Apply update
     update
         .install(bytes)
         .map_err(|e| format!("Failed to apply update installer: {e}"))?;
@@ -377,21 +437,24 @@ pub async fn check_github_update(
     // 1. First check official Tauri updater plugin (handles cryptographic signature & official endpoints)
     if let Ok(updater) = app.updater() {
         if let Ok(Some(update)) = updater.check().await {
-            let remote_ver = update.version.trim_start_matches('v').to_string();
-            let has_update = is_newer(&remote_ver, &current_version);
-            return Ok(UpdateCheckResult {
-                has_update,
-                current_version: current_version.clone(),
-                latest_version: remote_ver,
-                release_name: format!("Release v{}", update.version),
-                release_notes: update.body.unwrap_or_default(),
-                published_at: update.date.map(|d| d.to_string()).unwrap_or_default(),
-                html_url: format!("https://github.com/{}/releases/latest", GITHUB_REPO),
-                download_url: Some(format!("https://github.com/{}/releases/latest", GITHUB_REPO)),
-                signature: Some("official-tauri-updater-signed".to_string()),
-                edition,
-                platform,
-            });
+            let declared_edition = update.raw_json.get("edition").and_then(|v| v.as_str());
+            if validate_manifest_edition(declared_edition, update.download_url.as_str(), &edition).is_ok() {
+                let remote_ver = update.version.trim_start_matches('v').to_string();
+                let has_update = is_newer(&remote_ver, &current_version);
+                return Ok(UpdateCheckResult {
+                    has_update,
+                    current_version: current_version.clone(),
+                    latest_version: remote_ver,
+                    release_name: format!("Release v{}", update.version),
+                    release_notes: update.body.unwrap_or_default(),
+                    published_at: update.date.map(|d| d.to_string()).unwrap_or_default(),
+                    html_url: format!("https://github.com/{}/releases/latest", GITHUB_REPO),
+                    download_url: Some(update.download_url.to_string()),
+                    signature: Some(update.signature),
+                    edition,
+                    platform,
+                });
+            }
         }
     }
 
@@ -579,9 +642,44 @@ mod tests {
 
     #[test]
     fn test_edition_mismatch_detection() {
-        let team_manifest_edition = "team";
-        let offline_app_edition = "offline";
-        assert_ne!(team_manifest_edition, offline_app_edition);
+        // Matching edition and URL succeeds
+        assert!(validate_manifest_edition(
+            Some("team"),
+            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Desktop-1.0.0-x64-setup.nsis.zip",
+            "team"
+        ).is_ok());
+
+        assert!(validate_manifest_edition(
+            Some("offline"),
+            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Offline-1.0.0-x64-setup.nsis.zip",
+            "offline"
+        ).is_ok());
+
+        // Manifest declared edition mismatch fails
+        assert!(validate_manifest_edition(
+            Some("offline"),
+            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Offline-1.0.0-x64-setup.nsis.zip",
+            "team"
+        ).is_err());
+
+        assert!(validate_manifest_edition(
+            Some("team"),
+            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Desktop-1.0.0-x64-setup.nsis.zip",
+            "offline"
+        ).is_err());
+
+        // Defense-in-depth URL filename mismatch fails even if manifest declared edition is None
+        assert!(validate_manifest_edition(
+            None,
+            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Desktop-1.0.0-x64-setup.nsis.zip",
+            "offline"
+        ).is_err());
+
+        assert!(validate_manifest_edition(
+            None,
+            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Offline-1.0.0-x64-setup.nsis.zip",
+            "team"
+        ).is_err());
     }
 
     #[test]

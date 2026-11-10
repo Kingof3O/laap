@@ -79,14 +79,15 @@ The native backend integrates official Tauri 2 updater APIs:
 - `commands::updater::native_install_update`: The primary update engine.
 
 ### Implementation Workflow (`native_install_update`):
-1. **Preflight Safety Gate**: Calls `get_updater_preflight_status()`. Fails closed if `active_match` or `provisioning_busy` is true.
-2. **Updater Initialization**: Calls `app.updater()?.check().await`.
+1. **Initial Preflight Safety Gate**: Calls `get_updater_preflight_status()`. Fails closed if `active_match` or `provisioning_busy` is true.
+2. **Updater Initialization & Edition Validation**: Calls `app.updater()?.check().await`. Validates that the update manifest's declared edition (`edition: "team" | "offline"`) strictly matches the running application edition (`get_app_edition(&app)`). Cross-edition updates are rejected.
 3. **Version Validation**: Verifies that the remote version is strictly newer than the installed version via SemVer comparison. Downgrades are rejected.
 4. **Streaming Download & Signature Verification**: Invokes `update.download(...)`. Streams `laap:update-download-progress` events containing bytes downloaded, total content length, and percentage. Verifies Ed25519 signature before returning payload bytes.
-5. **Presence & Tray Coordination**:
-   - Stops the loopback TLS Presence proxy via `crate::presence::stop_proxy()`.
+5. **Post-Download Timing Gap Elimination**: Rechecks `get_updater_preflight_status()` immediately after payload download finishes and immediately before executing the installer. If a user launched a match or started a provisioning session while the download was running, installation is safely deferred with `INSTALLATION_DEFERRED`.
+6. **Presence & Tray Coordination**:
+   - Stops the loopback TLS Presence proxy via `crate::presence::stop_proxy()` with warning logging on non-fatal errors.
    - Signals `crate::tray::prepare_quit(true)` so the Windows single-instance close-to-tray handler does not prevent the installer from replacing files.
-6. **Installation & Restart**:
+7. **Installation & Restart**:
    - Calls `update.install(bytes)`.
    - On Windows: Launches the elevated/current-user NSIS update installer and closes the running process.
    - On macOS: Swaps the `.app` bundle and restarts via `app.restart()`.
@@ -135,7 +136,7 @@ node scripts/generate-update-manifest.mjs --version 1.0.0 --tag v1.0.0 --edition
   "edition": "team",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHNpZ25hdHVyZQpSV1M...",
+      "signature": "official-minisign-signature-base64-string...",
       "url": "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Desktop-1.0.0-x64-setup.nsis.zip"
     },
     "darwin-universal": {
@@ -184,6 +185,7 @@ The in-app updater code, native IPC commands, preflight safety gates, UI progres
 
 To activate signed updates for future releases in GitHub Actions:
 1. Configure `TAURI_SIGNING_PRIVATE_KEY` in GitHub Repository Secrets with the Minisign private key matching the pinned public key:
+<!-- gitleaks:allow -->
    `dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUzNDM5QzAzQjE1NzQxRjUKUldTY2JicXRCSnBnU0lrcnI3Vk1YTUw0TG1uWmVJNXcxTEtYQXB3QnNXU2s3T0tKWHoxV0h5OHMK`
 2. If encrypted with a passphrase, configure `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 3. When building releases on tag push (`v*.*.*`), run `scripts/generate-update-manifest.mjs` and upload `latest-team.json` and `latest-offline.json` alongside release assets.

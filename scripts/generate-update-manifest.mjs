@@ -1,17 +1,91 @@
 #!/usr/bin/env node
 import fs from 'node:fs'
 import path from 'node:path'
+import crypto from 'node:crypto'
 
 /**
- * Generates an official Tauri 2 updater manifest (latest-team.json or latest-offline.json)
- * from actual build artifacts and their corresponding .sig signature files.
- *
- * Enforces:
- * 1. Exact platform-target key mapping (windows-x86_64, darwin-x86_64, darwin-aarch64, darwin-universal)
- * 2. Real signature embedding (reads .sig content, does not use URL)
- * 3. Edition tag embedding (enforcing team vs offline isolation)
- * 4. Strict manifest validation before output is written
+ * Pinned official public key for Minisign / Ed25519 signature verification.
+ * Matches apps/desktop/src-tauri/tauri.conf.json and tauri.offline.conf.json
  */
+export const DEFAULT_UPDATER_PUBKEY =
+  'dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUzNDM5QzAzQjE1NzQxRjUKUldTY2JicXRCSnBnU0lrcnI3Vk1YTUw0TG1uWmVJNXcxTEtYQXB3QnNXU2s3T0tKWHoxV0h5OHMK'
+
+/**
+ * Extracts 32 raw bytes of Ed25519 public key from Minisign or raw base64 string
+ */
+export function parseMinisignPublicKey(pubkeyStr) {
+  let text = pubkeyStr.trim()
+  if (!text.includes('\n')) {
+    try {
+      const decoded = Buffer.from(text, 'base64').toString('utf8')
+      if (decoded.includes('untrusted comment')) text = decoded
+    } catch {}
+  }
+
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+  const keyLine =
+    lines.find(
+      (l) => !l.startsWith('untrusted comment') && !l.startsWith('trusted comment'),
+    ) || lines[lines.length - 1]
+
+  const keyBuf = Buffer.from(keyLine, 'base64')
+  if (keyBuf.length === 32) return keyBuf
+  if (keyBuf.length === 42) return keyBuf.subarray(10) // 2-byte algo + 8-byte key ID + 32-byte pubkey
+  throw new Error(`Unrecognized public key buffer length: ${keyBuf.length}`)
+}
+
+/**
+ * Cryptographically verifies an artifact's Ed25519/Minisign signature.
+ * Returns true if valid, false if signature does not authenticate the bytes.
+ */
+export function verifyArtifactSignature(fileBytes, signatureStr, pubKeyInput = DEFAULT_UPDATER_PUBKEY) {
+  try {
+    const rawPubBytes =
+      Buffer.isBuffer(pubKeyInput) && pubKeyInput.length === 32
+        ? pubKeyInput
+        : parseMinisignPublicKey(pubKeyInput)
+
+    const derPrefix = Buffer.from('302a300506032b6570032100', 'hex')
+    const pubKeyObject = crypto.createPublicKey({
+      key: Buffer.concat([derPrefix, rawPubBytes]),
+      format: 'der',
+      type: 'spki',
+    })
+
+    let text = signatureStr.trim()
+    if (!text.includes('\n')) {
+      try {
+        const decoded = Buffer.from(text, 'base64').toString('utf8')
+        if (decoded.includes('untrusted comment')) text = decoded
+      } catch {}
+    }
+
+    let sigBytes
+    let isPrehashed = false
+
+    if (text.includes('\n')) {
+      const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+      const sigLine =
+        lines.find(
+          (l) => !l.startsWith('untrusted comment') && !l.startsWith('trusted comment'),
+        ) || lines[1]
+      const sigBuf = Buffer.from(sigLine, 'base64')
+      const algo = sigBuf.subarray(0, 2).toString('utf8')
+      isPrehashed = algo === 'ED'
+      sigBytes = sigBuf.length >= 74 ? sigBuf.subarray(10, 74) : sigBuf
+    } else {
+      sigBytes = Buffer.from(text, 'base64')
+    }
+
+    const dataToVerify = isPrehashed
+      ? crypto.createHash('blake2b512').update(fileBytes).digest()
+      : fileBytes
+
+    return crypto.verify(null, dataToVerify, pubKeyObject, sigBytes)
+  } catch {
+    return false
+  }
+}
 
 export function parseCliArgs(argv) {
   const args = {}
@@ -86,12 +160,14 @@ export function generateManifest(options) {
     const filename = path.basename(file)
     const lower = filename.toLowerCase()
 
-    // Skip .sig files themselves
+    // Skip .sig and .json files
     if (lower.endsWith('.sig') || lower.endsWith('.json')) continue
 
-    // Edition filter check
+    // Strict Edition Filtering:
+    // Offline assets MUST contain 'offline' (case-insensitive) in the filename.
+    // Team assets MUST NOT contain 'offline' in the filename.
     const isOfflineAsset = lower.includes('offline')
-    if (edition === 'offline' && !isOfflineAsset && !lower.includes('darwin')) {
+    if (edition === 'offline' && !isOfflineAsset) {
       continue
     }
     if (edition === 'team' && isOfflineAsset) {
@@ -141,8 +217,13 @@ export function generateManifest(options) {
   return manifest
 }
 
-export function validateManifest(manifest) {
+export function validateManifest(manifest, options = {}) {
   const errors = []
+  const {
+    artifactsDir,
+    pubkey = DEFAULT_UPDATER_PUBKEY,
+    requireArtifactVerification = false,
+  } = options
 
   if (!manifest.version || !/^\d+\.\d+\.\d+/.test(manifest.version)) {
     errors.push(`Manifest version invalid: "${manifest.version}"`)
@@ -157,6 +238,22 @@ export function validateManifest(manifest) {
     errors.push('Manifest platforms map is empty. At least one platform target must be present.')
   }
 
+  // Scan artifacts directory to find files by basename if directory is provided
+  const artifactFileMap = new Map()
+  if (artifactsDir && fs.existsSync(artifactsDir)) {
+    function indexFiles(dir) {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name)
+        if (entry.isDirectory()) {
+          indexFiles(full)
+        } else if (!entry.name.endsWith('.sig') && !entry.name.endsWith('.json')) {
+          artifactFileMap.set(entry.name, full)
+        }
+      }
+    }
+    indexFiles(artifactsDir)
+  }
+
   for (const [key, entry] of Object.entries(manifest.platforms || {})) {
     if (!['windows-x86_64', 'windows-aarch64', 'darwin-x86_64', 'darwin-aarch64', 'darwin-universal'].includes(key)) {
       errors.push(`Unrecognized platform key: "${key}"`)
@@ -166,6 +263,25 @@ export function validateManifest(manifest) {
     }
     if (!entry.signature || entry.signature.trim().length < 32) {
       errors.push(`Missing or invalid cryptographic signature for platform "${key}"`)
+      continue
+    }
+
+    // Cryptographic signature verification against actual artifact file bytes
+    const assetFilename = path.basename(new URL(entry.url).pathname)
+    const artifactPath = artifactFileMap.get(assetFilename)
+
+    if (artifactPath && fs.existsSync(artifactPath)) {
+      const fileBytes = fs.readFileSync(artifactPath)
+      const isValid = verifyArtifactSignature(fileBytes, entry.signature, pubkey)
+      if (!isValid) {
+        errors.push(
+          `Cryptographic signature verification FAILED for platform "${key}" asset "${assetFilename}" against pinned updater public key.`
+        )
+      }
+    } else if (requireArtifactVerification) {
+      errors.push(
+        `Required artifact file "${assetFilename}" for platform "${key}" was not found in artifacts directory for cryptographic verification.`
+      )
     }
   }
 
@@ -184,6 +300,8 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '
   const artifactsDir = args['artifacts-dir'] || './dist'
   const outputFile = args.output || `./latest-${edition}.json`
   const notes = args.notes || 'LAAP official release update.'
+  const pubkey = args.pubkey || process.env.TAURI_UPDATER_PUBKEY || DEFAULT_UPDATER_PUBKEY
+  const requireVerification = args['require-verification'] !== 'false'
 
   try {
     const manifest = generateManifest({
@@ -194,14 +312,19 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '
       notes,
     })
 
-    const validation = validateManifest(manifest)
+    const validation = validateManifest(manifest, {
+      artifactsDir,
+      pubkey,
+      requireArtifactVerification: requireVerification,
+    })
+
     if (!validation.valid) {
-      console.error('Manifest validation errors:', validation.errors.join('\n'))
+      console.error('Manifest validation errors:\n - ' + validation.errors.join('\n - '))
       process.exit(1)
     }
 
     fs.writeFileSync(outputFile, JSON.stringify(manifest, null, 2), 'utf8')
-    console.log(`Successfully generated and validated ${outputFile} for ${edition} v${version}`)
+    console.log(`Successfully generated and cryptographically verified ${outputFile} for ${edition} v${version}`)
   } catch (err) {
     console.error('Failed to generate update manifest:', err)
     process.exit(1)
