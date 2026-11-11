@@ -1,0 +1,216 @@
+Phase,Action,FilePath,Responsibility,Flavors,Evidence/Test
+P1,MODIFY,apps/desktop/src/App.tsx,Remove Team view route; add capability-aware navigation and migration entrypoint,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src/lib/api.ts,Eliminate Team API requests in new flavors; separate network consent and community client,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src/lib/types.ts,Replace AppMode Team with product flavor/capability types,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src/features/personal-roster/PersonalRosterView.tsx,Add optional profile preset affordance and preserve all local operations,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src-tauri/src/lib.rs,Register domain commands per compiled capability and preserve updater/process safety,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src-tauri/src/local_store/models.rs,Add backward-compatible optional preset reference only if required,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src-tauri/src/local_store/manager.rs,Preserve existing vault; non-destructive preset binding interface,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src-tauri/src/launcher_settings.rs,Move to versioned preferences migration and domain grouping,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src-tauri/tauri.conf.json,Complete flavor alias; keep original Team install identifier during migration,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src-tauri/tauri.offline.conf.json,"Local flavor; preserve old Offline identifier, key and feed","local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src-tauri/capabilities/default.json,Minimal Tauri capabilities by compiled SKU and command set,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src-tauri/src/riot/operation.rs,Expose safe launch/apply/update cross-operation coordinator,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src-tauri/src/commands/local_accounts.rs,Retain existing IPC semantics; explicit capability gate for Studio,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src/shared/ui/Header.tsx,Replace Team toggle with shared product navigation,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src/shared/ui/SettingsModal.tsx,Show only relevant settings per SKU and integration consent,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src/shared/ui/SubNavbar.tsx,"Per-feature toolbar slots, compact and accessible","local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src/styles/tokens.css,Continue consistent Velvet Amethyst semantic tokens,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src/styles/workspace.css,Extend desktop layout for customization routes,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src/features/team-vault/TeamVaultView.tsx,Deprecate from active product and migrate through separate legacy screen,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src/features/auth/useAuth.ts,Deprecate Team account auth from active product,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,apps/desktop/src/features/device/useDevice.ts,Deprecate Team device identity from active product,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+"P1,P9",MODIFY,apps/desktop/src/hooks/useUpdateChecker.ts,"Per-SKU signed channel, migration-compatible legacy feeds; Accurate compatibility/installability/release notice per SKU","all,complete,local",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+"P1,P9",MODIFY,apps/desktop/src-tauri/src/commands/updater.rs,Per-SKU installer identity and signed manifest isolation; Do not weaken or rotate existing key; add Studio channel and full isolation,"all,complete,local",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,README.md,Update edition table and remove unsupported zero-ban claim,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,PRIVACY.md,Disclose optional mod/theme/party/network capabilities accurately,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,docs/ARCHITECTURE.md,Document new domains and Team retirement,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,MODIFY,docs/SECURITY_MODEL.md,Document new trust boundaries and anti-cheat uncertainty,"local,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,apps/desktop/src/product/flavors.ts,"Canonical feature capability definitions for Local, Studio, Complete",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,apps/desktop/src/product/capabilities.ts,Typed capability resolver and platform constraints,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,apps/desktop/src/product/featurePolicies.ts,Versioned default-deny policy gates independent from paid entitlements,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,apps/desktop/src/product/navigation.ts,Capability-derived route registry and discoverable unsupported states,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,apps/desktop/src/product/FlavorProvider.tsx,Dependency-injected product flavor context,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,apps/desktop/src/product/FlavorGate.tsx,Accessible UI gate with clear feature reason,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,apps/desktop/src-tauri/tauri.studio.conf.json,"New Studio product name, unique identifier, key and signed feed",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,apps/desktop/src-tauri/tauri.complete.conf.json,"Complete identity overlay, preserving legacy install ID",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,apps/desktop/src-tauri/tauri.local.conf.json,"Local identity overlay, preserving Offline ID",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,apps/desktop/src-tauri/src/product.rs,Compile-time native capability enum and command registration helpers,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,apps/desktop/src/features/legacy-team/LegacyMigrationView.tsx,Explicit read-only authorized Team export and transition instructions,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,apps/desktop/src/features/legacy-team/useLegacyMigration.ts,Minimal legacy API access with lease release and no secret import,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,apps/desktop/src-tauri/src/legacy_team/migration.rs,Non-destructive archival/transition state and readiness,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,apps/desktop/src-tauri/src/legacy_team/mod.rs,"Temporary isolated legacy helper gate, removable after sunset",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,apps/desktop/tests/flavors.test.ts,Flavor-specific capabilities and no hidden dangerous routes,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,apps/desktop/tests/legacy-team-migration.test.ts,"Old Team metadata export, lease cleanup and no session secret import",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,apps/desktop/tests/ui/flavor-navigation.spec.ts,End-to-end route availability per flavor,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,apps/desktop/tests/native/studio-no-vault.rs,Native proof Studio binary cannot invoke vault commands,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,scripts/check-edition-isolation.mjs,Compare SKU compiled assets and native capabilities/identifiers,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P1,NEW,scripts/generate-sku-release-matrix.mjs,Build expected update artifact/manifest identity table,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src-tauri/src/customization/mod.rs,Customization Rust domain root and service registry,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src-tauri/src/customization/models.rs,Versioned Rust model types and deterministic validation,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src-tauri/src/customization/catalog.rs,"Static provider integration, patch/locale-aware metadata cache",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src-tauri/src/customization/content_store.rs,Immutable SHA256 content storage with quotas and cleanup,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src-tauri/src/customization/database.rs,Metadata index and transactional schema migrations,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src-tauri/src/customization/presets.rs,Per-champion/per-account scoped preset resolver,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src-tauri/src/customization/tasks.rs,"Async bounded task queue with status, cancellation and dedupe",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src-tauri/src/customization/commands.rs,"Typed Tauri command facade, no arbitrary filesystem shell",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src-tauri/src/customization/locale.rs,Source localization and fallback for metadata,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src/features/customization/catalog/CatalogPage.tsx,Champion catalog responsive virtual grid,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src/features/customization/catalog/ChampionDetailPage.tsx,Skin/chroma/variant preview and source/rights metadata,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src/features/customization/catalog/useCatalog.ts,Typed query/state and offline stale-cache fallback,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src/features/customization/catalog/ChampionCard.tsx,Accessible champion tile with real loading and error visuals,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src/features/customization/catalog/SkinGallery.tsx,Responsive skin metadata gallery with lazy media,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src/features/customization/catalog/ChromaPicker.tsx,"Accessible chroma swatches, non-ownership claiming",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src/features/customization/presets/PresetsPage.tsx,"Preset library, folders, clone/import/export and versioning",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src/features/customization/presets/PresetEditor.tsx,Account/champion/game-mode overrides with conflict preview,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src/features/customization/presets/usePresets.ts,Native preset CRUD and controlled persistence,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src/features/customization/presets/PresetBinding.tsx,Account-card compact optional preset selector,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src/features/customization/doctor/DoctorPage.tsx,Diagnostics and filesystem/cache health,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src/lib/customizationApi.ts,Typed desktop wrapper for domain commands,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src/shared/ui/AssetCard.tsx,Reusable lazy preview with source/rights/loading badge,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src/shared/ui/MediaPreview.tsx,Safe lazy media viewer and original-asset fallback,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src/shared/ui/CapabilityNotice.tsx,Supported/unsupported/policy-gated explanation,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src/shared/ui/ProgressTask.tsx,Real progress/cancel/retry for native tasks,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/src/styles/customization.css,Modular shared customization component styles,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/tests/customization-catalog.test.ts,"Patch version, null metadata, locale fallback and offline cache",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/tests/presets.test.ts,Full deterministic override/migration algorithm tests,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/tests/cache.test.ts,"Immutable cache, dedupe, safe evictions and quotas",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P2,NEW,apps/desktop/tests/ui/catalog.spec.ts,"Catalog and preset journeys, no fake asset ownership",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/src-tauri/src/customization/importer.rs,Strict archive quarantine and format magic verification,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/src-tauri/src/customization/archive.rs,Safe extraction with path/depth/size constraints,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/src-tauri/src/customization/mod_library.rs,"Mod registry, states, licenses, sha hashes and versions",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/src-tauri/src/customization/validator.rs,"Mod integrity, legal-rights, compatibility and content scans",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/src-tauri/src/customization/conflicts.rs,Mod dependency and exclusive path conflict graph,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/src-tauri/src/customization/adapter.rs,Documented external tool discovery and capability matrix,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/src-tauri/src/customization/operation_journal.rs,Atomic apply/import rollback journal,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/src-tauri/src/customization/rights.rs,"Attribution, license and user content permissions",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/src/features/customization/mods/MyModsPage.tsx,Installed/draft/quarantine library overview,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/src/features/customization/mods/ModDetailPage.tsx,"Source, author, dependency and safe workflow UI",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/src/features/customization/mods/ModImportDialog.tsx,"Consent-based drag drop, detailed inspection and quarantine",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/src/features/customization/mods/ModHealthView.tsx,Compatibility and adapter state with actionable remediation,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/src/features/customization/mods/ConflictInspector.tsx,Non-destructive conflict previews and ordering,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/src/features/customization/mods/useModLibrary.ts,Typed local data hooks without cloud session links,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/src/features/customization/mods/ModRightsForm.tsx,Creator rights attribution and redistribution flags,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/src/features/customization/doctor/AdapterHealthPanel.tsx,No silent install; show exact external tool status,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/tests/mod-import-security.test.ts,Zip bombs/path traversal/executable detection and fuzz fixtures,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/tests/adapter-contract.test.ts,Fake documented adapter protocol and native explicit gate,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P3,NEW,apps/desktop/tests/ui/mod-library.spec.ts,Import/undo/conflict/detail flow with safe test assets,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/desktop/src-tauri/src/themes/mod.rs,Theme domain registration and preferences,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/desktop/src-tauri/src/themes/models.rs,Theme and per-surface media configuration schema,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/desktop/src-tauri/src/themes/media.rs,"User media validation, size caps, conversion and preview cache",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/desktop/src-tauri/src/themes/manager.rs,Theme stage/activate/undo with transaction journal,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/desktop/src-tauri/src/themes/pengu_adapter.rs,Optional approved loader version/health and scoped interface,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/desktop/src/features/customization/themes/ThemesPage.tsx,Theme gallery and editing entry point,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/desktop/src/features/customization/themes/ThemeEditor.tsx,Surface/media/font/music/transition editor,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/desktop/src/features/customization/themes/SurfacePreview.tsx,Accurate LAAP preview without Riot UI counterfeit,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/desktop/src/features/customization/themes/ThemeMediaPicker.tsx,"Image/GIF/video selection, license and resource budget",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/desktop/src/features/customization/themes/AudioSettings.tsx,"User music, volume and stop controls",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/desktop/src/features/customization/themes/ThemeApplyDialog.tsx,Consent and safe defer/rollback confirmation,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/desktop/src/features/customization/themes/useThemes.ts,Typed theme states and persist/recovery,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/client-companion/README.md,Optional independently enabled in-client extension architecture,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/client-companion/src/index.ts,Client plugin entry with supported lifecycle and safe unload,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/client-companion/src/bridge.ts,"Narrow authenticated 127.0.0.1 RPC, no arbitrary Tauri invoke",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/client-companion/src/ChampSelectPanel.tsx,"Optional in-client approved selector, no paid unlock",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/client-companion/src/PartyPanel.tsx,Optional in-client party selection/readiness status,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/client-companion/src/i18n.ts,Locale-aware in-client UI fallback,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/desktop/tests/themes.test.ts,Media/rollback/permissions/runtime failure,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P4,NEW,apps/desktop/tests/ui/themes.spec.ts,"Theme editor, modal, offline and min-resolution tests",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P5,NEW,apps/desktop/src-tauri/src/creator/mod.rs,Creator service registry,"studio,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P5,NEW,apps/desktop/src-tauri/src/creator/projects.rs,"Versioned project workspace, autosave and safe import","studio,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P5,NEW,apps/desktop/src-tauri/src/creator/inspector.rs,Read-only archive/property and safe binary metadata inspection,"studio,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P5,NEW,apps/desktop/src-tauri/src/creator/conversion.rs,"Reviewed licensed converters, no bypass or raw shell","studio,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P5,NEW,apps/desktop/src-tauri/src/creator/repair.rs,Benign user-created mod fixes with diff and rollback,"studio,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P5,NEW,apps/desktop/src-tauri/src/creator/packager.rs,Deterministic legal creator packaging and hash manifests,"studio,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P5,NEW,apps/desktop/src-tauri/src/creator/diff.rs,Asset tree diff without rewriting input,"studio,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P5,NEW,apps/desktop/src/features/customization/creator/CreatorPage.tsx,Workbench files/projects browser,"studio,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P5,NEW,apps/desktop/src/features/customization/creator/ProjectEditor.tsx,Tabbed workspace with undo/autosave,"studio,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P5,NEW,apps/desktop/src/features/customization/creator/ArchiveExplorer.tsx,Paginated safe archive tree and filters,"studio,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P5,NEW,apps/desktop/src/features/customization/creator/PropertyInspector.tsx,Metadata viewer/editor for supported user assets,"studio,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P5,NEW,apps/desktop/src/features/customization/creator/TextureInspector.tsx,Licensed texture previews with caps,"studio,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P5,NEW,apps/desktop/src/features/customization/creator/ModRepairDialog.tsx,Before/after repair diff and explicit confirmation,"studio,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P5,NEW,apps/desktop/src/features/customization/creator/ExportBuilder.tsx,Rights-aware creator package export,"studio,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P5,NEW,apps/desktop/tests/creator-roundtrip.test.ts,Generated legal fixture project import/edit/export,"studio,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P5,NEW,apps/desktop/tests/creator-crash-recovery.test.ts,Autosave/rollback and large files,"studio,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P5,NEW,apps/desktop/tests/ui/creator.spec.ts,"Creator workspace flows, no dead controls","studio,complete",Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/community-api/package.json,Optional separate relay API workspace and dependencies,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/community-api/src/main.ts,Server entry; no Riot vault or shared-account endpoints,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/community-api/src/config.ts,Separate room/connection/CDN secret config with validation,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/community-api/src/routes/rooms.ts,"Membership lifecycle, token and expiry rules",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/community-api/src/realtime/roomHub.ts,"WSS fan-out, sequencing, bounds and retention",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/community-api/src/realtime/protocol.ts,"Protocol validation, replay/duplicate rejection",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/community-api/src/storage/roomStore.ts,Ephemeral room store with TTL and no Riot identity,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/community-api/src/security/rateLimit.ts,Rate limits and membership abuse protections,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/community-api/src/security/auth.ts,Short-lived room token verification,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/desktop/src-tauri/src/party/mod.rs,Native party service registration,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/desktop/src-tauri/src/party/client.rs,TLS/WSS relay client with backoff and offline handling,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/desktop/src-tauri/src/party/room.rs,"State machine, invites, epoch/seq reconciliation",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/desktop/src-tauri/src/party/transfers.rs,Optional safe content transfer consent and checksum,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/desktop/src/features/customization/party/PartyPage.tsx,Room creation/join/member list and chat,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/desktop/src/features/customization/party/MemberCard.tsx,Peer state and selected permitted look,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/desktop/src/features/customization/party/TransferApproval.tsx,Rights/size/IP risk/approval modal,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/desktop/src/features/customization/party/useParty.ts,Room lifecycle hook with reconnection states,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/desktop/src/features/customization/integrations/DiscordSettings.tsx,Opt-in Discord presence and join controls,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/desktop/src-tauri/src/integrations/discord.rs,Scoped Discord RPC connector and no OAuth by default,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/community-api/tests/room-chaos.test.ts,7-member stress/reconnect/duplicate and stale events,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/desktop/tests/party-privacy.test.ts,No local vault session/PUUID sent in room messages,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P6,NEW,apps/desktop/tests/ui/party.spec.ts,"Invitation, reconnect, consent and errors",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/community-api/src/routes/catalog.ts,Public approved mod metadata search and pagination,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/community-api/src/routes/submissions.ts,Rights-attested uploads to quarantine,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/community-api/src/routes/reports.ts,Copyright/abuse complaints and takedown requests,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/community-api/src/storage/contentStore.ts,Signed object access and immutable content hashes,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/community-api/src/storage/metadataStore.ts,Moderation states and creator attribution,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/community-api/src/security/webhook.ts,Future payment/MoR signature validation and replay,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/community-admin/package.json,Optional creator/moderation dashboard package,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/community-admin/src/App.tsx,Moderator/creator UI route shell,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/community-admin/src/pages/ReviewQueue.tsx,Moderation and copyright/compliance review,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/community-admin/src/pages/CreatorProfiles.tsx,Attribution and rights verification,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/community-admin/src/pages/Reports.tsx,"Takedown, appeal and audit workflow",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/desktop/src/features/customization/marketplace/MarketplacePage.tsx,Moderated catalog and rights-aware downloads,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/desktop/src/features/customization/marketplace/MarketplaceDetail.tsx,Creator/source/license and patch notes,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/desktop/src/features/customization/marketplace/ReportModDialog.tsx,User report and safe download cancellation,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/desktop/src/features/customization/integrations/StatsPage.tsx,Provider-permitted stats with source/freshness,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/desktop/src/features/customization/integrations/VoiceAssistantPage.tsx,Opt-in creator AI/TTS with privacy/price warning,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/desktop/src-tauri/src/integrations/opgg.rs,Authorized stats connector with quotas/permission,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/desktop/src-tauri/src/integrations/voice.rs,TTS connector with opt-in and no gameplay hints,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/community-api/tests/moderation.test.ts,"Rights validation, asset upload, takedown and report tests",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P7,NEW,apps/community-admin/tests/moderation-ui.spec.ts,Reviewer permissions and queues,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P8,NEW,apps/desktop/src-tauri/src/commerce/mod.rs,Signed entitlement verification module,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P8,NEW,apps/desktop/src-tauri/src/commerce/license.rs,Offline-grace signature verified license and SKU gating,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P8,NEW,apps/desktop/src-tauri/src/commerce/keyring.rs,Secure local license store without Riot vault coupling,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P8,NEW,apps/community-api/src/routes/entitlements.ts,Activate/revoke/validate signed claims,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P8,NEW,apps/community-api/src/routes/payments.ts,"Verified MoR webhooks, no card storage",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P8,NEW,apps/community-api/src/services/entitlements.ts,Policy-driven entitlements and replay safety,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P8,NEW,apps/desktop/src/features/customization/commerce/LicensePage.tsx,"SKU status, restore, activate and trial status",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P8,NEW,apps/desktop/src/features/customization/commerce/UpgradeDialog.tsx,Transparent premium feature upgrade UI,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P8,NEW,apps/desktop/src/features/customization/settings/NetworkPrivacySettings.tsx,"Per-service separate consent, no all-or-nothing toggle",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P8,NEW,apps/desktop/src/features/customization/settings/IntegrationSettings.tsx,"Installed tooling, languages, network and performance settings",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P8,NEW,apps/desktop/src/features/customization/settings/AboutCustomization.tsx,"Legal credits, safety disclosures, version, logo",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P8,NEW,apps/desktop/tests/entitlements.test.ts,"Signed license claims, expiry, grace, feature checks",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P8,NEW,apps/community-api/tests/payment-webhook.test.ts,"Webhook verification, replay idempotency, refund and revocation",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P8,NEW,apps/desktop/tests/ui/commerce.spec.ts,Offline grace + free features and paywall copy correctness,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,MODIFY,.github/workflows/release-desktop.yml,"Three signed SKU artifacts, manifests and release gates",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,MODIFY,.github/workflows/test-and-lint.yml,Test matrix Rust/React by SKU and integration fixture sets,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,MODIFY,.github/workflows/security.yml,"License, secret, dependency, provenance and artifact checks",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,MODIFY,.github/workflows/verify-installer.yml,Real clean Windows install and upgrade automation targets,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,MODIFY,scripts/generate-update-manifest.mjs,"Three-channel, edition-authenticated final payload signature validation",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,MODIFY,apps/desktop/src/styles/base.css,Final typography/contrast/reduced motion and 960px overflow,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,MODIFY,apps/desktop/src/styles/header.css,Unify customization nav and presence without clutter,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,MODIFY,apps/desktop/src/styles/modals.css,Modal scroll/labels/focus and task progress consistency,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,MODIFY,apps/desktop/src/shared/ui/settings/AboutSettings.tsx,"LAAP logo and correct edition/legal credits, no creator name in UI",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,MODIFY,CHANGELOG.md,Product migration and release notes without false support claims,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,MODIFY,CODE_SIGNING.md,"Three identities, signing sources, artifact contents and key handling",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,MODIFY,SECURITY.md,"Vulnerability intake for mods, marketplace and signatures",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,NEW,scripts/check-no-cloud-session-urls.mjs,Static integration guard no new session material to community endpoints,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,NEW,scripts/check-licenses.mjs,Third-party license/SBOM/attribution release gate,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,NEW,scripts/validate-mod-fixtures.mjs,Safe import fixture reproducibility and integrity,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,NEW,scripts/verify-flavor-release.mjs,All three products platform/arch signed artifacts and metadata,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,NEW,scripts/benchmark-local-cache.mjs,Cache/import/preset benchmarks with reproducible dataset,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,NEW,apps/desktop/tests/ui/full-product-smoke.spec.ts,Screen visual smoke all editions/viewport sizes,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,NEW,apps/desktop/tests/native/native-upgrade.test.md,Native installed-version E2E test procedure and evidence contract,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,NEW,docs/customization/USER_GUIDE.md,"Local, Studio, Complete first-run and troubleshooting",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,NEW,docs/customization/ARCHITECTURE.md,Resulting module and trust diagram after implementation,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,NEW,docs/customization/INTEGRATION_COMPATIBILITY.md,Version/platform/adapter support and disabled features,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,NEW,docs/customization/MIGRATION_REPORT.md,Actual Team retirement and encrypted vault backup evidence,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,NEW,docs/customization/RELEASE_READINESS.md,Completed gate/CI/native/legal/marketplace acceptance,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,NEW,docs/customization/LEGAL_AND_ATTRIBUTION.md,"Riot disclaimer, GPL patcher license, creator rights and original assets",all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md
+P9,NEW,docs/customization/PRIVACY.md,Local-first storage and optional online data flows,all,Feature scenario + source unit/integration/native proof per QUALITY_GATES.md

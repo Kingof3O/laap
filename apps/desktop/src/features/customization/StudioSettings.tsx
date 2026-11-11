@@ -6,7 +6,7 @@ import { AboutSettings } from '../../shared/ui/settings/AboutSettings'
 import type { useUpdateChecker } from '../../hooks/useUpdateChecker'
 
 type UpdateController = ReturnType<typeof useUpdateChecker>
-const categories = SETTINGS_CATEGORIES.filter((category) => ['general', 'appearance', 'updates', 'about'].includes(category.id))
+const categories = SETTINGS_CATEGORIES.filter((category) => ['general', 'appearance', 'updates', 'advanced', 'about'].includes(category.id))
 
 export function StudioSettings({ update, onOpenRelease, onClose }: {
   update: UpdateController
@@ -35,6 +35,26 @@ export function StudioSettings({ update, onOpenRelease, onClose }: {
           onCheckUpdates={() => update.checkForUpdates(true).then(() => {})}
           onInstallUpdate={update.downloadAndInstallUpdate} onOpenReleaseModal={onOpenRelease}
         />}
+        {active === 'advanced' && <div className="settings-section">
+          <h3>Integrations & Entitlements</h3>
+          <p>Configure optional external services and inspect commercial entitlement status.</p>
+          <div className="customization-card" style={{ marginTop: '1rem', padding: '1rem' }}>
+            <strong>Discord Rich Presence</strong>
+            <p className="customization-source">Status: Inactive (requires registered Discord Application Client ID). Personal activity stays local until enabled.</p>
+          </div>
+          <div className="customization-card" style={{ marginTop: '1rem', padding: '1rem' }}>
+            <strong>Authorized Stats API</strong>
+            <p className="customization-source">Status: Inactive (requires approved stats provider API key). Scraped or private endpoints are strictly excluded.</p>
+          </div>
+          <div className="customization-card" style={{ marginTop: '1rem', padding: '1rem' }}>
+            <strong>AI & Voice Companion (TTS)</strong>
+            <p className="customization-source">Status: Inactive (requires user-owned API key or authorized server proxy). No shared secrets are embedded in client binaries.</p>
+          </div>
+          <div className="customization-card" style={{ marginTop: '1rem', padding: '1rem' }}>
+            <strong>Commercial Entitlements & Licensing</strong>
+            <p className="customization-source">Edition: Free Core (Basic is free forever). Paid checkout and commercial activation are GATED pending Riot Developer Portal product review and Merchant of Record onboarding.</p>
+          </div>
+        </div>}
         {active === 'about' && <AboutSettings currentVersion={update.currentVersion} />}
       </div>
     </div>

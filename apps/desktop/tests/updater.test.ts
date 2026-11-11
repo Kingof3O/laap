@@ -884,6 +884,53 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
       }
     })
 
+    test('validateReleasePublication passes for three editions when studio is included', () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'laap-three-editions-release-'))
+      try {
+        const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519')
+        const rawPub = publicKey.export({ type: 'spki', format: 'der' }).subarray(12)
+
+        function createSignedAsset(name: string, contentStr: string) {
+          const filePath = path.join(tempDir, name)
+          const content = Buffer.from(contentStr)
+          fs.writeFileSync(filePath, content)
+
+          const sig = crypto.sign(null, content, privateKey).toString('base64')
+          fs.writeFileSync(`${filePath}.sig`, sig)
+        }
+
+        // Team edition
+        createSignedAsset('LAAP-Desktop-1.0.1-x64-setup.nsis.zip', 'Team Windows NSIS zip')
+        createSignedAsset('LAAP-Desktop-1.0.1.app.tar.gz', 'Team macOS Tar Gz')
+
+        // Offline edition
+        createSignedAsset('LAAP-Offline-1.0.1-x64-setup.nsis.zip', 'Offline Windows NSIS zip')
+        createSignedAsset('LAAP-Offline-1.0.1.app.tar.gz', 'Offline macOS Tar Gz')
+
+        // Studio edition
+        createSignedAsset('LAAP-Studio-1.0.1-x64-setup.nsis.zip', 'Studio Windows NSIS zip')
+        createSignedAsset('LAAP-Studio-1.0.1.app.tar.gz', 'Studio macOS Tar Gz')
+
+        const releaseCheck = validateReleasePublication({
+          version: '1.0.1',
+          tag: 'v1.0.1',
+          artifactsDir: tempDir,
+          pubkey: rawPub,
+          requireArtifactVerification: true,
+          editions: ['team', 'offline', 'studio'],
+        })
+
+        assert.equal(releaseCheck.valid, true, `Expected valid three-edition release: ${releaseCheck.errors.join(', ')}`)
+        assert.ok(releaseCheck.teamManifest)
+        assert.ok(releaseCheck.offlineManifest)
+        assert.ok(releaseCheck.studioManifest)
+        assert.ok(releaseCheck.studioManifest?.platforms['windows-x86_64'])
+        assert.ok(releaseCheck.studioManifest?.platforms['darwin-universal'])
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true })
+      }
+    })
+
     test('validateReleasePublication fails closed if Windows target is missing from Offline edition', () => {
       const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'laap-missing-win-'))
       try {

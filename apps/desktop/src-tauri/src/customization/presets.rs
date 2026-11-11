@@ -273,4 +273,83 @@ mod tests {
         let invalid = r#"{"version":1,"presets":[{"id":null,"name":"Bad","championId":"../Ahri","skinId":"103000","accountId":null}]}"#;
         assert!(parse_import(invalid).is_err());
     }
+
+    #[test]
+    fn preset_validation_checks_bounds_and_mode() {
+        let mut valid = Preset {
+            id: None,
+            name: "ARAM Build".into(),
+            champion_id: "Lux".into(),
+            skin_id: "99001".into(),
+            account_id: None,
+            queue_mode: Some("aram".into()),
+            notes: "Test notes".into(),
+            favorite: true,
+            priority: 10,
+            revision: 0,
+        };
+        assert!(validate(&mut valid).is_ok());
+
+        let mut invalid_queue = valid.clone();
+        invalid_queue.queue_mode = Some("unknown_queue".into());
+        assert!(validate(&mut invalid_queue).is_err());
+
+        let mut invalid_priority = valid.clone();
+        invalid_priority.priority = 101;
+        assert!(validate(&mut invalid_priority).is_err());
+
+        let mut invalid_champ = valid.clone();
+        invalid_champ.champion_id = "../../malicious".into();
+        assert!(validate(&mut invalid_champ).is_err());
+
+        let mut invalid_skin = valid.clone();
+        invalid_skin.skin_id = "abc".into();
+        assert!(validate(&mut invalid_skin).is_err());
+    }
+
+    #[test]
+    fn resolution_sorting_orders_by_account_queue_priority_and_favorite() {
+        let p1 = Preset {
+            id: Some("p1".into()),
+            name: "Generic".into(),
+            champion_id: "Ahri".into(),
+            skin_id: "103000".into(),
+            account_id: None,
+            queue_mode: None,
+            notes: String::new(),
+            favorite: false,
+            priority: 0,
+            revision: 1,
+        };
+        let mut p2 = p1.clone();
+        p2.id = Some("p2".into());
+        p2.name = "ARAM High Priority".into();
+        p2.queue_mode = Some("aram".into());
+        p2.priority = 50;
+
+        let mut p3 = p1.clone();
+        p3.id = Some("p3".into());
+        p3.name = "Account Bound".into();
+        p3.account_id = Some("acc-123".into());
+        p3.priority = 10;
+
+        let mut rows = vec![p1, p2, p3];
+        rows.sort_by(|a, b| {
+            b.account_id
+                .is_some()
+                .cmp(&a.account_id.is_some())
+                .then_with(|| b.queue_mode.is_some().cmp(&a.queue_mode.is_some()))
+                .then_with(|| b.priority.cmp(&a.priority))
+                .then_with(|| b.favorite.cmp(&a.favorite))
+                .then_with(|| a.name.cmp(&b.name))
+                .then_with(|| a.id.cmp(&b.id))
+        });
+
+        // Account-bound preset comes first
+        assert_eq!(rows[0].id.as_deref(), Some("p3"));
+        // Queue-mode specific comes next
+        assert_eq!(rows[1].id.as_deref(), Some("p2"));
+        // Generic comes last
+        assert_eq!(rows[2].id.as_deref(), Some("p1"));
+    }
 }

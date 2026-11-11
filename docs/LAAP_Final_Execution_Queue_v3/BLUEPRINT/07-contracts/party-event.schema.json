@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LAAP Optional Party Relay Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "roomId",
+    "eventId",
+    "seq",
+    "epoch",
+    "type",
+    "issuedAt",
+    "payload"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "roomId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "epoch": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "type": {
+      "enum": [
+        "member.joined",
+        "member.left",
+        "selection.changed",
+        "mod.hash.available",
+        "transfer.requested",
+        "transfer.approved",
+        "chat.message",
+        "room.closed",
+        "protocol.upgrade_required"
+      ]
+    },
+    "issuedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "payload": {
+      "type": "object",
+      "maxProperties": 20
+    }
+  }
+}

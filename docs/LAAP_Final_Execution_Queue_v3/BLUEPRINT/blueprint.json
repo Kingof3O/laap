@@ -1,0 +1,38 @@
+{
+  "artifact": "LAAP Basic + Studio + Complete Corrected Blueprint",
+  "version": "2.0",
+  "researchDate": "2026-11-10",
+  "repo": "https://github.com/Kingof3O/laap",
+  "repoShaAtAudit": "6d4475bfd70cc12a063ddf7eac7d07b11f079f28",
+  "requestedModes": [
+    "Basic: existing LAAP local-account only",
+    "Studio: Wildflover/Rose style customization with online community services",
+    "Complete: Basic + Studio"
+  ],
+  "cloudSharedAccountsRetired": true,
+  "targetFlavorIds": {
+    "basic": "com.laap.offline",
+    "studio": "com.laap.studio",
+    "complete": "com.laaP.desktop"
+  },
+  "sourceWildfloverDossierFileCount": 9,
+  "featureMatrixRows": 131,
+  "fileManifestDistinctPlannedPaths": 215,
+  "exclusions": [
+    "paid official skin unlocking",
+    "LTK anti-skinhack bypass",
+    "third-party DLL hijack",
+    "game-memory inspection",
+    "active game suspension"
+  ],
+  "agentStart": "06-delivery/MASTER_AGENT_PROMPT.md",
+  "planOnly": true,
+  "change": "Basic is CURRENT LAAP local-only, Studio is Wildflover-style, Complete combines both",
+  "basicIncludesStudioFeatures": false,
+  "studioIncludesRiotVault": false,
+  "completeIncludesBoth": true,
+  "onlineCustomizationServicesEnabledFor": [
+    "studio",
+    "complete"
+  ]
+}

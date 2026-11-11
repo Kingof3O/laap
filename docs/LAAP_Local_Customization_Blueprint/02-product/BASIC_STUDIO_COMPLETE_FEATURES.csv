@@ -1,0 +1,26 @@
+FeatureId,Class,Basic,Studio,Complete,Notes
+existing_local_vault,existing,yes,no,yes,encrypted accounts and keychain
+local_account_provision_switch_launch,existing,yes,no,yes,no account switching in Studio
+existing_presence_tray_updater,existing,yes,studio-native-controls-only,yes,"Studio has independent updater, no existing Presence"
+existing_rank_icon_notes_favorites,existing,yes,no,yes,"existing Basic features, not Wildflover customizer"
+studio_champion_catalog,new,no,yes,yes,metadata-only previews
+studio_skins_chromas_forms,new,no,yes,yes,unowned paid-skin unlocking excluded
+studio_favorites_history_random,new,no,yes,yes,preferences & metadata
+studio_custom_mod_imports,new,no,yes,yes,content rights checked; no scripts
+studio_mod_manager_compatibility_backup,new,no,yes,yes,rights-cleared content
+studio_client_theme_editor,new,no,conditional,conditional,loader and policy validation
+studio_creator_workshop,new,no,yes,yes,format/third-party license gates
+studio_supported_external_adapter,new,no,conditional,conditional,Windows primary; no bypass
+studio_in_client_companion,new,no,conditional,conditional,Pengu compatibility and Riot policy
+studio_party_rooms_reconnect,online,no,yes,yes,"requires server, consent"
+studio_party_mod_transfer,online,no,conditional,conditional,rights and privacy approval
+studio_community_marketplace,online,no,yes,yes,moderated creator files only
+studio_creator_profiles_and_reviews,online,no,yes,yes,no Riot session storage
+studio_discord_rpc,online,no,yes,yes,opt in
+studio_authorized_stats,online,no,conditional,conditional,provider terms
+studio_ai_tts,online,no,conditional,conditional,"privacy, third-party rights"
+studio_paid_entitlements,online,no,conditional,conditional,Riot and payment approvals
+complete_account_bound_presets,combined,no,no,yes,only opaque local account id
+legacy_team_cloud_account_sharing,retired,no,no,no,migration-only archival
+official_paid_skin_unlock,excluded,no,no,no,excluded
+dll_hijack_validator_bypass,excluded,no,no,no,excluded

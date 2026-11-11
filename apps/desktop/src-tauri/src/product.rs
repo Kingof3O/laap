@@ -60,4 +60,36 @@ mod tests {
         }
         assert_eq!(update_channel(), PRODUCT.2);
     }
+
+    #[test]
+    fn permission_boundaries_enforced() {
+        let caps = get_product_capabilities();
+        #[cfg(feature = "basic")]
+        {
+            assert_eq!(caps.flavor, "basic");
+            assert!(caps.accounts);
+            assert!(!caps.customization);
+            assert!(!caps.account_presets);
+            assert_eq!(PRODUCT.1, "com.laap.offline");
+            assert_eq!(PRODUCT.2, "offline");
+        }
+        #[cfg(feature = "studio")]
+        {
+            assert_eq!(caps.flavor, "studio");
+            assert!(!caps.accounts);
+            assert!(caps.customization);
+            assert!(!caps.account_presets);
+            assert_eq!(PRODUCT.1, "com.laap.studio");
+            assert_eq!(PRODUCT.2, "studio");
+        }
+        #[cfg(not(any(feature = "basic", feature = "studio")))]
+        {
+            assert_eq!(caps.flavor, "complete");
+            assert!(caps.accounts);
+            assert!(caps.customization);
+            assert!(caps.account_presets);
+            assert_eq!(PRODUCT.1, "com.laaP.desktop");
+            assert_eq!(PRODUCT.2, "team");
+        }
+    }
 }

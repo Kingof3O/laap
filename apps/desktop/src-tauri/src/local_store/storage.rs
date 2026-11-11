@@ -228,3 +228,44 @@ impl LocalAccountStorage {
         result
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_unencrypted_session_is_migrated_and_encrypted_on_load() {
+        let root = std::env::temp_dir().join(format!("laap-legacy-migration-{:032x}", rand::random::<u128>()));
+        let storage = LocalAccountStorage::with_custom_dir(root.clone());
+        std::fs::create_dir_all(&root).unwrap();
+        let legacy_json = serde_json::json!([
+            {
+                "id": "legacy-acc-1",
+                "name": "LegacyPlayer",
+                "region": "EUW",
+                "session_blob": "legacy_raw_session_data_here",
+                "created_at": "2025-01-01T00:00:00Z",
+                "last_used_at": null
+            }
+        ]);
+        std::fs::write(storage.file_path(), serde_json::to_vec(&legacy_json).unwrap()).unwrap();
+
+        // Loading should automatically decrypt, migrate and re-save with encryption
+        let accounts = storage.load().unwrap();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].name, "LegacyPlayer");
+        assert_eq!(accounts[0].session_blob, "legacy_raw_session_data_here");
+
+        // Check that file on disk was rewritten with encryption
+        let raw_on_disk = std::fs::read_to_string(storage.file_path()).unwrap();
+        assert!(!raw_on_disk.contains("legacy_raw_session_data_here"));
+        assert!(raw_on_disk.contains("laap-local:v1:"));
+
+        // A second load cleanly decrypts the newly encrypted record
+        let accounts2 = storage.load().unwrap();
+        assert_eq!(accounts2.len(), 1);
+        assert_eq!(accounts2[0].session_blob, "legacy_raw_session_data_here");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+}

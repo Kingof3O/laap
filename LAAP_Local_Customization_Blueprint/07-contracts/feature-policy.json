@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "default": "deny",
+  "features": {
+    "official_paid_skin_unlock": false,
+    "ltk_validator_bypass": false,
+    "third_party_dll_hijack": false,
+    "game_memory_access": false,
+    "automatic_gameplay_actions": false,
+    "unapproved_game_patcher": false,
+    "party_transfer_auto_download": false,
+    "marketplace_paid_riot_assets": false,
+    "party_metadata_relay": false,
+    "client_theme_adapter": false,
+    "creator_licensed_tools": true,
+    "catalog_browse": true,
+    "local_account_launch": true
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 2,
+  "default": "deny",
+  "forbiddenAll": [
+    "official_paid_skin_unlock",
+    "ltk_validator_bypass",
+    "third_party_dll_hijack",
+    "game_memory_access",
+    "automatic_gameplay_actions",
+    "unapproved_game_patcher",
+    "marketplace_paid_riot_assets"
+  ],
+  "baseline": {
+    "basic": [
+      "local_account_launch",
+      "local_account_vault",
+      "presence",
+      "existing_profile_icon_rank_sync",
+      "native_update"
+    ],
+    "studio": [
+      "signed_update",
+      "studio_catalog",
+      "studio_mod_library",
+      "studio_themes",
+      "studio_creator",
+      "studio_presets",
+      "studio_party",
+      "studio_marketplace"
+    ],
+    "complete": [
+      "local_account_launch",
+      "local_account_vault",
+      "presence",
+      "existing_profile_icon_rank_sync",
+      "native_update",
+      "studio_catalog",
+      "studio_mod_library",
+      "studio_themes",
+      "studio_creator",
+      "studio_presets",
+      "studio_party",
+      "studio_marketplace",
+      "per_account_studio_presets"
+    ]
+  },
+  "conditions": {
+    "online_party": "Studio/Complete only; consent and server availability",
+    "custom_mod_application": "Studio/Complete only; review adapter/platform/Riot policy",
+    "in_client_selector": "Studio/Complete only; separately gated",
+    "marketplace_downloads": "Studio/Complete only; licensed approved assets",
+    "offline_riot_account_storage": "Basic/Complete only; no cloud copying"
+  }
+}

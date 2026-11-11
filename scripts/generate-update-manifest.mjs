@@ -385,31 +385,49 @@ export function validateReleasePublication(options = {}) {
     artifactsDir = './dist',
     pubkey = DEFAULT_UPDATER_PUBKEY,
     requireArtifactVerification = true,
+    editions = ['team', 'offline'],
   } = options
 
   const errors = []
 
-  let teamManifest, offlineManifest
-  try {
-    teamManifest = generateManifest({
-      version,
-      tag,
-      edition: 'team',
-      artifactsDir,
-    })
-  } catch (err) {
-    errors.push(`Team edition manifest generation failed: ${err.message}`)
+  let teamManifest, offlineManifest, studioManifest
+  if (editions.includes('team')) {
+    try {
+      teamManifest = generateManifest({
+        version,
+        tag,
+        edition: 'team',
+        artifactsDir,
+      })
+    } catch (err) {
+      errors.push(`Team edition manifest generation failed: ${err.message}`)
+    }
   }
 
-  try {
-    offlineManifest = generateManifest({
-      version,
-      tag,
-      edition: 'offline',
-      artifactsDir,
-    })
-  } catch (err) {
-    errors.push(`Offline edition manifest generation failed: ${err.message}`)
+  if (editions.includes('offline')) {
+    try {
+      offlineManifest = generateManifest({
+        version,
+        tag,
+        edition: 'offline',
+        artifactsDir,
+      })
+    } catch (err) {
+      errors.push(`Offline edition manifest generation failed: ${err.message}`)
+    }
+  }
+
+  if (editions.includes('studio')) {
+    try {
+      studioManifest = generateManifest({
+        version,
+        tag,
+        edition: 'studio',
+        artifactsDir,
+      })
+    } catch (err) {
+      errors.push(`Studio edition manifest generation failed: ${err.message}`)
+    }
   }
 
   if (teamManifest) {
@@ -436,11 +454,24 @@ export function validateReleasePublication(options = {}) {
     }
   }
 
+  if (studioManifest) {
+    const studioVal = validateManifest(studioManifest, {
+      artifactsDir,
+      pubkey,
+      requireArtifactVerification,
+      requireAllPlatforms: true,
+    })
+    if (!studioVal.valid) {
+      errors.push(...studioVal.errors.map((e) => `[Studio Edition] ${e}`))
+    }
+  }
+
   return {
     valid: errors.length === 0,
     errors,
     teamManifest,
     offlineManifest,
+    studioManifest,
   }
 }
 

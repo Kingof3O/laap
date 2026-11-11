@@ -25,7 +25,8 @@ try {
     $arguments = @('exec', '--', 'tauri', 'build', '--debug', '--bundles', 'nsis', '--ci', '--no-sign')
     if ($edition -ne 'complete') { $arguments += @('--config', "src-tauri/$configName") }
     $arguments += @('--config', $overlay)
-    & npm @arguments
+    $npmCmd = if (Get-Command npm.cmd -ErrorAction SilentlyContinue) { 'npm.cmd' } else { 'npm' }
+    & $npmCmd @arguments
     if ($LASTEXITCODE -ne 0) { throw "The $edition QA build failed." }
     $filename = "$($config.productName)_$($config.version)_x64-setup.exe"
     $installer = Join-Path $cargoRoot "debug/bundle/nsis/$filename"
@@ -39,26 +40,6 @@ try {
       sha256 = (Get-FileHash -LiteralPath $output -Algorithm SHA256).Hash.ToLowerInvariant()
       bytes = (Get-Item -LiteralPath $output).Length
       signing = 'unsigned-debug-qa'
-    }
-  }
-  $artifacts = @()
-  foreach ($item in @(
-    @{ edition = 'basic'; config = 'tauri.offline.conf.json' },
-    @{ edition = 'studio'; config = 'tauri.studio.conf.json' },
-    @{ edition = 'complete'; config = 'tauri.conf.json' }
-  )) {
-    $product = Get-Content -Raw -LiteralPath (Join-Path $desktop ("src-tauri/" + $item.config)) | ConvertFrom-Json
-    $filename = "$($product.productName)_$($product.version)_x64-setup.exe"
-    $output = Join-Path $artifactRoot $filename
-    if (Test-Path -LiteralPath $output -PathType Leaf) {
-      $artifacts += [ordered]@{
-        edition = $item.edition
-        identifier = $product.identifier
-        filename = $filename
-        sha256 = (Get-FileHash -LiteralPath $output -Algorithm SHA256).Hash.ToLowerInvariant()
-        bytes = (Get-Item -LiteralPath $output).Length
-        signing = 'unsigned-debug-qa'
-      }
     }
   }
   $artifacts | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $artifactRoot 'build-evidence.json') -Encoding utf8NoBOM

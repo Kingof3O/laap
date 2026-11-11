@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LAAP Client Theme Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "name",
+    "surfaces",
+    "author",
+    "license"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 100
+    },
+    "author": {
+      "type": "string",
+      "maxLength": 100
+    },
+    "license": {
+      "type": "string",
+      "maxLength": 80
+    },
+    "surfaces": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "assetHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "fit": {
+            "enum": [
+              "cover",
+              "contain"
+            ]
+          },
+          "opacity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "fallbackColor": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}$"
+          }
+        }
+      }
+    },
+    "fontFamily": {
+      "type": "string",
+      "maxLength": 120
+    },
+    "transitionMode": {
+      "enum": [
+        "off",
+        "subtle",
+        "medium"
+      ]
+    },
+    "musicAssetHash": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "musicVolume": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    }
+  }
+}

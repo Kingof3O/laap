@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "modId": "test-local-user-art",
+  "version": "1.0.0",
+  "displayName": "Test Original UI Theme",
+  "author": "Test Fixture Author",
+  "license": "CC0-1.0",
+  "rightToDistribute": true,
+  "containsPaidRiotContent": false,
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "supportedGameBuilds": [
+    "test-build-0"
+  ],
+  "championIds": [],
+  "files": [],
+  "notes": "Synthetic test fixture only; hash is deliberately not an actual artifact checksum."
+}

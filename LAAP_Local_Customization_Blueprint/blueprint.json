@@ -1,0 +1,30 @@
+{
+  "artifact": "LAAP Local + Customization Blueprint",
+  "version": "1.0",
+  "researchDate": "2026-11-10",
+  "repo": "https://github.com/Kingof3O/laap",
+  "repoShaAtAudit": "6d4475bfd70cc12a063ddf7eac7d07b11f079f28",
+  "requestedModes": [
+    "local accounts + customization",
+    "customization only",
+    "complete"
+  ],
+  "cloudSharedAccountsRetired": true,
+  "targetFlavorIds": {
+    "local": "com.laap.offline",
+    "studio": "com.laap.studio",
+    "complete": "com.laaP.desktop"
+  },
+  "sourceWildfloverDossierFileCount": 9,
+  "featureMatrixRows": 131,
+  "fileManifestDistinctPlannedPaths": 215,
+  "exclusions": [
+    "paid official skin unlocking",
+    "LTK anti-skinhack bypass",
+    "third-party DLL hijack",
+    "game-memory inspection",
+    "active game suspension"
+  ],
+  "agentStart": "06-delivery/MASTER_AGENT_PROMPT.md",
+  "planOnly": true
+}

@@ -6,6 +6,33 @@ import { PresetEditor } from './PresetLibrary'
 const CDN = 'https://ddragon.leagueoflegends.com/cdn'
 const PAGE_SIZE = 40
 
+const CATALOG_LOCALES = [
+  { code: 'en_US', name: 'English (US)' },
+  { code: 'en_GB', name: 'English (UK)' },
+  { code: 'de_DE', name: 'Deutsch' },
+  { code: 'es_ES', name: 'Español (España)' },
+  { code: 'es_MX', name: 'Español (Latinoamérica)' },
+  { code: 'fr_FR', name: 'Français' },
+  { code: 'it_IT', name: 'Italiano' },
+  { code: 'ja_JP', name: '日本語' },
+  { code: 'ko_KR', name: '한국어' },
+  { code: 'pl_PL', name: 'Polski' },
+  { code: 'pt_BR', name: 'Português (Brasil)' },
+  { code: 'ru_RU', name: 'Русский' },
+  { code: 'tr_TR', name: 'Türkçe' },
+  { code: 'zh_CN', name: '简体中文' },
+  { code: 'zh_TW', name: '繁體中文' },
+  { code: 'th_TH', name: 'ไทย' },
+  { code: 'vi_VN', name: 'Tiếng Việt' },
+  { code: 'id_ID', name: 'Bahasa Indonesia' },
+  { code: 'ms_MY', name: 'Bahasa Melayu' },
+  { code: 'el_GR', name: 'Ελληνικά' },
+  { code: 'cs_CZ', name: 'Čeština' },
+  { code: 'hu_HU', name: 'Magyar' },
+  { code: 'ro_RO', name: 'Română' },
+  { code: 'ar_AE', name: 'العربية (RTL)' },
+]
+
 const catalogChecks = new Map<string, number>()
 
 function CatalogArtwork({ id, version, skin, name, thumbnail = false }: { id: string; version: string; skin?: number; name: string; thumbnail?: boolean }) {
@@ -78,6 +105,17 @@ export function CatalogPage({ accountId, selection, onSaved, onShare }: { accoun
     }).catch((cause: unknown) => { if (current) setPrefsError(errorMessage(cause)) })
     return () => { current = false }
   }, [])
+
+  useEffect(() => {
+    if (locale === 'ar_AE') {
+      document.documentElement.setAttribute('dir', 'rtl')
+    } else {
+      document.documentElement.setAttribute('dir', 'ltr')
+    }
+    return () => {
+      document.documentElement.setAttribute('dir', 'ltr')
+    }
+  }, [locale])
 
   async function updatePreferences(change: CatalogChange) {
     setPrefsError('')
@@ -172,6 +210,17 @@ export function CatalogPage({ accountId, selection, onSaved, onShare }: { accoun
                 }} disabled={prefsBusy}>
                   {detail.data.skins.map((entry) => <option key={entry.id} value={entry.id}>{entry.num === 0 ? 'Default' : entry.name}</option>)}
                 </select></label>
+                {detail.data.skins.length > 1 && (
+                  <button className="btn-secondary" type="button" disabled={prefsBusy} onClick={() => {
+                    const choices = detail.data.skins
+                    const pick = choices[Math.floor(Math.random() * choices.length)]
+                    if (pick) {
+                      setSkinId(pick.id)
+                      setDraft(null)
+                      void updatePreferences({ action: 'remember', selection: { championId: detail.data.id, skinId: pick.id } })
+                    }
+                  }}>Random skin</button>
+                )}
                 <p className="customization-source">Ownership unknown.{skin?.chromas ? ' Riot lists chromas for this skin.' : ''} Previews do not equip cosmetics.</p>
                 {skin && !draft && <button className="btn-primary" onClick={() => setDraft({ id: null, name: skin.num ? skin.name : detail.data.name, championId: detail.data.id, skinId: skin.id, accountId: accountId ?? null })}>Create preset</button>}
                 {skin && <button className="btn-secondary" onClick={() => onShare({ id: Number(skin.id), name: skin.num ? skin.name : detail.data.name })}>Open in party</button>}
@@ -188,7 +237,9 @@ export function CatalogPage({ accountId, selection, onSaved, onShare }: { accoun
               <option value="">All roles</option>{['Assassin', 'Fighter', 'Mage', 'Marksman', 'Support', 'Tank'].map((value) => <option key={value}>{value}</option>)}
             </select></label>
             <label>Catalog language <select value={locale} disabled={loading} onChange={(event) => refresh(event.target.value)}>
-              <option value="en_US">English</option><option value="de_DE">Deutsch</option><option value="ar_AE">العربية</option>
+              {CATALOG_LOCALES.map((item) => (
+                <option key={item.code} value={item.code}>{item.name}</option>
+              ))}
             </select></label>
           </div>
           <div className="customization-actions">

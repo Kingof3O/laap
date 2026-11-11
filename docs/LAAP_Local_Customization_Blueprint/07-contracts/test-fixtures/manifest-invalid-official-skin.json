@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "modId": "invalid-test-asset",
+  "version": "1.0.0",
+  "displayName": "Invalid Protected Content Fixture",
+  "author": "Test",
+  "license": "unknown",
+  "rightToDistribute": false,
+  "containsPaidRiotContent": true,
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "supportedGameBuilds": [],
+  "files": [],
+  "notes": "Must be rejected by rights validation; never ship as content."
+}

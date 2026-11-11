@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LAAP User-Created Mod Package Metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "modId",
+    "version",
+    "displayName",
+    "author",
+    "license",
+    "rightToDistribute",
+    "sha256",
+    "supportedGameBuilds",
+    "files"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "modId": {
+      "type": "string",
+      "maxLength": 100,
+      "pattern": "^[a-zA-Z0-9._-]+$"
+    },
+    "version": {
+      "type": "string",
+      "maxLength": 40
+    },
+    "displayName": {
+      "type": "string",
+      "maxLength": 160
+    },
+    "author": {
+      "type": "string",
+      "maxLength": 120
+    },
+    "license": {
+      "type": "string",
+      "maxLength": 80
+    },
+    "rightToDistribute": {
+      "type": "boolean"
+    },
+    "containsPaidRiotContent": {
+      "const": false
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "supportedGameBuilds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 50
+      },
+      "maxItems": 120
+    },
+    "championIds": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "maxItems": 500
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "relativePath",
+          "sha256",
+          "sizeBytes"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "relativePath": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "maxItems": 50000
+    },
+    "attributionUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 2000
+    }
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 2,
+  "productDecision": "basic=current-local-launcher-only; studio=customization-only; complete=both",
+  "retiredFeatures": [
+    "team_shared_vault",
+    "cloud_riot_sessions",
+    "team_leases",
+    "team_roles",
+    "team_assignments",
+    "remote_account_auth"
+  ],
+  "flavors": {
+    "basic": {
+      "displayName": "LAAP Basic",
+      "identifier": "com.laap.offline",
+      "existingTauriConfig": "tauri.offline.conf.json",
+      "updaterEndpoint": "latest-offline.json",
+      "hasLocalVault": true,
+      "hasLocalLauncher": true,
+      "hasStudioEngine": false,
+      "hasCreator": false,
+      "hasParty": false,
+      "hasMarketplace": false,
+      "hasLegacyTeam": false,
+      "communitySdkBundled": false,
+      "retainsExistingProfileIconsRanks": true,
+      "hasRiotPresence": true,
+      "baseline": "current-LAAP-Offline",
+      "network": "existing-Riot/update/Data-Dragon-only"
+    },
+    "studio": {
+      "displayName": "LAAP Studio",
+      "identifier": "com.laap.studio",
+      "updaterEndpoint": "latest-studio.json",
+      "hasLocalVault": false,
+      "hasLocalLauncher": false,
+      "hasStudioEngine": true,
+      "hasCreator": true,
+      "hasParty": true,
+      "hasMarketplace": true,
+      "hasLegacyTeam": false,
+      "communitySdkBundled": true,
+      "hasRiotPresence": false,
+      "network": "optional-community-services-enabled-with-consent"
+    },
+    "complete": {
+      "displayName": "LAAP Complete",
+      "identifier": "com.laaP.desktop",
+      "legacyUpdaterEndpoint": "latest-team.json",
+      "updaterEndpoint": "latest-team.json",
+      "futureEndpointRequiresMigration": "latest-complete.json",
+      "hasLocalVault": true,
+      "hasLocalLauncher": true,
+      "hasStudioEngine": true,
+      "hasCreator": true,
+      "hasParty": true,
+      "hasMarketplace": true,
+      "hasLegacyTeam": false,
+      "communitySdkBundled": true,
+      "hasRiotPresence": true,
+      "network": "optional-community-services-enabled-with-consent"
+    }
+  },
+  "excludedAll": [
+    "unowned_official_paid_skin_unlock",
+    "ltk_anti_skinhack_bypass",
+    "third_party_dll_hijack",
+    "game_memory_injection",
+    "active_game_process_suspension"
+  ],
+  "reference": "02-product/EDITIONS.md",
+  "verifySourceConfigBeforeChangingIdentity": true
+}

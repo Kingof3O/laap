@@ -450,4 +450,89 @@ mod tests {
             assert!(!safe_name(path), "{path}");
         }
     }
+
+    #[test]
+    fn rejects_unsupported_extensions_and_executables() {
+        let manifest = Manifest {
+            schema_version: 1,
+            mod_id: "test.exec".into(),
+            version: "1.0.0".into(),
+            display_name: "Executable mod".into(),
+            author: "Tester".into(),
+            license: "MIT".into(),
+            right_to_distribute: true,
+            contains_paid_riot_content: false,
+            sha256: "0".repeat(64),
+            supported_game_builds: vec![],
+            champion_ids: vec![],
+            files: vec![Entry {
+                relative_path: "payload.exe".into(),
+                sha256: "0".repeat(64),
+                size_bytes: 4,
+            }],
+            attribution_url: None,
+            notes: None,
+        };
+        let mut zip_buf = Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut zip_buf);
+            writer
+                .start_file(
+                    "payload.exe",
+                    zip::write::SimpleFileOptions::default(),
+                )
+                .unwrap();
+            writer.write_all(b"MZ\x90\x00").unwrap();
+            writer.finish().unwrap();
+        }
+        let bytes = zip_buf.into_inner();
+        let mut manifest_with_hash = manifest;
+        manifest_with_hash.sha256 = digest(&bytes);
+        manifest_with_hash.files[0].sha256 = digest(b"MZ\x90\x00");
+        let result = validate_archive(&bytes, &manifest_with_hash);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Only PNG, JPEG, and WebP"));
+    }
+
+    #[test]
+    fn rejects_corrupted_image_data() {
+        let dummy_corrupted_bytes = b"not_a_valid_png_file";
+        let manifest = Manifest {
+            schema_version: 1,
+            mod_id: "test.corrupt".into(),
+            version: "1.0.0".into(),
+            display_name: "Corrupt mod".into(),
+            author: "Tester".into(),
+            license: "MIT".into(),
+            right_to_distribute: true,
+            contains_paid_riot_content: false,
+            sha256: "0".repeat(64),
+            supported_game_builds: vec![],
+            champion_ids: vec![],
+            files: vec![Entry {
+                relative_path: "corrupt.png".into(),
+                sha256: digest(dummy_corrupted_bytes),
+                size_bytes: dummy_corrupted_bytes.len() as u64,
+            }],
+            attribution_url: None,
+            notes: None,
+        };
+        let mut zip_buf = Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut zip_buf);
+            writer
+                .start_file(
+                    "corrupt.png",
+                    zip::write::SimpleFileOptions::default(),
+                )
+                .unwrap();
+            writer.write_all(dummy_corrupted_bytes).unwrap();
+            writer.finish().unwrap();
+        }
+        let bytes = zip_buf.into_inner();
+        let mut manifest_with_hash = manifest;
+        manifest_with_hash.sha256 = digest(&bytes);
+        let result = validate_archive(&bytes, &manifest_with_hash);
+        assert!(result.is_err());
+    }
 }

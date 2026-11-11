@@ -31,6 +31,7 @@ export function ModLibrary() {
   const [status, setStatus] = useState('')
   const [removing, setRemoving] = useState('')
   const [formKey, setFormKey] = useState(0)
+  const [searchQuery, setSearchQuery] = useState('')
 
   async function load() {
     try {
@@ -87,12 +88,21 @@ export function ModLibrary() {
     }
   }
 
+  const filteredPackages = packages?.filter(({ manifest: item }) => {
+    if (!searchQuery) return true
+    const q = searchQuery.toLowerCase()
+    return item.displayName.toLowerCase().includes(q) ||
+      item.author.toLowerCase().includes(q) ||
+      item.license.toLowerCase().includes(q)
+  })
+
   return (
     <>
       <h2>Mod library</h2>
       <p>Store and inspect rights-cleared image packages. Packages are never installed into the game.</p>
+      <p className="customization-source">Format note: Only rights-declared image packages (.png, .jpeg, .webp) are accepted. Fantome/Modpkg archives containing compiled game WAD/BIN binaries require an authorized external game adapter and cannot be directly injected.</p>
       <form key={formKey} className="customization-editor" onSubmit={(event) => void add(event)}>
-        <label>Asset ZIP <input type="file" required accept=".zip,.modpkg,.fantome" disabled={busy} onChange={(event) => setArchive(event.target.files?.[0])} /></label>
+        <label>Asset archive <input type="file" required accept=".zip,.modpkg,.fantome" disabled={busy} onChange={(event) => setArchive(event.target.files?.[0])} /></label>
         <label>LAAP manifest JSON <input type="file" required accept=".json" disabled={busy} onChange={(event) => setManifest(event.target.files?.[0])} /></label>
         <label className="customization-check"><input type="checkbox" required checked={confirmed} disabled={busy} onChange={(event) => setConfirmed(event.target.checked)} /> I have permission to use these assets and the archive contains no paid Riot content.</label>
         <button className="btn-primary" disabled={busy || !archive || !manifest || !confirmed}>{busy ? 'Working…' : 'Validate and import'}</button>
@@ -100,9 +110,15 @@ export function ModLibrary() {
       {error && <p role="alert">{error} {!packages && <button className="btn-secondary" onClick={() => { setError(''); void load() }}>Retry library</button>}</p>}
       {status && <p role="status">{status}</p>}
       {!packages && !error && <p role="status">Loading library…</p>}
+      {packages && packages.length > 0 && (
+        <div className="customization-filters">
+          <label>Filter library <input type="search" placeholder="Search by name, author, or license…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} /></label>
+        </div>
+      )}
       {packages?.length === 0 && <p>Your library is empty.</p>}
+      {packages && packages.length > 0 && filteredPackages?.length === 0 && <p>No packages match your search filter.</p>}
       <ul className="customization-list">
-        {packages?.map(({ manifest: item, archiveBytes }) => (
+        {filteredPackages?.map(({ manifest: item, archiveBytes }) => (
           <li key={item.sha256}>
             <strong>{item.displayName} · {item.version}</strong>
             <span>{item.author} · {item.license} · {Math.ceil(archiveBytes / 1024)} KiB</span>

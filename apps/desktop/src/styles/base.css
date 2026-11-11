@@ -56,6 +56,18 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   outline-offset: 1px;
 }
 
+[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .mode-nav,
+[dir="rtl"] .customization-heading,
+[dir="rtl"] .customization-actions,
+[dir="rtl"] .customization-filters {
+  flex-direction: row-reverse;
+}
+
 .app-container {
   display: flex;
   flex-direction: column;

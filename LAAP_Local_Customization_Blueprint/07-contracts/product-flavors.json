@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "flavors": {
+    "local": {
+      "displayName": "LAAP Local",
+      "identifier": "com.laap.offline",
+      "hasLocalVault": true,
+      "hasCreator": false,
+      "hasLegacyTeam": false,
+      "defaultNetworkConsent": false,
+      "updaterEndpoint": "latest-offline.json"
+    },
+    "studio": {
+      "displayName": "LAAP Studio",
+      "identifier": "com.laap.studio",
+      "hasLocalVault": false,
+      "hasCreator": true,
+      "hasLegacyTeam": false,
+      "defaultNetworkConsent": false,
+      "updaterEndpoint": "latest-studio.json"
+    },
+    "complete": {
+      "displayName": "LAAP Complete",
+      "identifier": "com.laaP.desktop",
+      "hasLocalVault": true,
+      "hasCreator": true,
+      "hasLegacyTeam": false,
+      "defaultNetworkConsent": false,
+      "updaterEndpoint": "latest-team.json",
+      "comment": "Legacy Team feed preserved until migration is supported by existing clients"
+    }
+  }
+}
