@@ -1,69 +1,69 @@
 [36mvite v8.3.4 [32mbuilding client environment for offline...[36m[39m
 transforming...
-✓ 1977 modules transformed.
+✓ 1978 modules transformed.
 rendering chunks...
 computing gzip size...
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/basic/index.html                                 0.53 kB │ gzip:  0.33 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/basic/assets/sora-latin-ext-rqDZ1P7Z.woff2      12.15 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/basic/assets/manrope-latin-ext-C-cYlMBm.woff2   15.16 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/basic/assets/manrope-latin-B6Sd7_ZV.woff2       24.53 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/basic/assets/sora-latin-BUlRykrX.woff2          25.28 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/basic/assets/index-DclH65i4.css                 64.04 kB │ gzip: 12.24 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/basic/assets/event-CWEPUEFL.js                   1.37 kB │ gzip:  0.65 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/basic/assets/core-SwWLTXZB.js                    2.70 kB │ gzip:  1.05 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/basic/assets/window-CNS7SgMW.js                 13.01 kB │ gzip:  3.14 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/basic/assets/App-B1RUJGle.js                   139.22 kB │ gzip: 38.23 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/basic/assets/index-CHRKKqhU.js                 200.33 kB │ gzip: 63.93 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/basic/index.html                                 0.53 kB │ gzip:  0.33 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/basic/assets/sora-latin-ext-rqDZ1P7Z.woff2      12.15 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/basic/assets/manrope-latin-ext-C-cYlMBm.woff2   15.16 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/basic/assets/manrope-latin-B6Sd7_ZV.woff2       24.53 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/basic/assets/sora-latin-BUlRykrX.woff2          25.28 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/basic/assets/index-DclH65i4.css                 64.04 kB │ gzip: 12.24 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/basic/assets/event-CWEPUEFL.js                   1.37 kB │ gzip:  0.65 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/basic/assets/core-SwWLTXZB.js                    2.70 kB │ gzip:  1.05 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/basic/assets/window-CNS7SgMW.js                 13.01 kB │ gzip:  3.14 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/basic/assets/App-US2a4n09.js                   139.22 kB │ gzip: 38.23 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/basic/assets/index-D7Oa0I2w.js                 218.03 kB │ gzip: 69.61 kB
 
-[32m✓ built in 457ms[39m
+[32m✓ built in 822ms[39m
 [36mvite v8.3.4 [32mbuilding client environment for studio...[36m[39m
 transforming...
-✓ 1959 modules transformed.
+✓ 1960 modules transformed.
 rendering chunks...
 computing gzip size...
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/studio/index.html                                 0.53 kB │ gzip:  0.33 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/studio/assets/sora-latin-ext-rqDZ1P7Z.woff2      12.15 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/studio/assets/manrope-latin-ext-C-cYlMBm.woff2   15.16 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/studio/assets/manrope-latin-B6Sd7_ZV.woff2       24.53 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/studio/assets/sora-latin-BUlRykrX.woff2          25.28 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/studio/assets/StudioApp-BxZYYeel.css              5.75 kB │ gzip:  1.68 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/studio/assets/index-DclH65i4.css                 64.04 kB │ gzip: 12.24 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/studio/assets/event-CWEPUEFL.js                   1.37 kB │ gzip:  0.65 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/studio/assets/core-SwWLTXZB.js                    2.70 kB │ gzip:  1.05 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/studio/assets/StudioApp-DC83hBMc.js             156.40 kB │ gzip: 41.36 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/studio/assets/index-D2jMfumY.js                 200.53 kB │ gzip: 64.04 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/studio/index.html                                 0.53 kB │ gzip:  0.33 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/studio/assets/sora-latin-ext-rqDZ1P7Z.woff2      12.15 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/studio/assets/manrope-latin-ext-C-cYlMBm.woff2   15.16 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/studio/assets/manrope-latin-B6Sd7_ZV.woff2       24.53 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/studio/assets/sora-latin-BUlRykrX.woff2          25.28 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/studio/assets/StudioApp-BxZYYeel.css              5.75 kB │ gzip:  1.68 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/studio/assets/index-DclH65i4.css                 64.04 kB │ gzip: 12.24 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/studio/assets/event-CWEPUEFL.js                   1.37 kB │ gzip:  0.65 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/studio/assets/core-SwWLTXZB.js                    2.70 kB │ gzip:  1.05 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/studio/assets/StudioApp-DKZQ0qRr.js             158.12 kB │ gzip: 41.83 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/studio/assets/index-Bsb1a9Cr.js                 218.24 kB │ gzip: 69.73 kB
 
-[32m✓ built in 335ms[39m
+[32m✓ built in 457ms[39m
 [36mvite v8.3.4 [32mbuilding client environment for production...[36m[39m
 transforming...
-✓ 1997 modules transformed.
+✓ 1998 modules transformed.
 rendering chunks...
 computing gzip size...
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/complete/index.html                                 0.53 kB │ gzip:  0.33 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/complete/assets/sora-latin-ext-rqDZ1P7Z.woff2      12.15 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/complete/assets/manrope-latin-ext-C-cYlMBm.woff2   15.16 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/complete/assets/manrope-latin-B6Sd7_ZV.woff2       24.53 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/complete/assets/sora-latin-BUlRykrX.woff2          25.28 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/complete/assets/CompleteApp-BxZYYeel.css            5.75 kB │ gzip:  1.68 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/complete/assets/index-DclH65i4.css                 64.04 kB │ gzip: 12.24 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/complete/assets/event-CWEPUEFL.js                   1.37 kB │ gzip:  0.65 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/complete/assets/core-SwWLTXZB.js                    2.70 kB │ gzip:  1.05 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/complete/assets/window-CNS7SgMW.js                 13.01 kB │ gzip:  3.14 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/complete/assets/StudioWorkspace-Bf03cRw8.js        98.24 kB │ gzip: 25.23 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/complete/assets/CompleteApp-Dr6GxZMo.js           146.89 kB │ gzip: 40.57 kB
-../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-RJ6T9I/complete/assets/index-C63ZFcqD.js                 200.65 kB │ gzip: 64.09 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/complete/index.html                                 0.53 kB │ gzip:  0.33 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/complete/assets/sora-latin-ext-rqDZ1P7Z.woff2      12.15 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/complete/assets/manrope-latin-ext-C-cYlMBm.woff2   15.16 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/complete/assets/manrope-latin-B6Sd7_ZV.woff2       24.53 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/complete/assets/sora-latin-BUlRykrX.woff2          25.28 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/complete/assets/CompleteApp-BxZYYeel.css            5.75 kB │ gzip:  1.68 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/complete/assets/index-DclH65i4.css                 64.04 kB │ gzip: 12.24 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/complete/assets/event-CWEPUEFL.js                   1.37 kB │ gzip:  0.65 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/complete/assets/core-SwWLTXZB.js                    2.70 kB │ gzip:  1.05 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/complete/assets/window-CNS7SgMW.js                 13.01 kB │ gzip:  3.14 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/complete/assets/StudioWorkspace-zHLxZvij.js        99.96 kB │ gzip: 25.71 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/complete/assets/CompleteApp-DXs6DS3c.js           146.89 kB │ gzip: 40.57 kB
+../../../../Users/hessa/AppData/Local/Temp/laap-sku-check-5le6hp/complete/assets/index-CTlu_mih.js                 218.36 kB │ gzip: 69.78 kB
 
-[32m✓ built in 359ms[39m
+[32m✓ built in 374ms[39m
 Three frontend bundles and updater configuration identities verified.
 [33m
-[1m(!)[22m outDir [37m[2mC:\Users\hessa\AppData\Local\Temp\laap-sku-check-RJ6T9I\basic[22m[33m is not inside project root and will not be emptied.
+[1m(!)[22m outDir [37m[2mC:\Users\hessa\AppData\Local\Temp\laap-sku-check-5le6hp\basic[22m[33m is not inside project root and will not be emptied.
 Use --emptyOutDir to override.
 [39m
 [33m
-[1m(!)[22m outDir [37m[2mC:\Users\hessa\AppData\Local\Temp\laap-sku-check-RJ6T9I\studio[22m[33m is not inside project root and will not be emptied.
+[1m(!)[22m outDir [37m[2mC:\Users\hessa\AppData\Local\Temp\laap-sku-check-5le6hp\studio[22m[33m is not inside project root and will not be emptied.
 Use --emptyOutDir to override.
 [39m
 [33m
-[1m(!)[22m outDir [37m[2mC:\Users\hessa\AppData\Local\Temp\laap-sku-check-RJ6T9I\complete[22m[33m is not inside project root and will not be emptied.
+[1m(!)[22m outDir [37m[2mC:\Users\hessa\AppData\Local\Temp\laap-sku-check-5le6hp\complete[22m[33m is not inside project root and will not be emptied.
 Use --emptyOutDir to override.
 [39m

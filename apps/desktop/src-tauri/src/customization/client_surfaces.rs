@@ -298,11 +298,11 @@ pub fn client_surfaces_get_adapter_status(
     let config = load_config(&app)?;
     let active_count = config.surfaces.iter().filter(|s| s.enabled).count();
     Ok(ClientSurfaceAdapterStatus {
-        is_available: true,
-        adapter_type: "native_laap_and_lcu_overlay".into(),
+        is_available: false,
+        adapter_type: "configuration_and_snippet_exporter".into(),
         active_surfaces_count: active_count,
         message: format!(
-            "Configured {active_count}/{} customizable surfaces. Applied in LAAP and exportable to client modding overlays.",
+            "16 customizable League client surfaces configured in LAAP ({active_count}/{} active). Styling snippets and assets are exportable for external client mod loaders (e.g. Pengu Loader) to prevent Vanguard integrity violations.",
             config.surfaces.len()
         ),
     })

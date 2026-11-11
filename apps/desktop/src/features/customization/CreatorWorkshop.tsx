@@ -40,6 +40,8 @@ export function CreatorWorkshop() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
+  const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [recoverySnapshot, setRecoverySnapshot] = useState<CreatorProject | null>(null)
 
   // New project modal
   const [showNewModal, setShowNewModal] = useState(false)
@@ -83,14 +85,66 @@ export function CreatorWorkshop() {
   async function openProject(id: string) {
     setBusy(true)
     setError('')
+    setRecoverySnapshot(null)
     try {
       const proj = await creator.getProject(id)
       setActiveProject(proj)
+      // Check for local crash recovery snapshot
+      try {
+        const raw = localStorage.getItem(`laap_creator_snapshot_${id}`)
+        if (raw) {
+          const snap = JSON.parse(raw) as CreatorProject
+          if (snap && snap.id === id && snap.updatedAt !== proj.updatedAt) {
+            setRecoverySnapshot(snap)
+          }
+        }
+      } catch {
+        // ignore snapshot parse errors
+      }
     } catch (e) {
       setError(errorMessage(e))
     } finally {
       setBusy(false)
     }
+  }
+
+  // Debounced autosave effect
+  useEffect(() => {
+    if (!activeProject) return
+    try {
+      localStorage.setItem(`laap_creator_snapshot_${activeProject.id}`, JSON.stringify(activeProject))
+    } catch {
+      // ignore storage quota issues
+    }
+    setAutosaveStatus('saving')
+    const timer = setTimeout(async () => {
+      try {
+        await creator.saveProject(activeProject)
+        setAutosaveStatus('saved')
+      } catch {
+        setAutosaveStatus('idle')
+      }
+    }, 2000)
+    return () => clearTimeout(timer)
+  }, [activeProject])
+
+  function restoreRecoverySnapshot() {
+    if (recoverySnapshot) {
+      setActiveProject(recoverySnapshot)
+      setRecoverySnapshot(null)
+      setStatus('Restored unsaved project state from crash recovery snapshot.')
+    }
+  }
+
+  function discardRecoverySnapshot() {
+    if (activeProject) {
+      try {
+        localStorage.removeItem(`laap_creator_snapshot_${activeProject.id}`)
+      } catch {
+        // ignore
+      }
+    }
+    setRecoverySnapshot(null)
   }
 
   async function createProject(e: FormEvent) {
@@ -379,13 +433,30 @@ export function CreatorWorkshop() {
           /* Active Project Editor */
           <section className="customization-editor">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <button className="btn-secondary" onClick={() => setActiveProject(null)}>← Back to projects</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button className="btn-secondary" onClick={() => setActiveProject(null)}>← Back to projects</button>
+                <span style={{ fontSize: '0.8rem', padding: '2px 8px', borderRadius: '4px', background: autosaveStatus === 'saved' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(234, 179, 8, 0.15)', color: autosaveStatus === 'saved' ? '#4ade80' : '#facc15' }}>
+                  {autosaveStatus === 'saving' ? '● Autosaving...' : '✓ All changes autosaved'}
+                </span>
+              </div>
               <div className="customization-actions">
                 <button className="btn-secondary" disabled={busy} onClick={() => void saveActiveProject()}>Save project</button>
                 <button className="btn-primary" disabled={busy || activeProject.files.length === 0} onClick={() => void exportFantome()}>Export .fantome</button>
                 <button className="btn-secondary" disabled={busy || activeProject.files.length === 0} onClick={() => void exportModpkg()}>Export .modpkg</button>
               </div>
             </div>
+
+            {recoverySnapshot && (
+              <div className="customization-card" style={{ marginBottom: '1rem', borderLeft: '4px solid #f59e0b', padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <strong>Crash Recovery Snapshot Available:</strong> An unsaved snapshot from a previous session was detected for this project.
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button className="btn-primary" style={{ padding: '4px 12px', fontSize: '0.85rem' }} onClick={restoreRecoverySnapshot}>Restore Snapshot</button>
+                  <button className="btn-secondary" style={{ padding: '4px 12px', fontSize: '0.85rem' }} onClick={discardRecoverySnapshot}>Discard</button>
+                </div>
+              </div>
+            )}
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>

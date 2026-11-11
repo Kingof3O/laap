@@ -724,7 +724,7 @@
         }
       ],
       "dependencyClass": "native binary PROP parser",
-      "limitation": "Inspects League PROP binary property files and decompiles typed property tree AST to JSON."
+      "limitation": "Inspects League PROP and PTCH binary property files, decoding all CommunityDragon types (Bool, S8/U8, S16/U16, S32/U32, S64/U64, Float, Vec2/3/4, Matrix44, RGBA, String, Hash, Container, Struct, Link, Flag) to structured JSON with zero data corruption."
     },
     "WF-060": {
       "status": "PARTIAL",
@@ -742,7 +742,7 @@
         }
       ],
       "dependencyClass": "native binary PROP compiler",
-      "limitation": "Compiles structured property tree JSON AST back to binary League PROP container format."
+      "limitation": "Compiles structured property tree JSON AST back to binary League PROP and PTCH container formats, preserving exact raw hex bytes for containers/structs and strictly validating numeric values without silent zeroing."
     },
     "WF-061": {
       "status": "PARTIAL",
@@ -760,7 +760,7 @@
         }
       ],
       "dependencyClass": "native WAD v3 parser",
-      "limitation": "Inspects League RWAC v3 archive headers, entry tables, xxHash64 path hashes, offsets, and compressed/uncompressed sizes with path-traversal-guarded extraction."
+      "limitation": "Inspects genuine League WAD v3 (272-byte header, 32-byte entries, xxHash64 path hashes), v2, and v1 archives with path-traversal-guarded extraction."
     },
     "WF-062": {
       "status": "PARTIAL",
@@ -778,7 +778,7 @@
         }
       ],
       "dependencyClass": "native WAD v3 packer",
-      "limitation": "Compiles folder assets into standard League WAD v3 container with RWAC header, xxHash64 path hashes, entry table, and payload chunks."
+      "limitation": "Compiles folder assets into standard League WAD v3 container with RW header, 256-byte signature block, xxHash64 path and entry checksums, 32-byte entry table, and payload chunks."
     },
     "WF-063": {
       "status": "PARTIAL",
@@ -1239,6 +1239,7 @@
     "EX-101": {
       "status": "PARTIAL",
       "implementation": [
+        "apps/desktop/src/context/i18nData.ts",
         "apps/desktop/src/context/I18nContext.tsx",
         "apps/desktop/src/features/customization/StudioSettings.tsx",
         "apps/desktop/src/main.tsx"
@@ -1246,9 +1247,14 @@
       "registration": [
         "apps/desktop/src/main.tsx"
       ],
-      "executions": [],
+      "executions": [
+        {
+          "run": "frontend-units",
+          "test": "i18n 22 League client locales comprehensive coverage"
+        }
+      ],
       "dependencyClass": "application i18n provider",
-      "limitation": "Provides typed multilingual dictionaries for English, German, Spanish, French, and Arabic with RTL layout mirroring across all 22 official League client locales.",
+      "limitation": "Provides typed multilingual dictionaries for all 22 official League client locales with native translations, complete UI strings coverage, and RTL layout mirroring for Arabic.",
       "buildEvidence": [
         "edition-bundles"
       ]
@@ -1408,7 +1414,7 @@
         }
       ],
       "dependencyClass": "native customization store / overlay adapter",
-      "limitation": "16 customizable League client surfaces defined, persisted, and exportable as CSS/JS snippets for overlay/client injectors without violating Vanguard protections."
+      "limitation": "16 customizable League client surfaces defined, persisted, and exportable as CSS/JS snippets for overlay/client injectors without violating Vanguard protections. Direct in-process client DOM injection requires external loader adapter (e.g. Pengu Loader)."
     },
     "EX-115": {
       "status": "NOT_TESTED",

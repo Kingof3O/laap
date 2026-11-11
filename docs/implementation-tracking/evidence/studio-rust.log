@@ -1,17 +1,21 @@
 
-running 55 tests
+running 60 tests
 test commands::system_utils::tests::test_file_info_on_temp_file ... ok
 test commands::updater::tests::studio_installer_cannot_cross_legacy_channels ... ok
 test commands::updater::tests::test_default_updater_pubkey_parsing ... ok
 test commands::updater::tests::test_edition_mismatch_detection ... ok
+test commands::updater::tests::test_live_tauri_cli_signing_integration ... ok
 test commands::updater::tests::test_payload_validation_empty_and_tampered ... ok
 test commands::updater::tests::test_platform_architecture_detection ... ok
 test commands::updater::tests::test_semver_comparison ... ok
 test commands::updater::tests::test_signature_verification_valid_and_invalid ... ok
 test commands::updater::tests::test_simultaneous_launch_transition_lock ... ok
+test commands::updater::tests::test_tauri_cli_real_signature_verification_and_tamper_detection ... ok
 test customization::ai_assistant::tests::cancellation_registry_is_bounded_and_released ... ok
 test customization::ai_assistant::tests::real_http_fixtures_enforce_ai_schema_output_bounds_and_audio_type ... ok
 test customization::bin_tool::tests::test_bin_round_trip ... ok
+test customization::bin_tool::tests::test_bin_round_trip_with_rich_types ... ok
+test customization::bin_tool::tests::test_bin_strict_numeric_validation ... ok
 test customization::catalog::tests::attach_chromas_and_variants_handles_lux_and_chromas ... ok
 test customization::catalog::tests::live_studio_catalog_contract ... ignored, Uses the public Riot Data Dragon HTTPS service
 test customization::catalog::tests::provider_keys_are_not_paths ... ok
@@ -52,12 +56,13 @@ test customization::themes::tests::media_rejects_disguised_payloads_and_fonts_ar
 test customization::themes::tests::test_builtin_themes_count_and_default ... ok
 test customization::themes::tests::theme_previews_reject_css_payloads ... ok
 test customization::wad_tool::tests::test_wad_round_trip ... ok
+test customization::wad_tool::tests::test_wad_v3_standard_compliance ... ok
 test customization::wad_tool::tests::test_xxhash64_basic ... ok
 test product::tests::native_capabilities_match_identity_and_update_channel ... ok
 test product::tests::permission_boundaries_enforced ... ok
 
-test result: ok. 53 passed; 0 failed; 2 ignored; 0 measured; 2 filtered out; finished in 0.37s
+test result: ok. 58 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.75s
 
    Compiling laap-desktop-core v1.0.0 (C:\pw\laap\apps\desktop\src-tauri)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 23.48s
-     Running unittests src\lib.rs (apps\desktop\src-tauri\target\debug\deps\laap_desktop_core-e1d602347ef61d01.exe)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 00s
+     Running unittests src\lib.rs (target\debug\deps\laap_desktop_core-e1d602347ef61d01.exe)

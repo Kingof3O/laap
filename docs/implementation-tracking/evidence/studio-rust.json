@@ -2,28 +2,24 @@
   "schemaVersion": 1,
   "id": "studio-rust",
   "scope": "native",
-  "cwd": ".",
+  "cwd": "apps/desktop/src-tauri",
   "command": [
     "cargo",
     "test",
     "--manifest-path",
-    "apps/desktop/src-tauri/Cargo.toml",
+    "Cargo.toml",
     "--no-default-features",
     "--features",
     "studio",
     "--lib",
     "--",
-    "--test-threads=1",
-    "--skip",
-    "test_live_tauri_cli_signing_integration",
-    "--skip",
-    "test_tauri_cli_real_signature_verification_and_tamper_detection"
+    "--test-threads=1"
   ],
-  "startedAt": "2026-11-11T04:31:20.192Z",
-  "finishedAt": "2026-11-11T04:31:48.191Z",
-  "head": "849a66e25fa47bd4899b9a81892cdc48fa9e7809",
+  "startedAt": "2026-11-11T05:03:44.527Z",
+  "finishedAt": "2026-11-11T05:04:53.749Z",
+  "head": "57a0b11750d6718c265a12d0514a7a71fa899bfc",
   "source": {
-    "sha256": "c868cf939fd7ca4e7458592d8c30505358b9d98e675674a7254d31e31c992a79",
+    "sha256": "44bcd641e1ea77c7c72e9177e169a21b6c987cdd4fe014d03125f458abe5442f",
     "files": [
       [
         "apps/desktop/src-tauri/Cargo.lock",
@@ -75,7 +71,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/customization/bin_tool.rs",
-        "f0299aaaa8315996919cd58455f6af7cb1b558c72fb00bfe2655a3bbe9d6efc6"
+        "42e978f451afb378fc5dc12e84f3f110a62adcfabbe55236d405ce6065c7793e"
       ],
       [
         "apps/desktop/src-tauri/src/customization/catalog.rs",
@@ -95,7 +91,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/customization/client_surfaces.rs",
-        "b7382e759d6de30181558e45fb68b03e524aae0a5316b56c5bb55e953e1165ca"
+        "07ff502cfda998566f0b90ace5713aae85011a09a802a256ae45f5e2456c226c"
       ],
       [
         "apps/desktop/src-tauri/src/customization/client_themes.rs",
@@ -167,7 +163,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/customization/wad_tool.rs",
-        "232f0e40d9bb7d8efa9c48df62f3d87c8c6858797488e03aebe74e46aca53614"
+        "f58f0890d84c547d9755fa3d2fa5c75f1c3be7a039cf647b4134c8739e6a288d"
       ],
       [
         "apps/desktop/src-tauri/src/device.rs",
@@ -279,5 +275,5 @@
   "exitCode": 0,
   "error": null,
   "log": "studio-rust.log",
-  "logSha256": "c510c2a345d48631758588619ddfefe201e5907b709dcfad2f55c52efb7163e4"
+  "logSha256": "6389f90cd6eb52470548ed509c9dfbc08fa4b57303d2961be97e43165c0d169f"
 }

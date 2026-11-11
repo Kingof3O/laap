@@ -10,13 +10,14 @@
     "tests/sorting.test.ts",
     "tests/updater.test.ts",
     "tests/complete-context.test.ts",
-    "tests/download-bounds.test.ts"
+    "tests/download-bounds.test.ts",
+    "tests/i18n.test.ts"
   ],
-  "startedAt": "2026-11-11T04:38:11.500Z",
-  "finishedAt": "2026-11-11T04:38:12.334Z",
-  "head": "849a66e25fa47bd4899b9a81892cdc48fa9e7809",
+  "startedAt": "2026-11-11T05:05:32.593Z",
+  "finishedAt": "2026-11-11T05:05:35.510Z",
+  "head": "57a0b11750d6718c265a12d0514a7a71fa899bfc",
   "source": {
-    "sha256": "93331e25724cd43fcbfbc80a924678aa936262cedbf33f78421eb610dca84bc2",
+    "sha256": "5a7d66131ad635f6a60896a0aba224c69649dd76e396c0936a2616845d69c553",
     "files": [
       [
         "apps/community-api/src/catalog.ts",
@@ -112,7 +113,7 @@
       ],
       [
         "apps/desktop/src/context/I18nContext.tsx",
-        "6e499e1c3db8f94f13fc0ffdf087edbd2c683868b09d26a53bdc68418e3ad479"
+        "b72508c3319db7a6580c572c8d599e3eccbebf0a9c5fc64e84346ef0054b01b8"
       ],
       [
         "apps/desktop/src/context/RiotOperations.tsx",
@@ -121,6 +122,10 @@
       [
         "apps/desktop/src/context/ToastContext.tsx",
         "2ec820d7d7d0afc0aea3d5fd109c2d6e988d0f421ddb3dd686cf816c29e29d85"
+      ],
+      [
+        "apps/desktop/src/context/i18nData.ts",
+        "96a926ed53b860fec0f9a7852513f9f533fd5c4875f1ea424f7c7b359d194a4f"
       ],
       [
         "apps/desktop/src/features/auth/LoginView.tsx",
@@ -152,7 +157,7 @@
       ],
       [
         "apps/desktop/src/features/customization/CreatorWorkshop.tsx",
-        "d86e36117f421d8228f5a4ab6b7cd94d43f22f0b8fddde21efc21cdfe3fac5fb"
+        "318ba6fff3dee3022de8a310783b7b20bf51b1765a6e542139a8a740b840595d"
       ],
       [
         "apps/desktop/src/features/customization/DoctorPage.tsx",
@@ -579,6 +584,10 @@
         "5285655589f5c08d7230c4349bc2dc1aec6c96356832c675017989379e889562"
       ],
       [
+        "apps/desktop/tests/i18n.test.ts",
+        "3b7718e84afcec6e102680357ac3e328a6d93044e92f08384025f6a3ba940820"
+      ],
+      [
         "apps/desktop/tests/lease-exit.test.ts",
         "b9b58a506e98952ec5b6ed4279f3f648de4b74a1ed9870ff8f5a5057152f6f00"
       ],
@@ -632,5 +641,5 @@
   "exitCode": 0,
   "error": null,
   "log": "frontend-units.log",
-  "logSha256": "ab20f44653cd8e1330ca22b5b4fb72626025a1ff1dbd0269c019f3f2de852d27"
+  "logSha256": "c68b770bd2e3592dcd32b429fdcc4a5a35b3e5102506a183e5aa9892733ca909"
 }
