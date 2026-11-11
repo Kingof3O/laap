@@ -1,3 +1,4 @@
+import { DatabaseSync } from "node:sqlite";
 import { strict as assert } from "node:assert";
 import { randomBytes } from "node:crypto";
 import { once } from "node:events";
@@ -310,4 +311,29 @@ test("archive parser rejects truncation, traversal, duplicate, disguised executa
   const wrong = structuredClone(f.manifest);
   wrong.files[0].sha256 = "f".repeat(64);
   await assert.rejects(validatePackage(f.archive, wrong));
+});
+
+test("legacy reviews remain intact; new authenticated review index is separate", () => {
+  const db = new DatabaseSync(":memory:");
+  db.exec(
+    "CREATE TABLE reviews(id TEXT,package_hash TEXT,author_id TEXT,author_name TEXT,rating INTEGER,comment TEXT,created_at INTEGER); INSERT INTO reviews VALUES ('old-a','hash','legacy','author',5,'first',1),('old-b','hash','legacy','author',4,'second',2);",
+  );
+  const store = new MarketplaceStore(db);
+  try {
+    assert.equal(
+      (db.prepare("SELECT COUNT(*) AS n FROM reviews").get() as { n: number })
+        .n,
+      2,
+    );
+    assert.equal(
+      (
+        db.prepare("SELECT COUNT(*) AS n FROM marketplace_reviews").get() as {
+          n: number;
+        }
+      ).n,
+      0,
+    );
+  } finally {
+    store.close();
+  }
 });

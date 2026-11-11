@@ -879,12 +879,13 @@
       "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
     },
     "WF-076": {
-      "status": "NOT_TESTED",
+      "status": "POLICY_EXCLUDED",
       "implementation": [],
       "registration": [],
       "executions": [],
       "dependencyClass": "not tested",
-      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+      "limitation": "Automatic gameplay actions are denied by the corrected feature-policy forbiddenAll contract. Read-only phase observation and manual response in the official client remain separate.",
+      "policySource": "docs/LAAP_Final_Execution_Queue_v3/BLUEPRINT/07-contracts/feature-policy.json"
     },
     "WF-077": {
       "status": "NOT_TESTED",
@@ -1326,20 +1327,22 @@
       "limitation": "Real seven-peer relay and consented ephemeral chat pass. Not direct P2P; full multi-device/native client stress and reconnect storms not verified."
     },
     "EX-117": {
-      "status": "NOT_TESTED",
+      "status": "POLICY_EXCLUDED",
       "implementation": [],
       "registration": [],
       "executions": [],
       "dependencyClass": "not tested",
-      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+      "limitation": "Automatic gameplay actions are denied by the corrected feature-policy forbiddenAll contract. Read-only phase observation and manual response in the official client remain separate.",
+      "policySource": "docs/LAAP_Final_Execution_Queue_v3/BLUEPRINT/07-contracts/feature-policy.json"
     },
     "EX-118": {
-      "status": "NOT_TESTED",
+      "status": "POLICY_EXCLUDED",
       "implementation": [],
       "registration": [],
       "executions": [],
       "dependencyClass": "not tested",
-      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+      "limitation": "Automatic gameplay actions are denied by the corrected feature-policy forbiddenAll contract. Read-only phase observation and manual response in the official client remain separate.",
+      "policySource": "docs/LAAP_Final_Execution_Queue_v3/BLUEPRINT/07-contracts/feature-policy.json"
     },
     "EX-119": {
       "status": "NOT_TESTED",

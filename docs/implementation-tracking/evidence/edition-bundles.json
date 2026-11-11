@@ -7,11 +7,11 @@
     "node",
     "scripts/check-edition-isolation.mjs"
   ],
-  "startedAt": "2026-11-11T03:36:50.994Z",
-  "finishedAt": "2026-11-11T03:36:53.710Z",
-  "head": "3535b3cbd32f563ef0e1aae151d6158a790368a8",
+  "startedAt": "2026-11-11T03:43:42.777Z",
+  "finishedAt": "2026-11-11T03:43:46.848Z",
+  "head": "45c438dbe7b2714247e73befcd58f9519dd7d384",
   "source": {
-    "sha256": "bef8a33c5d01a8ff0d4f9a6fb9c6e7a61e5999b8e609dc201484934a3185718f",
+    "sha256": "65fa19093a75ea62fcd43e01d39271710a50bc135a8ae58420e5e23d305a5a1c",
     "files": [
       [
         "apps/community-api/src/catalog.ts",
@@ -19,7 +19,7 @@
       ],
       [
         "apps/community-api/src/marketplace.ts",
-        "d7e8d1f2f8a15b2fedc533afb85d33763d1f41361ecf04622501f297f240e7d6"
+        "a9e2772c60dfa353e575fc8c8b96e4613538c3c5e33743d0d18ac13d5b147ae8"
       ],
       [
         "apps/community-api/src/moderation.ts",
@@ -47,7 +47,7 @@
       ],
       [
         "apps/community-api/tests/marketplace.test.ts",
-        "2c92997118fe03b7022789819ed2c57973dd8caa7dab9d65ee6e379243344805"
+        "0012f7800f2ee28d22120d8ff16332d35b3f707ab1270fbb6136db35b982e6d2"
       ],
       [
         "apps/community-api/tests/moderation.test.ts",
@@ -623,5 +623,5 @@
   "exitCode": 0,
   "error": null,
   "log": "edition-bundles.log",
-  "logSha256": "7c1b23858988a66aee2653eceb89de51c8437c186c40f4714d9f3d3bef8ecd7d"
+  "logSha256": "5f47b2551d2ac35d7b822911462c667998983b99a18572c7c9f9d89afdcb67f2"
 }

@@ -95,12 +95,11 @@ export class MarketplaceStore {
     this.database.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=3000;
       CREATE TABLE IF NOT EXISTS creator_profiles (id TEXT PRIMARY KEY, display_name TEXT NOT NULL, bio TEXT NOT NULL, contact TEXT NOT NULL, auth_token_hash TEXT NOT NULL, verified INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS submissions (id TEXT PRIMARY KEY, creator_id TEXT NOT NULL, package_hash TEXT NOT NULL UNIQUE, title TEXT NOT NULL, description TEXT NOT NULL, champion TEXT NOT NULL, version TEXT NOT NULL, tags TEXT NOT NULL, status TEXT NOT NULL, moderation_note TEXT, rights_confirmed INTEGER NOT NULL, created_at INTEGER NOT NULL);
-      CREATE TABLE IF NOT EXISTS reviews (id TEXT PRIMARY KEY, package_hash TEXT NOT NULL, author_id TEXT NOT NULL, author_name TEXT NOT NULL, rating INTEGER NOT NULL, comment TEXT NOT NULL, created_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS marketplace_reviews (id TEXT PRIMARY KEY, package_hash TEXT NOT NULL, author_id TEXT NOT NULL, author_name TEXT NOT NULL, rating INTEGER NOT NULL, comment TEXT NOT NULL, created_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS download_stats (package_hash TEXT PRIMARY KEY, count INTEGER NOT NULL DEFAULT 0, last_download INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS marketplace_packages (hash TEXT PRIMARY KEY, creator_id TEXT NOT NULL, manifest TEXT NOT NULL, archive BLOB NOT NULL);
       CREATE TABLE IF NOT EXISTS marketplace_audit (id TEXT PRIMARY KEY, package_hash TEXT NOT NULL, action TEXT NOT NULL, old_status TEXT NOT NULL, new_status TEXT NOT NULL, note TEXT NOT NULL, created_at INTEGER NOT NULL);
-      DELETE FROM reviews WHERE rowid NOT IN (SELECT MIN(rowid) FROM reviews GROUP BY package_hash, author_id);
-      CREATE UNIQUE INDEX IF NOT EXISTS marketplace_review_owner ON reviews(package_hash, author_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS marketplace_review_v2_owner ON marketplace_reviews(package_hash, author_id);
       CREATE UNIQUE INDEX IF NOT EXISTS marketplace_creator_token ON creator_profiles(auth_token_hash);`);
   }
   close() {
@@ -224,8 +223,8 @@ export class MarketplaceStore {
       const rows = this.database
         .prepare(
           `SELECT s.id, s.creator_id AS creatorId, s.package_hash AS packageHash, s.title, s.description, s.champion, s.version, s.tags, s.status, s.moderation_note AS moderationNote, c.display_name AS creatorName,
-        length(p.archive) AS bytes, COALESCE(d.count,0) AS downloadCount, COALESCE((SELECT AVG(rating) FROM reviews WHERE package_hash=s.package_hash),0) AS averageRating,
-        (SELECT COUNT(*) FROM reviews WHERE package_hash=s.package_hash) AS reviewCount FROM submissions s JOIN marketplace_packages p ON p.hash=s.package_hash JOIN creator_profiles c ON c.id=s.creator_id LEFT JOIN download_stats d ON d.package_hash=s.package_hash WHERE s.status=? AND instr(lower(s.title || ' ' || s.description || ' ' || s.tags),?) > 0 ORDER BY s.created_at DESC LIMIT 50 OFFSET ?`,
+        length(p.archive) AS bytes, COALESCE(d.count,0) AS downloadCount, COALESCE((SELECT AVG(rating) FROM marketplace_reviews WHERE package_hash=s.package_hash),0) AS averageRating,
+        (SELECT COUNT(*) FROM marketplace_reviews WHERE package_hash=s.package_hash) AS reviewCount FROM submissions s JOIN marketplace_packages p ON p.hash=s.package_hash JOIN creator_profiles c ON c.id=s.creator_id LEFT JOIN download_stats d ON d.package_hash=s.package_hash WHERE s.status=? AND instr(lower(s.title || ' ' || s.description || ' ' || s.tags),?) > 0 ORDER BY s.created_at DESC LIMIT 50 OFFSET ?`,
         )
         .all(status, query, offset) as Record<string, unknown>[];
       return json(
@@ -499,7 +498,9 @@ export class MarketplaceStore {
         fail(400, "Creators cannot review their own package");
       if (req.method === "DELETE") {
         this.database
-          .prepare("DELETE FROM reviews WHERE package_hash=? AND author_id=?")
+          .prepare(
+            "DELETE FROM marketplace_reviews WHERE package_hash=? AND author_id=?",
+          )
           .run(hash, c.id);
         return json({ deleted: true });
       }
@@ -509,7 +510,7 @@ export class MarketplaceStore {
         fail(400, "Rating must be 1–5");
       this.database
         .prepare(
-          `INSERT INTO reviews VALUES (?,?,?,?,?,?,?) ON CONFLICT(package_hash,author_id) DO UPDATE SET author_name=excluded.author_name,rating=excluded.rating,comment=excluded.comment,created_at=excluded.created_at`,
+          `INSERT INTO marketplace_reviews VALUES (?,?,?,?,?,?,?) ON CONFLICT(package_hash,author_id) DO UPDATE SET author_name=excluded.author_name,rating=excluded.rating,comment=excluded.comment,created_at=excluded.created_at`,
         )
         .run(
           randomUUID(),
@@ -528,7 +529,7 @@ export class MarketplaceStore {
       return json(
         this.database
           .prepare(
-            "SELECT id,author_name AS author,rating,comment,created_at AS createdAt FROM reviews WHERE package_hash=? ORDER BY created_at DESC LIMIT 50",
+            "SELECT id,author_name AS author,rating,comment,created_at AS createdAt FROM marketplace_reviews WHERE package_hash=? ORDER BY created_at DESC LIMIT 50",
           )
           .all(reviews[1]),
       );
