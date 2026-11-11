@@ -245,15 +245,60 @@ export const presets = {
   conflicts: () => invokeTauri<PresetConflict[]>('customization_preset_conflicts'),
 }
 
+export interface StagingReport {
+  stagedModsCount: number
+  stagedFilesCount: number
+  skippedOrFailedMods: string[]
+  stagingDirectory: string
+  gameOverlayDirectory?: string | null
+  backupManifestPath?: string | null
+  message: string
+}
+
+export interface RollbackReport {
+  restoredFilesCount: number
+  stagingCleaned: boolean
+  gameOverlayCleaned: boolean
+  message: string
+}
+
+export interface ModManifestFile {
+  relativePath: string
+  sizeBytes: number
+  sha256: string
+  formatType: string
+}
+
+export interface ModManifest {
+  schemaVersion: number
+  name: string
+  author: string
+  version: string
+  description: string
+  modType: string
+  targetChampion?: string | null
+  targetSkin?: number | null
+  createdAt: string
+  files: ModManifestFile[]
+}
+
+export interface ModPackageData {
+  sha256: string
+  archiveBase64: string
+  manifest: ModManifest
+}
+
 export const mods = {
   list: () => invokeTauri<ModInfo[]>('mod_list'),
   setEnabled: (id: string, enabled: boolean) => invokeTauri<ModInfo>('mod_set_enabled', { id, enabled }),
   setPriority: (id: string, priority: number) => invokeTauri<ModInfo>('mod_set_priority', { id, priority }),
   conflicts: () => invokeTauri<ConflictReport>('mod_detect_conflicts'),
-  stageOverlay: (targetGameDir: string) =>
-    invokeTauri<{ stagedFilesCount: number; message: string }>('mod_stage_overlay', { targetGameDir }),
-  rollback: (targetGameDir: string) =>
-    invokeTauri<{ restoredFilesCount: number; message: string }>('mod_rollback', { targetGameDir }),
+  stageOverlay: (targetGameDir?: string | null) =>
+    invokeTauri<StagingReport>('mod_stage_overlay', { targetGameDir: targetGameDir || null }),
+  rollback: (targetGameDir?: string | null) =>
+    invokeTauri<RollbackReport>('mod_rollback', { targetGameDir: targetGameDir || null }),
+  getPackageData: (sha256: string) =>
+    invokeTauri<ModPackageData>('mod_get_package_data', { sha256 }),
   detectFormat: (archiveBase64: string) => invokeTauri<string>('fantome_detect_format', { archiveBase64 }),
   listContents: (archiveBase64: string) => invokeTauri<FantomeEntry[]>('fantome_list_contents', { archiveBase64 }),
   readMeta: (archiveBase64: string) => invokeTauri<FantomeMeta>('fantome_read_meta', { archiveBase64 }),

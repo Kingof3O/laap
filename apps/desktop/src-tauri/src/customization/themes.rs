@@ -346,7 +346,16 @@ pub fn theme_save_media(
     data_base64: String,
 ) -> Result<String, String> {
     let clean_name = name.trim().replace('\\', "/");
-    let ext = clean_name
+    let file_name = std::path::Path::new(&clean_name)
+        .file_name()
+        .and_then(|f| f.to_str())
+        .ok_or_else(|| "Invalid media file name.".to_string())?;
+
+    if file_name.is_empty() || file_name.contains("..") || file_name.contains('/') || file_name.contains('\\') {
+        return Err("Media file name must not contain path traversal characters.".into());
+    }
+
+    let ext = file_name
         .rsplit_once('.')
         .map(|(_, e)| e.to_ascii_lowercase())
         .unwrap_or_default();
@@ -366,7 +375,11 @@ pub fn theme_save_media(
     let media_dir = storage::root(&app)?.join("theme_media");
     std::fs::create_dir_all(&media_dir).map_err(|e| e.to_string())?;
 
-    let file_path = media_dir.join(&clean_name);
+    let file_path = media_dir.join(file_name);
+    if !file_path.starts_with(&media_dir) {
+        return Err("Path traversal detected.".into());
+    }
+
     std::fs::write(&file_path, bytes).map_err(|e| e.to_string())?;
     Ok(file_path.to_string_lossy().to_string())
 }

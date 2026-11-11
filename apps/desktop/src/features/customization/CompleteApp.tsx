@@ -14,7 +14,9 @@ export default function CompleteApp() {
     }}>Customization presets</button>}
     navigation={<nav className="mode-nav" aria-label="Workspace">
       <button className="mode-pill" aria-pressed={!studio} onClick={() => setStudio(false)}>Accounts</button>
-      <button className="mode-pill" aria-pressed={studio} onClick={() => { setProfile(undefined); setStudio(true) }}>Studio</button>
+      <button className="mode-pill" aria-pressed={studio} onClick={() => setStudio(true)}>
+        {profile ? `Studio (${profile.name})` : 'Studio'}
+      </button>
     </nav>}
     studio={studio ? <Suspense fallback={<p role="status">Opening Studio…</p>}><StudioWorkspace key={profile?.id ?? 'studio'} profile={profile} /></Suspense> : undefined}
   />

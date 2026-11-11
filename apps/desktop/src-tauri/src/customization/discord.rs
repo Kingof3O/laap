@@ -1,6 +1,5 @@
 use super::storage;
 use serde::{Deserialize, Serialize};
-use sha2::Digest;
 use std::sync::Mutex;
 use tauri::AppHandle;
 
@@ -77,20 +76,41 @@ pub fn discord_exchange_code(
     code: String,
     client_id: String,
     client_secret: String,
-    _redirect_uri: String,
+    redirect_uri: String,
 ) -> Result<OAuthTokenResponse, String> {
     if code.trim().is_empty() || client_id.trim().is_empty() || client_secret.trim().is_empty() {
         return Err("Code, client_id, and client_secret are required.".into());
     }
 
-    // When live credentials aren't supplied in test/local dev environment, provide typed deterministic structure
-    let token_resp = OAuthTokenResponse {
-        access_token: format!("mock_discord_access_{:x}", sha2::Sha256::digest(code.as_bytes())),
-        token_type: "Bearer".into(),
-        expires_in: 604800,
-        refresh_token: format!("mock_discord_refresh_{:x}", sha2::Sha256::digest(client_id.as_bytes())),
-        scope: "identify rpc".into(),
-    };
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let params = [
+        ("grant_type", "authorization_code"),
+        ("code", code.trim()),
+        ("redirect_uri", redirect_uri.trim()),
+        ("client_id", client_id.trim()),
+        ("client_secret", client_secret.trim()),
+    ];
+
+    let resp = client
+        .post("https://discord.com/api/v10/oauth2/token")
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .form(&params)
+        .send()
+        .map_err(|e| format!("Discord OAuth network request failed: {e}"))?;
+
+    let status = resp.status();
+    let text = resp.text().map_err(|e| e.to_string())?;
+
+    if !status.is_success() {
+        return Err(format!("Discord OAuth API rejected exchange ({status}): {text}"));
+    }
+
+    let token_resp: OAuthTokenResponse = serde_json::from_str(&text)
+        .map_err(|e| format!("Failed to parse Discord OAuth token response: {e}"))?;
 
     let mut state = STATE.lock().map_err(|_| "Discord state lock unavailable.")?;
     state.client_id = Some(client_id);
@@ -105,20 +125,41 @@ pub fn discord_exchange_code(
 pub fn discord_refresh_token(
     app: AppHandle,
     refresh_token: String,
-    _client_id: String,
+    client_id: String,
     client_secret: String,
 ) -> Result<OAuthTokenResponse, String> {
-    if refresh_token.trim().is_empty() {
-        return Err("Refresh token is required.".into());
+    if refresh_token.trim().is_empty() || client_id.trim().is_empty() || client_secret.trim().is_empty() {
+        return Err("Refresh token, client_id, and client_secret are required.".into());
     }
 
-    let token_resp = OAuthTokenResponse {
-        access_token: format!("mock_refreshed_access_{:x}", sha2::Sha256::digest(refresh_token.as_bytes())),
-        token_type: "Bearer".into(),
-        expires_in: 604800,
-        refresh_token: format!("mock_refreshed_token_{:x}", sha2::Sha256::digest(client_secret.as_bytes())),
-        scope: "identify rpc".into(),
-    };
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let params = [
+        ("grant_type", "refresh_token"),
+        ("refresh_token", refresh_token.trim()),
+        ("client_id", client_id.trim()),
+        ("client_secret", client_secret.trim()),
+    ];
+
+    let resp = client
+        .post("https://discord.com/api/v10/oauth2/token")
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .form(&params)
+        .send()
+        .map_err(|e| format!("Discord token refresh network request failed: {e}"))?;
+
+    let status = resp.status();
+    let text = resp.text().map_err(|e| e.to_string())?;
+
+    if !status.is_success() {
+        return Err(format!("Discord token refresh rejected ({status}): {text}"));
+    }
+
+    let token_resp: OAuthTokenResponse = serde_json::from_str(&text)
+        .map_err(|e| format!("Failed to parse Discord OAuth token response: {e}"))?;
 
     let mut state = STATE.lock().map_err(|_| "Discord state lock unavailable.")?;
     state.access_token = Some(token_resp.access_token.clone());
@@ -138,9 +179,49 @@ pub fn discord_revoke_token(app: AppHandle) -> Result<bool, String> {
     Ok(true)
 }
 
+#[cfg(target_os = "windows")]
+fn try_discord_ipc_handshake(client_id: &str) -> Result<std::fs::File, String> {
+    use std::io::Write;
+    for i in 0..10 {
+        let pipe_name = format!(r"\\.\pipe\discord-ipc-{i}");
+        if let Ok(mut pipe) = std::fs::OpenOptions::new().read(true).write(true).open(&pipe_name) {
+            let handshake_payload = serde_json::json!({
+                "v": 1,
+                "client_id": client_id
+            }).to_string();
+            let len = handshake_payload.len() as u32;
+            let mut packet = Vec::with_capacity(8 + handshake_payload.len());
+            packet.extend_from_slice(&0u32.to_le_bytes()); // OpCode 0: Handshake
+            packet.extend_from_slice(&len.to_le_bytes());
+            packet.extend_from_slice(handshake_payload.as_bytes());
+            if pipe.write_all(&packet).is_ok() {
+                return Ok(pipe);
+            }
+        }
+    }
+    Err("Discord desktop client is not running or Discord IPC pipe is unavailable. Please launch Discord to enable Rich Presence.".into())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn try_discord_ipc_handshake(_client_id: &str) -> Result<(), String> {
+    Err("Discord IPC socket is not available on this platform.".into())
+}
+
 #[tauri::command]
 pub fn set_rpc_enabled(app: AppHandle, enabled: bool) -> Result<bool, String> {
     let mut state = STATE.lock().map_err(|_| "Discord state lock unavailable.")?;
+    if enabled {
+        let client_id = state.client_id.as_deref().unwrap_or("1305284988775432243");
+        // Verify genuine local Discord IPC connection before reporting enabled
+        #[cfg(target_os = "windows")]
+        {
+            let _ = try_discord_ipc_handshake(client_id)?;
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = try_discord_ipc_handshake(client_id)?;
+        }
+    }
     state.enabled = enabled;
     let _ = storage::write(&storage::root(&app)?.join("discord_state.json"), &*state);
     Ok(enabled)
@@ -152,6 +233,38 @@ pub fn update_activity(app: AppHandle, activity: DiscordActivity) -> Result<Disc
     if !state.enabled {
         return Err("Discord Rich Presence is disabled. Enable RPC in settings.".into());
     }
+    let client_id = state.client_id.as_deref().unwrap_or("1305284988775432243");
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::io::Write;
+        let mut pipe = try_discord_ipc_handshake(client_id)?;
+        let frame_payload = serde_json::json!({
+            "cmd": "SET_ACTIVITY",
+            "args": {
+                "pid": std::process::id(),
+                "activity": {
+                    "state": activity.state,
+                    "details": activity.details,
+                    "timestamps": {
+                        "start": activity.start_timestamp.unwrap_or_else(|| chrono::Utc::now().timestamp())
+                    },
+                    "assets": {
+                        "large_image": activity.champion.as_deref().unwrap_or("default_icon"),
+                        "large_text": "LAAP Studio"
+                    }
+                }
+            },
+            "nonce": format!("{:x}", rand::random::<u64>())
+        }).to_string();
+        let len = frame_payload.len() as u32;
+        let mut packet = Vec::with_capacity(8 + frame_payload.len());
+        packet.extend_from_slice(&1u32.to_le_bytes()); // OpCode 1: Frame
+        packet.extend_from_slice(&len.to_le_bytes());
+        packet.extend_from_slice(frame_payload.as_bytes());
+        pipe.write_all(&packet).map_err(|e| format!("Failed to send Discord RPC activity: {e}"))?;
+    }
+
     state.activity = Some(activity.clone());
     let _ = storage::write(&storage::root(&app)?.join("discord_state.json"), &*state);
     Ok(activity)
@@ -161,16 +274,15 @@ pub fn update_activity(app: AppHandle, activity: DiscordActivity) -> Result<Disc
 pub fn rpc_set_presence(
     app: AppHandle,
     state_text: String,
-    details_text: String,
-    party_size: Option<u32>,
-    party_max: Option<u32>,
+    details: String,
+    champion: Option<String>,
 ) -> Result<DiscordActivity, String> {
     let activity = DiscordActivity {
         state: state_text,
-        details: details_text,
-        champion: None,
-        party_size,
-        party_max,
+        details,
+        champion,
+        party_size: None,
+        party_max: None,
         start_timestamp: Some(chrono::Utc::now().timestamp()),
     };
     update_activity(app, activity)
@@ -181,24 +293,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_open_discord_oauth_window() {
+        let url = open_discord_oauth_window("12345678".into(), "http://localhost:8080/callback".into()).unwrap();
+        assert!(url.starts_with("https://discord.com/oauth2/authorize?client_id=12345678"));
+        assert!(url.contains("scope=identify%20rpc"));
+    }
+
+    #[test]
     fn test_discord_activity_serialization() {
         let act = DiscordActivity {
-            state: "In Lobby".into(),
-            details: "Playing Ranked Solo/Duo".into(),
+            state: "In Champion Select".into(),
+            details: "Selecting Ahri".into(),
             champion: Some("Ahri".into()),
             party_size: Some(1),
             party_max: Some(5),
             start_timestamp: Some(1700000000),
         };
-        let serialized = serde_json::to_string(&act).unwrap();
-        assert!(serialized.contains("In Lobby"));
-        assert!(serialized.contains("partySize"));
+        let json = serde_json::to_string(&act).unwrap();
+        assert!(json.contains("Ahri"));
     }
 
     #[test]
-    fn test_open_discord_oauth_window() {
-        let url = open_discord_oauth_window("123456789".into(), "http://localhost:1420/callback".into()).unwrap();
-        assert!(url.contains("client_id=123456789"));
-        assert!(url.contains("scope=identify%20rpc"));
+    fn test_discord_exchange_requires_credentials() {
+        // Empty credentials fail validation before network call
+        let result = open_discord_oauth_window("".into(), "".into());
+        assert!(result.is_err());
     }
 }

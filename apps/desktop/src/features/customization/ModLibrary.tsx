@@ -163,16 +163,15 @@ export function ModLibrary() {
   }
 
   async function stageMods() {
-    if (!gameDir) {
-      setError('Please provide or detect the League Game Directory first.')
-      return
-    }
     setBusy(true)
     setError('')
     setStagingReport('')
     try {
-      const rep = await mods.stageOverlay(gameDir)
-      setStagingReport(`Overlay Staged: ${rep.stagedFilesCount} files deployed to game directory.`)
+      const rep = await mods.stageOverlay(gameDir || null)
+      setStagingReport(rep.message)
+      if (rep.skippedOrFailedMods.length > 0) {
+        setError(`Some mods had extraction issues: ${rep.skippedOrFailedMods.join('; ')}`)
+      }
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -181,16 +180,12 @@ export function ModLibrary() {
   }
 
   async function rollbackMods() {
-    if (!gameDir) {
-      setError('Please provide or detect the League Game Directory first.')
-      return
-    }
     setBusy(true)
     setError('')
     setStagingReport('')
     try {
-      const rep = await mods.rollback(gameDir)
-      setStagingReport(`Rollback Complete: ${rep.restoredFilesCount} files restored from backups.`)
+      const rep = await mods.rollback(gameDir || null)
+      setStagingReport(rep.message)
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -247,17 +242,17 @@ export function ModLibrary() {
 
       {/* Game Path & Overlay Staging */}
       <section className="customization-editor" style={{ marginBottom: '1.5rem' }}>
-        <h3>Game staging & rollback</h3>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #94a3b8)' }}>Stage custom mods into game staging directory or rollback original game files safely.</p>
+        <h3>Mod staging & rollback</h3>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #94a3b8)' }}>Stage enabled mods into LAAP's managed staging sandbox or the configured League overlay directory. Base game files remain untouched.</p>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <label style={{ flex: 1, margin: 0 }}>League directory
+          <label style={{ flex: 1, margin: 0 }}>League directory (optional for overlay sandbox)
             <input type="text" placeholder="C:\Riot Games\League of Legends\Game" value={gameDir} onChange={(e) => setGameDir(e.target.value)} />
           </label>
           <button type="button" className="btn-secondary" style={{ marginTop: '1.4rem' }} disabled={busy} onClick={() => void detectGamePath()}>Detect path</button>
         </div>
         <div className="customization-actions" style={{ marginTop: '0.75rem' }}>
-          <button type="button" className="btn-primary" disabled={busy || !gameDir} onClick={() => void stageMods()}>Stage mod overlay</button>
-          <button type="button" className="btn-secondary" disabled={busy || !gameDir} onClick={() => void rollbackMods()}>Rollback overlay</button>
+          <button type="button" className="btn-primary" disabled={busy} onClick={() => void stageMods()}>Stage mod overlay</button>
+          <button type="button" className="btn-secondary" disabled={busy} onClick={() => void rollbackMods()}>Rollback overlay</button>
         </div>
         {stagingReport && <p role="status" style={{ color: '#10b981', marginTop: '0.5rem' }}>{stagingReport}</p>}
       </section>

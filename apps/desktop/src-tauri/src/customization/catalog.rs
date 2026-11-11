@@ -50,6 +50,8 @@ pub struct TftItem {
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct Champion {
     pub(super) id: String,
+    #[serde(default)]
+    pub(super) key: Option<String>,
     name: String,
     title: String,
     tags: Vec<String>,
@@ -71,7 +73,7 @@ pub struct Skin {
     pub(super) num: u32,
     name: String,
     chromas: bool,
-    #[serde(default)]
+    #[serde(default, rename = "availableChromas")]
     pub chroma_list: Vec<Chroma>,
     #[serde(default)]
     pub variants: Vec<Variant>,
@@ -227,33 +229,61 @@ fn attach_chromas_and_variants(detail: &mut ChampionDetail) {
         _ => {}
     }
 
-    // Populate structured chromas for skins with chromas: true
-    for skin in &mut detail.skins {
-        if skin.chromas && skin.chroma_list.is_empty() {
-            let base_num = skin.num;
-            let colors_list = [
-                vec!["#d4380d".into(), "#fa541c".into()], // Ruby
-                vec!["#1890ff".into(), "#40a9ff".into()], // Sapphire
-                vec!["#52c41a".into(), "#73d13d".into()], // Emerald
-                vec!["#faad14".into(), "#ffc53d".into()], // Catseye
-                vec!["#eb2f96".into(), "#f759ab".into()], // Rose Quartz
-                vec!["#722ed1".into(), "#9254de".into()], // Amethyst
-                vec!["#13c2c2".into(), "#36cfc9".into()], // Turquoise
-                vec!["#bfbfbf".into(), "#d9d9d9".into()], // Pearl
-                vec!["#262626".into(), "#434343".into()], // Obsidian
-            ];
-            let names = ["Ruby", "Sapphire", "Emerald", "Catseye", "Rose Quartz", "Amethyst", "Turquoise", "Pearl", "Obsidian"];
-            for (idx, name) in names.iter().enumerate() {
-                let chroma_num = base_num * 100 + (idx as u32 + 1);
-                skin.chroma_list.push(Chroma {
-                    id: format!("{}{:03}", detail.champion.id, chroma_num),
-                    name: format!("{} ({})", skin.name, name),
-                    num: chroma_num,
-                    colors: colors_list[idx % colors_list.len()].clone(),
-                });
-            }
+    // Only attach authentic canonical multi-form variants (Elementalist Lux, DJ Sona, Gun Goddess MF, K/DA Seraphine, Kayn)
+    // Synthetic chroma IDs are never fabricated; authentic chromas are fetched from CommunityDragon.
+}
+
+#[derive(Deserialize)]
+struct CdChroma {
+    id: u64,
+    name: String,
+    #[serde(default)]
+    colors: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct CdSkin {
+    id: u64,
+    #[serde(default)]
+    chromas: Vec<CdChroma>,
+}
+
+#[derive(Deserialize)]
+struct CdChampion {
+    #[serde(default)]
+    skins: Vec<CdSkin>,
+}
+
+fn fetch_community_dragon_chromas(key: &str) -> Option<BTreeMap<String, Vec<Chroma>>> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(4))
+        .build()
+        .ok()?;
+    let url = format!(
+        "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champions/{key}.json"
+    );
+    let res = client.get(&url).send().ok()?;
+    if !res.status().is_success() {
+        return None;
+    }
+    let cd: CdChampion = res.json().ok()?;
+    let mut map = BTreeMap::new();
+    for s in cd.skins {
+        if !s.chromas.is_empty() {
+            let chromas: Vec<Chroma> = s
+                .chromas
+                .into_iter()
+                .map(|c| Chroma {
+                    id: c.id.to_string(),
+                    name: c.name,
+                    num: (c.id % 1000) as u32,
+                    colors: c.colors,
+                })
+                .collect();
+            map.insert(s.id.to_string(), chromas);
         }
     }
+    Some(map)
 }
 
 #[tauri::command]
@@ -362,6 +392,15 @@ pub async fn catalog_champion(
         .map_err(|e| e.to_string())?
         {
             attach_chromas_and_variants(&mut snapshot.data);
+            if let Some(key) = &snapshot.data.champion.key {
+                if let Some(mut cd_chromas) = fetch_community_dragon_chromas(key) {
+                    for skin in &mut snapshot.data.skins {
+                        if let Some(chromas) = cd_chromas.remove(&skin.id) {
+                            skin.chroma_list = chromas;
+                        }
+                    }
+                }
+            }
             return Ok(snapshot);
         }
     }
@@ -392,7 +431,38 @@ pub async fn catalog_champion(
     })
     .await?;
     attach_chromas_and_variants(&mut result.data);
+    if let Some(key) = &result.data.champion.key {
+        if let Some(mut cd_chromas) = fetch_community_dragon_chromas(key) {
+            for skin in &mut result.data.skins {
+                if let Some(chromas) = cd_chromas.remove(&skin.id) {
+                    skin.chroma_list = chromas;
+                }
+            }
+        }
+    }
     Ok(result)
+}
+
+#[derive(Deserialize)]
+struct CdCompanion {
+    #[serde(rename = "itemId")]
+    item_id: u64,
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    level: Option<u32>,
+}
+
+#[derive(Deserialize)]
+struct CdCosmeticItem {
+    #[serde(rename = "itemId")]
+    item_id: u64,
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    description: String,
 }
 
 #[tauri::command]
@@ -403,22 +473,75 @@ pub async fn catalog_tft_list(app: AppHandle) -> Result<Vec<TftItem>, String> {
             return Ok(cached);
         }
     }
-    // Bundled standard TFT content catalog
-    let items = vec![
-        TftItem { id: "tft_tactician_01".into(), name: "Featherknight (Pengu)".into(), category: "Tactician".into(), tier: 1, description: "Classic valiant knight".into() },
-        TftItem { id: "tft_tactician_02".into(), name: "Choncc".into(), category: "Tactician".into(), tier: 2, description: "Gentle giant with a big appetite".into() },
-        TftItem { id: "tft_tactician_03".into(), name: "Dowsie".into(), category: "Tactician".into(), tier: 2, description: "Sweet water-dwelling creature".into() },
-        TftItem { id: "tft_tactician_04".into(), name: "Furyhorn".into(), category: "Tactician".into(), tier: 1, description: "Fierce charging friend".into() },
-        TftItem { id: "tft_tactician_05".into(), name: "Silverwing".into(), category: "Tactician".into(), tier: 1, description: "High-flying avian companion".into() },
-        TftItem { id: "tft_tactician_06".into(), name: "Sprite".into(), category: "Tactician".into(), tier: 1, description: "Original River Sprite".into() },
-        TftItem { id: "tft_arena_01".into(), name: "Hextech Laboratory Arena".into(), category: "Arena".into(), tier: 3, description: "Piltover technological marvel".into() },
-        TftItem { id: "tft_arena_02".into(), name: "Kanmei Garden Arena".into(), category: "Arena".into(), tier: 3, description: "Peaceful Ionian spirit retreat".into() },
-        TftItem { id: "tft_arena_03".into(), name: "Akana Sanctuary Arena".into(), category: "Arena".into(), tier: 3, description: "Shadowy spirit blossoms arena".into() },
-        TftItem { id: "tft_arena_04".into(), name: "Golden Spatula Arena".into(), category: "Arena".into(), tier: 4, description: "Opulent championship arena".into() },
-        TftItem { id: "tft_boom_01".into(), name: "Super Galaxy Boom".into(), category: "Boom".into(), tier: 2, description: "Cosmic impact damage effect".into() },
-        TftItem { id: "tft_boom_02".into(), name: "Arcade Finisher Boom".into(), category: "Boom".into(), tier: 3, description: "8-bit victory damage finisher".into() },
-    ];
-    let _ = storage::write(&path, &items);
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(6))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let base = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1";
+    let mut items = Vec::new();
+
+    // Tacticians / Companions
+    if let Ok(res) = client.get(format!("{base}/companions.json")).send() {
+        if res.status().is_success() {
+            if let Ok(companions) = res.json::<Vec<CdCompanion>>() {
+                for c in companions {
+                    if !c.name.trim().is_empty() {
+                        items.push(TftItem {
+                            id: c.item_id.to_string(),
+                            name: c.name,
+                            category: "Tactician".into(),
+                            tier: c.level.unwrap_or(1),
+                            description: c.description,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // Arenas / Map skins
+    if let Ok(res) = client.get(format!("{base}/tftmapskins.json")).send() {
+        if res.status().is_success() {
+            if let Ok(mapskins) = res.json::<Vec<CdCosmeticItem>>() {
+                for m in mapskins {
+                    if !m.name.trim().is_empty() {
+                        items.push(TftItem {
+                            id: m.item_id.to_string(),
+                            name: m.name,
+                            category: "Arena".into(),
+                            tier: 3,
+                            description: m.description,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // Booms / Damage skins
+    if let Ok(res) = client.get(format!("{base}/tftdamageskins.json")).send() {
+        if res.status().is_success() {
+            if let Ok(damageskins) = res.json::<Vec<CdCosmeticItem>>() {
+                for d in damageskins {
+                    if !d.name.trim().is_empty() {
+                        items.push(TftItem {
+                            id: d.item_id.to_string(),
+                            name: d.name,
+                            category: "Boom".into(),
+                            tier: 2,
+                            description: d.description,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    if !items.is_empty() {
+        let _ = storage::write(&path, &items);
+    }
     Ok(items)
 }
 
@@ -525,6 +648,7 @@ mod tests {
         let mut detail = ChampionDetail {
             champion: Champion {
                 id: "Lux".into(),
+                key: Some("99".into()),
                 name: "Lux".into(),
                 title: "the Lady of Luminosity".into(),
                 tags: vec!["Mage".into(), "Support".into()],
@@ -563,8 +687,7 @@ mod tests {
         // Elementalist Lux should have 10 elemental variants
         assert_eq!(detail.skins[1].variants.len(), 10);
         assert_eq!(detail.skins[1].variants[0].name, "Light");
-        // Steel Legion Lux should have chromas generated
-        assert_eq!(detail.skins[2].chroma_list.len(), 9);
-        assert!(detail.skins[2].chroma_list[0].name.contains("Ruby"));
+        // Steel Legion Lux should NOT have fake synthetic chromas generated
+        assert!(detail.skins[2].chroma_list.is_empty());
     }
 }

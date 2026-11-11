@@ -23,6 +23,19 @@ const DEFAULT_THEME: ThemeConfig = {
   animationsEnabled: true,
 }
 
+export function applyThemeToDom(theme: ThemeConfig) {
+  if (typeof document === 'undefined') return
+  const root = document.documentElement
+  root.style.setProperty('--canvas', theme.palette.background)
+  root.style.setProperty('--surface', theme.palette.surface)
+  root.style.setProperty('--primary', theme.palette.primary)
+  root.style.setProperty('--accent', theme.palette.accent)
+  root.style.setProperty('--text-primary', theme.palette.text)
+  root.style.setProperty('--text-muted', theme.palette.textMuted)
+  root.style.setProperty('--surface-border', theme.palette.border)
+  root.style.setProperty('--font-family', theme.fontFamily)
+}
+
 export function ThemePreview() {
   const [themeList, setThemeList] = useState<ThemeConfig[]>([DEFAULT_THEME])
   const [activeTheme, setActiveTheme] = useState<ThemeConfig | null>(DEFAULT_THEME)
@@ -32,6 +45,12 @@ export function ThemePreview() {
 
   // Media file state
   const [mediaFile, setMediaFile] = useState<File | null>(null)
+
+  useEffect(() => {
+    if (activeTheme) {
+      applyThemeToDom(activeTheme)
+    }
+  }, [activeTheme])
 
   async function load() {
     setError('')

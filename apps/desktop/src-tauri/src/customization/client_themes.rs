@@ -27,20 +27,39 @@ fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(storage::root(app)?.join("client_theme_config.json"))
 }
 
+const MAX_CLIENT_ASSET_BYTES: usize = 25 * 1024 * 1024; // 25 MiB
+
+fn validate_asset_type(asset_type: &str) -> Result<&'static str, String> {
+    match asset_type.trim().to_ascii_lowercase().as_str() {
+        "wallpaper" => Ok("wallpaper"),
+        "video" => Ok("video"),
+        "gif" => Ok("gif"),
+        "music" | "audio" => Ok("music"),
+        "font" => Ok("font"),
+        "overlay" => Ok("overlay"),
+        _ => Err("Invalid asset type. Permitted types: wallpaper, video, gif, music, font, overlay.".into()),
+    }
+}
+
 #[tauri::command]
 pub fn client_themes_save_asset(
     app: AppHandle,
     asset_type: String,
     data_base64: String,
 ) -> Result<String, String> {
+    let safe_type = validate_asset_type(&asset_type)?;
     let bytes = STANDARD
         .decode(&data_base64)
         .map_err(|e| format!("Base64 decoding failed: {e}"))?;
 
+    if bytes.len() > MAX_CLIENT_ASSET_BYTES {
+        return Err("Asset file exceeds maximum 25 MiB size limit.".into());
+    }
+
     let dir = storage::root(&app)?.join("client_theme_assets");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
 
-    let filename = format!("{asset_type}_asset.dat");
+    let filename = format!("{safe_type}_asset.dat");
     let file_path = dir.join(&filename);
     std::fs::write(&file_path, bytes).map_err(|e| e.to_string())?;
 

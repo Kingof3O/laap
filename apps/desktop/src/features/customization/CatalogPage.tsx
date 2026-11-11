@@ -242,7 +242,9 @@ export function CatalogPage({ accountId, selection, onSaved, onShare }: { accoun
               <option value="Boom">Booms</option>
             </select></label>
           </div>
-          {!tftItems ? <p role="status">Loading TFT items…</p> : (
+          {!tftItems ? <p role="status">Loading TFT items…</p> : tftItems.length === 0 ? (
+            <p role="status">No TFT items available offline. Connect to the internet to load the live CommunityDragon TFT cosmetics catalog.</p>
+          ) : (
             <div className="customization-grid">
               {filteredTft?.map((item) => (
                 <div key={item.id} className="customization-card" style={{ cursor: 'default' }}>
@@ -301,7 +303,7 @@ export function CatalogPage({ accountId, selection, onSaved, onShare }: { accoun
                   </label>
                 )}
 
-                {skin?.availableChromas && skin.availableChromas.length > 0 && (
+                {skin?.availableChromas && skin.availableChromas.length > 0 ? (
                   <div style={{ margin: '0.75rem 0' }}>
                     <label>Chromas ({skin.availableChromas.length} variants available)</label>
                     <div className="customization-actions" style={{ flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
@@ -313,7 +315,11 @@ export function CatalogPage({ accountId, selection, onSaved, onShare }: { accoun
                       ))}
                     </div>
                   </div>
-                )}
+                ) : skin?.chromas ? (
+                  <p className="customization-source" style={{ margin: '0.5rem 0' }}>
+                    Riot lists chromas for this skin. Live authentic chromas are loaded when connected to CommunityDragon.
+                  </p>
+                ) : null}
 
                 {detail.data.skins.length > 1 && (
                   <button className="btn-secondary" type="button" disabled={prefsBusy} onClick={() => {

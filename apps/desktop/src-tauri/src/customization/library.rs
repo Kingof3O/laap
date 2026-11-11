@@ -72,13 +72,6 @@ pub struct ModConflict {
     pub conflicting_mods: Vec<String>,
 }
 
-#[derive(Clone, Deserialize, Serialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct StagingReport {
-    pub staged_mods_count: usize,
-    pub staged_files_count: usize,
-    pub staging_directory: String,
-}
 
 fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
@@ -516,8 +509,57 @@ pub fn mod_detect_conflicts(app: AppHandle) -> Result<Vec<ModConflict>, String> 
     Ok(conflicts)
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StagingReport {
+    pub staged_mods_count: usize,
+    pub staged_files_count: usize,
+    pub skipped_or_failed_mods: Vec<String>,
+    pub staging_directory: String,
+    pub game_overlay_directory: Option<String>,
+    pub backup_manifest_path: Option<String>,
+    pub message: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RollbackReport {
+    pub restored_files_count: usize,
+    pub staging_cleaned: bool,
+    pub game_overlay_cleaned: bool,
+    pub message: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModPackageData {
+    pub sha256: String,
+    pub archive_base64: String,
+    pub manifest: Manifest,
+}
+
 #[tauri::command]
-pub fn mod_stage_overlay(app: AppHandle) -> Result<StagingReport, String> {
+pub fn mod_get_package_data(app: AppHandle, sha256: String) -> Result<ModPackageData, String> {
+    if !safe_name(&sha256) {
+        return Err("Invalid mod hash.".into());
+    }
+    let dir = storage::root(&app)?.join("library");
+    let blob_path = dir.join("content").join(&sha256);
+    let manifest_path = dir.join("manifests").join(format!("{sha256}.json"));
+
+    let archive_bytes = fs::read(&blob_path).map_err(|e| format!("Failed to read mod archive content: {e}"))?;
+    let manifest = storage::read::<Manifest>(&manifest_path, 64 * 1024)?
+        .ok_or_else(|| "Mod manifest not found.".to_string())?;
+
+    Ok(ModPackageData {
+        sha256,
+        archive_base64: STANDARD.encode(archive_bytes),
+        manifest,
+    })
+}
+
+#[tauri::command]
+pub fn mod_stage_overlay(app: AppHandle, target_game_dir: Option<String>) -> Result<StagingReport, String> {
     let dir = storage::root(&app)?.join("library");
     let rows = index(&dir)?;
     let mut enabled_mods: Vec<&InstalledMod> = rows.iter().filter(|r| r.enabled).collect();
@@ -530,32 +572,127 @@ pub fn mod_stage_overlay(app: AppHandle) -> Result<StagingReport, String> {
     fs::create_dir_all(&staging_dir).map_err(|e| e.to_string())?;
 
     let mut staged_files_count = 0;
+    let mut failed_mods = Vec::new();
+
     for m in &enabled_mods {
         let blob_path = dir.join("content").join(&m.manifest.sha256);
-        if let Ok(data) = fs::read(&blob_path) {
-            if let Ok(summary) = super::fantome::extract_fantome(&data, &staging_dir) {
-                staged_files_count += summary.file_count;
+        match fs::read(&blob_path) {
+            Ok(data) => {
+                match super::fantome::extract_fantome(&data, &staging_dir) {
+                    Ok(summary) => {
+                        staged_files_count += summary.file_count;
+                    }
+                    Err(err) => {
+                        failed_mods.push(format!("{}: extraction failed ({err})", m.manifest.display_name));
+                    }
+                }
+            }
+            Err(err) => {
+                failed_mods.push(format!("{}: read failed ({err})", m.manifest.display_name));
             }
         }
     }
 
+    let mut game_overlay_dir_str = None;
+    let mut backup_manifest_str = None;
+
+    if let Some(target) = target_game_dir {
+        let game_path = std::path::Path::new(&target);
+        if game_path.exists() && game_path.is_dir() {
+            let overlay_dir = if game_path.join("Game").exists() {
+                game_path.join("Game").join("MODS_OVERLAY")
+            } else {
+                game_path.join("MODS_OVERLAY")
+            };
+            if fs::create_dir_all(&overlay_dir).is_ok() {
+                let mut backup_files = Vec::new();
+                if let Ok(entries) = fs::read_dir(&staging_dir) {
+                    for entry in entries.flatten() {
+                        let rel = entry.file_name();
+                        let dest = overlay_dir.join(&rel);
+                        if fs::copy(entry.path(), &dest).is_ok() {
+                            backup_files.push(dest.to_string_lossy().to_string());
+                        }
+                    }
+                }
+                let manifest_path = overlay_dir.join("staging_manifest.json");
+                let _ = storage::write(&manifest_path, &backup_files);
+                game_overlay_dir_str = Some(overlay_dir.to_string_lossy().to_string());
+                backup_manifest_str = Some(manifest_path.to_string_lossy().to_string());
+            }
+        }
+    }
+
+    let message = if let Some(ref g_dir) = game_overlay_dir_str {
+        format!(
+            "Staged {staged_files_count} file(s) across {} enabled mod(s) into League overlay sandbox ({g_dir}). Base game files remain untouched.",
+            enabled_mods.len() - failed_mods.len()
+        )
+    } else {
+        format!(
+            "Staged {staged_files_count} file(s) across {} enabled mod(s) into LAAP staging sandbox ({})",
+            enabled_mods.len() - failed_mods.len(),
+            staging_dir.to_string_lossy()
+        )
+    };
+
     Ok(StagingReport {
-        staged_mods_count: enabled_mods.len(),
+        staged_mods_count: enabled_mods.len() - failed_mods.len(),
         staged_files_count,
+        skipped_or_failed_mods: failed_mods,
         staging_directory: staging_dir.to_string_lossy().to_string(),
+        game_overlay_directory: game_overlay_dir_str,
+        backup_manifest_path: backup_manifest_str,
+        message,
     })
 }
 
 #[tauri::command]
-pub fn mod_rollback(app: AppHandle) -> Result<bool, String> {
+pub fn mod_rollback(app: AppHandle, target_game_dir: Option<String>) -> Result<RollbackReport, String> {
     let dir = storage::root(&app)?.join("library").join("staging");
+    let mut staging_cleaned = false;
     if dir.exists() {
-        fs::remove_dir_all(&dir).map_err(|e| e.to_string())?;
-        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-        Ok(true)
-    } else {
-        Ok(false)
+        let _ = fs::remove_dir_all(&dir);
+        let _ = fs::create_dir_all(&dir);
+        staging_cleaned = true;
     }
+
+    let mut game_overlay_cleaned = false;
+    let mut restored_files_count = 0;
+
+    if let Some(target) = target_game_dir {
+        let game_path = std::path::Path::new(&target);
+        let overlay_dir = if game_path.join("Game").exists() {
+            game_path.join("Game").join("MODS_OVERLAY")
+        } else {
+            game_path.join("MODS_OVERLAY")
+        };
+        if overlay_dir.exists() {
+            let manifest_path = overlay_dir.join("staging_manifest.json");
+            if let Ok(Some(files)) = storage::read::<Vec<String>>(&manifest_path, 256 * 1024) {
+                for file_str in files {
+                    let p = std::path::Path::new(&file_str);
+                    if p.exists() {
+                        let _ = fs::remove_file(p);
+                        restored_files_count += 1;
+                    }
+                }
+            }
+            let _ = fs::remove_dir_all(&overlay_dir);
+            game_overlay_cleaned = true;
+        }
+    }
+
+    Ok(RollbackReport {
+        restored_files_count,
+        staging_cleaned,
+        game_overlay_cleaned,
+        message: if game_overlay_cleaned {
+            format!("Rollback complete: cleaned {restored_files_count} staged file(s) from League overlay sandbox.")
+        } else {
+            "Rollback complete: cleaned LAAP local staging sandbox.".into()
+        },
+    })
 }
 
 #[tauri::command]

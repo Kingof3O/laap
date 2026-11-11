@@ -236,6 +236,8 @@ pub fn run() {
             #[cfg(not(feature = "basic"))]
             customization::library::mod_rollback,
             #[cfg(not(feature = "basic"))]
+            customization::library::mod_get_package_data,
+            #[cfg(not(feature = "basic"))]
             customization::library::delete_cache_file,
             #[cfg(not(feature = "basic"))]
             customization::library::delete_custom_mod_cache,

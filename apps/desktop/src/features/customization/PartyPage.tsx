@@ -3,18 +3,25 @@ import { useParty } from './useParty'
 import { mods } from './api'
 
 export function PartyPage({ selection }: { selection: { id: number; name: string } | null }) {
-  const party = useParty()
-  const [consent, setConsent] = useState(false)
-  const [invite, setInvite] = useState('')
-  const [message, setMessage] = useState('')
   const [installedHashes, setInstalledHashes] = useState<string[]>([])
   const [syncStatus, setSyncStatus] = useState('')
-  const working = party.state === 'connecting' || party.state === 'reconnecting'
 
-  useEffect(() => {
+  function refreshInstalled() {
     void mods.list().then((list) => {
       setInstalledHashes(list.map((m) => m.sha256))
     }).catch(() => {})
+  }
+
+  const party = useParty((_modHash) => {
+    refreshInstalled()
+  })
+  const [consent, setConsent] = useState(false)
+  const [invite, setInvite] = useState('')
+  const [message, setMessage] = useState('')
+  const working = party.state === 'connecting' || party.state === 'reconnecting'
+
+  useEffect(() => {
+    refreshInstalled()
   }, [])
 
   function announceMyMods() {
@@ -46,6 +53,19 @@ export function PartyPage({ selection }: { selection: { id: number; name: string
       {party.error && <p role="alert">{party.error}</p>}
       {working && <p role="status">{party.state === 'connecting' ? 'Connecting…' : 'Reconnecting…'}</p>}
       {syncStatus && <p role="status" style={{ color: '#10b981' }}>{syncStatus}</p>}
+
+      {party.transferProgress && (
+        <div className="customization-card" style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: '6px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+            <strong>P2P Mod Transfer ({party.transferProgress.modHash.slice(0, 8)}…)</strong>
+            <span>{party.transferProgress.progress}%</span>
+          </div>
+          <div style={{ background: '#334155', borderRadius: '4px', height: '6px', overflow: 'hidden', margin: '0.5rem 0' }}>
+            <div style={{ background: '#6366f1', height: '100%', width: `${party.transferProgress.progress}%`, transition: 'width 0.2s ease' }} />
+          </div>
+          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{party.transferProgress.status}</span>
+        </div>
+      )}
 
       {party.configured && consent && !party.snapshot && (
         <form className="customization-editor" onSubmit={(event) => { event.preventDefault(); party.join(invite.trim().toLowerCase()) }}>

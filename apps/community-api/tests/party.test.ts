@@ -150,7 +150,22 @@ test('mod hash announcement and peer-to-peer chunk transfer flow', async () => {
     await guest.next('membership')
     const joined = await guest.next('snapshot')
 
-    const modHash = 'd'.repeat(64)
+    // Create a real multi-chunk archive payload
+    const mockArchive = Buffer.concat([
+      Buffer.from([0x50, 0x4b, 0x03, 0x04]), // ZIP PK header
+      Buffer.alloc(12000, 0x41), // dummy payload
+    ])
+    const crypto = await import('node:crypto')
+    const modHash = crypto.createHash('sha256').update(mockArchive).digest('hex')
+    const archiveBase64 = mockArchive.toString('base64')
+
+    // Split into 3 chunks
+    const chunkSize = Math.ceil(archiveBase64.length / 3)
+    const chunks = [
+      archiveBase64.slice(0, chunkSize),
+      archiveBase64.slice(chunkSize, chunkSize * 2),
+      archiveBase64.slice(chunkSize * 2),
+    ]
 
     // 1. Host announces custom mods
     host.send({ type: 'announceMods', modHashes: [modHash] })
@@ -171,23 +186,43 @@ test('mod hash announcement and peer-to-peer chunk transfer flow', async () => {
     assert.equal(acc.fromMemberId, created.self)
     assert.equal(acc.modHash, modHash)
 
-    // 4. Host sends chunk
-    host.send({
-      type: 'transferChunk',
-      targetMemberId: joined.self,
-      modHash,
-      chunkIndex: 0,
-      totalChunks: 1,
-      dataBase64: 'UEsDBAoAAAAIA...',
-    })
-    const chunk = await guest.next('transferChunk') as any
-    assert.equal(chunk.chunkIndex, 0)
-    assert.equal(chunk.dataBase64, 'UEsDBAoAAAAIA...')
+    // 4. Host sends all 3 chunks
+    for (let i = 0; i < chunks.length; i++) {
+      host.send({
+        type: 'transferChunk',
+        targetMemberId: joined.self,
+        modHash,
+        chunkIndex: i,
+        totalChunks: chunks.length,
+        dataBase64: chunks[i],
+      })
+    }
+
+    const receivedChunks: string[] = []
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = await guest.next('transferChunk') as any
+      assert.equal(chunk.chunkIndex, i)
+      assert.equal(chunk.totalChunks, 3)
+      receivedChunks.push(chunk.dataBase64)
+    }
 
     // 5. Host finishes transfer
     host.send({ type: 'transferComplete', targetMemberId: joined.self, modHash })
     const comp = await guest.next('transferComplete') as any
     assert.equal(comp.modHash, modHash)
+
+    // 6. Guest reassembles chunks and verifies SHA-256 integrity
+    const reassembledBase64 = receivedChunks.join('')
+    const reassembledBuffer = Buffer.from(reassembledBase64, 'base64')
+    const calculatedHash = crypto.createHash('sha256').update(reassembledBuffer).digest('hex')
+    assert.equal(calculatedHash, modHash)
+    assert(reassembledBuffer.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04])))
+
+    // 7. Negative test: tampered chunk is detected and fails verification
+    const tamperedBuffer = Buffer.from(reassembledBuffer)
+    tamperedBuffer[10] ^= 0xff // Flip a byte
+    const tamperedHash = crypto.createHash('sha256').update(tamperedBuffer).digest('hex')
+    assert.notEqual(tamperedHash, modHash)
   } finally {
     await relay.close()
   }

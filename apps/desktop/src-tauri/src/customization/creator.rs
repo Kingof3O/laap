@@ -55,6 +55,17 @@ pub struct ProjectSummary {
     pub updated_at: String,
 }
 
+pub fn validate_project_id(id: &str) -> Result<(), String> {
+    let trimmed = id.trim();
+    if trimmed.is_empty() || trimmed.len() > 64 {
+        return Err("Project ID must be between 1 and 64 characters.".into());
+    }
+    if !trimmed.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+        return Err("Project ID must contain only alphanumeric characters, dashes, or underscores.".into());
+    }
+    Ok(())
+}
+
 fn projects_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = storage::root(app)?.join("creator_projects");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -141,6 +152,7 @@ pub fn creator_create_project(
 
 #[tauri::command]
 pub fn creator_get_project(app: AppHandle, id: String) -> Result<CreatorProject, String> {
+    validate_project_id(&id)?;
     let dir = projects_dir(&app)?;
     let path = dir.join(format!("{id}.json"));
     storage::read::<CreatorProject>(&path, 8 * 1024 * 1024)?
@@ -149,6 +161,7 @@ pub fn creator_get_project(app: AppHandle, id: String) -> Result<CreatorProject,
 
 #[tauri::command]
 pub fn creator_save_project(app: AppHandle, mut project: CreatorProject) -> Result<CreatorProject, String> {
+    validate_project_id(&project.id)?;
     let dir = projects_dir(&app)?;
     let _guard = LOCK.lock().map_err(|_| "Projects lock unavailable.")?;
 
@@ -166,6 +179,7 @@ pub fn creator_save_project(app: AppHandle, mut project: CreatorProject) -> Resu
 
 #[tauri::command]
 pub fn creator_duplicate_project(app: AppHandle, id: String) -> Result<CreatorProject, String> {
+    validate_project_id(&id)?;
     let dir = projects_dir(&app)?;
     let _guard = LOCK.lock().map_err(|_| "Projects lock unavailable.")?;
 
@@ -190,6 +204,7 @@ pub fn creator_duplicate_project(app: AppHandle, id: String) -> Result<CreatorPr
 
 #[tauri::command]
 pub fn creator_delete_project(app: AppHandle, id: String) -> Result<bool, String> {
+    validate_project_id(&id)?;
     let dir = projects_dir(&app)?;
     let _guard = LOCK.lock().map_err(|_| "Projects lock unavailable.")?;
     let path = dir.join(format!("{id}.json"));
@@ -208,20 +223,24 @@ pub fn creator_add_file(
     relative_path: String,
     data_base64: String,
 ) -> Result<ProjectFile, String> {
-    let bytes = STANDARD
-        .decode(&data_base64)
-        .map_err(|e| format!("Base64 decoding failed: {e}"))?;
+    validate_project_id(&project_id)?;
+    let safe_rel = super::fantome::validate_zip_entry_path(&relative_path)?;
+    let clean_path = safe_rel.to_string_lossy().replace('\\', "/");
 
-    let clean_path = relative_path.replace('\\', "/").trim_start_matches('/').to_string();
-    if clean_path.contains("..") {
-        return Err("Relative path cannot escape target package.".into());
-    }
     let ext = clean_path
         .rsplit_once('.')
         .map(|(_, e)| e.to_ascii_lowercase())
         .unwrap_or_default();
     if super::fantome::is_executable_extension(&ext) {
         return Err("Executable files are forbidden in Creator packages.".into());
+    }
+
+    let bytes = STANDARD
+        .decode(&data_base64)
+        .map_err(|e| format!("Base64 decoding failed: {e}"))?;
+
+    if bytes.len() > 50 * 1024 * 1024 {
+        return Err("Individual project asset exceeds 50 MiB limit.".into());
     }
 
     let dir = projects_dir(&app)?;
@@ -259,6 +278,7 @@ pub fn creator_remove_file(
     project_id: String,
     relative_path: String,
 ) -> Result<bool, String> {
+    validate_project_id(&project_id)?;
     let dir = projects_dir(&app)?;
     let _guard = LOCK.lock().map_err(|_| "Projects lock unavailable.")?;
     let proj_path = dir.join(format!("{project_id}.json"));
@@ -280,6 +300,7 @@ pub fn creator_remove_file(
 
 #[tauri::command]
 pub fn creator_export_fantome(app: AppHandle, project_id: String) -> Result<String, String> {
+    validate_project_id(&project_id)?;
     let dir = projects_dir(&app)?;
     let proj_path = dir.join(format!("{project_id}.json"));
     let proj = storage::read::<CreatorProject>(&proj_path, 8 * 1024 * 1024)?
@@ -322,6 +343,7 @@ pub fn creator_export_fantome(app: AppHandle, project_id: String) -> Result<Stri
 
 #[tauri::command]
 pub fn creator_export_modpkg(app: AppHandle, project_id: String) -> Result<String, String> {
+    validate_project_id(&project_id)?;
     let dir = projects_dir(&app)?;
     let proj_path = dir.join(format!("{project_id}.json"));
     let proj = storage::read::<CreatorProject>(&proj_path, 8 * 1024 * 1024)?

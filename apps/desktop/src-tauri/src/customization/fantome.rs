@@ -198,6 +198,80 @@ pub fn list_fantome_contents(zip_bytes: &[u8]) -> Result<Vec<FantomeEntry>, Stri
     Ok(entries)
 }
 
+pub fn is_windows_device_name(name: &str) -> bool {
+    let stem = name.split('.').next().unwrap_or(name);
+    matches!(
+        stem.to_ascii_uppercase().as_str(),
+        "CON"
+            | "PRN"
+            | "AUX"
+            | "NUL"
+            | "COM1"
+            | "COM2"
+            | "COM3"
+            | "COM4"
+            | "COM5"
+            | "COM6"
+            | "COM7"
+            | "COM8"
+            | "COM9"
+            | "LPT1"
+            | "LPT2"
+            | "LPT3"
+            | "LPT4"
+            | "LPT5"
+            | "LPT6"
+            | "LPT7"
+            | "LPT8"
+            | "LPT9"
+    )
+}
+
+pub fn validate_zip_entry_path(raw_name: &str) -> Result<std::path::PathBuf, String> {
+    if raw_name.is_empty() || raw_name.len() > 1024 {
+        return Err("Path length must be between 1 and 1024 characters.".into());
+    }
+    if raw_name.contains('\0') {
+        return Err("Path cannot contain null bytes.".into());
+    }
+    if raw_name.contains(':') {
+        return Err("Path cannot contain drive colon prefixes.".into());
+    }
+    if raw_name.starts_with(r"\\") || raw_name.starts_with("//") {
+        return Err("UNC network paths are forbidden.".into());
+    }
+    if raw_name.starts_with('/') || raw_name.starts_with('\\') {
+        return Err("Absolute path prefixes are forbidden.".into());
+    }
+
+    let p = Path::new(raw_name);
+    if p.is_absolute() || p.has_root() {
+        return Err("Only relative paths within the archive are permitted.".into());
+    }
+
+    let mut safe_path = std::path::PathBuf::new();
+    for component in p.components() {
+        match component {
+            std::path::Component::Normal(comp) => {
+                let s = comp.to_string_lossy();
+                if is_windows_device_name(&s) {
+                    return Err(format!("Windows reserved device name forbidden: {s}"));
+                }
+                safe_path.push(comp);
+            }
+            _ => {
+                return Err(format!("Unsafe path component detected: {raw_name}"));
+            }
+        }
+    }
+
+    if safe_path.as_os_str().is_empty() {
+        return Err("Empty relative path component.".into());
+    }
+
+    Ok(safe_path)
+}
+
 pub fn extract_fantome(zip_bytes: &[u8], target_dir: &Path) -> Result<ExtractionSummary, String> {
     if !zip_bytes.starts_with(b"PK\x03\x04") {
         return Err("Not a valid ZIP archive.".into());
@@ -213,9 +287,11 @@ pub fn extract_fantome(zip_bytes: &[u8], target_dir: &Path) -> Result<Extraction
         let mut file = zip.by_index(i).map_err(|e| e.to_string())?;
         let raw_name = file.name().unwrap_or_default().to_string();
 
-        // Enforce safe enclosed relative path
-        if raw_name.contains("..") || raw_name.starts_with('/') || raw_name.starts_with('\\') {
-            return Err(format!("Unsafe path traversal detected in ZIP: {raw_name}"));
+        let safe_rel = validate_zip_entry_path(&raw_name)?;
+
+        // Reject symlinks
+        if file.unix_mode().map(|m| m & 0o170000 == 0o120000).unwrap_or(false) {
+            return Err(format!("Symlinks are forbidden in package: {raw_name}"));
         }
 
         let ext = raw_name
@@ -231,7 +307,7 @@ pub fn extract_fantome(zip_bytes: &[u8], target_dir: &Path) -> Result<Extraction
         }
 
         if file.is_dir() {
-            let dir_path = target_dir.join(&raw_name);
+            let dir_path = target_dir.join(&safe_rel);
             fs::create_dir_all(&dir_path).map_err(|e| e.to_string())?;
             continue;
         }
@@ -247,7 +323,7 @@ pub fn extract_fantome(zip_bytes: &[u8], target_dir: &Path) -> Result<Extraction
             return Err("Package expands beyond the maximum permitted extraction limit.".into());
         }
 
-        let out_path = target_dir.join(&raw_name);
+        let out_path = target_dir.join(&safe_rel);
         if let Some(parent) = out_path.parent() {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
@@ -257,7 +333,7 @@ pub fn extract_fantome(zip_bytes: &[u8], target_dir: &Path) -> Result<Extraction
         file.read_to_end(&mut content).map_err(|e| e.to_string())?;
         out_file.write_all(&content).map_err(|e| e.to_string())?;
 
-        extracted_files.push(raw_name);
+        extracted_files.push(safe_rel.to_string_lossy().to_string());
     }
 
     Ok(ExtractionSummary {
@@ -354,5 +430,25 @@ mod tests {
         mal_zip.finish().unwrap();
 
         assert!(extract_fantome(&mal_buf.into_inner(), &temp).is_err());
+
+        // Negative test: path traversal with ..
+        assert!(validate_zip_entry_path("../outside.dds").is_err());
+        assert!(validate_zip_entry_path("foo/../../outside.dds").is_err());
+
+        // Negative test: Windows reserved device names
+        assert!(validate_zip_entry_path("con.dds").is_err());
+        assert!(validate_zip_entry_path("NUL").is_err());
+        assert!(validate_zip_entry_path("assets/AUX/texture.dds").is_err());
+        assert!(validate_zip_entry_path("com1.json").is_err());
+
+        // Negative test: Drive letter and UNC path
+        assert!(validate_zip_entry_path("C:test.dds").is_err());
+        assert!(validate_zip_entry_path(r"\\server\share\test.dds").is_err());
+        assert!(validate_zip_entry_path("/absolute/path.dds").is_err());
+        assert!(validate_zip_entry_path("test\0bad.dds").is_err());
+
+        // Valid relative paths
+        assert!(validate_zip_entry_path("assets/characters/ahri/texture.dds").is_ok());
+        assert!(validate_zip_entry_path("META/info.json").is_ok());
     }
 }
