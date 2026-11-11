@@ -1,3 +1,5 @@
+> Historical report superseded by `REMEDIATION-REPORT.md`. Current decision is NO-GO; prior verification claims are not current evidence.
+
 # LAAP Final Engineering Acceptance Report
 
 **Document Version**: 1.0.0  
