@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -353,6 +354,210 @@ pub fn extract_fantome(zip_bytes: &[u8], target_dir: &Path) -> Result<Extraction
     result
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FantomeInspectionReport {
+    pub is_valid: bool,
+    pub detected_format: String,
+    pub meta_found: bool,
+    pub meta: Option<FantomeMeta>,
+    pub issues_found: Vec<String>,
+    pub warnings: Vec<String>,
+    pub file_count: usize,
+    pub total_size_bytes: u64,
+    pub has_skeleton: bool,
+    pub has_mesh: bool,
+    pub has_animations: bool,
+    pub has_textures: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FantomeRepairResult {
+    pub repaired: bool,
+    pub actions_taken: Vec<String>,
+    pub repaired_archive_base64: Option<String>,
+}
+
+pub fn inspect_fantome(zip_bytes: &[u8]) -> Result<FantomeInspectionReport, String> {
+    if !zip_bytes.starts_with(b"PK\x03\x04") {
+        return Err("Not a valid ZIP archive.".into());
+    }
+    let format = detect_package_format(zip_bytes);
+    let mut zip = ZipArchive::new(Cursor::new(zip_bytes)).map_err(|e| e.to_string())?;
+
+    let meta = read_fantome_meta(zip_bytes).ok();
+    let meta_found = meta.is_some();
+
+    let mut issues = Vec::new();
+    let mut warnings = Vec::new();
+    let mut total_size = 0u64;
+    let mut file_count = 0usize;
+    let mut has_skeleton = false;
+    let mut has_mesh = false;
+    let mut has_animations = false;
+    let mut has_textures = false;
+
+    if !meta_found {
+        issues.push("Missing required META/info.json package metadata.".into());
+    }
+
+    for i in 0..zip.len() {
+        let Ok(file) = zip.by_index(i) else {
+            issues.push(format!("Corrupt archive entry index #{i}."));
+            continue;
+        };
+        if file.is_dir() {
+            continue;
+        }
+        file_count += 1;
+        total_size += file.size();
+
+        let name = file.name().unwrap_or_default();
+        if file.size() == 0 {
+            warnings.push(format!("Zero-byte empty asset detected: {name}"));
+        }
+
+        let lower = name.to_ascii_lowercase();
+        if lower.ends_with(".skl") {
+            has_skeleton = true;
+        } else if lower.ends_with(".skn") || lower.ends_with(".sco") || lower.ends_with(".scb") {
+            has_mesh = true;
+        } else if lower.ends_with(".anm") {
+            has_animations = true;
+        } else if lower.ends_with(".dds") || lower.ends_with(".png") || lower.ends_with(".jpg") {
+            has_textures = true;
+        }
+
+        if (name.starts_with("assets/") || name.starts_with("Assets/")) && name != lower {
+            issues.push(format!("Inconsistent path casing: {name} (League requires canonical lowercase paths)."));
+        }
+    }
+
+    if has_animations && !has_skeleton {
+        warnings.push("Package contains animation files (.anm) without an associated skeleton (.skl).".into());
+    }
+    if has_mesh && !has_skeleton && has_animations {
+        warnings.push("Mesh and animations present but skeleton missing. Character rigging may fail in-game.".into());
+    }
+
+    let is_valid = issues.is_empty();
+
+    Ok(FantomeInspectionReport {
+        is_valid,
+        detected_format: format!("{format:?}"),
+        meta_found,
+        meta,
+        issues_found: issues,
+        warnings,
+        file_count,
+        total_size_bytes: total_size,
+        has_skeleton,
+        has_mesh,
+        has_animations,
+        has_textures,
+    })
+}
+
+pub fn repair_fantome(zip_bytes: &[u8]) -> Result<FantomeRepairResult, String> {
+    if !zip_bytes.starts_with(b"PK\x03\x04") {
+        return Err("Not a valid ZIP archive.".into());
+    }
+    let mut old_zip = ZipArchive::new(Cursor::new(zip_bytes)).map_err(|e| e.to_string())?;
+    let mut actions = Vec::new();
+
+    let meta = match read_fantome_meta(zip_bytes) {
+        Ok(m) => m,
+        Err(_) => {
+            actions.push("Constructed standard META/info.json metadata.".into());
+            FantomeMeta {
+                name: "Repaired Mod Package".into(),
+                author: "Unknown Creator".into(),
+                version: "1.0.0".into(),
+                description: "Repaired by LAAP Studio Workshop".into(),
+                mod_type: "Skin".into(),
+                target_champion: None,
+                target_skin: None,
+            }
+        }
+    };
+
+    let mut out_buffer = Cursor::new(Vec::with_capacity(zip_bytes.len() + 1024));
+    let mut new_zip = ZipWriter::new(&mut out_buffer);
+    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+
+    // 1. Write clean canonical META/info.json
+    new_zip.start_file("META/info.json", options).map_err(|e| e.to_string())?;
+    let meta_bytes = serde_json::to_vec_pretty(&meta).map_err(|e| e.to_string())?;
+    new_zip.write_all(&meta_bytes).map_err(|e| e.to_string())?;
+
+    // 2. Normalize and copy all asset entries
+    let mut written_paths = std::collections::BTreeSet::new();
+    written_paths.insert("meta/info.json".to_string());
+
+    for i in 0..old_zip.len() {
+        let mut file = old_zip.by_index(i).map_err(|e| e.to_string())?;
+        let raw_name = file.name().unwrap_or_default().to_string();
+        if raw_name.is_empty() || file.is_dir() {
+            continue;
+        }
+
+        let lower = raw_name.to_ascii_lowercase();
+        if lower == "meta/info.json" || lower == "info.json" {
+            continue; // Already normalized and written
+        }
+
+        let safe_rel = match validate_zip_entry_path(&raw_name) {
+            Ok(p) => p,
+            Err(e) => {
+                actions.push(format!("Skipped unsafe entry {raw_name}: {e}"));
+                continue;
+            }
+        };
+
+        let target_path = if safe_rel.to_string_lossy().starts_with("assets") || safe_rel.to_string_lossy().starts_with("Assets") {
+            let canon = safe_rel.to_string_lossy().to_ascii_lowercase();
+            if canon != raw_name {
+                actions.push(format!("Normalized path casing: {raw_name} -> {canon}"));
+            }
+            canon
+        } else {
+            safe_rel.to_string_lossy().to_string()
+        };
+
+        if !written_paths.insert(target_path.clone()) {
+            actions.push(format!("Deduplicated colliding archive entry: {target_path}"));
+            continue;
+        }
+
+        new_zip.start_file(&target_path, options).map_err(|e| e.to_string())?;
+        let mut content = Vec::new();
+        file.read_to_end(&mut content).map_err(|e| e.to_string())?;
+        new_zip.write_all(&content).map_err(|e| e.to_string())?;
+    }
+
+    new_zip.finish().map_err(|e| e.to_string())?;
+    let repaired_bytes = out_buffer.into_inner();
+
+    Ok(FantomeRepairResult {
+        repaired: true,
+        actions_taken: actions,
+        repaired_archive_base64: Some(STANDARD.encode(repaired_bytes)),
+    })
+}
+
+#[tauri::command]
+pub fn fantome_inspect_package(archive_base64: String) -> Result<FantomeInspectionReport, String> {
+    let bytes = STANDARD.decode(&archive_base64).map_err(|e| format!("Base64 decoding failed: {e}"))?;
+    inspect_fantome(&bytes)
+}
+
+#[tauri::command]
+pub fn fantome_repair_package(archive_base64: String) -> Result<FantomeRepairResult, String> {
+    let bytes = STANDARD.decode(&archive_base64).map_err(|e| format!("Base64 decoding failed: {e}"))?;
+    repair_fantome(&bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -463,5 +668,41 @@ mod tests {
         // Valid relative paths
         assert!(validate_zip_entry_path("assets/characters/ahri/texture.dds").is_ok());
         assert!(validate_zip_entry_path("META/info.json").is_ok());
+    }
+
+    #[test]
+    fn test_fantome_inspection_and_repair() {
+        let zip = create_test_fantome_zip();
+        let report = inspect_fantome(&zip).unwrap();
+        assert!(report.is_valid);
+        assert!(report.meta_found);
+        assert_eq!(report.file_count, 3);
+        assert!(report.has_mesh);
+        assert!(report.has_textures);
+
+        // Create an imperfect archive: info.json in root (not META/) and uppercase path
+        let mut mal_buf = Cursor::new(Vec::new());
+        let mut mal_zip = ZipWriter::new(&mut mal_buf);
+        let opts = SimpleFileOptions::default();
+        mal_zip.start_file("info.json", opts).unwrap();
+        mal_zip.write_all(b"{\"Name\":\"Broken Mod\",\"Version\":\"1.0\"}").unwrap();
+        mal_zip.start_file("Assets/Characters/Ahri/Texture.dds", opts).unwrap();
+        mal_zip.write_all(b"RAW_TEXTURE_BYTES").unwrap();
+        mal_zip.finish().unwrap();
+        let unnormalized = mal_buf.into_inner();
+
+        let initial_inspect = inspect_fantome(&unnormalized).unwrap();
+        assert!(!initial_inspect.is_valid);
+        assert!(initial_inspect.issues_found.iter().any(|i| i.contains("Inconsistent path casing")));
+
+        // Now repair it
+        let repair_res = repair_fantome(&unnormalized).unwrap();
+        assert!(repair_res.repaired);
+        assert!(!repair_res.actions_taken.is_empty());
+
+        let repaired_bytes = STANDARD.decode(repair_res.repaired_archive_base64.unwrap()).unwrap();
+        let after_inspect = inspect_fantome(&repaired_bytes).unwrap();
+        assert!(after_inspect.is_valid);
+        assert!(after_inspect.meta_found);
     }
 }

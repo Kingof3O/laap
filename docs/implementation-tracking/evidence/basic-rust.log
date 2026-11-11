@@ -1,6 +1,8 @@
 
-running 56 tests
+running 58 tests
+test commands::system_utils::tests::test_auto_launch_settings_load ... ok
 test commands::system_utils::tests::test_file_info_on_temp_file ... ok
+test commands::system_utils::tests::test_minimize_to_tray_settings_round_trip ... ok
 test commands::tests::launch_arguments_are_normal_league_arguments_without_secrets ... ok
 test commands::updater::tests::studio_installer_cannot_cross_legacy_channels ... ok
 test commands::updater::tests::test_default_updater_pubkey_parsing ... ok
@@ -57,8 +59,8 @@ test riot::tests::test_provisioner_flow ... ok
 test riot::tests::test_recover_orphaned_session_restores_original_settings ... ok
 test riot::tests::test_session_injection_and_cleanup ... ok
 
-test result: ok. 53 passed; 0 failed; 3 ignored; 0 measured; 2 filtered out; finished in 0.65s
+test result: ok. 55 passed; 0 failed; 3 ignored; 0 measured; 2 filtered out; finished in 1.32s
 
    Compiling laap-desktop-core v1.0.0 (C:\pw\laap\apps\desktop\src-tauri)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.25s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 27.85s
      Running unittests src\lib.rs (apps\desktop\src-tauri\target\debug\deps\laap_desktop_core-09cd7544dbc8f0a8.exe)

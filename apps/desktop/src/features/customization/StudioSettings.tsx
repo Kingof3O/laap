@@ -5,6 +5,7 @@ import { UpdatesSettings } from '../../shared/ui/settings/UpdatesSettings'
 import { AboutSettings } from '../../shared/ui/settings/AboutSettings'
 import { discord } from './api'
 import { ProviderSettings } from './ProviderSettings'
+import { useI18n } from '../../context/I18nContext'
 import type { useUpdateChecker } from '../../hooks/useUpdateChecker'
 
 type UpdateController = ReturnType<typeof useUpdateChecker>
@@ -16,6 +17,7 @@ export function StudioSettings({ update, onOpenRelease, onClose }: {
   onClose: () => void
 }) {
   const [active, setActive] = useState<SettingsCategory>('general')
+  const { locale, setLocale, t, locales } = useI18n()
 
   // Discord State
   const [discordEnabled, setDiscordEnabled] = useState(false)
@@ -59,6 +61,24 @@ export function StudioSettings({ update, onOpenRelease, onClose }: {
           <p>Your catalog, presets, creator content and settings are stored locally. Read-only client access and community connections have separate permission controls.</p>
           <label className="customization-check"><input type="checkbox" checked={update.autoCheckOnLaunch} onChange={(event) => update.setAutoCheckOnLaunch(event.target.checked)} /> Check for updates on startup</label>
           {update.checkError && <p role="alert">{update.checkError}</p>}
+          <div className="customization-card" style={{ marginTop: '1rem', padding: '1rem', borderRadius: '8px' }}>
+            <strong>{t('settings.language')}</strong>
+            <p className="customization-source">{t('settings.language_desc')}</p>
+            <div style={{ marginTop: '0.5rem' }}>
+              <select
+                aria-label={t('settings.language')}
+                value={locale}
+                onChange={(e) => setLocale(e.target.value)}
+                style={{ padding: '6px 12px', borderRadius: '6px', background: 'var(--color-surface, #1e1e2e)', color: 'var(--color-text, #fff)', border: '1px solid var(--color-border, #333)' }}
+              >
+                {locales.map((loc) => (
+                  <option key={loc.code} value={loc.code}>
+                    {loc.nativeName} ({loc.name})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>}
 
         {active === 'appearance' && <AppearanceSettings showRosterLayout={false} />}

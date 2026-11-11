@@ -13,11 +13,11 @@
     "tests/party.test.ts",
     "tests/transfer.test.ts"
   ],
-  "startedAt": "2026-11-11T03:42:35.096Z",
-  "finishedAt": "2026-11-11T03:42:35.809Z",
-  "head": "45c438dbe7b2714247e73befcd58f9519dd7d384",
+  "startedAt": "2026-11-11T04:32:21.739Z",
+  "finishedAt": "2026-11-11T04:32:22.890Z",
+  "head": "849a66e25fa47bd4899b9a81892cdc48fa9e7809",
   "source": {
-    "sha256": "b28d2ad0f5a82d04bd3e0901c52ed8c6f46fc127bfa33f4d7215cf424c551fe6",
+    "sha256": "3608dcf46c84b8dc9a60a22f3f83824b777dba637c4928c2e7ab9fe0f88cfdf2",
     "files": [
       [
         "apps/community-api/package.json",
@@ -29,7 +29,7 @@
       ],
       [
         "apps/community-api/src/marketplace.ts",
-        "a9e2772c60dfa353e575fc8c8b96e4613538c3c5e33743d0d18ac13d5b147ae8"
+        "171147be133eaeee6b8588f1cdc8126876b2221970c7e5d0913806bde3711337"
       ],
       [
         "apps/community-api/src/moderation.ts",
@@ -57,7 +57,7 @@
       ],
       [
         "apps/community-api/tests/marketplace.test.ts",
-        "0012f7800f2ee28d22120d8ff16332d35b3f707ab1270fbb6136db35b982e6d2"
+        "9e8eb53d117901be9ff2660b5ae9d4e674c2071104218d64c16626c0c25b889a"
       ],
       [
         "apps/community-api/tests/moderation.test.ts",
@@ -85,5 +85,5 @@
   "exitCode": 0,
   "error": null,
   "log": "community-tests.log",
-  "logSha256": "f7350fd8746bfd4b00b5de6b7737084780d3198812aa4e826d962ca873c0a56b"
+  "logSha256": "8bbfc923c911a8ec70e21eff0f8bb6bbd104b0d9c56a1ffa91dfed2b7270210c"
 }

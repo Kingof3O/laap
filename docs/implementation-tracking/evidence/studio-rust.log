@@ -1,5 +1,5 @@
 
-running 50 tests
+running 55 tests
 test commands::system_utils::tests::test_file_info_on_temp_file ... ok
 test commands::updater::tests::studio_installer_cannot_cross_legacy_channels ... ok
 test commands::updater::tests::test_default_updater_pubkey_parsing ... ok
@@ -11,10 +11,12 @@ test commands::updater::tests::test_signature_verification_valid_and_invalid ...
 test commands::updater::tests::test_simultaneous_launch_transition_lock ... ok
 test customization::ai_assistant::tests::cancellation_registry_is_bounded_and_released ... ok
 test customization::ai_assistant::tests::real_http_fixtures_enforce_ai_schema_output_bounds_and_audio_type ... ok
+test customization::bin_tool::tests::test_bin_round_trip ... ok
 test customization::catalog::tests::attach_chromas_and_variants_handles_lux_and_chromas ... ok
 test customization::catalog::tests::live_studio_catalog_contract ... ignored, Uses the public Riot Data Dragon HTTPS service
 test customization::catalog::tests::provider_keys_are_not_paths ... ok
 test customization::catalog_seed::tests::generated_seed_is_complete_and_usable_offline ... ignored, Requires the generated first-launch Data Dragon resource pack
+test customization::client_surfaces::tests::test_default_16_surfaces ... ok
 test customization::client_themes::tests::test_client_theme_config_serialization ... ok
 test customization::community_credentials::tests::credentials_are_scoped_to_secure_origins ... ok
 test customization::community_credentials::tests::isolated_windows_credential_roundtrip_clears_its_own_secret ... ok
@@ -24,6 +26,7 @@ test customization::discord::tests::legacy_tokens_are_never_serialized ... ok
 test customization::discord::tests::rejects_invalid_application_ids ... ok
 test customization::fantome::tests::test_detect_package_format ... ok
 test customization::fantome::tests::test_extract_fantome_prevents_executables_and_traversal ... ok
+test customization::fantome::tests::test_fantome_inspection_and_repair ... ok
 test customization::fantome::tests::test_list_fantome_contents ... ok
 test customization::fantome::tests::test_read_and_write_fantome_meta ... ok
 test customization::game_path::tests::test_game_path_config_serialization ... ok
@@ -48,11 +51,13 @@ test customization::stats_provider::tests::regions_do_not_fall_back_to_na ... ok
 test customization::themes::tests::media_rejects_disguised_payloads_and_fonts_are_allowlisted ... ok
 test customization::themes::tests::test_builtin_themes_count_and_default ... ok
 test customization::themes::tests::theme_previews_reject_css_payloads ... ok
+test customization::wad_tool::tests::test_wad_round_trip ... ok
+test customization::wad_tool::tests::test_xxhash64_basic ... ok
 test product::tests::native_capabilities_match_identity_and_update_channel ... ok
 test product::tests::permission_boundaries_enforced ... ok
 
-test result: ok. 48 passed; 0 failed; 2 ignored; 0 measured; 2 filtered out; finished in 0.22s
+test result: ok. 53 passed; 0 failed; 2 ignored; 0 measured; 2 filtered out; finished in 0.37s
 
    Compiling laap-desktop-core v1.0.0 (C:\pw\laap\apps\desktop\src-tauri)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.54s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 23.48s
      Running unittests src\lib.rs (apps\desktop\src-tauri\target\debug\deps\laap_desktop_core-e1d602347ef61d01.exe)

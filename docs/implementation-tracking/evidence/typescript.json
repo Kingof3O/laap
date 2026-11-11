@@ -8,11 +8,11 @@
     "../../node_modules/typescript/bin/tsc",
     "-b"
   ],
-  "startedAt": "2026-11-11T03:43:40.975Z",
-  "finishedAt": "2026-11-11T03:43:41.647Z",
-  "head": "45c438dbe7b2714247e73befcd58f9519dd7d384",
+  "startedAt": "2026-11-11T04:38:06.250Z",
+  "finishedAt": "2026-11-11T04:38:06.965Z",
+  "head": "849a66e25fa47bd4899b9a81892cdc48fa9e7809",
   "source": {
-    "sha256": "65fa19093a75ea62fcd43e01d39271710a50bc135a8ae58420e5e23d305a5a1c",
+    "sha256": "93331e25724cd43fcbfbc80a924678aa936262cedbf33f78421eb610dca84bc2",
     "files": [
       [
         "apps/community-api/src/catalog.ts",
@@ -20,7 +20,7 @@
       ],
       [
         "apps/community-api/src/marketplace.ts",
-        "a9e2772c60dfa353e575fc8c8b96e4613538c3c5e33743d0d18ac13d5b147ae8"
+        "171147be133eaeee6b8588f1cdc8126876b2221970c7e5d0913806bde3711337"
       ],
       [
         "apps/community-api/src/moderation.ts",
@@ -48,7 +48,7 @@
       ],
       [
         "apps/community-api/tests/marketplace.test.ts",
-        "0012f7800f2ee28d22120d8ff16332d35b3f707ab1270fbb6136db35b982e6d2"
+        "9e8eb53d117901be9ff2660b5ae9d4e674c2071104218d64c16626c0c25b889a"
       ],
       [
         "apps/community-api/tests/moderation.test.ts",
@@ -80,7 +80,7 @@
       ],
       [
         "apps/desktop/src/App.tsx",
-        "af42d5b7dc583dfaf5beaa0b8dd1e3ff06c84fe357f91dc0c74e5321a4e6a1a1"
+        "b67cab784a1ff3a27b10ee45aff586c20aee36eacf1f18a04e30a83ef902f885"
       ],
       [
         "apps/desktop/src/assets/fonts/MANROPE-OFL.txt",
@@ -105,6 +105,10 @@
       [
         "apps/desktop/src/assets/fonts/sora-latin.woff2",
         "811e11966d29f3a01fcb19b087b61ac067d380665a55aebb7fcdf2cda95e4a93"
+      ],
+      [
+        "apps/desktop/src/context/I18nContext.tsx",
+        "6e499e1c3db8f94f13fc0ffdf087edbd2c683868b09d26a53bdc68418e3ad479"
       ],
       [
         "apps/desktop/src/context/RiotOperations.tsx",
@@ -144,7 +148,7 @@
       ],
       [
         "apps/desktop/src/features/customization/CreatorWorkshop.tsx",
-        "19486e190864291b49e391a622bd4c881a46a09fbfa7723dac47c7b4f0defc77"
+        "d86e36117f421d8228f5a4ab6b7cd94d43f22f0b8fddde21efc21cdfe3fac5fb"
       ],
       [
         "apps/desktop/src/features/customization/DoctorPage.tsx",
@@ -152,7 +156,7 @@
       ],
       [
         "apps/desktop/src/features/customization/Marketplace.tsx",
-        "70bf7416ce1c2d93263a819d9ec29078be416ebe4b6735ce341ce29a89d6cc14"
+        "681c279555bc85481560bd7a561d360e55ed290b1e590ba1de9cceb9202f3c17"
       ],
       [
         "apps/desktop/src/features/customization/ModLibrary.tsx",
@@ -176,7 +180,7 @@
       ],
       [
         "apps/desktop/src/features/customization/StudioSettings.tsx",
-        "a6ded4e668a13c14d3b00494268092159dad09b792a7fd16dfee3af9ac479271"
+        "e6b0b8d59503ac7784b75d3882628de8624579a2c5f61c8d2378f4460be87997"
       ],
       [
         "apps/desktop/src/features/customization/StudioWorkspace.tsx",
@@ -184,7 +188,7 @@
       ],
       [
         "apps/desktop/src/features/customization/ThemePreview.tsx",
-        "a7a8e846c32514adfe2a206a867d7b2c526e538a2bae94d7571f71ae347e3e60"
+        "a5d35be8d8948e71f2685f405808155c9e6dcf34d91cb7272943feb7779aa20c"
       ],
       [
         "apps/desktop/src/features/customization/WorkspaceHome.tsx",
@@ -192,7 +196,7 @@
       ],
       [
         "apps/desktop/src/features/customization/api.ts",
-        "7dffd761a3b6cc50ec62802450a68d19f04be617d313b6fc51d79552c1c78a1a"
+        "255de63aa3d60d03de591c70acf0fd70862349f3c6740005a53e013098706410"
       ],
       [
         "apps/desktop/src/features/customization/communityEndpoint.ts",
@@ -272,7 +276,7 @@
       ],
       [
         "apps/desktop/src/hooks/useUpdateChecker.ts",
-        "44fc8ff08a4f4bce39bbf56f87fc824ba07e72f4b1762380d3cbd327807519de"
+        "f86070a965f8f9fbd0cbd0f202e8a1807641d458fe1643457e06c9a351210ec2"
       ],
       [
         "apps/desktop/src/index.css",
@@ -312,7 +316,7 @@
       ],
       [
         "apps/desktop/src/main.tsx",
-        "c25dc5276f29bf1b90d289137c075ccb928fa8b7d1516461d45d45053f0f1d56"
+        "88ccbf36537bc8cf6e1fc9a5a97558eeaec2cf8b69c36ea54c23b2e537a532d3"
       ],
       [
         "apps/desktop/src/product/flavors.ts",

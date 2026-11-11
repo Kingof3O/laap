@@ -99,6 +99,9 @@ export class MarketplaceStore {
       CREATE TABLE IF NOT EXISTS download_stats (package_hash TEXT PRIMARY KEY, count INTEGER NOT NULL DEFAULT 0, last_download INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS marketplace_packages (hash TEXT PRIMARY KEY, creator_id TEXT NOT NULL, manifest TEXT NOT NULL, archive BLOB NOT NULL);
       CREATE TABLE IF NOT EXISTS marketplace_audit (id TEXT PRIMARY KEY, package_hash TEXT NOT NULL, action TEXT NOT NULL, old_status TEXT NOT NULL, new_status TEXT NOT NULL, note TEXT NOT NULL, created_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS marketplace_favorites (package_hash TEXT NOT NULL, creator_id TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(package_hash, creator_id));
+      CREATE TABLE IF NOT EXISTS marketplace_previews (id TEXT PRIMARY KEY, package_hash TEXT NOT NULL, creator_id TEXT NOT NULL, mime_type TEXT NOT NULL, data BLOB NOT NULL, created_at INTEGER NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_previews_package ON marketplace_previews(package_hash);
       CREATE UNIQUE INDEX IF NOT EXISTS marketplace_review_v2_owner ON marketplace_reviews(package_hash, author_id);
       CREATE UNIQUE INDEX IF NOT EXISTS marketplace_creator_token ON creator_profiles(auth_token_hash);`);
   }
@@ -224,13 +227,22 @@ export class MarketplaceStore {
         .prepare(
           `SELECT s.id, s.creator_id AS creatorId, s.package_hash AS packageHash, s.title, s.description, s.champion, s.version, s.tags, s.status, s.moderation_note AS moderationNote, c.display_name AS creatorName,
         length(p.archive) AS bytes, COALESCE(d.count,0) AS downloadCount, COALESCE((SELECT AVG(rating) FROM marketplace_reviews WHERE package_hash=s.package_hash),0) AS averageRating,
-        (SELECT COUNT(*) FROM marketplace_reviews WHERE package_hash=s.package_hash) AS reviewCount FROM submissions s JOIN marketplace_packages p ON p.hash=s.package_hash JOIN creator_profiles c ON c.id=s.creator_id LEFT JOIN download_stats d ON d.package_hash=s.package_hash WHERE s.status=? AND instr(lower(s.title || ' ' || s.description || ' ' || s.tags),?) > 0 ORDER BY s.created_at DESC LIMIT 50 OFFSET ?`,
+        (SELECT COUNT(*) FROM marketplace_reviews WHERE package_hash=s.package_hash) AS reviewCount,
+        COALESCE((SELECT COUNT(*) FROM marketplace_favorites WHERE package_hash=s.package_hash),0) AS favoriteCount,
+        (SELECT id FROM marketplace_previews WHERE package_hash=s.package_hash ORDER BY created_at ASC LIMIT 1) AS primaryPreviewId
+        FROM submissions s JOIN marketplace_packages p ON p.hash=s.package_hash JOIN creator_profiles c ON c.id=s.creator_id LEFT JOIN download_stats d ON d.package_hash=s.package_hash WHERE s.status=? AND instr(lower(s.title || ' ' || s.description || ' ' || s.tags),?) > 0 ORDER BY s.created_at DESC LIMIT 50 OFFSET ?`,
         )
         .all(status, query, offset) as Record<string, unknown>[];
       return json(
         rows
           .filter((r) => !this.blocked(String(r.packageHash)))
-          .map((r) => ({ ...r, tags: JSON.parse(String(r.tags)) })),
+          .map((r) => ({
+            ...r,
+            tags: JSON.parse(String(r.tags)),
+            previewUrl: r.primaryPreviewId
+              ? `/v1/marketplace/previews/${r.primaryPreviewId}`
+              : undefined,
+          })),
       );
     }
     if (path === "/v1/marketplace/creator" && req.method === "GET") {
@@ -543,6 +555,138 @@ export class MarketplaceStore {
           )
           .all(),
       );
+    }
+    const fav = /^\/v1\/marketplace\/mods\/([a-f0-9]{64})\/favorite$/.exec(path);
+    if (fav) {
+      const c = this.creator(req);
+      const hash = fav[1];
+      this.submission(hash, true);
+      if (req.method === "POST") {
+        this.database
+          .prepare(
+            "INSERT INTO marketplace_favorites VALUES (?,?,?) ON CONFLICT(package_hash, creator_id) DO NOTHING",
+          )
+          .run(hash, c.id, Date.now());
+        return json({ packageHash: hash, isFavorite: true });
+      }
+      if (req.method === "DELETE") {
+        this.database
+          .prepare(
+            "DELETE FROM marketplace_favorites WHERE package_hash=? AND creator_id=?",
+          )
+          .run(hash, c.id);
+        return json({ packageHash: hash, isFavorite: false });
+      }
+    }
+    if (path === "/v1/marketplace/favorites" && req.method === "GET") {
+      const c = this.creator(req);
+      const rows = this.database
+        .prepare(
+          "SELECT package_hash AS packageHash FROM marketplace_favorites WHERE creator_id=? ORDER BY created_at DESC",
+        )
+        .all(c.id) as { packageHash: string }[];
+      return json(rows.map((r) => r.packageHash));
+    }
+    const modPreview = /^\/v1\/marketplace\/mods\/([a-f0-9]{64})\/preview$/.exec(path);
+    if (modPreview && req.method === "POST") {
+      const c = this.creator(req);
+      const hash = modPreview[1];
+      const s = this.submission(hash);
+      if (s.creator_id !== c.id) fail(403, "Only the package creator can upload previews");
+      const existingCount = this.database
+        .prepare("SELECT COUNT(*) AS n FROM marketplace_previews WHERE package_hash=?")
+        .get(hash) as { n: number };
+      if (existingCount.n >= 5) fail(400, "Maximum of 5 previews per package reached");
+      const data = await body(req, 8 * 1024 * 1024);
+      const mimeType = string(data.mimeType, 30, true);
+      if (!["image/png", "image/jpeg", "image/webp"].includes(mimeType))
+        fail(400, "Unsupported preview image type (must be PNG, JPEG, or WebP)");
+      if (
+        typeof data.imageBase64 !== "string" ||
+        !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
+          data.imageBase64,
+        )
+      )
+        fail(400, "Invalid base64 image data");
+      const imageBytes = Buffer.from(data.imageBase64 as string, "base64");
+      if (imageBytes.length > 5 * 1024 * 1024) fail(413, "Preview image exceeds 5MB limit");
+      if (mimeType === "image/png") {
+        if (
+          imageBytes.length < 8 ||
+          !imageBytes
+            .subarray(0, 8)
+            .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+        )
+          fail(400, "Image data does not match PNG signature");
+      } else if (mimeType === "image/jpeg") {
+        if (
+          imageBytes.length < 3 ||
+          imageBytes[0] !== 0xff ||
+          imageBytes[1] !== 0xd8 ||
+          imageBytes[2] !== 0xff
+        )
+          fail(400, "Image data does not match JPEG signature");
+      } else if (mimeType === "image/webp") {
+        if (
+          imageBytes.length < 12 ||
+          imageBytes.subarray(0, 4).toString("ascii") !== "RIFF" ||
+          imageBytes.subarray(8, 12).toString("ascii") !== "WEBP"
+        )
+          fail(400, "Image data does not match WebP signature");
+      }
+      const previewId = randomUUID();
+      this.database
+        .prepare("INSERT INTO marketplace_previews VALUES (?,?,?,?,?,?)")
+        .run(previewId, hash, c.id, mimeType, imageBytes, Date.now());
+      return json({
+        id: previewId,
+        packageHash: hash,
+        url: `/v1/marketplace/previews/${previewId}`,
+      });
+    }
+    const previewList = /^\/v1\/marketplace\/mods\/([a-f0-9]{64})\/previews$/.exec(path);
+    if (previewList && req.method === "GET") {
+      const hash = previewList[1];
+      this.submission(hash, true);
+      const rows = this.database
+        .prepare(
+          "SELECT id, mime_type AS mimeType, created_at AS createdAt FROM marketplace_previews WHERE package_hash=? ORDER BY created_at ASC",
+        )
+        .all(hash) as { id: string; mimeType: string; createdAt: number }[];
+      return json(
+        rows.map((r) => ({
+          id: r.id,
+          url: `/v1/marketplace/previews/${r.id}`,
+          mimeType: r.mimeType,
+          createdAt: r.createdAt,
+        })),
+      );
+    }
+    const previewGet = /^\/v1\/marketplace\/previews\/([a-f0-9-]{36})$/.exec(path);
+    if (previewGet && req.method === "GET") {
+      const row = this.database
+        .prepare("SELECT mime_type, data FROM marketplace_previews WHERE id=?")
+        .get(previewGet[1]) as { mime_type: string; data: Uint8Array } | undefined;
+      if (!row) return fail(404, "Preview image not found");
+      const bytes = Buffer.from(row.data);
+      res
+        .writeHead(200, {
+          "Content-Type": row.mime_type,
+          "Content-Length": bytes.length,
+          "Cache-Control": "public, max-age=86400",
+        })
+        .end(bytes);
+      return;
+    }
+    if (previewGet && req.method === "DELETE") {
+      const c = this.creator(req);
+      const row = this.database
+        .prepare("SELECT creator_id FROM marketplace_previews WHERE id=?")
+        .get(previewGet[1]) as { creator_id: string } | undefined;
+      if (!row) return fail(404, "Preview image not found");
+      if (row.creator_id !== c.id) fail(403, "Only the preview uploader can delete it");
+      this.database.prepare("DELETE FROM marketplace_previews WHERE id=?").run(previewGet[1]);
+      return json({ deleted: true, id: previewGet[1] });
     }
     fail(404, "Marketplace route not found");
   }

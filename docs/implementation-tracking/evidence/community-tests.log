@@ -2,63 +2,69 @@ TAP version 13
 # Subtest: catalog serves only reviewed hashes, refuses unknown fields, and detects changed bytes
 ok 1 - catalog serves only reviewed hashes, refuses unknown fields, and detects changed bytes
   ---
-  duration_ms: 111.9352
+  duration_ms: 103.2892
   type: 'test'
   ...
 # Subtest: marketplace authenticated upload → moderation → verified bytes, ownership, reviews and persistent takedown
 ok 2 - marketplace authenticated upload → moderation → verified bytes, ownership, reviews and persistent takedown
   ---
-  duration_ms: 171.014
+  duration_ms: 186.8462
   type: 'test'
   ...
 # Subtest: marketplace admin fails closed when missing or weak; request quotas apply
 ok 3 - marketplace admin fails closed when missing or weak; request quotas apply
   ---
-  duration_ms: 104.9504
+  duration_ms: 161.3146
   type: 'test'
   ...
 # Subtest: archive parser rejects truncation, traversal, duplicate, disguised executable and corrupt entry hashes
 ok 4 - archive parser rejects truncation, traversal, duplicate, disguised executable and corrupt entry hashes
   ---
-  duration_ms: 4.4339
+  duration_ms: 4.1
   type: 'test'
   ...
 # Subtest: legacy reviews remain intact; new authenticated review index is separate
 ok 5 - legacy reviews remain intact; new authenticated review index is separate
   ---
-  duration_ms: 0.7643
+  duration_ms: 0.7596
+  type: 'test'
+  ...
+# Subtest: marketplace favorites and preview attachments with magic byte validation
+ok 6 - marketplace favorites and preview attachments with magic byte validation
+  ---
+  duration_ms: 42.8299
   type: 'test'
   ...
 # Subtest: reports use separate storage, enforce admin authorization and immediately block packages
-ok 6 - reports use separate storage, enforce admin authorization and immediately block packages
+ok 7 - reports use separate storage, enforce admin authorization and immediately block packages
   ---
-  duration_ms: 99.3688
+  duration_ms: 112.8025
   type: 'test'
   ...
 # Subtest: real WebSockets sync a room, reject unknown payload fields, and restore membership
-ok 7 - real WebSockets sync a room, reject unknown payload fields, and restore membership
+ok 8 - real WebSockets sync a room, reject unknown payload fields, and restore membership
   ---
-  duration_ms: 138.4051
+  duration_ms: 152.8557
   type: 'test'
   ...
 # Subtest: seven peers share bounded metadata and chat requires separate consent
-ok 8 - seven peers share bounded metadata and chat requires separate consent
+ok 9 - seven peers share bounded metadata and chat requires separate consent
   ---
-  duration_ms: 125.057
+  duration_ms: 129.7143
   type: 'test'
   ...
 # Subtest: real relay transfers a valid archive with consent, rejects forged IDs, duplicates, corruption and cancellation
-ok 9 - real relay transfers a valid archive with consent, rejects forged IDs, duplicates, corruption and cancellation
+ok 10 - real relay transfers a valid archive with consent, rejects forged IDs, duplicates, corruption and cancellation
   ---
-  duration_ms: 161.6652
+  duration_ms: 174.2821
   type: 'test'
   ...
-1..9
-# tests 9
+1..10
+# tests 10
 # suites 0
-# pass 9
+# pass 10
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 583.8298
+# duration_ms 778.2094

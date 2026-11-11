@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode, type ComponentProps } from
 import { Header, SubNavbar, SettingsModal, WindowTitleBar } from './shared/ui'
 import { UpdateModal } from './shared/ui/UpdateModal'
 import { ToastProvider, useToast } from './context/ToastContext'
+import { I18nProvider } from './context/I18nContext'
 import { PersonalRosterView } from './features/personal-roster'
 import { useUpdateChecker } from './hooks/useUpdateChecker'
 import { VIEW_MODE_KEY } from './lib/constants'
@@ -286,10 +287,12 @@ function AppContent({ background, navigation, studio, onShowAccounts, profileAct
 
 export default function App(props: AppProps) {
   return (
-    <ToastProvider>
-      <RiotOperationsProvider>
-        <AppContent {...props} />
-      </RiotOperationsProvider>
-    </ToastProvider>
+    <I18nProvider>
+      <ToastProvider>
+        <RiotOperationsProvider>
+          <AppContent {...props} />
+        </RiotOperationsProvider>
+      </ToastProvider>
+    </I18nProvider>
   )
 }

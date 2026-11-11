@@ -271,6 +271,128 @@ export const mods = {
   listContents: (zipBase64: string) => invokeTauri<FantomeEntry[]>('fantome_list_contents', { zipBase64 }),
   readMeta: (zipBase64: string) => invokeTauri<FantomeMeta>('fantome_read_meta', { zipBase64 }),
   extract: (zipBase64: string, folderName: string) => invokeTauri<ExtractionSummary>('fantome_extract', { zipBase64, folderName }),
+  inspect: (zipBase64: string) => invokeTauri<FantomeInspectionReport>('fantome_inspect_package', { zipBase64 }),
+  repair: (zipBase64: string) => invokeTauri<FantomeRepairResult>('fantome_repair_package', { zipBase64 }),
+}
+
+export const fantome = {
+  detectFormat: (archiveBase64: string) => invokeTauri<string>('fantome_detect_format', { archiveBase64 }),
+  listContents: (zipBase64: string) => invokeTauri<FantomeEntry[]>('fantome_list_contents', { zipBase64 }),
+  readMeta: (zipBase64: string) => invokeTauri<FantomeMeta>('fantome_read_meta', { zipBase64 }),
+  extract: (zipBase64: string, folderName: string) => invokeTauri<ExtractionSummary>('fantome_extract', { zipBase64, folderName }),
+  inspect: (zipBase64: string) => invokeTauri<FantomeInspectionReport>('fantome_inspect_package', { zipBase64 }),
+  repair: (zipBase64: string) => invokeTauri<FantomeRepairResult>('fantome_repair_package', { zipBase64 }),
+}
+
+export interface FantomeInspectionReport {
+  isValid: boolean
+  fileCount: number
+  metaFound: boolean
+  hasMesh: boolean
+  hasTextures: boolean
+  hasAnimations: boolean
+  hasSkeletons: boolean
+  hasPropertyBin: boolean
+  issuesFound: string[]
+}
+
+export interface FantomeRepairResult {
+  repaired: boolean
+  issuesFixed: string[]
+  repairedZipBase64?: string
+}
+
+export interface BinField {
+  nameHash: number
+  nameHashHex: string
+  valueType: number
+  typeName: string
+  valueString: string
+}
+
+export interface BinEntry {
+  classHash: number
+  classHashHex: string
+  nameHash: number
+  nameHashHex: string
+  fields: BinField[]
+}
+
+export interface BinInspectionReport {
+  isValid: boolean
+  version: number
+  linkedFilesCount: number
+  entriesCount: number
+  totalFieldsCount: number
+  classHashes: string[]
+}
+
+export const binTool = {
+  inspect: (bytesBase64: string) => invokeTauri<BinInspectionReport>('bin_inspect', { bytesBase64 }),
+  convertToJson: (bytesBase64: string) => invokeTauri<string>('bin_convert_to_json', { bytesBase64 }),
+  convertFromJson: (jsonStr: string) => invokeTauri<string>('bin_convert_from_json', { jsonStr }),
+}
+
+export interface WadEntry {
+  pathHash: number
+  pathHashHex: string
+  offset: number
+  compressedSize: number
+  uncompressedSize: number
+  compressionType: number
+  compressionName: string
+  isDuplicate: boolean
+}
+
+export interface WadInspectionReport {
+  isValid: boolean
+  major: number
+  minor: number
+  entryCount: number
+  entries: WadEntry[]
+  totalUncompressedSize: number
+  totalCompressedSize: number
+}
+
+export interface WadPackReport {
+  success: boolean
+  packedCount: number
+  archiveBase64: string
+  archiveSize: number
+}
+
+export const wadTool = {
+  inspect: (archiveBase64: string) => invokeTauri<WadInspectionReport>('wad_inspect', { archiveBase64 }),
+  extractFiles: (archiveBase64: string, targetDir: string) =>
+    invokeTauri<{ success: boolean; extractedCount: number; outputDir: string; extractedFiles: string[] }>('wad_extract_files', { archiveBase64, targetDir }),
+  packFiles: (sourceDir: string) => invokeTauri<WadPackReport>('wad_pack_files', { sourceDir }),
+}
+
+export interface SurfaceConfig {
+  id: string
+  name: string
+  description: string
+  category: string
+  enabled: boolean
+  cssOverrides: string
+  assetUrl?: string
+  opacity: number
+  blurPx: number
+}
+
+export interface ClientSurfacesConfig {
+  version: number
+  globalEnabled: boolean
+  adapterName: string
+  surfaces: SurfaceConfig[]
+}
+
+export const clientSurfaces = {
+  getConfig: () => invokeTauri<ClientSurfacesConfig>('client_surfaces_get_config'),
+  saveConfig: (config: ClientSurfacesConfig) => invokeTauri<void>('client_surfaces_save_config', { config }),
+  resetDefaults: () => invokeTauri<ClientSurfacesConfig>('client_surfaces_reset_defaults'),
+  exportSnippet: () => invokeTauri<string>('client_surfaces_export_snippet'),
+  getAdapterStatus: () => invokeTauri<{ isAvailable: boolean; adapterType: string; activeSurfacesCount: number; message: string }>('client_surfaces_get_adapter_status'),
 }
 
 export const creator = {

@@ -10,13 +10,41 @@ export function ThemePreview() {
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<ThemeConfig[]>([]);
   const [future, setFuture] = useState<ThemeConfig[]>([]);
+  const defaultTheme: ThemeConfig = {
+    id: "velvet-amethyst",
+    name: "Velvet Amethyst (Default)",
+    isBuiltin: true,
+    canvas: "#120d1a",
+    panel: "#1d142b",
+    surface: "#271b3a",
+    accent: "#b388ff",
+    accentHover: "#c8a5ff",
+    textPrimary: "#f3e8ff",
+    textSecondary: "#a78bfa",
+    border: "#3d2a58",
+    fontFamily: "Manrope",
+    opacity: 0.95,
+    backgroundMediaPath: null,
+    backgroundMediaType: null,
+    animationSpeed: "normal",
+    reducedMotion: false,
+    performanceMode: false,
+  };
+
   async function load() {
-    const [all, current] = await Promise.all([
-      themes.list(),
-      themes.getActive(),
-    ]);
-    setList(all);
-    setDraft(current);
+    try {
+      const [all, current] = await Promise.all([
+        themes.list(),
+        themes.getActive(),
+      ]);
+      const validList = Array.isArray(all) ? all : [defaultTheme];
+      setList(validList);
+      setDraft(current || validList[0] || defaultTheme);
+    } catch (e) {
+      setError(errorMessage(e));
+      setList([defaultTheme]);
+      setDraft(defaultTheme);
+    }
   }
   useEffect(() => {
     void load().catch((e) => setError(errorMessage(e)));
@@ -91,7 +119,7 @@ export function ThemePreview() {
       {error && <p role="alert">{error}</p>}
       {status && <p role="status">{status}</p>}
       <div className="customization-grid">
-        {list.map((t) => (
+        {(list || []).map((t) => (
           <button
             key={t.id}
             className="customization-card"
@@ -233,8 +261,11 @@ export function ThemePreview() {
               >
                 Redo
               </button>
-              <button className="btn-primary" disabled={busy}>
+              <button className="btn-primary" disabled={busy} type="submit">
                 Save and apply
+              </button>
+              <button className="btn-secondary" disabled={busy} type="button" onClick={(e) => void save(e)}>
+                Save theme
               </button>
             </div>
             <div className="customization-actions">

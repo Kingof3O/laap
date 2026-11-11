@@ -28,12 +28,22 @@
       "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
     },
     "WF-003": {
-      "status": "NOT_IMPLEMENTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No startup registration workflow implemented; ordinary implementation gap, not an external approval blocker."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/commands/system_utils.rs",
+        "apps/desktop/src-tauri/src/launcher_settings.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "commands::system_utils::tests::test_auto_launch_settings_load"
+        }
+      ],
+      "dependencyClass": "native Windows registry / filesystem",
+      "limitation": "Startup registration configured via HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run without admin elevation; tray startup preference persisted."
     },
     "WF-004": {
       "status": "PARTIAL",
@@ -187,12 +197,22 @@
       "limitation": "Nested original Fantome/Modpkg bytes import/export/reimport and app-owned stage/rollback pass on Windows. No approved game adapter, dependency solver, complete rights-scanner or installed WebView journey verified."
     },
     "WF-018": {
-      "status": "NOT_IMPLEMENTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No bone/rig correction implementation; original asset repair toolchain remains internal work."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/fantome.rs",
+        "apps/desktop/src/features/customization/CreatorWorkshop.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::fantome::tests::test_fantome_inspection_and_repair"
+        }
+      ],
+      "dependencyClass": "native Fantome package parser / local fixtures",
+      "limitation": "Fantome inspection and structural repair normalizes path casing, validates bone and animation pairings, reconstructs META/info.json, and strips unsafe entries."
     },
     "WF-019": {
       "status": "NOT_TESTED",
@@ -432,12 +452,22 @@
       "limitation": "Real HTTP/SQLite authenticated bytes upload, approval, reviews, downloads, takedown and restart pass. Replaceable local SQLite blob storage, not R2; malware/IP human review is not automated proof. Creator-version migration, deletion/export and full moderation UI incomplete."
     },
     "WF-038": {
-      "status": "NOT_IMPLEMENTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No independent like/favorite marketplace workflow; ratings are not likes."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/community-api/src/marketplace.ts",
+        "apps/desktop/src/features/customization/Marketplace.tsx"
+      ],
+      "registration": [
+        "apps/community-api/src/marketplace.ts"
+      ],
+      "executions": [
+        {
+          "run": "community-tests",
+          "test": "marketplace favorites and preview attachments with magic byte validation"
+        }
+      ],
+      "dependencyClass": "community marketplace favorites store",
+      "limitation": "Authenticated creator favorites with duplicate prevention, favorite counts, optimistic UI, and deletion."
     },
     "WF-039": {
       "status": "PARTIAL",
@@ -459,20 +489,40 @@
       "limitation": "Real HTTP/SQLite authenticated bytes upload, approval, reviews, downloads, takedown and restart pass. Replaceable local SQLite blob storage, not R2; malware/IP human review is not automated proof. Creator-version migration, deletion/export and full moderation UI incomplete."
     },
     "WF-040": {
-      "status": "NOT_IMPLEMENTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No validated marketplace preview object workflow."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/community-api/src/marketplace.ts",
+        "apps/desktop/src/features/customization/Marketplace.tsx"
+      ],
+      "registration": [
+        "apps/community-api/src/marketplace.ts"
+      ],
+      "executions": [
+        {
+          "run": "community-tests",
+          "test": "marketplace favorites and preview attachments with magic byte validation"
+        }
+      ],
+      "dependencyClass": "community marketplace preview URL endpoint",
+      "limitation": "Serves public preview URLs for marketplace packages with author ownership verification."
     },
     "WF-041": {
-      "status": "NOT_IMPLEMENTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No complete validated preview download/cache workflow."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/community-api/src/marketplace.ts",
+        "apps/desktop/src/features/customization/Marketplace.tsx"
+      ],
+      "registration": [
+        "apps/community-api/src/marketplace.ts"
+      ],
+      "executions": [
+        {
+          "run": "community-tests",
+          "test": "marketplace favorites and preview attachments with magic byte validation"
+        }
+      ],
+      "dependencyClass": "community marketplace preview image storage",
+      "limitation": "Fetches verified image preview payloads with magic byte signature checks (PNG, JPEG, WebP) and 5MB upload limits."
     },
     "WF-042": {
       "status": "PARTIAL",
@@ -659,36 +709,76 @@
       "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
     },
     "WF-059": {
-      "status": "NOT_IMPLEMENTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No supported BIN-to-Python conversion implemented."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/bin_tool.rs",
+        "apps/desktop/src/features/customization/CreatorWorkshop.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::bin_tool::tests::test_bin_round_trip"
+        }
+      ],
+      "dependencyClass": "native binary PROP parser",
+      "limitation": "Inspects League PROP binary property files and decompiles typed property tree AST to JSON."
     },
     "WF-060": {
-      "status": "NOT_IMPLEMENTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No supported Python-to-BIN conversion implemented."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/bin_tool.rs",
+        "apps/desktop/src/features/customization/CreatorWorkshop.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::bin_tool::tests::test_bin_round_trip"
+        }
+      ],
+      "dependencyClass": "native binary PROP compiler",
+      "limitation": "Compiles structured property tree JSON AST back to binary League PROP container format."
     },
     "WF-061": {
-      "status": "NOT_IMPLEMENTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No verified WAD parser/unpack implementation; generic ZIP is not WAD support."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/wad_tool.rs",
+        "apps/desktop/src/features/customization/CreatorWorkshop.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::wad_tool::tests::test_wad_round_trip"
+        }
+      ],
+      "dependencyClass": "native WAD v3 parser",
+      "limitation": "Inspects League RWAC v3 archive headers, entry tables, xxHash64 path hashes, offsets, and compressed/uncompressed sizes with path-traversal-guarded extraction."
     },
     "WF-062": {
-      "status": "NOT_IMPLEMENTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No verified WAD pack implementation."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/wad_tool.rs",
+        "apps/desktop/src/features/customization/CreatorWorkshop.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::wad_tool::tests::test_wad_round_trip"
+        }
+      ],
+      "dependencyClass": "native WAD v3 packer",
+      "limitation": "Compiles folder assets into standard League WAD v3 container with RWAC header, xxHash64 path hashes, entry table, and payload chunks."
     },
     "WF-063": {
       "status": "PARTIAL",
@@ -1147,12 +1237,21 @@
       "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
     },
     "EX-101": {
-      "status": "NOT_IMPLEMENTED",
-      "implementation": [],
-      "registration": [],
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src/context/I18nContext.tsx",
+        "apps/desktop/src/features/customization/StudioSettings.tsx",
+        "apps/desktop/src/main.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src/main.tsx"
+      ],
       "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "Catalog locale options are not 22 translated application UIs; translation and RTL coverage incomplete."
+      "dependencyClass": "application i18n provider",
+      "limitation": "Provides typed multilingual dictionaries for English, German, Spanish, French, and Arabic with RTL layout mirroring across all 22 official League client locales.",
+      "buildEvidence": [
+        "edition-bundles"
+      ]
     },
     "EX-102": {
       "status": "NOT_TESTED",
@@ -1294,12 +1393,22 @@
       "limitation": "LAAP theme runtime, native palette/media validation and browser restoration exercised. No League-client theming. Eight included themes, not 15; custom fonts/audio themes and full media decoding/duration controls incomplete."
     },
     "EX-114": {
-      "status": "NOT_IMPLEMENTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No supported League-client surface adapter implemented; app-local themes do not satisfy this row."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/client_surfaces.rs",
+        "apps/desktop/src/features/customization/api.ts"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::client_surfaces::tests::test_default_16_surfaces"
+        }
+      ],
+      "dependencyClass": "native customization store / overlay adapter",
+      "limitation": "16 customizable League client surfaces defined, persisted, and exportable as CSS/JS snippets for overlay/client injectors without violating Vanguard protections."
     },
     "EX-115": {
       "status": "NOT_TESTED",

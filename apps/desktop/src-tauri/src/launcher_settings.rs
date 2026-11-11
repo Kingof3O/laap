@@ -30,6 +30,8 @@ pub struct LauncherSettings {
     pub presence_enabled: bool,
     pub presence_mode: PresenceMode,
     pub startup_presence: PresenceMode,
+    pub auto_launch: bool,
+    pub minimize_to_tray: bool,
 }
 static SETTINGS_LOCK: Mutex<()> = Mutex::new(());
 pub fn load() -> Result<LauncherSettings, String> {

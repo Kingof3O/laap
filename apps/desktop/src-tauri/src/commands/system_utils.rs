@@ -164,6 +164,108 @@ pub fn set_app_low_priority(low_priority: bool) -> Result<bool, String> {
     Ok(low_priority)
 }
 
+#[tauri::command]
+pub fn set_auto_launch(enabled: bool) -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        if enabled {
+            let exe_path = std::env::current_exe()
+                .map_err(|e| format!("Failed to get current executable path: {e}"))?;
+            let exe_str = exe_path.to_string_lossy();
+            let status = Command::new("reg")
+                .args([
+                    "add",
+                    r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+                    "/v",
+                    "LAAP",
+                    "/t",
+                    "REG_SZ",
+                    "/d",
+                    &format!("\"{}\"", exe_str),
+                    "/f",
+                ])
+                .status()
+                .map_err(|e| format!("Failed to execute reg.exe: {e}"))?;
+            if !status.success() {
+                return Err(format!("reg.exe add returned status: {:?}", status.code()));
+            }
+        } else {
+            let _ = Command::new("reg")
+                .args([
+                    "delete",
+                    r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+                    "/v",
+                    "LAAP",
+                    "/f",
+                ])
+                .status();
+        }
+    }
+    #[cfg(not(feature = "studio"))]
+    let _ = crate::launcher_settings::update(|s| {
+        s.auto_launch = enabled;
+        Ok(())
+    });
+    Ok(enabled)
+}
+
+#[tauri::command]
+pub fn get_auto_launch() -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        if let Ok(out) = Command::new("reg")
+            .args([
+                "query",
+                r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+                "/v",
+                "LAAP",
+            ])
+            .output()
+        {
+            if out.status.success() {
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                if stdout.contains("LAAP") {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    #[cfg(not(feature = "studio"))]
+    {
+        let s = crate::launcher_settings::load().unwrap_or_default();
+        Ok(s.auto_launch)
+    }
+    #[cfg(feature = "studio")]
+    Ok(false)
+}
+
+#[tauri::command]
+pub fn set_minimize_to_tray(enabled: bool) -> Result<bool, String> {
+    #[cfg(not(feature = "studio"))]
+    {
+        crate::launcher_settings::update(|s| {
+            s.minimize_to_tray = enabled;
+            Ok(())
+        })
+        .map(|s| s.minimize_to_tray)
+    }
+    #[cfg(feature = "studio")]
+    Ok(enabled)
+}
+
+#[tauri::command]
+pub fn get_minimize_to_tray() -> Result<bool, String> {
+    #[cfg(not(feature = "studio"))]
+    {
+        let s = crate::launcher_settings::load().unwrap_or_default();
+        Ok(s.minimize_to_tray)
+    }
+    #[cfg(feature = "studio")]
+    Ok(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -177,5 +279,23 @@ mod tests {
         assert_eq!(info.size_bytes, 12);
         assert!(!info.sha256.is_empty());
         let _ = fs::remove_file(temp);
+    }
+
+    #[cfg(not(feature = "studio"))]
+    #[test]
+    fn test_minimize_to_tray_settings_round_trip() {
+        let set_res = set_minimize_to_tray(true).unwrap();
+        assert!(set_res);
+        let get_res = get_minimize_to_tray().unwrap();
+        assert!(get_res);
+        let reset_res = set_minimize_to_tray(false).unwrap();
+        assert!(!reset_res);
+    }
+
+    #[cfg(not(feature = "studio"))]
+    #[test]
+    fn test_auto_launch_settings_load() {
+        let status = get_auto_launch();
+        assert!(status.is_ok());
     }
 }

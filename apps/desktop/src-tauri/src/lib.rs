@@ -347,7 +347,37 @@ pub fn run() {
             customization::ai_assistant::elevenlabs_tts,
             #[cfg(not(feature = "basic"))]
             customization::ai_assistant::streamelements_tts,
+            #[cfg(not(feature = "basic"))]
+            customization::fantome::fantome_inspect_package,
+            #[cfg(not(feature = "basic"))]
+            customization::fantome::fantome_repair_package,
+            #[cfg(not(feature = "basic"))]
+            customization::bin_tool::bin_inspect,
+            #[cfg(not(feature = "basic"))]
+            customization::bin_tool::bin_convert_to_json,
+            #[cfg(not(feature = "basic"))]
+            customization::bin_tool::bin_convert_from_json,
+            #[cfg(not(feature = "basic"))]
+            customization::wad_tool::wad_inspect,
+            #[cfg(not(feature = "basic"))]
+            customization::wad_tool::wad_extract_files,
+            #[cfg(not(feature = "basic"))]
+            customization::wad_tool::wad_pack_files,
+            #[cfg(not(feature = "basic"))]
+            customization::client_surfaces::client_surfaces_get_config,
+            #[cfg(not(feature = "basic"))]
+            customization::client_surfaces::client_surfaces_save_config,
+            #[cfg(not(feature = "basic"))]
+            customization::client_surfaces::client_surfaces_reset_defaults,
+            #[cfg(not(feature = "basic"))]
+            customization::client_surfaces::client_surfaces_export_snippet,
+            #[cfg(not(feature = "basic"))]
+            customization::client_surfaces::client_surfaces_get_adapter_status,
             commands::system_utils::write_error_report,
+            commands::system_utils::set_auto_launch,
+            commands::system_utils::get_auto_launch,
+            commands::system_utils::set_minimize_to_tray,
+            commands::system_utils::get_minimize_to_tray,
             commands::system_utils::set_developer_mode,
             commands::system_utils::get_developer_mode,
             commands::system_utils::get_file_info,

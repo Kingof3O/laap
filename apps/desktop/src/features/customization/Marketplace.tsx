@@ -25,6 +25,9 @@ interface MarketplaceMod {
   author?: string;
   license?: string;
   displayName?: string;
+  favoriteCount?: number;
+  previewUrl?: string;
+  isFavorite?: boolean;
 }
 
 interface ReviewItem {
@@ -69,8 +72,64 @@ export function Marketplace() {
 
   const active = useRef<AbortController | null>(null);
   const [nativeImporting, setNativeImporting] = useState(false);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
   useEffect(() => () => active.current?.abort(), []);
+
+  useEffect(() => {
+    if (!catalogOrigin || !credential?.authToken) {
+      setFavorites(new Set());
+      return;
+    }
+    fetch(catalogOrigin + "/v1/marketplace/favorites", {
+      headers: { Authorization: `Bearer ${credential.authToken}` },
+    })
+      .then((r) => (r.ok ? (r.json() as Promise<string[]>) : []))
+      .then((hashes) => setFavorites(new Set(hashes)))
+      .catch(() => {});
+  }, [credential]);
+
+  async function toggleFavorite(hash: string) {
+    if (!catalogOrigin || !credential) {
+      setError("Sign in with a creator identity to save favorite mods.");
+      return;
+    }
+    const isFav = favorites.has(hash);
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (isFav) next.delete(hash);
+      else next.add(hash);
+      return next;
+    });
+    setModsList((prev) =>
+      prev
+        ? prev.map((m) =>
+            m.packageHash === hash
+              ? {
+                  ...m,
+                  favoriteCount: Math.max(0, (m.favoriteCount ?? 0) + (isFav ? -1 : 1)),
+                }
+              : m,
+          )
+        : null,
+    );
+    try {
+      const res = await marketplaceRequest(
+        catalogOrigin + `/v1/marketplace/mods/${hash}/favorite`,
+        credential.authToken,
+        isFav ? "DELETE" : "POST",
+      );
+      if (!res.ok) throw new Error("Favorite request failed.");
+    } catch (e) {
+      setFavorites((prev) => {
+        const next = new Set(prev);
+        if (isFav) next.add(hash);
+        else next.delete(hash);
+        return next;
+      });
+      setError(errorMessage(e));
+    }
+  }
 
   async function load() {
     if (!catalogOrigin) return;
@@ -606,6 +665,19 @@ export function Marketplace() {
       <ul className="customization-list">
         {modsList?.map((item) => (
           <li key={item.packageHash}>
+            {item.previewUrl && catalogOrigin && (
+              <img
+                src={catalogOrigin + item.previewUrl}
+                alt={item.title}
+                style={{
+                  width: "100%",
+                  maxHeight: "160px",
+                  objectFit: "cover",
+                  borderRadius: "6px",
+                  marginBottom: "8px",
+                }}
+              />
+            )}
             <div
               style={{
                 display: "flex",
@@ -674,6 +746,12 @@ export function Marketplace() {
               className="customization-actions"
               style={{ marginTop: "0.5rem" }}
             >
+              <button
+                className="btn-secondary"
+                onClick={() => void toggleFavorite(item.packageHash)}
+              >
+                {favorites.has(item.packageHash) ? "★ Saved" : "☆ Save"} ({item.favoriteCount ?? 0})
+              </button>
               <button
                 className="btn-secondary"
                 onClick={() => void openReviews(item.packageHash)}

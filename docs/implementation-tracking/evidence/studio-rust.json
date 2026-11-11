@@ -19,11 +19,11 @@
     "--skip",
     "test_tauri_cli_real_signature_verification_and_tamper_detection"
   ],
-  "startedAt": "2026-11-11T03:35:05.741Z",
-  "finishedAt": "2026-11-11T03:35:20.597Z",
-  "head": "3535b3cbd32f563ef0e1aae151d6158a790368a8",
+  "startedAt": "2026-11-11T04:31:20.192Z",
+  "finishedAt": "2026-11-11T04:31:48.191Z",
+  "head": "849a66e25fa47bd4899b9a81892cdc48fa9e7809",
   "source": {
-    "sha256": "ae04faab1757af2e9fa000f0568724ee641ebc5c73fe0347299658e5613ffa08",
+    "sha256": "c868cf939fd7ca4e7458592d8c30505358b9d98e675674a7254d31e31c992a79",
     "files": [
       [
         "apps/desktop/src-tauri/Cargo.lock",
@@ -59,7 +59,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/commands/system_utils.rs",
-        "03453e9aadb7ce4bb13f5fb699c6f70572243dbd1f5a9909017812fe17c691e3"
+        "d0bc420824125f9b58be5758eb961a4d4aa2d2eb996f544643e1cbfc7ff3f8c9"
       ],
       [
         "apps/desktop/src-tauri/src/commands/updater.rs",
@@ -72,6 +72,10 @@
       [
         "apps/desktop/src-tauri/src/customization/ai_assistant.rs",
         "195836f53651c64325c8a6fd49971a810d6f04fda353769f0d5c397f780a3292"
+      ],
+      [
+        "apps/desktop/src-tauri/src/customization/bin_tool.rs",
+        "f0299aaaa8315996919cd58455f6af7cb1b558c72fb00bfe2655a3bbe9d6efc6"
       ],
       [
         "apps/desktop/src-tauri/src/customization/catalog.rs",
@@ -88,6 +92,10 @@
       [
         "apps/desktop/src-tauri/src/customization/catalog_seed.rs",
         "49507c35310ea7c0728b9f7c625bed21dc5616801d771cecc69ea359ce5e2b9b"
+      ],
+      [
+        "apps/desktop/src-tauri/src/customization/client_surfaces.rs",
+        "b7382e759d6de30181558e45fb68b03e524aae0a5316b56c5bb55e953e1165ca"
       ],
       [
         "apps/desktop/src-tauri/src/customization/client_themes.rs",
@@ -115,7 +123,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/customization/fantome.rs",
-        "a2337db9c15de8077ebab29029e26d1fe95f23d6e1f96751f55b7015ca32d163"
+        "893150af9aad838476c2194a8e79a2675133e57168d8073b19d872babf1b30dd"
       ],
       [
         "apps/desktop/src-tauri/src/customization/game_path.rs",
@@ -131,7 +139,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/customization/mod.rs",
-        "f38597030e99c8e195125927143399081fa3af26242b443316581ebaee21eabd"
+        "7b148a5ee7b7ffdb1d78213aa5acd9ece684993738221d167a275898a6176f52"
       ],
       [
         "apps/desktop/src-tauri/src/customization/presets.rs",
@@ -158,12 +166,16 @@
         "f1452f0dd64560802cfebe5f49fc0bd524f1bbdf142044adbb5133a8a6b0ad2b"
       ],
       [
+        "apps/desktop/src-tauri/src/customization/wad_tool.rs",
+        "232f0e40d9bb7d8efa9c48df62f3d87c8c6858797488e03aebe74e46aca53614"
+      ],
+      [
         "apps/desktop/src-tauri/src/device.rs",
         "fd324bf819a12e3e976e94c15d847e7292ab5374418e8d14507c995b93aebe2f"
       ],
       [
         "apps/desktop/src-tauri/src/launcher_settings.rs",
-        "593081a62ff3b44a249d388df5b604fadc1a02465fe02af950aa31fec9c42839"
+        "67eb90fa348fe61f5e9accbd1c87bb6c8a1d71ef58407e5c25f0438b23fe800f"
       ],
       [
         "apps/desktop/src-tauri/src/lcu_read.rs",
@@ -171,7 +183,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/lib.rs",
-        "0027453f3438c3e4ba7d3d0ee8311613ef2c63308c070a9439225e4c3926ef3c"
+        "288c78db675acc798e685887c9d39c608d206a6e7e85f9bb29ba88488860188d"
       ],
       [
         "apps/desktop/src-tauri/src/local_store/crypto.rs",
@@ -267,5 +279,5 @@
   "exitCode": 0,
   "error": null,
   "log": "studio-rust.log",
-  "logSha256": "18d171c6f422641a75ba8e58ee4f198d15cf46410ab0765dcfc75cde74c07054"
+  "logSha256": "c510c2a345d48631758588619ddfefe201e5907b709dcfad2f55c52efb7163e4"
 }

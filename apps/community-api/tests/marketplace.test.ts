@@ -337,3 +337,176 @@ test("legacy reviews remain intact; new authenticated review index is separate",
     store.close();
   }
 });
+
+test("marketplace favorites and preview attachments with magic byte validation", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "laap-marketplace-fav-"));
+  const database = join(directory, "marketplace.sqlite");
+  const adminKey = randomBytes(32).toString("hex");
+  const store = new MarketplaceStore(database, { adminKey });
+  const origins = new Set(["http://tauri.localhost"]);
+  const relay = createCommunityServer({
+    origins,
+    marketplace: store.handler(origins),
+  });
+  relay.server.listen(0, "127.0.0.1");
+  await once(relay.server, "listening");
+  const address = relay.server.address();
+  assert(address && typeof address !== "string");
+  const base = `http://127.0.0.1:${address.port}/v1/marketplace`;
+  const request = (
+    path: string,
+    data?: unknown,
+    token?: string,
+    admin?: string,
+    method?: string,
+  ) =>
+    fetch(base + path, {
+      method: method ?? (data === undefined ? "GET" : "POST"),
+      headers: {
+        origin: "http://tauri.localhost",
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(admin ? { "X-Admin-Key": admin } : {}),
+      },
+      body: data === undefined ? undefined : JSON.stringify(data),
+    });
+
+  const register = async (name: string) => {
+    const r = await request("/creator", { displayName: name });
+    assert.equal(r.status, 200);
+    return r.json() as Promise<{ id: string; authToken: string }>;
+  };
+
+  const fixture = packageFixture();
+  const hash = fixture.packageHash;
+
+  try {
+    const creator = await register("Mod Creator");
+    const fan = await register("Mod Fan");
+
+    const submitRes = await request(
+      "/submit",
+      {
+        ...fixture,
+        archive: undefined,
+        creatorId: creator.id,
+        title: "Featured Skin",
+        rightsConfirmed: true,
+      },
+      creator.authToken,
+    );
+    assert.equal(submitRes.status, 200);
+
+    const approveRes = await request(
+      `/admin/review/${hash}`,
+      {
+        action: "approve",
+        note: "Looks fantastic",
+      },
+      undefined,
+      adminKey,
+    );
+    assert.equal(approveRes.status, 200);
+
+    // Favorite tests
+    const favRes1 = await request(`/mods/${hash}/favorite`, {}, fan.authToken);
+    assert.equal(favRes1.status, 200);
+    const favData1 = (await favRes1.json()) as { isFavorite: boolean };
+    assert.equal(favData1.isFavorite, true);
+
+    const myFavs = await request("/favorites", undefined, fan.authToken);
+    assert.equal(myFavs.status, 200);
+    const favList = (await myFavs.json()) as string[];
+    assert.deepEqual(favList, [hash]);
+
+    const modsRes = await request("/mods");
+    const mods = (await modsRes.json()) as { favoriteCount: number }[];
+    assert.equal(mods[0].favoriteCount, 1);
+
+    const favDel = await request(
+      `/mods/${hash}/favorite`,
+      undefined,
+      fan.authToken,
+      undefined,
+      "DELETE",
+    );
+    assert.equal(favDel.status, 200);
+    const favDelData = (await favDel.json()) as { isFavorite: boolean };
+    assert.equal(favDelData.isFavorite, false);
+
+    // Preview tests
+    const validPng = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+    ]);
+    const badUpload = await request(
+      `/mods/${hash}/preview`,
+      {
+        mimeType: "image/png",
+        imageBase64: validPng.toString("base64"),
+      },
+      fan.authToken,
+    );
+    assert.equal(badUpload.status, 403);
+
+    const invalidImage = await request(
+      `/mods/${hash}/preview`,
+      {
+        mimeType: "image/png",
+        imageBase64: Buffer.from("NOT_A_PNG_FILE").toString("base64"),
+      },
+      creator.authToken,
+    );
+    assert.equal(invalidImage.status, 400);
+
+    const previewRes = await request(
+      `/mods/${hash}/preview`,
+      {
+        mimeType: "image/png",
+        imageBase64: validPng.toString("base64"),
+      },
+      creator.authToken,
+    );
+    assert.equal(previewRes.status, 200);
+    const previewData = (await previewRes.json()) as {
+      id: string;
+      url: string;
+    };
+    assert(previewData.id);
+    assert(previewData.url);
+
+    const previewsListRes = await request(`/mods/${hash}/previews`);
+    assert.equal(previewsListRes.status, 200);
+    const previewsList = (await previewsListRes.json()) as {
+      id: string;
+      url: string;
+    }[];
+    assert.equal(previewsList.length, 1);
+    assert.equal(previewsList[0].id, previewData.id);
+
+    const rawRes = await fetch(
+      `http://127.0.0.1:${address.port}${previewData.url}`,
+      {
+        headers: { origin: "http://tauri.localhost" },
+      },
+    );
+    assert.equal(rawRes.status, 200);
+    assert.equal(rawRes.headers.get("content-type"), "image/png");
+    const rawBytes = Buffer.from(await rawRes.arrayBuffer());
+    assert.deepEqual(rawBytes, validPng);
+
+    const delPreviewRes = await request(
+      `/previews/${previewData.id}`,
+      undefined,
+      creator.authToken,
+      undefined,
+      "DELETE",
+    );
+    assert.equal(delPreviewRes.status, 200);
+    const delPreviewData = (await delPreviewRes.json()) as { deleted: boolean };
+    assert.equal(delPreviewData.deleted, true);
+  } finally {
+    relay.close();
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});

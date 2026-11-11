@@ -133,7 +133,13 @@ export function useUpdateChecker() {
     })
 
     return () => {
-      unlisteners.forEach((fn) => fn())
+      unlisteners.forEach((fn) => {
+        try {
+          fn()
+        } catch {
+          // ignore unlisten errors in mocked/headless test environments
+        }
+      })
     }
   }, [])
 
