@@ -98,7 +98,9 @@ fn validate(preset: &mut Preset) -> Result<(), String> {
     if let Some(variant) = &preset.variant_id {
         if variant.is_empty()
             || variant.len() > 64
-            || !variant.bytes().all(|b| b.is_ascii_alphanumeric() || b"_-".contains(&b))
+            || !variant
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b"_-".contains(&b))
         {
             return Err("Invalid variant identifier.".into());
         }
@@ -134,12 +136,43 @@ fn generate_id() -> Result<String, String> {
     Ok(format!("{:032x}", u128::from_be_bytes(random)))
 }
 
+fn unlink_orphaned_accounts(store: &mut Store, ids: &[String]) -> bool {
+    let mut changed = false;
+    for preset in &mut store.presets {
+        if preset
+            .account_id
+            .as_ref()
+            .is_some_and(|id| !ids.contains(id))
+        {
+            preset.account_id = None;
+            preset.revision = preset.revision.saturating_add(1);
+            changed = true;
+        }
+    }
+    changed
+}
 #[tauri::command]
 pub async fn customization_preset_list(app: AppHandle) -> Result<Vec<Preset>, String> {
     let path = path(&app)?;
-    tauri::async_runtime::spawn_blocking(move || Ok(read(&path)?.presets))
-        .await
-        .map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = LOCK.lock().map_err(|_| "Preset store unavailable")?;
+        #[allow(unused_mut)] // Studio never opens the local account vault.
+        let mut store = read(&path)?;
+        #[cfg(not(feature = "studio"))]
+        {
+            let ids = crate::local_store::LocalStore::new()?
+                .list_summaries()?
+                .into_iter()
+                .map(|a| a.id)
+                .collect::<Vec<_>>();
+            if unlink_orphaned_accounts(&mut store, &ids) {
+                write_store(&path, &store)?;
+            }
+        }
+        Ok(store.presets)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -207,7 +240,11 @@ pub fn customization_preset_delete(app: AppHandle, id: String) -> Result<(), Str
     let path = path(&app)?;
     let _guard = LOCK.lock().map_err(|_| "Preset store is unavailable.")?;
     let mut store = read(&path)?;
-    if let Some(pos) = store.presets.iter().position(|p| p.id.as_ref() == Some(&id)) {
+    if let Some(pos) = store
+        .presets
+        .iter()
+        .position(|p| p.id.as_ref() == Some(&id))
+    {
         let removed = store.presets.remove(pos);
         if store.trash.len() >= TRASH_LIMIT {
             store.trash.remove(0);
@@ -223,16 +260,17 @@ pub fn customization_preset_restore(app: AppHandle) -> Result<Preset, String> {
     let path = path(&app)?;
     let _guard = LOCK.lock().map_err(|_| "Preset store is unavailable.")?;
     let mut store = read(&path)?;
-    let mut restored = store
-        .trash
-        .pop()
-        .ok_or("No deleted presets to restore.")?;
+    let mut restored = store.trash.pop().ok_or("No deleted presets to restore.")?;
     if store.presets.len() >= LIMIT {
         return Err("The preset library is full.".into());
     }
     // Ensure the restored preset has a unique ID
     let current_ids: Vec<String> = store.presets.iter().filter_map(|p| p.id.clone()).collect();
-    if restored.id.as_ref().map_or(true, |id| current_ids.contains(id)) {
+    if restored
+        .id
+        .as_ref()
+        .map_or(true, |id| current_ids.contains(id))
+    {
         restored.id = Some(generate_id()?);
     }
     store.presets.push(restored.clone());
@@ -244,16 +282,22 @@ pub fn customization_preset_restore(app: AppHandle) -> Result<Preset, String> {
 pub fn customization_preset_conflicts(app: AppHandle) -> Result<Vec<PresetConflict>, String> {
     let path = path(&app)?;
     let store = read(&path)?;
-    let mut groups: BTreeMap<(String, Option<String>, Option<String>), Vec<&Preset>> = BTreeMap::new();
+    let mut groups: BTreeMap<(String, Option<String>, Option<String>), Vec<&Preset>> =
+        BTreeMap::new();
     for preset in &store.presets {
-        let key = (preset.champion_id.clone(), preset.account_id.clone(), preset.queue_mode.clone());
+        let key = (
+            preset.champion_id.clone(),
+            preset.account_id.clone(),
+            preset.queue_mode.clone(),
+        );
         groups.entry(key).or_default().push(preset);
     }
 
     let mut conflicts = Vec::new();
     for ((champion_id, account_id, queue_mode), presets) in groups {
         if presets.len() > 1 {
-            let unique_skins: std::collections::BTreeSet<&str> = presets.iter().map(|p| p.skin_id.as_str()).collect();
+            let unique_skins: std::collections::BTreeSet<&str> =
+                presets.iter().map(|p| p.skin_id.as_str()).collect();
             if unique_skins.len() > 1 {
                 conflicts.push(PresetConflict {
                     champion_id,
@@ -508,16 +552,22 @@ mod tests {
             trash: vec![],
         };
 
-        let mut groups: BTreeMap<(String, Option<String>, Option<String>), Vec<&Preset>> = BTreeMap::new();
+        let mut groups: BTreeMap<(String, Option<String>, Option<String>), Vec<&Preset>> =
+            BTreeMap::new();
         for preset in &store.presets {
-            let key = (preset.champion_id.clone(), preset.account_id.clone(), preset.queue_mode.clone());
+            let key = (
+                preset.champion_id.clone(),
+                preset.account_id.clone(),
+                preset.queue_mode.clone(),
+            );
             groups.entry(key).or_default().push(preset);
         }
 
         let mut conflicts = Vec::new();
         for ((champion_id, account_id, queue_mode), presets) in groups {
             if presets.len() > 1 {
-                let unique_skins: std::collections::BTreeSet<&str> = presets.iter().map(|p| p.skin_id.as_str()).collect();
+                let unique_skins: std::collections::BTreeSet<&str> =
+                    presets.iter().map(|p| p.skin_id.as_str()).collect();
                 if unique_skins.len() > 1 {
                     conflicts.push(PresetConflict {
                         champion_id,
@@ -532,5 +582,40 @@ mod tests {
         assert_eq!(conflicts.len(), 1);
         assert_eq!(conflicts[0].champion_id, "Ahri");
         assert_eq!(conflicts[0].preset_names.len(), 2);
+    }
+    #[test]
+    fn three_account_links_survive_rename_and_unlink_only_deleted_profile() {
+        let make = |id: &str| Preset {
+            id: Some(format!("preset-{id}")),
+            name: format!("Preset {id}"),
+            champion_id: "Ahri".into(),
+            skin_id: "103000".into(),
+            chroma_id: None,
+            variant_id: None,
+            account_id: Some(id.into()),
+            queue_mode: Some("classic".into()),
+            notes: String::new(),
+            favorite: false,
+            priority: 0,
+            revision: 1,
+        };
+        let mut store = Store {
+            version: 1,
+            presets: vec![make("a"), make("b"), make("c")],
+            trash: vec![],
+        };
+        assert!(!unlink_orphaned_accounts(
+            &mut store,
+            &["a".into(), "b".into(), "c".into()]
+        ));
+        assert!(unlink_orphaned_accounts(
+            &mut store,
+            &["a".into(), "c".into()]
+        ));
+        assert_eq!(store.presets[0].account_id.as_deref(), Some("a"));
+        assert_eq!(store.presets[1].account_id, None);
+        assert_eq!(store.presets[1].revision, 2);
+        assert_eq!(store.presets[2].account_id.as_deref(), Some("c"));
+        assert_eq!(store.presets.len(), 3);
     }
 }

@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "id": "community-typecheck",
+  "scope": "community",
+  "cwd": "apps/community-api",
+  "command": [
+    "node",
+    "../../node_modules/typescript/bin/tsc",
+    "--noEmit"
+  ],
+  "startedAt": "2026-11-11T03:34:00.680Z",
+  "finishedAt": "2026-11-11T03:34:01.290Z",
+  "head": "3535b3cbd32f563ef0e1aae151d6158a790368a8",
+  "source": {
+    "sha256": "40fa8c82ffc485f0573dd82cf9662235c5cb65366b013bad1a8634313e30429e",
+    "files": [
+      [
+        "apps/community-api/package.json",
+        "a8aac92d4206ce31001b31dc59d2d3b950428d01bf704c602c35e70b603f110e"
+      ],
+      [
+        "apps/community-api/src/catalog.ts",
+        "69657cf958d8df279441cf8a994e7dbb23673e9279c1ae51fd88a177aa1d5ca3"
+      ],
+      [
+        "apps/community-api/src/marketplace.ts",
+        "d7e8d1f2f8a15b2fedc533afb85d33763d1f41361ecf04622501f297f240e7d6"
+      ],
+      [
+        "apps/community-api/src/moderation.ts",
+        "4568d408f8b6df6b6ffd51165b9b561e1a6aef40ad372c9e22e4031627efb2d3"
+      ],
+      [
+        "apps/community-api/src/packageValidation.ts",
+        "9d944e0ec0c6d9489fce508175e8391e43e78bc5b696abf8b8967d481f502ee5"
+      ],
+      [
+        "apps/community-api/src/party.ts",
+        "4535ab62d02072c0a676081d4ec4b35ac3ef4fac890123234047b5ea7aebb20e"
+      ],
+      [
+        "apps/community-api/src/server.ts",
+        "7b99b44e1e865b28e0cb1e22f31025bfec524129796d20ba0fc2bf3c70784d20"
+      ],
+      [
+        "apps/community-api/src/transferRelay.ts",
+        "82cdcf7303211b4280f0c82bf718bca000d25dffd3579144b46bc8707cba26fa"
+      ],
+      [
+        "apps/community-api/tests/catalog.test.ts",
+        "cdaa136adee312e333bae7370eb9e3a49334da447502a08dfd245fd3bd056172"
+      ],
+      [
+        "apps/community-api/tests/marketplace.test.ts",
+        "2c92997118fe03b7022789819ed2c57973dd8caa7dab9d65ee6e379243344805"
+      ],
+      [
+        "apps/community-api/tests/moderation.test.ts",
+        "bad2fe6a7b74cb27567e3f41bfb087490dbc50194937c6d8484eb8160fbfc971"
+      ],
+      [
+        "apps/community-api/tests/packageFixture.ts",
+        "927cdcba9e91bf200f3d507707f3b3eef683a91e62ac99760830442813e819a4"
+      ],
+      [
+        "apps/community-api/tests/party.test.ts",
+        "c9c901cabb14d6ca4522477f7b321a73b84861862d5c50fc0903c8240232a2fc"
+      ],
+      [
+        "apps/community-api/tests/transfer.test.ts",
+        "f17cf90cb4d04fbccf7a0bb3c68783346c9e5b7eb7c2b5a39b487875025ad061"
+      ],
+      [
+        "package-lock.json",
+        "3c4b4fd7cedf8ffe1803219bfaec89bfc546699e8025140704c1aeab3861b487"
+      ]
+    ]
+  },
+  "sourceUnchanged": true,
+  "exitCode": 0,
+  "error": null,
+  "log": "community-typecheck.log",
+  "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

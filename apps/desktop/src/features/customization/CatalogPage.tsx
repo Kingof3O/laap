@@ -114,7 +114,7 @@ export function CatalogPage({ accountId, selection, onSaved, onShare }: { accoun
 
   useEffect(() => {
     if (tab === 'tft' && !tftItems) {
-      void catalog.tftList().then(setTftItems).catch(() => {})
+      void catalog.tftList().then(setTftItems).catch(e => setError(errorMessage(e)))
     }
   }, [tab, tftItems])
 
@@ -201,11 +201,7 @@ export function CatalogPage({ accountId, selection, onSaved, onShare }: { accoun
     try {
       const pick = await catalog.randomPick(favoritesOnly)
       openChampion(pick.championId, pick.skinId)
-    } catch {
-      if (champions.length > 0) {
-        const candidate = champions[Math.floor(Math.random() * champions.length)]
-        if (candidate) openChampion(candidate.id)
-      }
+    } catch (e) { setError(errorMessage(e))
     }
   }
 
@@ -247,18 +243,18 @@ export function CatalogPage({ accountId, selection, onSaved, onShare }: { accoun
           ) : (
             <div className="customization-grid">
               {filteredTft?.map((item) => (
-                <div key={item.id} className="customization-card" style={{ cursor: 'default' }}>
+                <div key={item.category+item.id} className="customization-card" style={{ cursor: 'default' }}>
                   <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span className="badge" style={{ fontSize: '0.75rem', padding: '2px 6px', background: 'var(--accent, #6366f1)', borderRadius: '4px' }}>{item.category}</span>
-                      <span style={{ fontSize: '0.8rem', color: '#f59e0b' }}>{'★'.repeat(item.tier)}</span>
+                      <span style={{ fontSize: '0.8rem', color: '#f59e0b' }}>{item.tier !== null ? '★'.repeat(Math.min(5,item.tier)) : 'Tier not provided'}</span>
                     </div>
                     <strong style={{ display: 'block', marginTop: '0.5rem' }}>{item.name}</strong>
                     <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #94a3b8)', marginTop: '0.25rem' }}>{item.description}</p>
                     <button className="btn-secondary" style={{ marginTop: '0.5rem', width: '100%' }} onClick={() => setDraft({
                       id: null,
                       name: item.name,
-                      championId: 'TFT_' + item.category,
+                      championId: 'TFT' + item.category,
                       skinId: item.id,
                       queueMode: 'tft',
                       accountId: accountId ?? null,

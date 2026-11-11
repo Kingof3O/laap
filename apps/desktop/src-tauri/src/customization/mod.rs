@@ -20,3 +20,5 @@ pub mod ai_assistant;
 mod sandbox;
 
 pub mod community_credentials;
+
+pub mod provider_support;

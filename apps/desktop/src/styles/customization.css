@@ -67,3 +67,10 @@
 .studio-active { height: 100dvh; min-height: 0; overflow: hidden; }
 .studio-active > .main-viewport { overflow-y: auto; }
 .studio-active > .titlebar { flex: 0 0 auto; }
+
+.studio-theme-background { position: fixed; inset: 0; pointer-events: none; opacity: .14; z-index: 0; }
+.studio-theme-background img, .studio-theme-background video { width: 100%; height: 100%; object-fit: cover; }
+[data-studio-theme] .app-container { position: relative; isolation: isolate; background-color: var(--bg-canvas); background-image: radial-gradient(ellipse at 75% 10%, var(--accent-surface), transparent 65%), linear-gradient(145deg,var(--bg-surface),var(--bg-canvas)); }
+[data-studio-theme] .app-container > .main-viewport { position: relative; z-index: 1; }
+[data-studio-theme] .app-container > .titlebar { position: relative; z-index: 40; }
+.studio-reduced-motion *, .studio-reduced-motion *::before, .studio-reduced-motion *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

@@ -37,7 +37,7 @@ export interface TftItem {
   id: string
   name: string
   category: string
-  tier: number
+  tier: number | null
   description: string
 }
 
@@ -74,8 +74,10 @@ export interface Preset {
 
 export interface PresetConflict {
   championId: string
-  presets: Preset[]
-  reason: string
+  accountId: string | null
+  queueMode: string | null
+  presetNames: string[]
+  skinIds: string[]
 }
 
 export interface AccountOption {
@@ -165,29 +167,10 @@ export interface ProjectSummary {
 }
 
 export interface ThemeConfig {
-  id: string
-  name: string
-  author: string
-  version: string
-  isBuiltin: boolean
-  palette: {
-    background: string
-    surface: string
-    primary: string
-    secondary: string
-    accent: string
-    text: string
-    textMuted: string
-    border: string
-  }
-  customMedia?: {
-    backgroundVideo?: string
-    backgroundGif?: string
-    wallpaperUrl?: string
-    musicTrack?: string
-  }
-  fontFamily: string
-  animationsEnabled: boolean
+  id: string; name: string; isBuiltin: boolean; canvas: string; panel: string; surface: string
+  accent: string; accentHover: string; textPrimary: string; textSecondary: string; border: string
+  fontFamily: string; opacity: number; backgroundMediaPath: string | null; backgroundMediaType: string | null
+  animationSpeed: string; reducedMotion: boolean; performanceMode: boolean
 }
 
 export interface GamePathConfig {
@@ -206,7 +189,7 @@ export interface LcuConnectionStatus {
 export interface AiResponse {
   message: string
   model: string
-  tokensUsed: number
+  tokensUsed: number | null
 }
 
 export interface TtsResponse {
@@ -227,7 +210,7 @@ export const catalog = {
     }),
   tftList: () => invokeTauri<TftItem[]>('catalog_tft_list'),
   randomPick: (favoritesOnly?: boolean) =>
-    invokeTauri<RandomPick>('catalog_random_pick', { favoritesOnly: favoritesOnly ?? false }),
+    invokeTauri<CosmeticReference>('catalog_random_pick', { favoritesOnly: favoritesOnly ?? false, championId: null }),
 }
 
 export const presets = {
@@ -293,7 +276,7 @@ export const mods = {
 export const creator = {
   listProjects: () => invokeTauri<ProjectSummary[]>('creator_list_projects'),
   createProject: (name: string, champion: string, author?: string) =>
-    invokeTauri<CreatorProject>('creator_create_project', { name, champion, author: author ?? null }),
+    invokeTauri<CreatorProject>('creator_create_project', { name, champion, author: author ?? '' }),
   getProject: (id: string) => invokeTauri<CreatorProject>('creator_get_project', { id }),
   saveProject: (project: CreatorProject) => invokeTauri<CreatorProject>('creator_save_project', { project }),
   duplicateProject: (id: string) => invokeTauri<CreatorProject>('creator_duplicate_project', { id }),
@@ -315,24 +298,17 @@ export const themes = {
     invokeTauri<void>('theme_preview_save', { preview }),
   deleteCustom: (id: string) => invokeTauri<boolean>('theme_delete_custom', { id }),
   resetDefault: () => invokeTauri<ThemeConfig>('theme_reset_default'),
-  saveMedia: (base64Data: string, mimeType: string) =>
-    invokeTauri<string>('theme_save_media', { base64Data, mimeType }),
+  saveMedia: (dataBase64: string, name: string) => invokeTauri<string>('theme_save_media', { dataBase64, name }),
 }
 
 export const gamePath = {
-  get: () => invokeTauri<GamePathConfig>('game_path_get'),
-  set: (path: string) => invokeTauri<GamePathConfig>('game_path_set', { path }),
-  detect: () => invokeTauri<string | null>('game_path_detect'),
-  openExplorer: (path: string) => invokeTauri<boolean>('open_folder_in_explorer', { path }),
+  get: () => invokeTauri<string>('get_game_path'),
+  set: (path: string) => invokeTauri<string>('set_game_path', { path }),
+  openExplorer: (folderPath: string) => invokeTauri<boolean>('open_folder_in_explorer', { folderPath }),
 }
-
 export const gameflow = {
-  testLcu: (riotPort: number, riotToken: string) =>
-    invokeTauri<LcuConnectionStatus>('lcu_test_connection', { riotPort, riotToken }),
-  getPhase: (riotPort: number, riotToken: string) =>
-    invokeTauri<string>('lcu_get_gameflow_phase', { riotPort, riotToken }),
-  showMatchNotice: (championName: string, skinName: string, presetName?: string) =>
-    invokeTauri<boolean>('match_notice_show', { championName, skinName, presetName: presetName ?? null }),
+  testLcu: (consent: boolean) => invokeTauri<boolean>('lcu_test_connection', { consent }),
+  getPhase: (consent: boolean) => invokeTauri<string>('lcu_get_gameflow_phase', { consent }),
 }
 
 export const discord = {
@@ -341,11 +317,6 @@ export const discord = {
   updateActivity: (state: string, details: string, champion?: string) => invokeTauri('update_activity', {
     activity: {state,details,champion:champion??null,partySize:null,partyMax:null,startTimestamp:Math.floor(Date.now()/1000)},
   }),
-}
-
-export const ai = {
-  chat: (prompt: string, model?: string) => invokeTauri<AiResponse>('ai_chat', { prompt, model: model ?? null }),
-  tts: (text: string, voiceId?: string) => invokeTauri<TtsResponse>('elevenlabs_tts', { text, voiceId: voiceId ?? null }),
 }
 
 export const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error)

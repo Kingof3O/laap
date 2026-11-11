@@ -1,0 +1,1550 @@
+{
+  "schemaVersion": 1,
+  "baseline": "93ed1fbce023e2b2493ed565d6d306c8fff8c2f7",
+  "requirements": {
+    "WF-001": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/launcher_settings.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "launcher_settings::tests::preferences_replace_atomically_on_the_host_platform"
+        }
+      ],
+      "dependencyClass": "native Windows filesystem / local fixtures",
+      "limitation": "Basic/Complete atomic preference writes pass. Studio preference coverage and all settings UI persistence journeys are not complete."
+    },
+    "WF-002": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-003": {
+      "status": "NOT_IMPLEMENTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No startup registration workflow implemented; ordinary implementation gap, not an external approval blocker."
+    },
+    "WF-004": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/commands/system_utils.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "commands::system_utils::tests::test_file_info_on_temp_file"
+        }
+      ],
+      "dependencyClass": "native Windows filesystem / local fixtures",
+      "limitation": "Native helper verified with original fixtures; installed-app journey and full parity not verified."
+    },
+    "WF-005": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-006": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-007": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-008": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-009": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-010": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-011": {
+      "status": "POLICY_EXCLUDED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "Excluded as described by the authoritative blueprint. No game hooks, paid-skin unlocking or protection bypass are implemented."
+    },
+    "WF-012": {
+      "status": "POLICY_EXCLUDED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "Excluded as described by the authoritative blueprint. No game hooks, paid-skin unlocking or protection bypass are implemented."
+    },
+    "WF-013": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/sandbox.rs",
+        "apps/desktop/src-tauri/src/customization/fantome.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::sandbox::tests::rollback_retains_unrelated_files_and_rejects_modified_owned_files"
+        }
+      ],
+      "dependencyClass": "native Windows filesystem / local fixtures",
+      "limitation": "App-owned sandbox only. Game-install targets rejected. Rollback preserves unrelated and modified files. Activation in League is unavailable; crash-orphan recovery is incomplete."
+    },
+    "WF-014": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/sandbox.rs",
+        "apps/desktop/src-tauri/src/customization/fantome.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::sandbox::tests::rollback_retains_unrelated_files_and_rejects_modified_owned_files"
+        }
+      ],
+      "dependencyClass": "native Windows filesystem / local fixtures",
+      "limitation": "App-owned sandbox only. Game-install targets rejected. Rollback preserves unrelated and modified files. Activation in League is unavailable; crash-orphan recovery is incomplete."
+    },
+    "WF-015": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-016": {
+      "status": "POLICY_EXCLUDED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "Excluded as described by the authoritative blueprint. No game hooks, paid-skin unlocking or protection bypass are implemented."
+    },
+    "WF-017": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/library.rs",
+        "apps/desktop/src-tauri/src/customization/sandbox.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::library::tests::nested_fantome_and_modpkg_import_export_stage_rollback_roundtrip"
+        }
+      ],
+      "dependencyClass": "native Windows filesystem / local fixtures",
+      "limitation": "Nested original Fantome/Modpkg bytes import/export/reimport and app-owned stage/rollback pass on Windows. No approved game adapter, dependency solver, complete rights-scanner or installed WebView journey verified."
+    },
+    "WF-018": {
+      "status": "NOT_IMPLEMENTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No bone/rig correction implementation; original asset repair toolchain remains internal work."
+    },
+    "WF-019": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-020": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-021": {
+      "status": "POLICY_EXCLUDED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "Excluded as described by the authoritative blueprint. No game hooks, paid-skin unlocking or protection bypass are implemented."
+    },
+    "WF-022": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-023": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-024": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-025": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-026": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-027": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-028": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-029": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-030": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-031": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/community-api/src/transferRelay.ts",
+        "apps/desktop/src/features/customization/useParty.ts"
+      ],
+      "registration": [
+        "apps/community-api/src/server.ts"
+      ],
+      "executions": [
+        {
+          "run": "community-tests",
+          "test": "real relay transfers a valid archive with consent, rejects forged IDs, duplicates, corruption and cancellation"
+        }
+      ],
+      "dependencyClass": "real loopback WebSocket + original generated ZIP; separate Rust import test",
+      "limitation": "Real WebSocket relay transfers a generated original archive with sender consent, ID binding, bounds and server validation. Native import is tested separately. Interrupted transfers cancel, without byte-level resume. Full two-installed-client transfer/import journey not verified."
+    },
+    "WF-032": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/community-api/src/transferRelay.ts",
+        "apps/desktop/src/features/customization/useParty.ts"
+      ],
+      "registration": [
+        "apps/community-api/src/server.ts"
+      ],
+      "executions": [
+        {
+          "run": "community-tests",
+          "test": "real relay transfers a valid archive with consent, rejects forged IDs, duplicates, corruption and cancellation"
+        }
+      ],
+      "dependencyClass": "real loopback WebSocket + original generated ZIP; separate Rust import test",
+      "limitation": "Real WebSocket relay transfers a generated original archive with sender consent, ID binding, bounds and server validation. Native import is tested separately. Interrupted transfers cancel, without byte-level resume. Full two-installed-client transfer/import journey not verified."
+    },
+    "WF-033": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/community-api/src/transferRelay.ts",
+        "apps/desktop/src/features/customization/useParty.ts"
+      ],
+      "registration": [
+        "apps/community-api/src/server.ts"
+      ],
+      "executions": [
+        {
+          "run": "community-tests",
+          "test": "real relay transfers a valid archive with consent, rejects forged IDs, duplicates, corruption and cancellation"
+        }
+      ],
+      "dependencyClass": "real loopback WebSocket + original generated ZIP; separate Rust import test",
+      "limitation": "Real WebSocket relay transfers a generated original archive with sender consent, ID binding, bounds and server validation. Native import is tested separately. Interrupted transfers cancel, without byte-level resume. Full two-installed-client transfer/import journey not verified."
+    },
+    "WF-034": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/community-api/src/transferRelay.ts",
+        "apps/desktop/src/features/customization/useParty.ts"
+      ],
+      "registration": [
+        "apps/community-api/src/server.ts"
+      ],
+      "executions": [
+        {
+          "run": "community-tests",
+          "test": "real relay transfers a valid archive with consent, rejects forged IDs, duplicates, corruption and cancellation"
+        }
+      ],
+      "dependencyClass": "real loopback WebSocket + original generated ZIP; separate Rust import test",
+      "limitation": "Real WebSocket relay transfers a generated original archive with sender consent, ID binding, bounds and server validation. Native import is tested separately. Interrupted transfers cancel, without byte-level resume. Full two-installed-client transfer/import journey not verified."
+    },
+    "WF-035": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/community-api/src/marketplace.ts",
+        "apps/community-api/src/packageValidation.ts",
+        "apps/desktop/src/features/customization/Marketplace.tsx"
+      ],
+      "registration": [
+        "apps/community-api/src/server.ts"
+      ],
+      "executions": [
+        {
+          "run": "community-tests",
+          "test": "marketplace authenticated upload → moderation → verified bytes, ownership, reviews and persistent takedown"
+        },
+        {
+          "run": "browser-studio",
+          "test": "browser UI + real HTTP: creator registration, verified local bytes submission, human approval, download import acknowledgement"
+        }
+      ],
+      "dependencyClass": "real loopback HTTP / SQLite / yauzl archive traversal",
+      "limitation": "Real HTTP/SQLite authenticated bytes upload, approval, reviews, downloads, takedown and restart pass. Replaceable local SQLite blob storage, not R2; malware/IP human review is not automated proof. Creator-version migration, deletion/export and full moderation UI incomplete."
+    },
+    "WF-036": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/community-api/src/marketplace.ts",
+        "apps/community-api/src/packageValidation.ts",
+        "apps/desktop/src/features/customization/Marketplace.tsx"
+      ],
+      "registration": [
+        "apps/community-api/src/server.ts"
+      ],
+      "executions": [
+        {
+          "run": "community-tests",
+          "test": "marketplace authenticated upload → moderation → verified bytes, ownership, reviews and persistent takedown"
+        },
+        {
+          "run": "browser-studio",
+          "test": "browser UI + real HTTP: creator registration, verified local bytes submission, human approval, download import acknowledgement"
+        }
+      ],
+      "dependencyClass": "real loopback HTTP / SQLite / yauzl archive traversal",
+      "limitation": "Real HTTP/SQLite authenticated bytes upload, approval, reviews, downloads, takedown and restart pass. Replaceable local SQLite blob storage, not R2; malware/IP human review is not automated proof. Creator-version migration, deletion/export and full moderation UI incomplete."
+    },
+    "WF-037": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/community-api/src/marketplace.ts",
+        "apps/community-api/src/packageValidation.ts",
+        "apps/desktop/src/features/customization/Marketplace.tsx"
+      ],
+      "registration": [
+        "apps/community-api/src/server.ts"
+      ],
+      "executions": [
+        {
+          "run": "community-tests",
+          "test": "marketplace authenticated upload → moderation → verified bytes, ownership, reviews and persistent takedown"
+        },
+        {
+          "run": "browser-studio",
+          "test": "browser UI + real HTTP: creator registration, verified local bytes submission, human approval, download import acknowledgement"
+        }
+      ],
+      "dependencyClass": "real loopback HTTP / SQLite / yauzl archive traversal",
+      "limitation": "Real HTTP/SQLite authenticated bytes upload, approval, reviews, downloads, takedown and restart pass. Replaceable local SQLite blob storage, not R2; malware/IP human review is not automated proof. Creator-version migration, deletion/export and full moderation UI incomplete."
+    },
+    "WF-038": {
+      "status": "NOT_IMPLEMENTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No independent like/favorite marketplace workflow; ratings are not likes."
+    },
+    "WF-039": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/community-api/src/marketplace.ts",
+        "apps/community-api/src/packageValidation.ts",
+        "apps/desktop/src/features/customization/Marketplace.tsx"
+      ],
+      "registration": [
+        "apps/community-api/src/server.ts"
+      ],
+      "executions": [
+        {
+          "run": "community-tests",
+          "test": "marketplace authenticated upload → moderation → verified bytes, ownership, reviews and persistent takedown"
+        }
+      ],
+      "dependencyClass": "real loopback HTTP / SQLite / yauzl archive traversal",
+      "limitation": "Real HTTP/SQLite authenticated bytes upload, approval, reviews, downloads, takedown and restart pass. Replaceable local SQLite blob storage, not R2; malware/IP human review is not automated proof. Creator-version migration, deletion/export and full moderation UI incomplete."
+    },
+    "WF-040": {
+      "status": "NOT_IMPLEMENTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No validated marketplace preview object workflow."
+    },
+    "WF-041": {
+      "status": "NOT_IMPLEMENTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete validated preview download/cache workflow."
+    },
+    "WF-042": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/community-api/src/marketplace.ts",
+        "apps/community-api/src/packageValidation.ts",
+        "apps/desktop/src/features/customization/Marketplace.tsx"
+      ],
+      "registration": [
+        "apps/community-api/src/server.ts"
+      ],
+      "executions": [
+        {
+          "run": "community-tests",
+          "test": "marketplace authenticated upload → moderation → verified bytes, ownership, reviews and persistent takedown"
+        }
+      ],
+      "dependencyClass": "real loopback HTTP / SQLite / yauzl archive traversal",
+      "limitation": "Real HTTP/SQLite authenticated bytes upload, approval, reviews, downloads, takedown and restart pass. Replaceable local SQLite blob storage, not R2; malware/IP human review is not automated proof. Creator-version migration, deletion/export and full moderation UI incomplete."
+    },
+    "WF-043": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-044": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-045": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-046": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-047": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-048": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-049": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-050": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-051": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/fantome.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::fantome::tests::test_read_and_write_fantome_meta"
+        }
+      ],
+      "dependencyClass": "native Windows filesystem / local fixtures",
+      "limitation": "Real native ZIP metadata helper tests pass; complete creator-format support is not established."
+    },
+    "WF-052": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/fantome.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::fantome::tests::test_read_and_write_fantome_meta"
+        }
+      ],
+      "dependencyClass": "native Windows filesystem / local fixtures",
+      "limitation": "Real native ZIP metadata helper tests pass; complete creator-format support is not established."
+    },
+    "WF-053": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/fantome.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::fantome::tests::test_read_and_write_fantome_meta"
+        }
+      ],
+      "dependencyClass": "native Windows filesystem / local fixtures",
+      "limitation": "Real native ZIP metadata helper tests pass; complete creator-format support is not established."
+    },
+    "WF-054": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-055": {
+      "status": "POLICY_EXCLUDED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "Excluded as described by the authoritative blueprint. No game hooks, paid-skin unlocking or protection bypass are implemented."
+    },
+    "WF-056": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/sandbox.rs",
+        "apps/desktop/src-tauri/src/customization/fantome.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::sandbox::tests::rollback_retains_unrelated_files_and_rejects_modified_owned_files"
+        }
+      ],
+      "dependencyClass": "native Windows filesystem / local fixtures",
+      "limitation": "App-owned sandbox only. Game-install targets rejected. Rollback preserves unrelated and modified files. Activation in League is unavailable; crash-orphan recovery is incomplete."
+    },
+    "WF-057": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-058": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-059": {
+      "status": "NOT_IMPLEMENTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No supported BIN-to-Python conversion implemented."
+    },
+    "WF-060": {
+      "status": "NOT_IMPLEMENTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No supported Python-to-BIN conversion implemented."
+    },
+    "WF-061": {
+      "status": "NOT_IMPLEMENTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No verified WAD parser/unpack implementation; generic ZIP is not WAD support."
+    },
+    "WF-062": {
+      "status": "NOT_IMPLEMENTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No verified WAD pack implementation."
+    },
+    "WF-063": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/themes.rs",
+        "apps/desktop/src/features/customization/themeRuntime.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::themes::tests::media_rejects_disguised_payloads_and_fonts_are_allowlisted"
+        },
+        {
+          "run": "browser-studio",
+          "test": "theme contract restores active colors after navigation and restart; fonts and reduced motion render"
+        }
+      ],
+      "dependencyClass": "native format checks; browser IPC fixture for palette restoration",
+      "limitation": "LAAP theme runtime, native palette/media validation and browser restoration exercised. No League-client theming. Eight included themes, not 15; custom fonts/audio themes and full media decoding/duration controls incomplete."
+    },
+    "WF-064": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/themes.rs",
+        "apps/desktop/src/features/customization/themeRuntime.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::themes::tests::media_rejects_disguised_payloads_and_fonts_are_allowlisted"
+        },
+        {
+          "run": "browser-studio",
+          "test": "theme contract restores active colors after navigation and restart; fonts and reduced motion render"
+        }
+      ],
+      "dependencyClass": "native format checks; browser IPC fixture for palette restoration",
+      "limitation": "LAAP theme runtime, native palette/media validation and browser restoration exercised. No League-client theming. Eight included themes, not 15; custom fonts/audio themes and full media decoding/duration controls incomplete."
+    },
+    "WF-065": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/themes.rs",
+        "apps/desktop/src/features/customization/themeRuntime.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::themes::tests::media_rejects_disguised_payloads_and_fonts_are_allowlisted"
+        },
+        {
+          "run": "browser-studio",
+          "test": "theme contract restores active colors after navigation and restart; fonts and reduced motion render"
+        }
+      ],
+      "dependencyClass": "native format checks; browser IPC fixture for palette restoration",
+      "limitation": "LAAP theme runtime, native palette/media validation and browser restoration exercised. No League-client theming. Eight included themes, not 15; custom fonts/audio themes and full media decoding/duration controls incomplete."
+    },
+    "WF-066": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/themes.rs",
+        "apps/desktop/src/features/customization/themeRuntime.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::themes::tests::media_rejects_disguised_payloads_and_fonts_are_allowlisted"
+        },
+        {
+          "run": "browser-studio",
+          "test": "theme contract restores active colors after navigation and restart; fonts and reduced motion render"
+        }
+      ],
+      "dependencyClass": "native format checks; browser IPC fixture for palette restoration",
+      "limitation": "LAAP theme runtime, native palette/media validation and browser restoration exercised. No League-client theming. Eight included themes, not 15; custom fonts/audio themes and full media decoding/duration controls incomplete."
+    },
+    "WF-067": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-068": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-069": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/themes.rs",
+        "apps/desktop/src/features/customization/themeRuntime.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::themes::tests::media_rejects_disguised_payloads_and_fonts_are_allowlisted"
+        },
+        {
+          "run": "browser-studio",
+          "test": "theme contract restores active colors after navigation and restart; fonts and reduced motion render"
+        }
+      ],
+      "dependencyClass": "native format checks; browser IPC fixture for palette restoration",
+      "limitation": "LAAP theme runtime, native palette/media validation and browser restoration exercised. No League-client theming. Eight included themes, not 15; custom fonts/audio themes and full media decoding/duration controls incomplete."
+    },
+    "WF-070": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-071": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/themes.rs",
+        "apps/desktop/src/features/customization/themeRuntime.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::themes::tests::media_rejects_disguised_payloads_and_fonts_are_allowlisted"
+        },
+        {
+          "run": "browser-studio",
+          "test": "theme contract restores active colors after navigation and restart; fonts and reduced motion render"
+        }
+      ],
+      "dependencyClass": "native format checks; browser IPC fixture for palette restoration",
+      "limitation": "LAAP theme runtime, native palette/media validation and browser restoration exercised. No League-client theming. Eight included themes, not 15; custom fonts/audio themes and full media decoding/duration controls incomplete."
+    },
+    "WF-072": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-073": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-074": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-075": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-076": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-077": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-078": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-079": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-080": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-081": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-082": {
+      "status": "NOT_IMPLEMENTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "Unsafe unfinished OAuth URL flow removed. Presence-only IPC does not need OAuth. Social OAuth login is unimplemented."
+    },
+    "WF-083": {
+      "status": "NOT_IMPLEMENTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "Desktop client-secret OAuth exchange removed; no independent confidential server exchange configured."
+    },
+    "WF-084": {
+      "status": "NOT_IMPLEMENTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No OAuth refresh flow. Presence-only integration stores no OAuth token."
+    },
+    "WF-085": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/discord.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::discord::tests::handshake_requires_ready_and_activity_requires_matching_ack"
+        }
+      ],
+      "dependencyClass": "actual async IPC framing through Tokio duplex fixture; no live Discord",
+      "limitation": "Presence-only IPC with READY/nonce acknowledgement and deadline. Legacy JSON tokens scrubbed on config load. No OAuth social login or live Discord visibility/revocation verification."
+    },
+    "WF-086": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/discord.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::discord::tests::handshake_requires_ready_and_activity_requires_matching_ack"
+        }
+      ],
+      "dependencyClass": "actual async IPC framing through Tokio duplex fixture; no live Discord",
+      "limitation": "Presence-only IPC with READY/nonce acknowledgement and deadline. Legacy JSON tokens scrubbed on config load. No OAuth social login or live Discord visibility/revocation verification."
+    },
+    "WF-087": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/discord.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::discord::tests::handshake_requires_ready_and_activity_requires_matching_ack"
+        }
+      ],
+      "dependencyClass": "actual async IPC framing through Tokio duplex fixture; no live Discord",
+      "limitation": "Presence-only IPC with READY/nonce acknowledgement and deadline. Legacy JSON tokens scrubbed on config load. No OAuth social login or live Discord visibility/revocation verification."
+    },
+    "WF-088": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/discord.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::discord::tests::handshake_requires_ready_and_activity_requires_matching_ack"
+        }
+      ],
+      "dependencyClass": "actual async IPC framing through Tokio duplex fixture; no live Discord",
+      "limitation": "Presence-only IPC with READY/nonce acknowledgement and deadline. Legacy JSON tokens scrubbed on config load. No OAuth social login or live Discord visibility/revocation verification."
+    },
+    "WF-089": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/ai_assistant.rs",
+        "apps/desktop/src-tauri/src/customization/provider_support.rs",
+        "apps/desktop/src/features/customization/ProviderSettings.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::ai_assistant::tests::real_http_fixtures_enforce_ai_schema_output_bounds_and_audio_type"
+        }
+      ],
+      "dependencyClass": "real loopback HTTP contracts; generated response/audio-header fixtures, not real provider output",
+      "limitation": "Explicit provider selection/consent, OS-keychain keys, bounded HTTP, cancellation and TTS playback UI. Local HTTP fixtures only; live credentials/model access/answer accuracy/speech quality and full MP3 decoding are NOT verified."
+    },
+    "WF-090": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/ai_assistant.rs",
+        "apps/desktop/src-tauri/src/customization/provider_support.rs",
+        "apps/desktop/src/features/customization/ProviderSettings.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::ai_assistant::tests::real_http_fixtures_enforce_ai_schema_output_bounds_and_audio_type"
+        }
+      ],
+      "dependencyClass": "real loopback HTTP contracts; generated response/audio-header fixtures, not real provider output",
+      "limitation": "Explicit provider consent, OS-keychain key, bounded HTTP, cancellation and TTS playback UI; MP3 decoded with Symphonia and empty/silent/invalid output rejected. Live speech and positive provider audio quality remain unverified."
+    },
+    "WF-091": {
+      "status": "NOT_IMPLEMENTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "StreamElements operation explicitly unavailable because no supported authorized API contract is configured."
+    },
+    "WF-092": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/stats_provider.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::stats_provider::tests::authentic_http_contract_handles_unicode_and_rate_limit_without_invented_rank"
+        }
+      ],
+      "dependencyClass": "real HTTP fixture implementing documented Riot endpoints",
+      "limitation": "Official Riot API adapter, encoded Riot IDs, explicit platform mapping, TTL, no rank on error. Local HTTP contract only; no live authorized key. This is not an OP.GG API implementation."
+    },
+    "WF-093": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-094": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "WF-095": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-096": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-097": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-098": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-099": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-100": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-101": {
+      "status": "NOT_IMPLEMENTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "Catalog locale options are not 22 translated application UIs; translation and RTL coverage incomplete."
+    },
+    "EX-102": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-103": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-104": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/community-api/src/party.ts"
+      ],
+      "registration": [
+        "apps/community-api/src/server.ts"
+      ],
+      "executions": [
+        {
+          "run": "community-tests",
+          "test": "seven peers share bounded metadata and chat requires separate consent"
+        }
+      ],
+      "dependencyClass": "real localhost WebSocket peers",
+      "limitation": "Real seven-peer relay and consented ephemeral chat pass. Not direct P2P; full multi-device/native client stress and reconnect storms not verified."
+    },
+    "EX-105": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/community-api/src/transferRelay.ts",
+        "apps/desktop/src/features/customization/useParty.ts"
+      ],
+      "registration": [
+        "apps/community-api/src/server.ts"
+      ],
+      "executions": [
+        {
+          "run": "community-tests",
+          "test": "real relay transfers a valid archive with consent, rejects forged IDs, duplicates, corruption and cancellation"
+        }
+      ],
+      "dependencyClass": "real loopback WebSocket + original generated ZIP; separate Rust import test",
+      "limitation": "Real WebSocket relay transfers a generated original archive with sender consent, ID binding, bounds and server validation. Native import is tested separately. Interrupted transfers cancel, without byte-level resume. Full two-installed-client transfer/import journey not verified."
+    },
+    "EX-106": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-107": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-108": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-109": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-110": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-111": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/library.rs",
+        "apps/desktop/src-tauri/src/customization/sandbox.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::library::tests::nested_fantome_and_modpkg_import_export_stage_rollback_roundtrip"
+        }
+      ],
+      "dependencyClass": "native Windows filesystem / local fixtures",
+      "limitation": "Nested original Fantome/Modpkg bytes import/export/reimport and app-owned stage/rollback pass on Windows. No approved game adapter, dependency solver, complete rights-scanner or installed WebView journey verified."
+    },
+    "EX-112": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-113": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/themes.rs",
+        "apps/desktop/src/features/customization/themeRuntime.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::themes::tests::media_rejects_disguised_payloads_and_fonts_are_allowlisted"
+        },
+        {
+          "run": "browser-studio",
+          "test": "theme contract restores active colors after navigation and restart; fonts and reduced motion render"
+        }
+      ],
+      "dependencyClass": "native format checks; browser IPC fixture for palette restoration",
+      "limitation": "LAAP theme runtime, native palette/media validation and browser restoration exercised. No League-client theming. Eight included themes, not 15; custom fonts/audio themes and full media decoding/duration controls incomplete."
+    },
+    "EX-114": {
+      "status": "NOT_IMPLEMENTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No supported League-client surface adapter implemented; app-local themes do not satisfy this row."
+    },
+    "EX-115": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-116": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/community-api/src/party.ts"
+      ],
+      "registration": [
+        "apps/community-api/src/server.ts"
+      ],
+      "executions": [
+        {
+          "run": "community-tests",
+          "test": "seven peers share bounded metadata and chat requires separate consent"
+        }
+      ],
+      "dependencyClass": "real localhost WebSocket peers",
+      "limitation": "Real seven-peer relay and consented ephemeral chat pass. Not direct P2P; full multi-device/native client stress and reconnect storms not verified."
+    },
+    "EX-117": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-118": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-119": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-120": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-121": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-122": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/themes.rs",
+        "apps/desktop/src/features/customization/themeRuntime.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::themes::tests::media_rejects_disguised_payloads_and_fonts_are_allowlisted"
+        },
+        {
+          "run": "browser-studio",
+          "test": "theme contract restores active colors after navigation and restart; fonts and reduced motion render"
+        }
+      ],
+      "dependencyClass": "native format checks; browser IPC fixture for palette restoration",
+      "limitation": "LAAP theme runtime, native palette/media validation and browser restoration exercised. No League-client theming. Eight included themes, not 15; custom fonts/audio themes and full media decoding/duration controls incomplete."
+    },
+    "EX-123": {
+      "status": "NOT_TESTED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+    },
+    "EX-124": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/presets.rs",
+        "apps/desktop/src/features/customization/CompleteApp.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::presets::tests::resolution_sorting_orders_by_account_queue_priority_and_favorite"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::presets::tests::three_account_links_survive_rename_and_unlink_only_deleted_profile"
+        }
+      ],
+      "dependencyClass": "native Windows filesystem / local fixtures",
+      "limitation": "General Studio clears stale context; successful switches and renamed/deleted profiles update a persisted opaque-ID reference, validated against current profiles. Three-account unlink/rename unit coverage passes. Full installed-app account lifecycle and restart journey are not verified."
+    },
+    "EX-125": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/library.rs",
+        "apps/desktop/src-tauri/src/customization/sandbox.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "customization::library::tests::nested_fantome_and_modpkg_import_export_stage_rollback_roundtrip"
+        }
+      ],
+      "dependencyClass": "native Windows filesystem / local fixtures",
+      "limitation": "Nested original Fantome/Modpkg bytes import/export/reimport and app-owned stage/rollback pass on Windows. No approved game adapter, dependency solver, complete rights-scanner or installed WebView journey verified."
+    },
+    "EX-126": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/product.rs",
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "product::tests::permission_boundaries_enforced"
+        },
+        {
+          "run": "basic-rust",
+          "test": "product::tests::permission_boundaries_enforced"
+        },
+        {
+          "run": "studio-rust",
+          "test": "product::tests::permission_boundaries_enforced"
+        }
+      ],
+      "dependencyClass": "native Windows filesystem / local fixtures",
+      "limitation": "Three native feature sets compile/test; three frontend bundle isolation checks pass. No signed installers, installed upgrade, co-install or user vault compatibility journey executed in this mission.",
+      "buildEvidence": [
+        "edition-bundles"
+      ]
+    },
+    "EX-127": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/product.rs",
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "product::tests::permission_boundaries_enforced"
+        },
+        {
+          "run": "basic-rust",
+          "test": "product::tests::permission_boundaries_enforced"
+        },
+        {
+          "run": "studio-rust",
+          "test": "product::tests::permission_boundaries_enforced"
+        }
+      ],
+      "dependencyClass": "native Windows filesystem / local fixtures",
+      "limitation": "Three native feature sets compile/test; three frontend bundle isolation checks pass. No signed installers, installed upgrade, co-install or user vault compatibility journey executed in this mission.",
+      "buildEvidence": [
+        "edition-bundles"
+      ]
+    },
+    "EX-128": {
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/product.rs",
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "executions": [
+        {
+          "run": "complete-rust",
+          "test": "product::tests::permission_boundaries_enforced"
+        },
+        {
+          "run": "basic-rust",
+          "test": "product::tests::permission_boundaries_enforced"
+        },
+        {
+          "run": "studio-rust",
+          "test": "product::tests::permission_boundaries_enforced"
+        }
+      ],
+      "dependencyClass": "native Windows filesystem / local fixtures",
+      "limitation": "Three native feature sets compile/test; three frontend bundle isolation checks pass. No signed installers, installed upgrade, co-install or user vault compatibility journey executed in this mission.",
+      "buildEvidence": [
+        "edition-bundles"
+      ]
+    },
+    "EX-129": {
+      "status": "POLICY_EXCLUDED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "Excluded as described by the authoritative blueprint. No game hooks, paid-skin unlocking or protection bypass are implemented."
+    },
+    "EX-130": {
+      "status": "POLICY_EXCLUDED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "Excluded as described by the authoritative blueprint. No game hooks, paid-skin unlocking or protection bypass are implemented."
+    },
+    "EX-131": {
+      "status": "POLICY_EXCLUDED",
+      "implementation": [],
+      "registration": [],
+      "executions": [],
+      "dependencyClass": "not tested",
+      "limitation": "Excluded as described by the authoritative blueprint. No game hooks, paid-skin unlocking or protection bypass are implemented."
+    }
+  }
+}

@@ -42,7 +42,7 @@ pub struct TftItem {
     pub id: String,
     pub name: String,
     pub category: String, // "Tactician", "Arena", "Boom"
-    pub tier: u32,
+    pub tier: Option<u32>,
     #[serde(default)]
     pub description: String,
 }
@@ -169,16 +169,56 @@ fn attach_chromas_and_variants(detail: &mut ChampionDetail) {
             for skin in &mut detail.skins {
                 if skin.name.contains("Elementalist") {
                     skin.variants = vec![
-                        Variant { id: "light".into(), name: "Light".into(), description: "Starting form".into() },
-                        Variant { id: "fire".into(), name: "Fire".into(), description: "Offensive fire magic".into() },
-                        Variant { id: "water".into(), name: "Water".into(), description: "Flowing oceanic form".into() },
-                        Variant { id: "air".into(), name: "Air".into(), description: "Swift atmospheric form".into() },
-                        Variant { id: "nature".into(), name: "Nature".into(), description: "Verdant earth form".into() },
-                        Variant { id: "magma".into(), name: "Magma".into(), description: "Molten combination".into() },
-                        Variant { id: "storm".into(), name: "Storm".into(), description: "Lightning combination".into() },
-                        Variant { id: "mystic".into(), name: "Mystic".into(), description: "Arcane butterfly form".into() },
-                        Variant { id: "ice".into(), name: "Ice".into(), description: "Glacial combination".into() },
-                        Variant { id: "dark".into(), name: "Dark".into(), description: "Shadow eclipse form".into() },
+                        Variant {
+                            id: "light".into(),
+                            name: "Light".into(),
+                            description: "Starting form".into(),
+                        },
+                        Variant {
+                            id: "fire".into(),
+                            name: "Fire".into(),
+                            description: "Offensive fire magic".into(),
+                        },
+                        Variant {
+                            id: "water".into(),
+                            name: "Water".into(),
+                            description: "Flowing oceanic form".into(),
+                        },
+                        Variant {
+                            id: "air".into(),
+                            name: "Air".into(),
+                            description: "Swift atmospheric form".into(),
+                        },
+                        Variant {
+                            id: "nature".into(),
+                            name: "Nature".into(),
+                            description: "Verdant earth form".into(),
+                        },
+                        Variant {
+                            id: "magma".into(),
+                            name: "Magma".into(),
+                            description: "Molten combination".into(),
+                        },
+                        Variant {
+                            id: "storm".into(),
+                            name: "Storm".into(),
+                            description: "Lightning combination".into(),
+                        },
+                        Variant {
+                            id: "mystic".into(),
+                            name: "Mystic".into(),
+                            description: "Arcane butterfly form".into(),
+                        },
+                        Variant {
+                            id: "ice".into(),
+                            name: "Ice".into(),
+                            description: "Glacial combination".into(),
+                        },
+                        Variant {
+                            id: "dark".into(),
+                            name: "Dark".into(),
+                            description: "Shadow eclipse form".into(),
+                        },
                     ];
                 }
             }
@@ -186,9 +226,21 @@ fn attach_chromas_and_variants(detail: &mut ChampionDetail) {
         "Kayn" => {
             for skin in &mut detail.skins {
                 skin.variants = vec![
-                    Variant { id: "base".into(), name: "Base Kayn".into(), description: "Standard form".into() },
-                    Variant { id: "shadow".into(), name: "Shadow Assassin".into(), description: "Lethal blue mobility form".into() },
-                    Variant { id: "rhaast".into(), name: "Darkin Rhaast".into(), description: "Sustained red bruiser form".into() },
+                    Variant {
+                        id: "base".into(),
+                        name: "Base Kayn".into(),
+                        description: "Standard form".into(),
+                    },
+                    Variant {
+                        id: "shadow".into(),
+                        name: "Shadow Assassin".into(),
+                        description: "Lethal blue mobility form".into(),
+                    },
+                    Variant {
+                        id: "rhaast".into(),
+                        name: "Darkin Rhaast".into(),
+                        description: "Sustained red bruiser form".into(),
+                    },
                 ];
             }
         }
@@ -196,9 +248,21 @@ fn attach_chromas_and_variants(detail: &mut ChampionDetail) {
             for skin in &mut detail.skins {
                 if skin.name.contains("DJ") {
                     skin.variants = vec![
-                        Variant { id: "kinetic".into(), name: "Kinetic".into(), description: "Upbeat electronic rhythm".into() },
-                        Variant { id: "concussive".into(), name: "Concussive".into(), description: "Intense bass beat".into() },
-                        Variant { id: "ethereal".into(), name: "Ethereal".into(), description: "Atmospheric ambient tune".into() },
+                        Variant {
+                            id: "kinetic".into(),
+                            name: "Kinetic".into(),
+                            description: "Upbeat electronic rhythm".into(),
+                        },
+                        Variant {
+                            id: "concussive".into(),
+                            name: "Concussive".into(),
+                            description: "Intense bass beat".into(),
+                        },
+                        Variant {
+                            id: "ethereal".into(),
+                            name: "Ethereal".into(),
+                            description: "Atmospheric ambient tune".into(),
+                        },
                     ];
                 }
             }
@@ -207,10 +271,26 @@ fn attach_chromas_and_variants(detail: &mut ChampionDetail) {
             for skin in &mut detail.skins {
                 if skin.name.contains("Gun Goddess") {
                     skin.variants = vec![
-                        Variant { id: "scarlet".into(), name: "Scarlet Fair".into(), description: "Default assault exo-suit".into() },
-                        Variant { id: "zero".into(), name: "Zero Hour".into(), description: "Gravity-well heavy armor".into() },
-                        Variant { id: "starswarm".into(), name: "Starswarm".into(), description: "Plasma wave armament".into() },
-                        Variant { id: "royal".into(), name: "Royal Arms".into(), description: "Antimatter fleet commander".into() },
+                        Variant {
+                            id: "scarlet".into(),
+                            name: "Scarlet Fair".into(),
+                            description: "Default assault exo-suit".into(),
+                        },
+                        Variant {
+                            id: "zero".into(),
+                            name: "Zero Hour".into(),
+                            description: "Gravity-well heavy armor".into(),
+                        },
+                        Variant {
+                            id: "starswarm".into(),
+                            name: "Starswarm".into(),
+                            description: "Plasma wave armament".into(),
+                        },
+                        Variant {
+                            id: "royal".into(),
+                            name: "Royal Arms".into(),
+                            description: "Antimatter fleet commander".into(),
+                        },
                     ];
                 }
             }
@@ -219,9 +299,21 @@ fn attach_chromas_and_variants(detail: &mut ChampionDetail) {
             for skin in &mut detail.skins {
                 if skin.name.contains("K/DA") {
                     skin.variants = vec![
-                        Variant { id: "indie".into(), name: "Indie".into(), description: "Acoustic bedroom musician".into() },
-                        Variant { id: "rising_star".into(), name: "Rising Star".into(), description: "Debut viral performer".into() },
-                        Variant { id: "superstar".into(), name: "Superstar".into(), description: "Global pop sensation".into() },
+                        Variant {
+                            id: "indie".into(),
+                            name: "Indie".into(),
+                            description: "Acoustic bedroom musician".into(),
+                        },
+                        Variant {
+                            id: "rising_star".into(),
+                            name: "Rising Star".into(),
+                            description: "Debut viral performer".into(),
+                        },
+                        Variant {
+                            id: "superstar".into(),
+                            name: "Superstar".into(),
+                            description: "Global pop sensation".into(),
+                        },
                     ];
                 }
             }
@@ -254,19 +346,31 @@ struct CdChampion {
     skins: Vec<CdSkin>,
 }
 
-fn fetch_community_dragon_chromas(key: &str) -> Option<BTreeMap<String, Vec<Chroma>>> {
+fn fetch_community_dragon_chromas(
+    key: &str,
+    version: &str,
+) -> Option<BTreeMap<String, Vec<Chroma>>> {
+    if !safe_version(version) || !key.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let patch = version.rsplit_once('.')?.0;
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(4))
         .build()
         .ok()?;
     let url = format!(
-        "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champions/{key}.json"
+        "https://raw.communitydragon.org/{patch}/plugins/rcp-be-lol-game-data/global/default/v1/champions/{key}.json"
     );
     let res = client.get(&url).send().ok()?;
     if !res.status().is_success() {
         return None;
     }
-    let cd: CdChampion = res.json().ok()?;
+    let mut bytes = Vec::new();
+    res.take(MAX_BYTES + 1).read_to_end(&mut bytes).ok()?;
+    if bytes.len() as u64 > MAX_BYTES {
+        return None;
+    }
+    let cd: CdChampion = serde_json::from_slice(&bytes).ok()?;
     let mut map = BTreeMap::new();
     for s in cd.skins {
         if !s.chromas.is_empty() {
@@ -392,15 +496,23 @@ pub async fn catalog_champion(
         .map_err(|e| e.to_string())?
         {
             attach_chromas_and_variants(&mut snapshot.data);
-            if let Some(key) = &snapshot.data.champion.key {
-                if let Some(mut cd_chromas) = fetch_community_dragon_chromas(key) {
-                    for skin in &mut snapshot.data.skins {
-                        if let Some(chromas) = cd_chromas.remove(&skin.id) {
-                            skin.chroma_list = chromas;
+            snapshot = tauri::async_runtime::spawn_blocking(move || {
+                if let Some(key) = &snapshot.data.champion.key {
+                    if let Some(mut cd_chromas) =
+                        fetch_community_dragon_chromas(key, &snapshot.version)
+                    {
+                        for skin in &mut snapshot.data.skins {
+                            if let Some(chromas) = cd_chromas.remove(&skin.id) {
+                                skin.chroma_list = chromas;
+                            }
                         }
                     }
                 }
-            }
+                snapshot
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+            storage::write(&dir.join(format!("detail-{locale}-{id}.json")), &snapshot)?;
             return Ok(snapshot);
         }
     }
@@ -431,15 +543,20 @@ pub async fn catalog_champion(
     })
     .await?;
     attach_chromas_and_variants(&mut result.data);
-    if let Some(key) = &result.data.champion.key {
-        if let Some(mut cd_chromas) = fetch_community_dragon_chromas(key) {
-            for skin in &mut result.data.skins {
-                if let Some(chromas) = cd_chromas.remove(&skin.id) {
-                    skin.chroma_list = chromas;
+    result = tauri::async_runtime::spawn_blocking(move || {
+        if let Some(key) = &result.data.champion.key {
+            if let Some(mut cd_chromas) = fetch_community_dragon_chromas(key, &result.version) {
+                for skin in &mut result.data.skins {
+                    if let Some(chromas) = cd_chromas.remove(&skin.id) {
+                        skin.chroma_list = chromas;
+                    }
                 }
             }
         }
-    }
+        result
+    })
+    .await
+    .map_err(|e| e.to_string())?;
     Ok(result)
 }
 
@@ -467,82 +584,31 @@ struct CdCosmeticItem {
 
 #[tauri::command]
 pub async fn catalog_tft_list(app: AppHandle) -> Result<Vec<TftItem>, String> {
-    let path = storage::root(&app)?.join("catalog").join("tft-items.json");
-    if let Ok(Some(cached)) = storage::read::<Vec<TftItem>>(&path, MAX_BYTES) {
-        if !cached.is_empty() {
-            return Ok(cached);
+    let snapshot = catalog_list(app.clone(), "en_US".into(), false).await?;
+    let version = snapshot.version;
+    let patch = version
+        .rsplit_once('.')
+        .ok_or("Invalid catalog patch")?
+        .0
+        .to_string();
+    let path = storage::root(&app)?
+        .join("catalog")
+        .join(format!("tft-{patch}.json"));
+    tauri::async_runtime::spawn_blocking(move||{
+        if let Ok(Some(cached))=storage::read::<Snapshot<Vec<TftItem>>>(&path,MAX_BYTES){if cached.version==version{return Ok(cached.data)}}
+        let client=client()?;let base=format!("https://raw.communitydragon.org/{patch}/plugins/rcp-be-lol-game-data/global/default/v1");
+        fn read<T:serde::de::DeserializeOwned>(c:&reqwest::blocking::Client,url:String)->Result<T,String>{
+            let r=c.get(url).send().and_then(reqwest::blocking::Response::error_for_status).map_err(|_|"TFT metadata unavailable for the selected patch")?;
+            let mut bytes=Vec::new();r.take(MAX_BYTES+1).read_to_end(&mut bytes).map_err(|e|e.to_string())?;if bytes.len() as u64>MAX_BYTES{return Err("TFT response exceeds limit".into());}
+            serde_json::from_slice(&bytes).map_err(|_|"Unsupported TFT provider schema".into())
         }
-    }
-
-    let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(6))
-        .build()
-        .map_err(|e| e.to_string())?;
-
-    let base = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1";
-    let mut items = Vec::new();
-
-    // Tacticians / Companions
-    if let Ok(res) = client.get(format!("{base}/companions.json")).send() {
-        if res.status().is_success() {
-            if let Ok(companions) = res.json::<Vec<CdCompanion>>() {
-                for c in companions {
-                    if !c.name.trim().is_empty() {
-                        items.push(TftItem {
-                            id: c.item_id.to_string(),
-                            name: c.name,
-                            category: "Tactician".into(),
-                            tier: c.level.unwrap_or(1),
-                            description: c.description,
-                        });
-                    }
-                }
-            }
-        }
-    }
-
-    // Arenas / Map skins
-    if let Ok(res) = client.get(format!("{base}/tftmapskins.json")).send() {
-        if res.status().is_success() {
-            if let Ok(mapskins) = res.json::<Vec<CdCosmeticItem>>() {
-                for m in mapskins {
-                    if !m.name.trim().is_empty() {
-                        items.push(TftItem {
-                            id: m.item_id.to_string(),
-                            name: m.name,
-                            category: "Arena".into(),
-                            tier: 3,
-                            description: m.description,
-                        });
-                    }
-                }
-            }
-        }
-    }
-
-    // Booms / Damage skins
-    if let Ok(res) = client.get(format!("{base}/tftdamageskins.json")).send() {
-        if res.status().is_success() {
-            if let Ok(damageskins) = res.json::<Vec<CdCosmeticItem>>() {
-                for d in damageskins {
-                    if !d.name.trim().is_empty() {
-                        items.push(TftItem {
-                            id: d.item_id.to_string(),
-                            name: d.name,
-                            category: "Boom".into(),
-                            tier: 2,
-                            description: d.description,
-                        });
-                    }
-                }
-            }
-        }
-    }
-
-    if !items.is_empty() {
-        let _ = storage::write(&path, &items);
-    }
-    Ok(items)
+        let companions:Vec<CdCompanion>=read(&client,format!("{base}/companions.json"))?;
+        let arenas:Vec<CdCosmeticItem>=read(&client,format!("{base}/tftmapskins.json"))?;
+        let booms:Vec<CdCosmeticItem>=read(&client,format!("{base}/tftdamageskins.json"))?;
+        let mut items:Vec<_>=companions.into_iter().filter(|c|!c.name.trim().is_empty()).map(|c|TftItem{id:c.item_id.to_string(),name:c.name,category:"Tactician".into(),tier:c.level,description:c.description}).collect();
+        for (category,rows) in [("Arena",arenas),("Boom",booms)]{items.extend(rows.into_iter().filter(|c|!c.name.trim().is_empty()).map(|c|TftItem{id:c.item_id.to_string(),name:c.name,category:category.into(),tier:None,description:c.description}));}
+        storage::write(&path,&Snapshot{version,locale:"default".into(),data:items.clone(),cached:false,bundled:false})?;Ok(items)
+    }).await.map_err(|e|e.to_string())?
 }
 
 #[tauri::command]

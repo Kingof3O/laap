@@ -1,7 +1,4 @@
-use super::{
-    fantome::FantomeMeta,
-    storage,
-};
+use super::{fantome::FantomeMeta, storage};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -60,15 +57,20 @@ pub fn validate_project_id(id: &str) -> Result<(), String> {
     if trimmed.is_empty() || trimmed.len() > 64 {
         return Err("Project ID must be between 1 and 64 characters.".into());
     }
-    if !trimmed.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
-        return Err("Project ID must contain only alphanumeric characters, dashes, or underscores.".into());
+    if !trimmed
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err(
+            "Project ID must contain only alphanumeric characters, dashes, or underscores.".into(),
+        );
     }
     Ok(())
 }
 
 fn projects_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = storage::root(app)?.join("creator_projects");
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    super::sandbox::check_chain(&dir, true)?;
     Ok(dir)
 }
 
@@ -82,6 +84,55 @@ fn now_iso() -> String {
     chrono::Utc::now().to_rfc3339()
 }
 
+fn validate_project(project: &CreatorProject) -> Result<(), String> {
+    validate_project_id(&project.id)?;
+    if project.name.trim().is_empty()
+        || project.name.chars().count() > 80
+        || project.author.len() > 120
+        || project.description.len() > 2000
+        || project.tags.len() > 20
+        || project.files.len() > MAX_FILES_PER_PROJECT
+    {
+        return Err("Invalid project metadata or quota".into());
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    for file in &project.files {
+        if !super::library::safe_name(&file.relative_path)
+            || !seen.insert(file.relative_path.to_ascii_lowercase())
+        {
+            return Err("Invalid or duplicate asset path".into());
+        }
+        let ext = file.relative_path.rsplit('.').next().unwrap_or("");
+        if super::fantome::is_executable_extension(ext) {
+            return Err("Executable asset forbidden".into());
+        }
+        let bytes = STANDARD
+            .decode(
+                file.data_base64
+                    .as_deref()
+                    .ok_or("Project asset content missing")?,
+            )
+            .map_err(|_| "Invalid project asset encoding")?;
+        if bytes.len() as u64 != file.size_bytes
+            || format!("{:x}", Sha256::digest(&bytes)) != file.sha256
+        {
+            return Err("Asset digest or size mismatch".into());
+        }
+    }
+    if serde_json::to_vec(project)
+        .map_err(|e| e.to_string())?
+        .len()
+        > 8 * 1024 * 1024
+    {
+        return Err("Project exceeds 8 MiB persisted metadata-and-assets budget".into());
+    }
+    Ok(())
+}
+fn write_project(path: &std::path::Path, project: &CreatorProject) -> Result<(), String> {
+    validate_project(project)?;
+    storage::write(path, project)
+}
+
 #[tauri::command]
 pub fn creator_list_projects(app: AppHandle) -> Result<Vec<ProjectSummary>, String> {
     let dir = projects_dir(&app)?;
@@ -92,7 +143,7 @@ pub fn creator_list_projects(app: AppHandle) -> Result<Vec<ProjectSummary>, Stri
         for entry in entries.flatten() {
             let path = entry.path();
             if path.extension().is_some_and(|ext| ext == "json") {
-                if let Ok(Some(proj)) = storage::read::<CreatorProject>(&path, 2 * 1024 * 1024) {
+                if let Ok(Some(proj)) = storage::read::<CreatorProject>(&path, 8 * 1024 * 1024) {
                     summaries.push(ProjectSummary {
                         id: proj.id,
                         name: proj.name,
@@ -134,7 +185,11 @@ pub fn creator_create_project(
     let project = CreatorProject {
         id: id.clone(),
         name: trimmed_name.to_string(),
-        author: if author.trim().is_empty() { "Community Creator".into() } else { author.trim().into() },
+        author: if author.trim().is_empty() {
+            "Community Creator".into()
+        } else {
+            author.trim().into()
+        },
         version: "1.0.0".into(),
         description: String::new(),
         champion: champion.trim().to_string(),
@@ -146,7 +201,7 @@ pub fn creator_create_project(
     };
 
     let file_path = dir.join(format!("{id}.json"));
-    storage::write(&file_path, &project)?;
+    write_project(&file_path, &project)?;
     Ok(project)
 }
 
@@ -160,19 +215,21 @@ pub fn creator_get_project(app: AppHandle, id: String) -> Result<CreatorProject,
 }
 
 #[tauri::command]
-pub fn creator_save_project(app: AppHandle, mut project: CreatorProject) -> Result<CreatorProject, String> {
+pub fn creator_save_project(
+    app: AppHandle,
+    mut project: CreatorProject,
+) -> Result<CreatorProject, String> {
     validate_project_id(&project.id)?;
     let dir = projects_dir(&app)?;
     let _guard = LOCK.lock().map_err(|_| "Projects lock unavailable.")?;
 
     project.updated_at = now_iso();
     let path = dir.join(format!("{}.json", project.id));
-    storage::write(&path, &project)?;
+    write_project(&path, &project)?;
 
     // Write crash recovery autosave
     let autosave_dir = dir.join("autosave");
-    let _ = std::fs::create_dir_all(&autosave_dir);
-    let _ = storage::write(&autosave_dir.join(format!("{}.json", project.id)), &project);
+    storage::write(&autosave_dir.join(format!("{}.json", project.id)), &project)?;
 
     Ok(project)
 }
@@ -198,7 +255,7 @@ pub fn creator_duplicate_project(app: AppHandle, id: String) -> Result<CreatorPr
     proj.updated_at = now_iso();
 
     let new_path = dir.join(format!("{new_id}.json"));
-    storage::write(&new_path, &proj)?;
+    write_project(&new_path, &proj)?;
     Ok(proj)
 }
 
@@ -235,6 +292,9 @@ pub fn creator_add_file(
         return Err("Executable files are forbidden in Creator packages.".into());
     }
 
+    if data_base64.len() > 8 * 1024 * 1024 {
+        return Err("Project asset exceeds persisted quota".into());
+    }
     let bytes = STANDARD
         .decode(&data_base64)
         .map_err(|e| format!("Base64 decoding failed: {e}"))?;
@@ -268,7 +328,7 @@ pub fn creator_add_file(
     proj.files.push(file_record.clone());
     proj.updated_at = now_iso();
 
-    storage::write(&proj_path, &proj)?;
+    write_project(&proj_path, &proj)?;
     Ok(file_record)
 }
 
@@ -285,13 +345,16 @@ pub fn creator_remove_file(
     let mut proj = storage::read::<CreatorProject>(&proj_path, 8 * 1024 * 1024)?
         .ok_or_else(|| "Project not found.".to_string())?;
 
-    let clean_path = relative_path.replace('\\', "/").trim_start_matches('/').to_string();
+    let clean_path = relative_path
+        .replace('\\', "/")
+        .trim_start_matches('/')
+        .to_string();
     let initial_count = proj.files.len();
     proj.files.retain(|f| f.relative_path != clean_path);
 
     if proj.files.len() < initial_count {
         proj.updated_at = now_iso();
-        storage::write(&proj_path, &proj)?;
+        write_project(&proj_path, &proj)?;
         Ok(true)
     } else {
         Ok(false)
@@ -310,6 +373,7 @@ pub fn creator_export_fantome(app: AppHandle, project_id: String) -> Result<Stri
         return Err("Cannot export an empty project. Add at least one asset file.".into());
     }
 
+    validate_project(&proj)?;
     let mut buf = Cursor::new(Vec::new());
     let mut zip = ZipWriter::new(&mut buf);
     let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
@@ -321,18 +385,24 @@ pub fn creator_export_fantome(app: AppHandle, project_id: String) -> Result<Stri
         version: proj.version,
         description: proj.description,
         mod_type: "Skin".into(),
-        target_champion: if proj.champion.is_empty() { None } else { Some(proj.champion) },
+        target_champion: if proj.champion.is_empty() {
+            None
+        } else {
+            Some(proj.champion)
+        },
         target_skin: Some(proj.skin_num),
     };
     let meta_bytes = serde_json::to_vec_pretty(&meta).map_err(|e| e.to_string())?;
 
-    zip.start_file("META/info.json", opts).map_err(|e| e.to_string())?;
+    zip.start_file("META/info.json", opts)
+        .map_err(|e| e.to_string())?;
     zip.write_all(&meta_bytes).map_err(|e| e.to_string())?;
 
     for file in &proj.files {
         if let Some(b64) = &file.data_base64 {
             let data = STANDARD.decode(b64).map_err(|e| e.to_string())?;
-            zip.start_file(&file.relative_path, opts).map_err(|e| e.to_string())?;
+            zip.start_file(&file.relative_path, opts)
+                .map_err(|e| e.to_string())?;
             zip.write_all(&data).map_err(|e| e.to_string())?;
         }
     }
@@ -353,6 +423,7 @@ pub fn creator_export_modpkg(app: AppHandle, project_id: String) -> Result<Strin
         return Err("Cannot export an empty project. Add at least one asset file.".into());
     }
 
+    validate_project(&proj)?;
     let mut buf = Cursor::new(Vec::new());
     let mut zip = ZipWriter::new(&mut buf);
     let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
@@ -366,15 +437,18 @@ pub fn creator_export_modpkg(app: AppHandle, project_id: String) -> Result<Strin
         "champion": proj.champion,
         "description": proj.description,
         "files": proj.files.iter().map(|f| &f.relative_path).collect::<Vec<_>>()
-    })).map_err(|e| e.to_string())?;
+    }))
+    .map_err(|e| e.to_string())?;
 
-    zip.start_file("modpkg.json", opts).map_err(|e| e.to_string())?;
+    zip.start_file("modpkg.json", opts)
+        .map_err(|e| e.to_string())?;
     zip.write_all(&manifest_bytes).map_err(|e| e.to_string())?;
 
     for file in &proj.files {
         if let Some(b64) = &file.data_base64 {
             let data = STANDARD.decode(b64).map_err(|e| e.to_string())?;
-            zip.start_file(&file.relative_path, opts).map_err(|e| e.to_string())?;
+            zip.start_file(&file.relative_path, opts)
+                .map_err(|e| e.to_string())?;
             zip.write_all(&data).map_err(|e| e.to_string())?;
         }
     }

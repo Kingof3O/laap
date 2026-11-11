@@ -1,10 +1,7 @@
 use super::storage;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
-use std::{
-    path::PathBuf,
-    sync::Mutex,
-};
+use std::{path::PathBuf, sync::Mutex};
 use tauri::AppHandle;
 
 static LOCK: Mutex<()> = Mutex::new(());
@@ -233,6 +230,17 @@ fn validate_theme(theme: &ThemeConfig) -> Result<(), String> {
             return Err(format!("Invalid hex color format for {label}: {col}"));
         }
     }
+    if !["Manrope", "Sora", "Segoe UI"].contains(&theme.font_family.as_str())
+        || !["normal", "fast", "slow", "off"].contains(&theme.animation_speed.as_str())
+        || theme.id.len() > 100
+        || theme.name.chars().any(char::is_control)
+        || theme
+            .background_media_type
+            .as_ref()
+            .is_some_and(|v| !["image", "gif", "video"].contains(&v.as_str()))
+    {
+        return Err("Invalid theme font, motion, media type or identity.".into());
+    }
     if !(0.1..=1.0).contains(&theme.opacity) {
         return Err("Opacity must be between 0.1 and 1.0.".into());
     }
@@ -249,6 +257,12 @@ fn read_store(app: &AppHandle) -> Result<ThemeStore, String> {
         active_theme_id: "velvet-amethyst".into(),
         custom_themes: vec![],
     });
+    if store.custom_themes.len() > 50 {
+        return Err("Theme store exceeds quota".into());
+    }
+    for theme in &store.custom_themes {
+        validate_theme(theme)?;
+    }
     Ok(store)
 }
 
@@ -296,8 +310,14 @@ pub fn theme_save_custom(app: AppHandle, mut theme: ThemeConfig) -> Result<Theme
     theme.is_builtin = false;
     validate_theme(&theme)?;
 
+    if let Some(path) = &theme.background_media_path {
+        validate_media_path(&app, path)?;
+    }
     let mut store = read_store(&app)?;
-    if theme.id.is_empty() || theme.id.starts_with("builtin-") {
+    if theme.id.is_empty()
+        || theme.id.starts_with("builtin-")
+        || builtin_themes().iter().any(|t| t.id == theme.id)
+    {
         let mut random = [0u8; 8];
         getrandom::fill(&mut random).map_err(|e| e.to_string())?;
         theme.id = format!("custom-{:016x}", u64::from_be_bytes(random));
@@ -351,7 +371,11 @@ pub fn theme_save_media(
         .and_then(|f| f.to_str())
         .ok_or_else(|| "Invalid media file name.".to_string())?;
 
-    if file_name.is_empty() || file_name.contains("..") || file_name.contains('/') || file_name.contains('\\') {
+    if file_name.is_empty()
+        || file_name.contains("..")
+        || file_name.contains('/')
+        || file_name.contains('\\')
+    {
         return Err("Media file name must not contain path traversal characters.".into());
     }
 
@@ -360,10 +384,18 @@ pub fn theme_save_media(
         .map(|(_, e)| e.to_ascii_lowercase())
         .unwrap_or_default();
 
-    if !matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "webp" | "gif" | "mp4" | "webm") {
-        return Err("Only image (PNG, JPG, WebP), GIF, and video (MP4, WebM) media are accepted.".into());
+    if !matches!(
+        ext.as_str(),
+        "png" | "jpg" | "jpeg" | "webp" | "gif" | "mp4" | "webm"
+    ) {
+        return Err(
+            "Only image (PNG, JPG, WebP), GIF, and video (MP4, WebM) media are accepted.".into(),
+        );
     }
 
+    if data_base64.len() > MAX_MEDIA_BYTES.div_ceil(3) * 4 {
+        return Err("Media exceeds limit".into());
+    }
     let bytes = STANDARD
         .decode(&data_base64)
         .map_err(|e| format!("Base64 decoding failed: {e}"))?;
@@ -372,16 +404,94 @@ pub fn theme_save_media(
         return Err("Media file exceeds 32 MiB size limit.".into());
     }
 
+    validate_media(&bytes, &ext)?;
+    use sha2::{Digest, Sha256};
     let media_dir = storage::root(&app)?.join("theme_media");
-    std::fs::create_dir_all(&media_dir).map_err(|e| e.to_string())?;
-
-    let file_path = media_dir.join(file_name);
-    if !file_path.starts_with(&media_dir) {
-        return Err("Path traversal detected.".into());
+    super::sandbox::check_chain(&media_dir, true)?;
+    let used = std::fs::read_dir(&media_dir)
+        .map_err(|e| e.to_string())?
+        .try_fold(0u64, |n, entry| {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let m = std::fs::symlink_metadata(entry.path()).map_err(|e| e.to_string())?;
+            Ok::<u64, String>(n.saturating_add(m.len()))
+        })?;
+    if used + bytes.len() as u64 > 256 * 1024 * 1024 {
+        return Err("Theme media quota exceeded.".into());
     }
-
-    std::fs::write(&file_path, bytes).map_err(|e| e.to_string())?;
+    let file_path = media_dir.join(format!("{:x}.{ext}", Sha256::digest(&bytes)));
+    storage::write_bytes(&file_path, &bytes)?;
     Ok(file_path.to_string_lossy().to_string())
+}
+fn validate_media(bytes: &[u8], ext: &str) -> Result<(), String> {
+    if bytes.is_empty() || bytes.len() > MAX_MEDIA_BYTES {
+        return Err("Invalid media size".into());
+    }
+    if matches!(ext, "png" | "jpg" | "jpeg" | "webp") {
+        let format = image::guess_format(bytes).map_err(|_| "Invalid image signature")?;
+        let expected = match ext {
+            "png" => image::ImageFormat::Png,
+            "jpg" | "jpeg" => image::ImageFormat::Jpeg,
+            _ => image::ImageFormat::WebP,
+        };
+        if format != expected {
+            return Err("Image format mismatch".into());
+        }
+        let (w, h) = image::ImageReader::with_format(std::io::Cursor::new(bytes), format)
+            .into_dimensions()
+            .map_err(|_| "Invalid image")?;
+        if w == 0 || h == 0 || w > 8192 || h > 8192 || w as u64 * h as u64 > 32_000_000 {
+            return Err("Image dimensions exceed limit".into());
+        }
+    } else if ext == "gif" {
+        if bytes.len() < 14 || !(bytes.starts_with(b"GIF89a") || bytes.starts_with(b"GIF87a")) {
+            return Err("Invalid GIF signature".into());
+        }
+        let w = u16::from_le_bytes([bytes[6], bytes[7]]) as u64;
+        let h = u16::from_le_bytes([bytes[8], bytes[9]]) as u64;
+        if w == 0 || h == 0 || w > 4096 || h > 4096 || w * h > 8_000_000 {
+            return Err("GIF dimensions exceed limit".into());
+        }
+    } else if ext == "mp4" {
+        if bytes.len() < 16 || &bytes[4..8] != b"ftyp" {
+            return Err("Invalid MP4 container".into());
+        }
+    } else if ext == "webm" {
+        if !bytes.starts_with(b"\x1a\x45\xdf\xa3") {
+            return Err("Invalid WebM container".into());
+        }
+    } else {
+        return Err("Unsupported media format".into());
+    }
+    Ok(())
+}
+fn validate_media_path(app: &AppHandle, path: &str) -> Result<std::path::PathBuf, String> {
+    let root = storage::root(app)?.join("theme_media");
+    let p = std::path::Path::new(path);
+    super::sandbox::check_chain(p, false)?;
+    if p.parent() != Some(root.as_path()) {
+        return Err("Only LAAP-owned theme media may be read.".into());
+    }
+    Ok(p.into())
+}
+#[tauri::command]
+pub fn theme_media_read(app: AppHandle, path: String) -> Result<String, String> {
+    let p = validate_media_path(&app, &path)?;
+    let ext = p
+        .extension()
+        .and_then(|s| s.to_str())
+        .ok_or("Missing media format")?;
+    let bytes = super::sandbox::read_blob(&p, MAX_MEDIA_BYTES as u64)?;
+    validate_media(&bytes, ext)?;
+    let mime = match ext {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "webp" => "image/webp",
+        "gif" => "image/gif",
+        "mp4" => "video/mp4",
+        "webm" => "video/webm",
+        _ => return Err("Unsupported media".into()),
+    };
+    Ok(format!("data:{mime};base64,{}", STANDARD.encode(bytes)))
 }
 
 // Backward-compatible wrappers for legacy theme_preview_load and theme_preview_save
@@ -412,7 +522,11 @@ pub fn theme_preview_load(app: AppHandle) -> Result<Option<ThemePreview>, String
         canvas: active.canvas,
         panel: active.panel,
         accent: active.accent,
-        font: if active.font_family == "Sora" { Font::Sora } else { Font::Manrope },
+        font: if active.font_family == "Sora" {
+            Font::Sora
+        } else {
+            Font::Manrope
+        },
     }))
 }
 
@@ -488,5 +602,17 @@ mod tests {
         let list = builtin_themes();
         assert!(list.len() >= 8);
         assert_eq!(list[0].id, "velvet-amethyst");
+    }
+    #[test]
+    fn media_rejects_disguised_payloads_and_fonts_are_allowlisted() {
+        for ext in ["png", "jpg", "webp", "gif", "mp4", "webm"] {
+            assert!(validate_media(b"MZnot-media", ext).is_err());
+        }
+        let mut t = default_velvet_amethyst();
+        t.font_family = "url(https://untrusted.invalid/font)".into();
+        assert!(validate_theme(&t).is_err());
+        t = default_velvet_amethyst();
+        t.animation_speed = "unbounded".into();
+        assert!(validate_theme(&t).is_err());
     }
 }

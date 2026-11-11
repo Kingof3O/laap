@@ -179,7 +179,9 @@ export function CreatorWorkshop() {
     setBusy(true)
     setError('')
     try {
-      const b64 = await creator.exportFantome(activeProject.id)
+      const saved = await creator.saveProject(activeProject)
+      setActiveProject(saved)
+      const b64 = await creator.exportFantome(saved.id)
       downloadBase64(b64, 'application/zip', `${activeProject.champion}_${activeProject.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}.fantome`)
       setStatus('Exported .fantome archive successfully.')
     } catch (e) {
@@ -194,7 +196,9 @@ export function CreatorWorkshop() {
     setBusy(true)
     setError('')
     try {
-      const b64 = await creator.exportModpkg(activeProject.id)
+      const saved = await creator.saveProject(activeProject)
+      setActiveProject(saved)
+      const b64 = await creator.exportModpkg(saved.id)
       downloadBase64(b64, 'application/zip', `${activeProject.champion}_${activeProject.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}.modpkg`)
       setStatus('Exported .modpkg archive successfully.')
     } catch (e) {
@@ -370,7 +374,7 @@ export function CreatorWorkshop() {
       ) : (
         /* Quick Image Pack Builder */
         <section>
-          <p>Package rights-cleared PNG/JPEG/WebP images into a signed archive with metadata manifest.</p>
+          <p>Package rights-cleared PNG/JPEG/WebP images into a checksummed archive with metadata manifest.</p>
           <form className="customization-editor" onSubmit={(event) => void buildQuickPack(event)}>
             <fieldset disabled={busy}>
               <label>Package ID <input required name="id" maxLength={100} pattern="[a-zA-Z0-9._\-]+" placeholder="creator.project" /></label>
@@ -389,7 +393,7 @@ export function CreatorWorkshop() {
               <p role="status">Package built successfully.</p>
               <div className="customization-actions">
                 <button className="btn-secondary" onClick={() => downloadBase64(quickOutput.archive, 'application/zip', `${quickOutput.manifest.modId}.zip`)}>Download ZIP</button>
-                <button className="btn-secondary" onClick={() => downloadBase64(btoa(JSON.stringify(quickOutput.manifest, null, 2)), 'application/json', `${quickOutput.manifest.modId}.json`)}>Download Manifest</button>
+                <button className="btn-secondary" onClick={() => downloadBase64(btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(quickOutput.manifest, null, 2)))), 'application/json', `${quickOutput.manifest.modId}.json`)}>Download Manifest</button>
               </div>
             </div>
           )}

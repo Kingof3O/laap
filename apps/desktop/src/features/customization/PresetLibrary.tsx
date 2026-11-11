@@ -250,7 +250,7 @@ export function PresetLibrary({ profile, onOpen }: { profile?: { id: string; nam
           <p style={{ margin: '0.25rem 0', fontSize: '0.9rem' }}>Multiple presets for the same champion target overlapping queue or priority rules:</p>
           <ul style={{ margin: '0.25rem 0 0 1rem', fontSize: '0.85rem' }}>
             {conflicts.map((c, i) => (
-              <li key={i}>{c.reason}: {c.presets.map((p) => p.name).join(' vs ')}</li>
+              <li key={i}>{c.championId}{c.queueMode ? ` · ${c.queueMode}` : ''}: {c.presetNames.join(' vs ')}</li>
             ))}
           </ul>
         </div>

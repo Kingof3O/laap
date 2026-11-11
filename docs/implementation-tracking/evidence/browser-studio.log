@@ -1,0 +1,12 @@
+
+Running 3 tests using 1 worker
+
+  ok 1 tests\remediation\studio.spec.ts:223:1 › browser UI + real HTTP: creator registration, verified local bytes submission, human approval, download import acknowledgement (2.0s)
+  ok 2 tests\remediation\studio.spec.ts:329:1 › theme contract restores active colors after navigation and restart; fonts and reduced motion render (2.6s)
+  ok 3 tests\remediation\studio.spec.ts:416:1 › native-shaped preset conflict reports render without a contract crash (1.0s)
+
+  3 passed (7.7s)
+[WebServer] (node:27204) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+(node:30980) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)

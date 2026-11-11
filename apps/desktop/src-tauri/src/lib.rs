@@ -45,6 +45,10 @@ pub fn run() {
             product::validate_identifier(&app.config().identifier)?;
             #[cfg(not(feature = "basic"))]
             app.handle().plugin(tauri_plugin_dialog::init())?;
+            #[cfg(not(feature = "basic"))]
+            if customization::discord::scrub_legacy_config(app.handle()).is_err() {
+                eprintln!("Legacy Discord configuration cleanup failed; review local integration settings.");
+            }
             #[cfg(target_os = "windows")]
             {
                 if let Some(window) = app.get_webview_window("main") {
@@ -185,6 +189,10 @@ pub fn run() {
             customization::community_credentials::community_credential_save,
             #[cfg(all(feature = "customization", not(feature = "basic")))]
             customization::community_credentials::community_credential_clear,
+            #[cfg(not(feature = "basic"))]
+            customization::provider_support::provider_key_save,
+            #[cfg(not(feature = "basic"))]
+            customization::provider_support::provider_key_clear,
             #[cfg(all(feature = "customization", not(feature = "basic")))]
             customization::library::mod_inspect,
             #[cfg(not(feature = "basic"))]
@@ -233,6 +241,8 @@ pub fn run() {
             customization::themes::theme_reset_default,
             #[cfg(not(feature = "basic"))]
             customization::themes::theme_save_media,
+            #[cfg(not(feature = "basic"))]
+            customization::themes::theme_media_read,
             #[cfg(not(feature = "basic"))]
             customization::library::mod_set_enabled,
             #[cfg(not(feature = "basic"))]
@@ -331,6 +341,8 @@ pub fn run() {
             customization::stats_provider::opgg_get_summoner_profile,
             #[cfg(not(feature = "basic"))]
             customization::ai_assistant::ai_chat,
+            #[cfg(not(feature = "basic"))]
+            customization::ai_assistant::provider_cancel,
             #[cfg(not(feature = "basic"))]
             customization::ai_assistant::elevenlabs_tts,
             #[cfg(not(feature = "basic"))]

@@ -1,285 +1,337 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { invokeTauri } from '../../lib/api'
-import { errorMessage, themes, type ThemeConfig } from './api'
-import { readFileBase64 } from './packageFiles'
-
-const DEFAULT_THEME: ThemeConfig = {
-  id: 'velvet-amethyst',
-  name: 'Velvet Amethyst',
-  author: 'LAAP Team',
-  version: '1.0.0',
-  isBuiltin: true,
-  palette: {
-    background: '#161121',
-    surface: '#282038',
-    primary: '#d6b7ff',
-    secondary: '#8a72b2',
-    accent: '#d6b7ff',
-    text: '#ffffff',
-    textMuted: '#94a3b8',
-    border: '#3b3366',
-  },
-  fontFamily: 'Manrope',
-  animationsEnabled: true,
-}
-
-export function applyThemeToDom(theme: ThemeConfig) {
-  if (typeof document === 'undefined') return
-  const root = document.documentElement
-  root.style.setProperty('--canvas', theme.palette.background)
-  root.style.setProperty('--surface', theme.palette.surface)
-  root.style.setProperty('--primary', theme.palette.primary)
-  root.style.setProperty('--accent', theme.palette.accent)
-  root.style.setProperty('--text-primary', theme.palette.text)
-  root.style.setProperty('--text-muted', theme.palette.textMuted)
-  root.style.setProperty('--surface-border', theme.palette.border)
-  root.style.setProperty('--font-family', theme.fontFamily)
-}
-
+import { useEffect, useState, type FormEvent } from "react";
+import { errorMessage, themes, type ThemeConfig } from "./api";
+import { notifyThemeChanged } from "./themeRuntime";
+import { readFileBase64 } from "./packageFiles";
 export function ThemePreview() {
-  const [themeList, setThemeList] = useState<ThemeConfig[]>([DEFAULT_THEME])
-  const [activeTheme, setActiveTheme] = useState<ThemeConfig | null>(DEFAULT_THEME)
-  const [error, setError] = useState('')
-  const [status, setStatus] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  // Media file state
-  const [mediaFile, setMediaFile] = useState<File | null>(null)
-
-  useEffect(() => {
-    if (activeTheme) {
-      applyThemeToDom(activeTheme)
-    }
-  }, [activeTheme])
-
+  const [list, setList] = useState<ThemeConfig[]>([]);
+  const [draft, setDraft] = useState<ThemeConfig | null>(null);
+  const [error, setError] = useState("");
+  const [status, setStatus] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [history, setHistory] = useState<ThemeConfig[]>([]);
+  const [future, setFuture] = useState<ThemeConfig[]>([]);
   async function load() {
-    setError('')
-    try {
-      const allThemes = await themes.list()
-      const list = Array.isArray(allThemes) && allThemes.length > 0 ? allThemes : [DEFAULT_THEME]
-      setThemeList(list)
-      const current = await themes.getActive()
-      setActiveTheme(current || list[0] || DEFAULT_THEME)
-    } catch (cause) {
-      setError(errorMessage(cause))
-      setThemeList([DEFAULT_THEME])
-      setActiveTheme(DEFAULT_THEME)
-    }
+    const [all, current] = await Promise.all([
+      themes.list(),
+      themes.getActive(),
+    ]);
+    setList(all);
+    setDraft(current);
   }
-
   useEffect(() => {
-    void load()
-  }, [])
-
-  async function selectTheme(id: string) {
-    setBusy(true)
-    setError('')
-    setStatus('')
+    void load().catch((e) => setError(errorMessage(e)));
+  }, []);
+  function edit(value: Partial<ThemeConfig>) {
+    if (!draft) return;
+    setHistory((h) => [...h, draft].slice(-30));
+    setFuture([]);
+    setDraft({ ...draft, ...value });
+  }
+  async function run(work: () => Promise<void>) {
+    setBusy(true);
+    setError("");
     try {
-      const activated = await themes.setActive(id)
-      setActiveTheme(activated)
-      setStatus(`Activated theme "${activated.name}".`)
+      await work();
     } catch (e) {
-      setError(errorMessage(e))
+      setError(errorMessage(e));
     } finally {
-      setBusy(false)
+      setBusy(false);
     }
   }
-
-  async function saveCustom(event: FormEvent) {
-    event.preventDefault()
-    if (!activeTheme) return
-    setBusy(true)
-    setError('')
-    setStatus('')
-    try {
-      const saved = await themes.saveCustom(activeTheme)
-      // Also persist legacy preview state for backward-compatibility
-      await invokeTauri('theme_preview_save', {
-        preview: {
-          schemaVersion: 1,
-          name: activeTheme.name,
-          canvas: activeTheme.palette.background,
-          panel: activeTheme.palette.surface,
-          accent: activeTheme.palette.primary,
-          font: activeTheme.fontFamily.toLowerCase() === 'sora' ? 'sora' : 'manrope',
-        },
-      }).catch(() => {})
-      setActiveTheme(saved)
-      await load()
-      setStatus(`Theme "${saved.name}" saved.`)
-    } catch (cause) {
-      setError(errorMessage(cause))
-    } finally {
-      setBusy(false)
-    }
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    if (!draft) return;
+    await run(async () => {
+      const saved = await themes.saveCustom({
+        ...draft,
+        id: draft.isBuiltin ? "" : draft.id,
+        isBuiltin: false,
+      });
+      await themes.setActive(saved.id);
+      notifyThemeChanged();
+      await load();
+      setStatus("Theme saved and applied to LAAP. It will restore at startup.");
+    });
   }
-
-  async function handleResetDefault() {
-    setBusy(true)
-    setError('')
-    setStatus('')
-    try {
-      const def = await themes.resetDefault()
-      setActiveTheme(def)
-      await load()
-      setStatus('Reset to default Velvet Amethyst theme.')
-    } catch (e) {
-      setError(errorMessage(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function handleUploadMedia() {
-    if (!mediaFile || !activeTheme) return
-    setBusy(true)
-    setError('')
-    setStatus('')
-    try {
-      const b64 = await readFileBase64(mediaFile)
-      const mime = mediaFile.type || 'image/jpeg'
-      const assetPath = await themes.saveMedia(b64, mime)
-
-      const updated = {
-        ...activeTheme,
-        customMedia: {
-          ...activeTheme.customMedia,
-          wallpaperUrl: assetPath,
-          backgroundVideo: mediaFile.type.includes('video') ? assetPath : undefined,
-          backgroundGif: mediaFile.type.includes('gif') ? assetPath : undefined,
-        },
-      }
-      setActiveTheme(updated)
-      await themes.saveCustom(updated)
-      setStatus(`Custom background media "${mediaFile.name}" applied.`)
-      setMediaFile(null)
-    } catch (e) {
-      setError(errorMessage(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
+  const fields = [
+    "canvas",
+    "panel",
+    "surface",
+    "accent",
+    "accentHover",
+    "textPrimary",
+    "textSecondary",
+    "border",
+  ] as const;
   return (
     <>
       <div className="customization-heading">
         <div>
-          <h2>Theme workshop & appearance</h2>
-          <p>Customize palettes, fonts, and client background animations. Includes 8 built-in themes.</p>
+          <h2>LAAP theme workshop</h2>
+          <p>
+            Local app appearance. League-client appearance requires a separately
+            approved adapter.
+          </p>
         </div>
-        <div className="customization-actions">
-          <button className="btn-secondary" disabled={busy} onClick={() => void handleResetDefault()}>Reset to Default</button>
-        </div>
+        <button
+          className="btn-secondary"
+          disabled={busy}
+          onClick={() =>
+            void run(async () => {
+              await themes.resetDefault();
+              notifyThemeChanged();
+              await load();
+              setStatus("Restored Velvet Amethyst.");
+            })
+          }
+        >
+          Reset to Velvet Amethyst
+        </button>
       </div>
-
-      <p className="customization-source">Live Preview: Theme selections apply locally to the LAAP Studio interface. Background video and audio loops stay local to this machine.</p>
-
       {error && <p role="alert">{error}</p>}
       {status && <p role="status">{status}</p>}
-
-      {/* Built-in and Custom Themes Grid */}
-      <section style={{ marginBottom: '1.5rem' }}>
-        <h3>Theme collection ({themeList.length})</h3>
-        <div className="customization-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
-          {themeList.map((t) => (
-            <div
-              key={t.id}
-              className="customization-card"
-              style={{
-                cursor: 'pointer',
-                borderColor: activeTheme?.id === t.id ? 'var(--accent, #6366f1)' : undefined,
-                background: t.palette.background,
-                color: t.palette.text,
-                padding: '1rem',
-                borderRadius: '8px',
-                borderWidth: activeTheme?.id === t.id ? '2px' : '1px',
-              }}
-              onClick={() => void selectTheme(t.id)}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <strong style={{ color: t.palette.text }}>{t.name}</strong>
-                {t.isBuiltin && <span className="badge" style={{ fontSize: '0.7rem', padding: '1px 5px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px' }}>Built-in</span>}
-              </div>
-              <div style={{ display: 'flex', gap: '4px', margin: '0.5rem 0' }}>
-                <span style={{ width: '16px', height: '16px', borderRadius: '50%', background: t.palette.primary }} title="Primary" />
-                <span style={{ width: '16px', height: '16px', borderRadius: '50%', background: t.palette.secondary }} title="Secondary" />
-                <span style={{ width: '16px', height: '16px', borderRadius: '50%', background: t.palette.accent }} title="Accent" />
-                <span style={{ width: '16px', height: '16px', borderRadius: '50%', background: t.palette.surface }} title="Surface" />
-              </div>
-              <span style={{ fontSize: '0.75rem', color: t.palette.textMuted }}>{t.fontFamily}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Editor & Preview */}
-      {activeTheme && (
+      <div className="customization-grid">
+        {list.map((t) => (
+          <button
+            key={t.id}
+            className="customization-card"
+            disabled={busy}
+            aria-pressed={draft?.id === t.id}
+            style={{
+              background: t.panel,
+              color: t.textPrimary,
+              borderColor: t.accent,
+            }}
+            onClick={() =>
+              void run(async () => {
+                await themes.setActive(t.id);
+                notifyThemeChanged();
+                setDraft(t);
+                setHistory([]);
+                setFuture([]);
+                setStatus("Applied " + t.name);
+              })
+            }
+          >
+            {t.name}
+            {t.isBuiltin ? " · Included" : ""}
+          </button>
+        ))}
+      </div>
+      {draft && (
         <div className="customization-detail">
-          <form className="customization-editor" onSubmit={(event) => void saveCustom(event)}>
-            <h3>Theme palette editor</h3>
-            <label>Theme name
-              <input required maxLength={100} value={activeTheme.name} onChange={(event) => setActiveTheme({ ...activeTheme, name: event.target.value })} />
+          <form className="customization-editor" onSubmit={(e) => void save(e)}>
+            <label>
+              Name
+              <input
+                required
+                maxLength={80}
+                value={draft.name}
+                onChange={(e) => edit({ name: e.target.value })}
+              />
             </label>
             <div className="customization-filters">
-              <label>Background <input type="color" value={activeTheme.palette.background} onChange={(e) => setActiveTheme({ ...activeTheme, palette: { ...activeTheme.palette, background: e.target.value } })} /></label>
-              <label>Surface <input type="color" value={activeTheme.palette.surface} onChange={(e) => setActiveTheme({ ...activeTheme, palette: { ...activeTheme.palette, surface: e.target.value } })} /></label>
-              <label>Primary <input type="color" value={activeTheme.palette.primary} onChange={(e) => setActiveTheme({ ...activeTheme, palette: { ...activeTheme.palette, primary: e.target.value } })} /></label>
-              <label>Accent <input type="color" value={activeTheme.palette.accent} onChange={(e) => setActiveTheme({ ...activeTheme, palette: { ...activeTheme.palette, accent: e.target.value } })} /></label>
+              {fields.map((k) => (
+                <label key={k}>
+                  {k}
+                  <input
+                    type="color"
+                    value={draft[k].slice(0, 7)}
+                    onChange={(e) => edit({ [k]: e.target.value })}
+                  />
+                </label>
+              ))}
             </div>
-            <label>Font family
-              <select value={activeTheme.fontFamily} onChange={(e) => setActiveTheme({ ...activeTheme, fontFamily: e.target.value })}>
-                <option value="Manrope">Manrope</option>
-                <option value="Sora">Sora</option>
-                <option value="Segoe UI">Segoe UI</option>
-                <option value="Inter">Inter</option>
+            <label>
+              Bundled font
+              <select
+                value={draft.fontFamily}
+                onChange={(e) => edit({ fontFamily: e.target.value })}
+              >
+                <option>Manrope</option>
+                <option>Sora</option>
+                <option>Segoe UI</option>
               </select>
             </label>
             <label className="customization-check">
-              <input type="checkbox" checked={activeTheme.animationsEnabled} onChange={(e) => setActiveTheme({ ...activeTheme, animationsEnabled: e.target.checked })} />
-              Enable smooth UI transitions & animations
+              <input
+                type="checkbox"
+                checked={draft.reducedMotion}
+                onChange={(e) => edit({ reducedMotion: e.target.checked })}
+              />
+              Reduce motion (OS preference is always respected)
             </label>
-
-            {/* Custom media section */}
-            <div style={{ marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '0.75rem' }}>
-              <h4>Custom background media (Video / GIF / Wallpaper)</h4>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Upload an MP4, WebM, GIF, or image to use as animated background.</p>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <input type="file" accept="video/mp4,video/webm,image/gif,image/png,image/jpeg,image/webp" onChange={(e) => setMediaFile(e.target.files?.[0] ?? null)} />
-                <button type="button" className="btn-secondary" disabled={busy || !mediaFile} onClick={() => void handleUploadMedia()}>Upload media</button>
-              </div>
+            <label className="customization-check">
+              <input
+                type="checkbox"
+                checked={draft.performanceMode}
+                onChange={(e) => edit({ performanceMode: e.target.checked })}
+              />
+              Disable animated media and transitions
+            </label>
+            <label>
+              Original background media · up to 32 MiB
+              <input
+                type="file"
+                accept=".png,.jpg,.jpeg,.webp,.gif,.mp4,.webm"
+                disabled={busy}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file)
+                    void run(async () => {
+                      if (file.size > 32 * 1024 * 1024)
+                        throw Error("Media exceeds 32 MiB");
+                      const path = await themes.saveMedia(
+                        await readFileBase64(file),
+                        file.name,
+                      );
+                      edit({
+                        backgroundMediaPath: path,
+                        backgroundMediaType: file.type.startsWith("video/")
+                          ? "video"
+                          : file.type === "image/gif"
+                            ? "gif"
+                            : "image",
+                      });
+                      setStatus(
+                        "Media validated and stored locally. Save theme to apply.",
+                      );
+                    });
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() =>
+                edit({ backgroundMediaPath: null, backgroundMediaType: null })
+              }
+            >
+              Remove background media
+            </button>
+            <div className="customization-actions">
+              <button
+                type="button"
+                disabled={!history.length}
+                onClick={() => {
+                  const previous = history.at(-1)!;
+                  setFuture((f) => [draft, ...f]);
+                  setHistory((h) => h.slice(0, -1));
+                  setDraft(previous);
+                }}
+              >
+                Undo
+              </button>
+              <button
+                type="button"
+                disabled={!future.length}
+                onClick={() => {
+                  setHistory((h) => [...h, draft]);
+                  setDraft(future[0]);
+                  setFuture((f) => f.slice(1));
+                }}
+              >
+                Redo
+              </button>
+              <button className="btn-primary" disabled={busy}>
+                Save and apply
+              </button>
             </div>
-
-            <div className="customization-actions" style={{ marginTop: '1rem' }}>
-              <button className="btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save theme'}</button>
+            <div className="customization-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  const portable = {
+                    ...draft,
+                    id: "",
+                    isBuiltin: false,
+                    backgroundMediaPath: null,
+                    backgroundMediaType: null,
+                  };
+                  const url = URL.createObjectURL(
+                    new Blob(
+                      [
+                        JSON.stringify(
+                          { schemaVersion: 1, theme: portable },
+                          null,
+                          2,
+                        ),
+                      ],
+                      { type: "application/json" },
+                    ),
+                  );
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "laap-theme.json";
+                  a.click();
+                  setTimeout(() => URL.revokeObjectURL(url), 1000);
+                }}
+              >
+                Export palette
+              </button>
+              <label>
+                Import palette
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f)
+                      void run(async () => {
+                        if (f.size > 16384)
+                          throw Error("Theme exceeds metadata limit");
+                        const v = JSON.parse(await f.text());
+                        if (
+                          v.schemaVersion !== 1 ||
+                          v.theme.backgroundMediaPath
+                        )
+                          throw Error("Unsupported portable theme");
+                        const saved = await themes.saveCustom({
+                          ...v.theme,
+                          id: "",
+                          isBuiltin: false,
+                          backgroundMediaPath: null,
+                          backgroundMediaType: null,
+                        });
+                        await load();
+                        setDraft(saved);
+                        setStatus(
+                          "Palette imported. Save and apply to activate.",
+                        );
+                      });
+                  }}
+                />
+              </label>
             </div>
           </form>
-
-          {/* Live theme preview card */}
-          <div
+          <section
+            aria-label="Theme preview"
             className="theme-preview"
             style={{
-              background: activeTheme.palette.background,
-              fontFamily: activeTheme.fontFamily,
-              color: activeTheme.palette.text,
-              borderRadius: '12px',
-              border: `1px solid ${activeTheme.palette.border}`,
-              padding: '1.5rem',
+              background: draft.canvas,
+              color: draft.textPrimary,
+              fontFamily: draft.fontFamily,
+              padding: "1.5rem",
             }}
-            aria-label="Theme preview"
           >
-            <div style={{ background: activeTheme.palette.surface, borderColor: activeTheme.palette.accent, border: '1px solid', borderRadius: '8px', padding: '1rem' }}>
-              <span style={{ fontSize: '0.75rem', color: activeTheme.palette.textMuted }}>THEME PREVIEW</span>
-              <h3 style={{ margin: '0.25rem 0', color: activeTheme.palette.text }}>{activeTheme.name}</h3>
-              <p style={{ fontSize: '0.85rem', color: activeTheme.palette.textMuted }}>Custom styling applied locally.</p>
-              <div style={{ display: 'flex', gap: '8px', marginTop: '0.75rem' }}>
-                <span className="theme-sample" style={{ background: activeTheme.palette.primary, padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', color: '#fff' }}>Primary</span>
-                <span className="theme-sample" style={{ background: activeTheme.palette.accent, padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', color: '#000' }}>Accent</span>
-              </div>
+            <h3>{draft.name}</h3>
+            <div
+              style={{
+                background: draft.panel,
+                padding: "1rem",
+                border: "1px solid " + draft.border,
+              }}
+            >
+              <p style={{ color: draft.textSecondary }}>
+                Preview your app palette before saving.
+              </p>
+              <button style={{ background: draft.accent, color: draft.canvas }}>
+                Example action
+              </button>
             </div>
-          </div>
+          </section>
         </div>
       )}
     </>
-  )
+  );
 }

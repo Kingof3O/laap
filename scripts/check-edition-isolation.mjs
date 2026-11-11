@@ -36,7 +36,7 @@ try {
     for (const command of ['list_local_accounts', 'launch_local_account', 'initialize_presence']) {
       assert.equal(js.includes(command), name !== 'studio', name + ' ' + command)
     }
-    for (const command of ['catalog_list', 'customization_preset_save', 'mod_import', 'theme_preview_save', 'creator_build_package']) {
+    for (const command of ['catalog_list', 'customization_preset_save', 'mod_import', 'theme_set_active', 'creator_create_project']) {
       assert.equal(js.includes(command), name !== 'basic', name + ' ' + command)
     }
     assert.equal(js.includes('/v1/rooms/events'), name !== 'basic', name + ' party transport')

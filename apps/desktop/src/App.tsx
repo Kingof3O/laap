@@ -18,13 +18,16 @@ import type { SortOrder } from './lib/sorting'
 import type { Region, ViewMode } from './lib/types'
 
 interface AppProps {
+  background?: ReactNode
   navigation?: ReactNode
   studio?: ReactNode
   onShowAccounts?: () => void
   profileActions?: ComponentProps<typeof PersonalRosterView>['profileActions']
+  onProfilesChanged?: (profiles: {id:string;name:string}[]) => void
+  onProfileSwitched?: (id:string) => void
 }
 
-function AppContent({ navigation, studio, onShowAccounts, profileActions }: AppProps) {
+function AppContent({ background, navigation, studio, onShowAccounts, profileActions, onProfilesChanged, onProfileSwitched }: AppProps) {
   const operations = useRiotOperations()
   const launcher = useLauncher()
   const activeOperations = useRef(false)
@@ -166,6 +169,7 @@ function AppContent({ navigation, studio, onShowAccounts, profileActions }: AppP
 
   return (
     <div className={studio ? "app-container studio-active" : "app-container"}>
+      {background}
       <WindowTitleBar>
       <Header
         navigation={navigation}
@@ -219,6 +223,8 @@ function AppContent({ navigation, studio, onShowAccounts, profileActions }: AppP
       <main className="main-viewport" style={studio ? { display: 'none' } : undefined}>
           <PersonalRosterView
             profileActions={profileActions}
+            onProfilesChanged={onProfilesChanged}
+            onProfileSwitched={onProfileSwitched}
             trayRequest={trayRequest}
             onTrayRequestHandled={() => setTrayRequest(null)}
             searchQuery={searchQuery}

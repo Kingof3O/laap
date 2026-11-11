@@ -72,7 +72,6 @@ pub struct ModConflict {
     pub conflicting_mods: Vec<String>,
 }
 
-
 fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
@@ -151,7 +150,9 @@ pub(super) fn validate_archive(bytes: &[u8], manifest: &Manifest) -> Result<(), 
         return Err("Archive size, ZIP signature, or SHA-256 does not match the manifest.".into());
     }
     let mut zip = ZipArchive::new(Cursor::new(bytes)).map_err(|e| e.to_string())?;
-    if zip.len() > MAX_FILES * 2 { return Err("Too many archive entries.".into()); }
+    if zip.len() > MAX_FILES * 2 {
+        return Err("Too many archive entries.".into());
+    }
     let mut seen = BTreeSet::new();
     let mut expanded = 0u64;
     for i in 0..zip.len() {
@@ -204,7 +205,22 @@ pub(super) fn validate_archive(bytes: &[u8], manifest: &Manifest) -> Result<(), 
         let is_image = matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "webp");
         let is_game_asset = matches!(
             ext.as_str(),
-            "dds" | "skn" | "skl" | "sco" | "scb" | "anm" | "mapgeo" | "bin" | "wad" | "client" | "json" | "txt" | "ogg" | "wav" | "bnk" | "wpk"
+            "dds"
+                | "skn"
+                | "skl"
+                | "sco"
+                | "scb"
+                | "anm"
+                | "mapgeo"
+                | "bin"
+                | "wad"
+                | "client"
+                | "json"
+                | "txt"
+                | "ogg"
+                | "wav"
+                | "bnk"
+                | "wpk"
         );
 
         if !is_image && !is_game_asset {
@@ -247,7 +263,9 @@ pub(super) fn validate_archive(bytes: &[u8], manifest: &Manifest) -> Result<(), 
             }
         }
     }
-    if seen.len() != manifest.files.len() { return Err("Manifest lists missing entries.".into()); }
+    if seen.len() != manifest.files.len() {
+        return Err("Manifest lists missing entries.".into());
+    }
     Ok(())
 }
 
@@ -262,46 +280,86 @@ pub struct ImportDeclaration {
     pub contains_paid_riot_content: bool,
 }
 
-fn inspect_archive(bytes: &[u8], declaration: ImportDeclaration) -> Result<Manifest, String> {
+pub(super) fn inspect_archive(
+    bytes: &[u8],
+    declaration: ImportDeclaration,
+) -> Result<Manifest, String> {
     if bytes.len() > MAX_ARCHIVE || !bytes.starts_with(b"PK\x03\x04") {
         return Err("Unsupported or oversized ZIP-based package.".into());
     }
     let mut zip = ZipArchive::new(Cursor::new(bytes)).map_err(|e| e.to_string())?;
-    if zip.len() > MAX_FILES * 2 { return Err("Too many archive entries.".into()); }
+    if zip.len() > MAX_FILES * 2 {
+        return Err("Too many archive entries.".into());
+    }
     let mut files = Vec::new();
     let mut total = 0u64;
     for i in 0..zip.len() {
         let mut file = zip.by_index(i).map_err(|e| e.to_string())?;
-        if file.is_dir() { continue; }
+        if file.is_dir() {
+            continue;
+        }
         total = total.checked_add(file.size()).ok_or("Expansion overflow")?;
-        if file.size() > MAX_ENTRY || total > MAX_EXPANDED || file.size() > file.compressed_size().saturating_mul(100) {
+        if file.size() > MAX_ENTRY
+            || total > MAX_EXPANDED
+            || file.size() > file.compressed_size().saturating_mul(100)
+        {
             return Err("Archive exceeds expansion limit.".into());
         }
-        let name = std::str::from_utf8(file.name_raw()).map_err(|_| "Invalid path encoding")?.to_string();
-        if !safe_name(&name) { return Err("Unsafe archive path.".into()); }
+        let name = std::str::from_utf8(file.name_raw())
+            .map_err(|_| "Invalid path encoding")?
+            .to_string();
+        if !safe_name(&name) {
+            return Err("Unsafe archive path.".into());
+        }
         let mut data = Vec::new();
         let size = file.size();
-        (&mut file).take(size + 1).read_to_end(&mut data).map_err(|e| e.to_string())?;
-        files.push(Entry { relative_path: name, sha256: digest(&data), size_bytes: data.len() as u64 });
+        (&mut file)
+            .take(size + 1)
+            .read_to_end(&mut data)
+            .map_err(|e| e.to_string())?;
+        files.push(Entry {
+            relative_path: name,
+            sha256: digest(&data),
+            size_bytes: data.len() as u64,
+        });
     }
     let sha256 = digest(bytes);
     let manifest = Manifest {
-        schema_version: 1, mod_id: format!("import.{}", &sha256[..20]), version: declaration.version,
-        display_name: declaration.display_name, author: declaration.author, license: declaration.license,
-        right_to_distribute: declaration.right_to_distribute, contains_paid_riot_content: declaration.contains_paid_riot_content,
-        sha256, supported_game_builds: vec![], champion_ids: vec![], files, attribution_url: None, notes: None,
+        schema_version: 1,
+        mod_id: format!("import.{}", &sha256[..20]),
+        version: declaration.version,
+        display_name: declaration.display_name,
+        author: declaration.author,
+        license: declaration.license,
+        right_to_distribute: declaration.right_to_distribute,
+        contains_paid_riot_content: declaration.contains_paid_riot_content,
+        sha256,
+        supported_game_builds: vec![],
+        champion_ids: vec![],
+        files,
+        attribution_url: None,
+        notes: None,
     };
     validate_archive(bytes, &manifest)?;
     Ok(manifest)
 }
 
 #[tauri::command]
-pub async fn mod_inspect(archive: String, declaration: ImportDeclaration) -> Result<Manifest, String> {
-    if archive.len() > MAX_ARCHIVE.div_ceil(3) * 4 { return Err("Archive too large.".into()); }
+pub async fn mod_inspect(
+    archive: String,
+    declaration: ImportDeclaration,
+) -> Result<Manifest, String> {
+    if archive.len() > MAX_ARCHIVE.div_ceil(3) * 4 {
+        return Err("Archive too large.".into());
+    }
     tauri::async_runtime::spawn_blocking(move || {
-        let bytes = STANDARD.decode(archive).map_err(|_| "Invalid archive encoding")?;
+        let bytes = STANDARD
+            .decode(archive)
+            .map_err(|_| "Invalid archive encoding")?;
         inspect_archive(&bytes, declaration)
-    }).await.map_err(|e| e.to_string())?
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[derive(Deserialize)]
@@ -428,8 +486,7 @@ fn import_into(dir: &Path, bytes: &[u8], manifest: Manifest) -> Result<(), Strin
         return Ok(());
     }
     if rows.len() >= 200
-        || rows.iter().map(|row| row.archive_bytes).sum::<u64>() + bytes.len() as u64
-        > MAX_LIBRARY
+        || rows.iter().map(|row| row.archive_bytes).sum::<u64>() + bytes.len() as u64 > MAX_LIBRARY
     {
         return Err("The local library is full.".into());
     }
@@ -610,8 +667,11 @@ pub fn mod_get_package_data(app: AppHandle, sha256: String) -> Result<ModPackage
     }
     let dir = storage::root(&app)?.join("library");
     let blob_path = dir.join("content").join(&sha256);
-    let manifest = index(&dir)?.into_iter().find(|row| row.manifest.sha256 == sha256)
-        .ok_or("Package not in library")?.manifest;
+    let manifest = index(&dir)?
+        .into_iter()
+        .find(|row| row.manifest.sha256 == sha256)
+        .ok_or("Package not in library")?
+        .manifest;
     let archive_bytes = super::sandbox::read_blob(&blob_path, MAX_ARCHIVE as u64)?;
     validate_archive(&archive_bytes, &manifest)?;
 
@@ -623,27 +683,61 @@ pub fn mod_get_package_data(app: AppHandle, sha256: String) -> Result<ModPackage
 }
 
 #[tauri::command]
-pub fn mod_stage_overlay(app: AppHandle, target_game_dir: Option<String>) -> Result<StagingReport, String> {
-    if target_game_dir.is_some() { return Err("Game installation staging is unsupported. Use LAAP sandbox staging.".into()); }
-    let _guard = LOCK.try_lock().map_err(|_| "Another library operation is in progress.")?;
+pub fn mod_stage_overlay(
+    app: AppHandle,
+    target_game_dir: Option<String>,
+) -> Result<StagingReport, String> {
+    if target_game_dir.is_some() {
+        return Err("Game installation staging is unsupported. Use LAAP sandbox staging.".into());
+    }
+    let _guard = LOCK
+        .try_lock()
+        .map_err(|_| "Another library operation is in progress.")?;
     let dir = storage::root(&app)?.join("library");
     let (path, mods, files) = super::sandbox::stage(&dir, &index(&dir)?)?;
-    Ok(StagingReport { staged_mods_count: mods, staged_files_count: files, skipped_or_failed_mods: vec![],
-        staging_directory: path.to_string_lossy().into(), game_overlay_directory: None, backup_manifest_path: None,
-        message: format!("Staged {files} file(s) in the LAAP sandbox. These files are not activated in League.") })
+    Ok(StagingReport {
+        staged_mods_count: mods,
+        staged_files_count: files,
+        skipped_or_failed_mods: vec![],
+        staging_directory: path.to_string_lossy().into(),
+        game_overlay_directory: None,
+        backup_manifest_path: None,
+        message: format!(
+            "Staged {files} file(s) in the LAAP sandbox. These files are not activated in League."
+        ),
+    })
 }
 
 #[tauri::command]
-pub fn mod_rollback(app: AppHandle, target_game_dir: Option<String>) -> Result<RollbackReport, String> {
-    if target_game_dir.is_some() { return Err("Game installation rollback is unsupported; no game files were changed.".into()); }
-    let _guard = LOCK.try_lock().map_err(|_| "Another library operation is in progress.")?;
+pub fn mod_rollback(
+    app: AppHandle,
+    target_game_dir: Option<String>,
+) -> Result<RollbackReport, String> {
+    if target_game_dir.is_some() {
+        return Err(
+            "Game installation rollback is unsupported; no game files were changed.".into(),
+        );
+    }
+    let _guard = LOCK
+        .try_lock()
+        .map_err(|_| "Another library operation is in progress.")?;
     let count = super::sandbox::rollback(&storage::root(&app)?.join("library"))?;
-    Ok(RollbackReport { restored_files_count: count, staging_cleaned: true, game_overlay_cleaned: false,
-        message: format!("Removed {count} LAAP-owned staged file(s). Unrelated files were preserved.") })
+    Ok(RollbackReport {
+        restored_files_count: count,
+        staging_cleaned: true,
+        game_overlay_cleaned: false,
+        message: format!(
+            "Removed {count} LAAP-owned staged file(s). Unrelated files were preserved."
+        ),
+    })
 }
 
 #[tauri::command]
-pub fn delete_cache_file(app: AppHandle, cache_type: String, file_id: String) -> Result<bool, String> {
+pub fn delete_cache_file(
+    app: AppHandle,
+    cache_type: String,
+    file_id: String,
+) -> Result<bool, String> {
     if !safe_name(&file_id) {
         return Err("Invalid cache file name.".into());
     }
@@ -795,27 +889,63 @@ mod tests {
 
     #[test]
     fn nested_fantome_and_modpkg_import_export_stage_rollback_roundtrip() {
-        use zip::{write::SimpleFileOptions,ZipWriter};
+        use zip::{write::SimpleFileOptions, ZipWriter};
         for metadata in ["META/info.json", "modpkg.json"] {
-            let mut zip=ZipWriter::new(Cursor::new(Vec::new()));
-            zip.add_directory("assets/",SimpleFileOptions::default()).unwrap();
-            zip.start_file(metadata,SimpleFileOptions::default()).unwrap();
-            zip.write_all(br#"{"Name":"Original art","Author":"Fixture artist","Version":"1.0.0"}"#).unwrap();
-            zip.start_file("assets/nested/original.txt",SimpleFileOptions::default()).unwrap();zip.write_all(b"Original CC0 fixture").unwrap();
-            let bytes=zip.finish().unwrap().into_inner();
-            let m=inspect_archive(&bytes,ImportDeclaration{display_name:"Original art".into(),author:"Fixture artist".into(),version:"1.0.0".into(),license:"CC0-1.0".into(),right_to_distribute:true,contains_paid_riot_content:false}).unwrap();
-            let dir=std::env::temp_dir().join(format!("laap-roundtrip-{}",rand::random::<u64>()));
-            import_into(&dir,&bytes,m.clone()).unwrap();
-            let stored=super::super::sandbox::read_blob(&dir.join("content").join(&m.sha256),MAX_ARCHIVE as u64).unwrap();assert_eq!(stored,bytes);
-            let rows=index(&dir).unwrap();assert_eq!(rows.len(),1);assert_eq!(rows[0].manifest,m);
-            validate_archive(&stored,&rows[0].manifest).unwrap();
-            import_into(&dir,&stored,m.clone()).unwrap();assert_eq!(index(&dir).unwrap().len(),1);
-            let (stage,mods,files)=super::super::sandbox::stage(&dir,&rows).unwrap();assert_eq!(mods,1);assert_eq!(files,2);
-            assert_eq!(fs::read(stage.join("assets/nested/original.txt")).unwrap(),b"Original CC0 fixture");
-            fs::write(stage.join("unrelated.txt"),b"retain").unwrap();assert_eq!(super::super::sandbox::rollback(&dir).unwrap(),2);assert!(stage.join("unrelated.txt").exists());
+            let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
+            zip.add_directory("assets/", SimpleFileOptions::default())
+                .unwrap();
+            zip.start_file(metadata, SimpleFileOptions::default())
+                .unwrap();
+            zip.write_all(
+                br#"{"Name":"Original art","Author":"Fixture artist","Version":"1.0.0"}"#,
+            )
+            .unwrap();
+            zip.start_file("assets/nested/original.txt", SimpleFileOptions::default())
+                .unwrap();
+            zip.write_all(b"Original CC0 fixture").unwrap();
+            let bytes = zip.finish().unwrap().into_inner();
+            let m = inspect_archive(
+                &bytes,
+                ImportDeclaration {
+                    display_name: "Original art".into(),
+                    author: "Fixture artist".into(),
+                    version: "1.0.0".into(),
+                    license: "CC0-1.0".into(),
+                    right_to_distribute: true,
+                    contains_paid_riot_content: false,
+                },
+            )
+            .unwrap();
+            let dir =
+                std::env::temp_dir().join(format!("laap-roundtrip-{}", rand::random::<u64>()));
+            import_into(&dir, &bytes, m.clone()).unwrap();
+            let stored = super::super::sandbox::read_blob(
+                &dir.join("content").join(&m.sha256),
+                MAX_ARCHIVE as u64,
+            )
+            .unwrap();
+            assert_eq!(stored, bytes);
+            let rows = index(&dir).unwrap();
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0].manifest, m);
+            validate_archive(&stored, &rows[0].manifest).unwrap();
+            import_into(&dir, &stored, m.clone()).unwrap();
+            assert_eq!(index(&dir).unwrap().len(), 1);
+            let (stage, mods, files) = super::super::sandbox::stage(&dir, &rows).unwrap();
+            assert_eq!(mods, 1);
+            assert_eq!(files, 2);
+            assert_eq!(
+                fs::read(stage.join("assets/nested/original.txt")).unwrap(),
+                b"Original CC0 fixture"
+            );
+            fs::write(stage.join("unrelated.txt"), b"retain").unwrap();
+            assert_eq!(super::super::sandbox::rollback(&dir).unwrap(), 2);
+            assert!(stage.join("unrelated.txt").exists());
             // Failed next-stage validation must leave the committed previous generation intact.
-            let (prior,_,_)=super::super::sandbox::stage(&dir,&rows).unwrap();fs::write(dir.join("content").join(&m.sha256),b"truncated").unwrap();
-            assert!(super::super::sandbox::stage(&dir,&rows).is_err());assert!(prior.join("assets/nested/original.txt").exists());
+            let (prior, _, _) = super::super::sandbox::stage(&dir, &rows).unwrap();
+            fs::write(dir.join("content").join(&m.sha256), b"truncated").unwrap();
+            assert!(super::super::sandbox::stage(&dir, &rows).is_err());
+            assert!(prior.join("assets/nested/original.txt").exists());
             fs::remove_dir_all(dir).unwrap();
         }
     }
@@ -863,10 +993,7 @@ mod tests {
         {
             let mut writer = zip::ZipWriter::new(&mut zip_buf);
             writer
-                .start_file(
-                    "payload.exe",
-                    zip::write::SimpleFileOptions::default(),
-                )
+                .start_file("payload.exe", zip::write::SimpleFileOptions::default())
                 .unwrap();
             writer.write_all(b"MZ\x90\x00").unwrap();
             writer.finish().unwrap();
@@ -907,10 +1034,7 @@ mod tests {
         {
             let mut writer = zip::ZipWriter::new(&mut zip_buf);
             writer
-                .start_file(
-                    "corrupt.png",
-                    zip::write::SimpleFileOptions::default(),
-                )
+                .start_file("corrupt.png", zip::write::SimpleFileOptions::default())
                 .unwrap();
             writer.write_all(dummy_corrupted_bytes).unwrap();
             writer.finish().unwrap();
@@ -999,7 +1123,10 @@ mod tests {
         }
 
         assert_eq!(conflicts.len(), 1);
-        assert_eq!(conflicts[0].relative_path, "assets/characters/ahri/ahri.skn");
+        assert_eq!(
+            conflicts[0].relative_path,
+            "assets/characters/ahri/ahri.skn"
+        );
         assert_eq!(conflicts[0].conflicting_mods.len(), 2);
     }
 }

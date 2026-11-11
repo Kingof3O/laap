@@ -1,0 +1,103 @@
+
+running 95 tests
+test commands::system_utils::tests::test_file_info_on_temp_file ... ok
+test commands::tests::launch_arguments_are_normal_league_arguments_without_secrets ... ok
+test commands::updater::tests::studio_installer_cannot_cross_legacy_channels ... ok
+test commands::updater::tests::test_default_updater_pubkey_parsing ... ok
+test commands::updater::tests::test_edition_mismatch_detection ... ok
+test commands::updater::tests::test_payload_validation_empty_and_tampered ... ok
+test commands::updater::tests::test_platform_architecture_detection ... ok
+test commands::updater::tests::test_semver_comparison ... ok
+test commands::updater::tests::test_signature_verification_valid_and_invalid ... ok
+test commands::updater::tests::test_simultaneous_launch_transition_lock ... ok
+test customization::ai_assistant::tests::cancellation_registry_is_bounded_and_released ... ok
+test customization::ai_assistant::tests::real_http_fixtures_enforce_ai_schema_output_bounds_and_audio_type ... ok
+test customization::catalog::tests::attach_chromas_and_variants_handles_lux_and_chromas ... ok
+test customization::catalog::tests::live_studio_catalog_contract ... ignored, Uses the public Riot Data Dragon HTTPS service
+test customization::catalog::tests::provider_keys_are_not_paths ... ok
+test customization::catalog_seed::tests::generated_seed_is_complete_and_usable_offline ... ignored, Requires the generated first-launch Data Dragon resource pack
+test customization::client_themes::tests::test_client_theme_config_serialization ... ok
+test customization::community_credentials::tests::credentials_are_scoped_to_secure_origins ... ok
+test customization::community_credentials::tests::isolated_windows_credential_roundtrip_clears_its_own_secret ... ok
+test customization::creator::tests::test_project_file_handling ... ok
+test customization::discord::tests::handshake_requires_ready_and_activity_requires_matching_ack ... ok
+test customization::discord::tests::legacy_tokens_are_never_serialized ... ok
+test customization::discord::tests::rejects_invalid_application_ids ... ok
+test customization::fantome::tests::test_detect_package_format ... ok
+test customization::fantome::tests::test_extract_fantome_prevents_executables_and_traversal ... ok
+test customization::fantome::tests::test_list_fantome_contents ... ok
+test customization::fantome::tests::test_read_and_write_fantome_meta ... ok
+test customization::game_path::tests::test_game_path_config_serialization ... ok
+test customization::gameflow::tests::test_match_notice_flow ... ok
+test customization::library::tests::archive_names_exclude_platform_escape_and_ambiguity ... ok
+test customization::library::tests::nested_fantome_and_modpkg_import_export_stage_rollback_roundtrip ... ok
+test customization::library::tests::original_image_package_round_trips_and_rejects_changed_payload ... ok
+test customization::library::tests::rejects_corrupted_image_data ... ok
+test customization::library::tests::rejects_unsupported_extensions_and_executables ... ok
+test customization::library::tests::test_conflict_detection_identifies_overlapping_paths ... ok
+test customization::presets::tests::invalid_preset_in_import_rejects_the_whole_transaction ... ok
+test customization::presets::tests::portable_import_preserves_old_presets_and_clears_local_links ... ok
+test customization::presets::tests::preset_conflict_detection_identifies_competing_skins ... ok
+test customization::presets::tests::preset_validation_checks_bounds_and_mode ... ok
+test customization::presets::tests::resolution_sorting_orders_by_account_queue_priority_and_favorite ... ok
+test customization::presets::tests::three_account_links_survive_rename_and_unlink_only_deleted_profile ... ok
+test customization::sandbox::tests::rejects_traversal_receipts_and_external_symbolic_paths ... ok
+test customization::sandbox::tests::rollback_retains_unrelated_files_and_rejects_modified_owned_files ... ok
+test customization::sandbox::tests::windows_junctions_are_rejected_without_touching_the_target ... ok
+test customization::stats_provider::tests::authentic_http_contract_handles_unicode_and_rate_limit_without_invented_rank ... ok
+test customization::stats_provider::tests::regions_do_not_fall_back_to_na ... ok
+test customization::themes::tests::media_rejects_disguised_payloads_and_fonts_are_allowlisted ... ok
+test customization::themes::tests::test_builtin_themes_count_and_default ... ok
+test customization::themes::tests::theme_previews_reject_css_payloads ... ok
+test launcher_settings::tests::offline_startup_choice_survives_settings_round_trip ... ok
+test launcher_settings::tests::old_session_mode_does_not_become_the_startup_default ... ok
+test launcher_settings::tests::old_settings_default_to_normal_online_launches ... ok
+test launcher_settings::tests::preferences_replace_atomically_on_the_host_platform ... ok
+test local_store::customization_tests::sync_requires_matching_identity_and_rechecks_each_opt_in ... ok
+test local_store::independent_sync_tests::rank_sync_does_not_replace_a_manual_avatar ... ok
+test local_store::models::tests::profiles_saved_before_rank_labels_still_load ... ok
+test local_store::safety_tests::completely_damaged_vault_is_preserved_and_reported ... ok
+test local_store::safety_tests::concurrent_additions_do_not_overwrite_each_other ... ok
+test local_store::safety_tests::isolates_corrupt_records_and_preserves_quarantine ... ok
+test local_store::safety_tests::refresh_preserves_profile_metadata_and_rejects_wrong_identity ... ok
+test local_store::storage::tests::legacy_unencrypted_session_is_migrated_and_encrypted_on_load ... ok
+test local_store::tests::test_local_store_crud ... ok
+test presence::contract_tests::presence_public_certificate_contract ... ignored, Explicit public presence certificate and loopback TLS check; no Riot login or user files are accessed
+test presence_protocol::tests::directed_lobby_chat_and_authentication_are_preserved ... ok
+test presence_protocol::tests::malformed_and_oversized_stanzas_are_not_forwarded ... ok
+test presence_protocol::tests::split_stanzas_never_escape_unfiltered_and_online_restores_the_original ... ok
+test presence_proxy::tests::configuration_without_chat_is_not_rerouted ... ok
+test presence_proxy::tests::host_certificate_import_contract ... ignored, Explicit local public-certificate fixture handshake; no user settings accessed
+test presence_proxy::tests::live_mode_changes_replay_presence_without_restarting_the_stream ... ok
+test presence_proxy::tests::routing_preserves_the_selected_riot_region_and_blocks_other_hosts ... ok
+test product::tests::native_capabilities_match_identity_and_update_channel ... ok
+test product::tests::permission_boundaries_enforced ... ok
+test profile_assets::cache_tests::damaged_cached_images_report_a_repairable_error ... ok
+test profile_assets::cache_tests::selected_images_are_read_from_disk_without_network_after_memory_is_discarded ... ok
+test profile_assets::image_tests::uploaded_images_become_small_pngs_without_original_metadata ... ok
+test profile_assets::live_contract_tests::riot_data_dragon_contract_is_usable ... ignored, Explicit public Data Dragon network smoke check; no vault or credentials accessed
+test profile_assets::tests::asset_keys_cannot_escape_cache ... ok
+test profile_assets::tests::reads_only_solo_queue_and_normalizes_divisions ... ok
+test profile_assets::tests::rejects_non_images ... ok
+test riot::cancellation_tests::cancellation_restores_original_and_never_captures_later_logins ... ok
+test riot::cancellation_tests::cleanup_without_managed_session_never_deletes_personal_login ... ok
+test riot::install::tests::finds_a_custom_drive_location_from_riot_records ... ok
+test riot::install::tests::stale_candidates_do_not_hide_a_valid_custom_location ... ok
+test riot::process::tests::exited_child_does_not_abort_stopping_the_remaining_parent ... ok
+test riot::process::tests::failed_termination_reports_permissions_only_if_that_process_remains ... ok
+test riot::process::tests::recognizes_match_executables_and_guards_them ... ok
+test riot::process::tests::waits_for_delayed_exit_after_a_failed_termination_call ... ok
+test riot::session_format::metadata_tests::detects_actual_metadata_without_inventing_missing_fields ... ok
+test riot::session_format::tests::detects_current_riot_authorization_without_legacy_markers ... ok
+test riot::session_format::tests::detects_legacy_sessions ... ok
+test riot::session_format::tests::rejects_signed_out_empty_and_invalid_settings ... ok
+test riot::tests::current_session_is_detected_by_import_and_provisioning ... ok
+test riot::tests::test_provisioner_flow ... ok
+test riot::tests::test_recover_orphaned_session_restores_original_settings ... ok
+test riot::tests::test_session_injection_and_cleanup ... ok
+
+test result: ok. 90 passed; 0 failed; 5 ignored; 0 measured; 2 filtered out; finished in 0.85s
+
+   Compiling laap-desktop-core v1.0.0 (C:\pw\laap\apps\desktop\src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.47s
+     Running unittests src\lib.rs (apps\desktop\src-tauri\target\debug\deps\laap_desktop_core-df0a68ee666a1e2c.exe)

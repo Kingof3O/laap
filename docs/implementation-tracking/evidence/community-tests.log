@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: catalog serves only reviewed hashes, refuses unknown fields, and detects changed bytes
+ok 1 - catalog serves only reviewed hashes, refuses unknown fields, and detects changed bytes
+  ---
+  duration_ms: 126.294
+  type: 'test'
+  ...
+# Subtest: marketplace authenticated upload → moderation → verified bytes, ownership, reviews and persistent takedown
+ok 2 - marketplace authenticated upload → moderation → verified bytes, ownership, reviews and persistent takedown
+  ---
+  duration_ms: 193.3302
+  type: 'test'
+  ...
+# Subtest: marketplace admin fails closed when missing or weak; request quotas apply
+ok 3 - marketplace admin fails closed when missing or weak; request quotas apply
+  ---
+  duration_ms: 179.5991
+  type: 'test'
+  ...
+# Subtest: archive parser rejects truncation, traversal, duplicate, disguised executable and corrupt entry hashes
+ok 4 - archive parser rejects truncation, traversal, duplicate, disguised executable and corrupt entry hashes
+  ---
+  duration_ms: 4.3529
+  type: 'test'
+  ...
+# Subtest: reports use separate storage, enforce admin authorization and immediately block packages
+ok 5 - reports use separate storage, enforce admin authorization and immediately block packages
+  ---
+  duration_ms: 121.8047
+  type: 'test'
+  ...
+# Subtest: real WebSockets sync a room, reject unknown payload fields, and restore membership
+ok 6 - real WebSockets sync a room, reject unknown payload fields, and restore membership
+  ---
+  duration_ms: 145.6677
+  type: 'test'
+  ...
+# Subtest: seven peers share bounded metadata and chat requires separate consent
+ok 7 - seven peers share bounded metadata and chat requires separate consent
+  ---
+  duration_ms: 119.5381
+  type: 'test'
+  ...
+# Subtest: real relay transfers a valid archive with consent, rejects forged IDs, duplicates, corruption and cancellation
+ok 8 - real relay transfers a valid archive with consent, rejects forged IDs, duplicates, corruption and cancellation
+  ---
+  duration_ms: 175.0041
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 802.4006

@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::BTreeSet,
     fs,
     io::{Cursor, Read, Write},
     path::Path,
@@ -8,8 +7,6 @@ use std::{
 use zip::{write::SimpleFileOptions, ZipArchive, ZipWriter};
 
 const MAX_ARCHIVE: usize = 32 * 1024 * 1024;
-const MAX_ENTRY: u64 = 64 * 1024 * 1024;
-const MAX_EXPANDED: u64 = 256 * 1024 * 1024;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -64,7 +61,28 @@ pub struct ExtractionSummary {
 pub fn is_executable_extension(ext: &str) -> bool {
     matches!(
         ext.to_ascii_lowercase().as_str(),
-        "exe" | "dll" | "bat" | "cmd" | "ps1" | "vbs" | "sh" | "com" | "scr" | "msi" | "sys" | "drv"
+        "js" | "mjs"
+            | "cjs"
+            | "html"
+            | "htm"
+            | "svg"
+            | "py"
+            | "pyc"
+            | "jar"
+            | "lnk"
+            | "url"
+            | "exe"
+            | "dll"
+            | "bat"
+            | "cmd"
+            | "ps1"
+            | "vbs"
+            | "sh"
+            | "com"
+            | "scr"
+            | "msi"
+            | "sys"
+            | "drv"
     )
 }
 
@@ -144,6 +162,7 @@ pub fn write_fantome_meta(zip_bytes: &[u8], meta: &FantomeMeta) -> Result<Vec<u8
     if !zip_bytes.starts_with(b"PK\x03\x04") {
         return Err("Not a valid ZIP archive.".into());
     }
+    validated_archive(zip_bytes)?;
     let mut old_zip = ZipArchive::new(Cursor::new(zip_bytes)).map_err(|e| e.to_string())?;
     let mut out_buffer = Cursor::new(Vec::with_capacity(zip_bytes.len() + 1024));
     let mut new_zip = ZipWriter::new(&mut out_buffer);
@@ -177,6 +196,7 @@ pub fn write_fantome_meta(zip_bytes: &[u8], meta: &FantomeMeta) -> Result<Vec<u8
 }
 
 pub fn list_fantome_contents(zip_bytes: &[u8]) -> Result<Vec<FantomeEntry>, String> {
+    validated_archive(zip_bytes)?;
     if !zip_bytes.starts_with(b"PK\x03\x04") {
         return Err("Not a valid ZIP archive.".into());
     }
@@ -272,75 +292,65 @@ pub fn validate_zip_entry_path(raw_name: &str) -> Result<std::path::PathBuf, Str
     Ok(safe_path)
 }
 
+fn validated_archive(bytes: &[u8]) -> Result<super::library::Manifest, String> {
+    super::library::inspect_archive(
+        bytes,
+        super::library::ImportDeclaration {
+            display_name: "Local archive inspection".into(),
+            author: "Not declared".into(),
+            version: "1".into(),
+            license: "Not declared".into(),
+            right_to_distribute: false,
+            contains_paid_riot_content: false,
+        },
+    )
+}
 pub fn extract_fantome(zip_bytes: &[u8], target_dir: &Path) -> Result<ExtractionSummary, String> {
-    if !zip_bytes.starts_with(b"PK\x03\x04") {
-        return Err("Not a valid ZIP archive.".into());
+    let manifest = validated_archive(zip_bytes)?;
+    if target_dir.exists() {
+        return Err(
+            "Choose a new extraction directory; existing content is never overwritten.".into(),
+        );
     }
-    let mut zip = ZipArchive::new(Cursor::new(zip_bytes)).map_err(|e| e.to_string())?;
-    let mut total_bytes = 0u64;
-    let mut extracted_files = Vec::new();
-    let mut seen = BTreeSet::new();
-
-    fs::create_dir_all(target_dir).map_err(|e| e.to_string())?;
-
-    for i in 0..zip.len() {
-        let mut file = zip.by_index(i).map_err(|e| e.to_string())?;
-        let raw_name = file.name().unwrap_or_default().to_string();
-
-        let safe_rel = validate_zip_entry_path(&raw_name)?;
-
-        // Reject symlinks
-        if file.unix_mode().map(|m| m & 0o170000 == 0o120000).unwrap_or(false) {
-            return Err(format!("Symlinks are forbidden in package: {raw_name}"));
+    let parent = target_dir.parent().ok_or("Missing extraction parent")?;
+    super::sandbox::check_chain(parent, true)?;
+    fs::create_dir(target_dir).map_err(|e| e.to_string())?;
+    let result = (|| {
+        let mut zip = ZipArchive::new(Cursor::new(zip_bytes)).map_err(|e| e.to_string())?;
+        for entry in &manifest.files {
+            let path = target_dir.join(&entry.relative_path);
+            super::sandbox::check_chain(path.parent().unwrap(), true)?;
+            let mut output = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(path)
+                .map_err(|e| e.to_string())?;
+            let mut input = zip
+                .by_name(&entry.relative_path)
+                .map_err(|e| e.to_string())?;
+            std::io::copy(&mut input, &mut output).map_err(|e| e.to_string())?;
+            output.sync_all().map_err(|e| e.to_string())?;
         }
-
-        let ext = raw_name
-            .rsplit_once('.')
-            .map(|(_, e)| e.to_ascii_lowercase())
-            .unwrap_or_default();
-        if is_executable_extension(&ext) {
-            return Err(format!("Refusing to extract executable file: {raw_name}"));
+        Ok(ExtractionSummary {
+            file_count: manifest.files.len(),
+            total_bytes: manifest.files.iter().map(|e| e.size_bytes).sum(),
+            extracted_files: manifest
+                .files
+                .iter()
+                .map(|e| e.relative_path.clone())
+                .collect(),
+        })
+    })();
+    // Only newly created, checked descendants can be removed on failed extraction.
+    if result.is_err() {
+        for entry in &manifest.files {
+            let path = target_dir.join(&entry.relative_path);
+            if path.exists() && super::sandbox::check_chain(&path, false).is_ok() {
+                let _ = fs::remove_file(path);
+            }
         }
-
-        if !seen.insert(raw_name.to_ascii_lowercase()) {
-            continue; // Duplicate entry
-        }
-
-        if file.is_dir() {
-            let dir_path = target_dir.join(&safe_rel);
-            fs::create_dir_all(&dir_path).map_err(|e| e.to_string())?;
-            continue;
-        }
-
-        if file.size() > MAX_ENTRY {
-            return Err(format!("Entry exceeds maximum entry size: {raw_name}"));
-        }
-
-        total_bytes = total_bytes
-            .checked_add(file.size())
-            .ok_or("Expanded package size overflow")?;
-        if total_bytes > MAX_EXPANDED {
-            return Err("Package expands beyond the maximum permitted extraction limit.".into());
-        }
-
-        let out_path = target_dir.join(&safe_rel);
-        if let Some(parent) = out_path.parent() {
-            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
-
-        let mut out_file = fs::File::create(&out_path).map_err(|e| e.to_string())?;
-        let mut content = Vec::new();
-        file.read_to_end(&mut content).map_err(|e| e.to_string())?;
-        out_file.write_all(&content).map_err(|e| e.to_string())?;
-
-        extracted_files.push(safe_rel.to_string_lossy().to_string());
     }
-
-    Ok(ExtractionSummary {
-        file_count: extracted_files.len(),
-        total_bytes,
-        extracted_files,
-    })
+    result
 }
 
 #[cfg(test)]
@@ -350,7 +360,8 @@ mod tests {
     fn create_test_fantome_zip() -> Vec<u8> {
         let mut buf = Cursor::new(Vec::new());
         let mut zip = ZipWriter::new(&mut buf);
-        let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        let opts =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
         zip.start_file("META/info.json", opts).unwrap();
         let meta = FantomeMeta {
@@ -364,10 +375,12 @@ mod tests {
         };
         zip.write_all(&serde_json::to_vec(&meta).unwrap()).unwrap();
 
-        zip.start_file("assets/characters/ahri/skins/skin01/ahri.skn", opts).unwrap();
+        zip.start_file("assets/characters/ahri/skins/skin01/ahri.skn", opts)
+            .unwrap();
         zip.write_all(b"SKN_MODEL_DATA_FIXTURE").unwrap();
 
-        zip.start_file("assets/characters/ahri/skins/skin01/ahri_tx_cm.dds", opts).unwrap();
+        zip.start_file("assets/characters/ahri/skins/skin01/ahri_tx_cm.dds", opts)
+            .unwrap();
         zip.write_all(b"DDS_TEXTURE_DATA_FIXTURE").unwrap();
 
         zip.finish().unwrap();

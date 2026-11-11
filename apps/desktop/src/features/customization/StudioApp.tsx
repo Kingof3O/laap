@@ -1,3 +1,4 @@
+import { useStudioTheme, ThemeBackground } from './themeRuntime'
 import { StudioSettings } from './StudioSettings'
 import { useState } from 'react'
 import { WindowTitleBar } from '../../shared/ui/WindowTitleBar'
@@ -7,11 +8,13 @@ import { useUpdateChecker } from '../../hooks/useUpdateChecker'
 import StudioWorkspace from './StudioWorkspace'
 
 export default function StudioApp() {
+  const theme = useStudioTheme()
   const update = useUpdateChecker()
   const [settings, setSettings] = useState(false)
   const [release, setRelease] = useState(false)
   return (
     <div className="app-container studio-active">
+      <ThemeBackground theme={theme} />
       <WindowTitleBar>
         <Header onOpenSettings={() => setSettings((open) => !open)} updateAvailable={update.updateAvailable} onOpenUpdates={() => setRelease(true)} />
       </WindowTitleBar>

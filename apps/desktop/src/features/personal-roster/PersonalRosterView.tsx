@@ -36,6 +36,8 @@ interface Props {
   onCloseAddModal: () => void
   onOpenAddModal: () => void
   onCountChange?: (count: number) => void
+  onProfilesChanged?: (profiles: {id:string;name:string}[]) => void
+  onProfileSwitched?: (id:string) => void
 }
 export function PersonalRosterView({
   trayRequest,
@@ -51,6 +53,8 @@ export function PersonalRosterView({
   onCloseAddModal,
   onOpenAddModal,
   onCountChange,
+  onProfilesChanged,
+  onProfileSwitched,
 }: Props) {
   const { showSuccess, showError } = useToast()
   const operations = useRiotOperations()
@@ -89,6 +93,7 @@ export function PersonalRosterView({
     completeSandbox,
     provisioning,
   } = useLocalAccounts()
+  useEffect(() => { if (!loading && !error) onProfilesChanged?.(localAccounts.map(({id,name}) => ({id,name}))) }, [localAccounts,loading,error,onProfilesChanged])
   const modalOpen = showAddModal || !!refreshTarget
   const close = () => {
     onCloseAddModal()
@@ -170,6 +175,7 @@ export function PersonalRosterView({
     setFailedLaunchId(null)
     try {
       await launchAccount(id)
+      onProfileSwitched?.(id)
     } catch (cause) {
       setFailedLaunchId(id)
       showError(String(cause))

@@ -197,7 +197,7 @@ export function ModLibrary() {
       <div className="customization-heading">
         <div>
           <h2>Mod manager & library</h2>
-          <p>Import, inspect, and manage custom packages (.fantome, .modpkg, image archives).</p>
+          <p>Import, inspect, and manage custom packages (.fantome, .modpkg, image archives). Binary game assets are stored as opaque data; conversion and game activation are not verified.</p>
         </div>
       </div>
 
