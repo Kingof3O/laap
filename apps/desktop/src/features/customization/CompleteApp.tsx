@@ -88,6 +88,8 @@ export default function CompleteApp() {
               <StudioWorkspace
                 key={profile?.id ?? "studio"}
                 profile={profile}
+                onSelectProfile={selectProfile}
+                profiles={profiles.current}
               />
             </Suspense>
           ) : undefined

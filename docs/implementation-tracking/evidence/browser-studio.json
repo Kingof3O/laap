@@ -11,11 +11,11 @@
     "playwright.studio.config.ts",
     "--reporter=list"
   ],
-  "startedAt": "2026-11-11T06:19:27.905Z",
-  "finishedAt": "2026-11-11T06:19:43.389Z",
-  "head": "7bcee5e52a074722639942f50a126d6f5f1c69ee",
+  "startedAt": "2026-11-11T07:06:30.450Z",
+  "finishedAt": "2026-11-11T07:06:38.297Z",
+  "head": "afaea7543ae92e79560d6cc12c9d6f7e5c2bd6ea",
   "source": {
-    "sha256": "5a7d66131ad635f6a60896a0aba224c69649dd76e396c0936a2616845d69c553",
+    "sha256": "d0d0301e05b36635ba7fb5f48ace27e7d8f750c8777b814000db7a39cc1adadc",
     "files": [
       [
         "apps/community-api/src/catalog.ts",
@@ -146,8 +146,12 @@
         "4d2e1e9b6b7f2266a0b361f1fad9a6cda11faa28b49de77361cea3f1cab054ab"
       ],
       [
+        "apps/desktop/src/features/customization/ClientSurfaces.tsx",
+        "18ebd1c9ce5e048f90ba1c816fed5db5b59a86cb3a5bede6452da6ea251b01dc"
+      ],
+      [
         "apps/desktop/src/features/customization/CompleteApp.tsx",
-        "4d3b1b201ee3d525e188be56cd71ea59cc2e24c5509126803dace89a664c522a"
+        "a84da1053910e8f698656b11eb279dc241b0c7abc313c521de335e1f95e64ac7"
       ],
       [
         "apps/desktop/src/features/customization/CreatorIdentity.tsx",
@@ -155,7 +159,7 @@
       ],
       [
         "apps/desktop/src/features/customization/CreatorWorkshop.tsx",
-        "318ba6fff3dee3022de8a310783b7b20bf51b1765a6e542139a8a740b840595d"
+        "46b2ce6229d7c4745a07ab09f93ac16e9f0198c9994b79651574cf5b01a3ae8f"
       ],
       [
         "apps/desktop/src/features/customization/DoctorPage.tsx",
@@ -167,7 +171,7 @@
       ],
       [
         "apps/desktop/src/features/customization/ModLibrary.tsx",
-        "33b74e51f265349c63e21aa17fed81c836880449a5030f9e438288f8aa141d9c"
+        "716b43be83b5bbe8cab066f99623eae2f1a0c9bcdcc54987db7fce3d88589e22"
       ],
       [
         "apps/desktop/src/features/customization/PartyPage.tsx",
@@ -191,11 +195,11 @@
       ],
       [
         "apps/desktop/src/features/customization/StudioWorkspace.tsx",
-        "9226028b302d2d6acf34780f6b9469a845b6bf7676aba9f1651d5b91307fc1d9"
+        "4c2f8d73f34f1f7f4531c64d9431ccb275292f62c48bfb8debdeabb6f5b01f98"
       ],
       [
         "apps/desktop/src/features/customization/ThemePreview.tsx",
-        "a5d35be8d8948e71f2685f405808155c9e6dcf34d91cb7272943feb7779aa20c"
+        "95fc23c3c81c0da9d7ad490413050f6c6e445ce181f8cb9810daf680dc82d0bd"
       ],
       [
         "apps/desktop/src/features/customization/WorkspaceHome.tsx",
@@ -639,5 +643,5 @@
   "exitCode": 0,
   "error": null,
   "log": "browser-studio.log",
-  "logSha256": "69578760d5218eb4e208acb049d74ccb88a4023e1bd744c01031bfa01dbdb241"
+  "logSha256": "ed3bdede882b965fcd6f80e5f9cf7c09a895f86b3a5fc1151f66657c05556b70"
 }

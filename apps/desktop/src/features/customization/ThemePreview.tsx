@@ -2,7 +2,9 @@ import { useEffect, useState, type FormEvent } from "react";
 import { errorMessage, themes, type ThemeConfig } from "./api";
 import { notifyThemeChanged } from "./themeRuntime";
 import { readFileBase64 } from "./packageFiles";
+import { ClientSurfaces } from "./ClientSurfaces";
 export function ThemePreview() {
+  const [activeTab, setActiveTab] = useState<"app" | "surfaces">("app");
   const [list, setList] = useState<ThemeConfig[]>([]);
   const [draft, setDraft] = useState<ThemeConfig | null>(null);
   const [error, setError] = useState("");
@@ -97,27 +99,46 @@ export function ThemePreview() {
         <div>
           <h2>LAAP theme workshop</h2>
           <p>
-            Local app appearance. League-client appearance requires a separately
-            approved adapter.
+            Local app appearance and League-client appearance customization surfaces.
           </p>
         </div>
-        <button
-          className="btn-secondary"
-          disabled={busy}
-          onClick={() =>
-            void run(async () => {
-              await themes.resetDefault();
-              notifyThemeChanged();
-              await load();
-              setStatus("Restored Velvet Amethyst.");
-            })
-          }
-        >
-          Reset to Velvet Amethyst
-        </button>
+        <div className="customization-actions">
+          <button
+            className={activeTab === "app" ? "btn-primary" : "btn-secondary"}
+            onClick={() => setActiveTab("app")}
+          >
+            App Themes
+          </button>
+          <button
+            className={activeTab === "surfaces" ? "btn-primary" : "btn-secondary"}
+            onClick={() => setActiveTab("surfaces")}
+          >
+            Client Surfaces (16)
+          </button>
+          {activeTab === "app" && (
+            <button
+              className="btn-secondary"
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  await themes.resetDefault();
+                  notifyThemeChanged();
+                  await load();
+                  setStatus("Restored Velvet Amethyst.");
+                })
+              }
+            >
+              Reset to Velvet Amethyst
+            </button>
+          )}
+        </div>
       </div>
-      {error && <p role="alert">{error}</p>}
-      {status && <p role="status">{status}</p>}
+      {activeTab === "surfaces" ? (
+        <ClientSurfaces />
+      ) : (
+        <>
+          {error && <p role="alert">{error}</p>}
+          {status && <p role="status">{status}</p>}
       <div className="customization-grid">
         {(list || []).map((t) => (
           <button
@@ -362,6 +383,8 @@ export function ThemePreview() {
             </div>
           </section>
         </div>
+      )}
+        </>
       )}
     </>
   );

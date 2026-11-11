@@ -6,18 +6,13 @@
   "command": [
     "cargo",
     "test",
-    "--manifest-path",
-    "Cargo.toml",
     "--no-default-features",
     "--features",
-    "basic",
-    "--lib",
-    "--",
-    "--test-threads=1"
+    "basic"
   ],
-  "startedAt": "2026-11-11T06:13:01.629Z",
-  "finishedAt": "2026-11-11T06:15:44.169Z",
-  "head": "7bcee5e52a074722639942f50a126d6f5f1c69ee",
+  "startedAt": "2026-11-11T07:08:37.434Z",
+  "finishedAt": "2026-11-11T07:09:12.843Z",
+  "head": "afaea7543ae92e79560d6cc12c9d6f7e5c2bd6ea",
   "source": {
     "sha256": "dc10f22bd94da233a16f4c3f0e92b147d9c2f34ba054558e702c9d35c9229518",
     "files": [
@@ -275,5 +270,5 @@
   "exitCode": 0,
   "error": null,
   "log": "basic-rust.log",
-  "logSha256": "608012d8de594501e993e1e75a62e5ee174adb4857ee89c44a123296703d6be9"
+  "logSha256": "12f3e2ed8f970de96ab10898242d027ba65435614832ef7173a108f124fb65e5"
 }

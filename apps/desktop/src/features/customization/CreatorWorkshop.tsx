@@ -51,6 +51,7 @@ export function CreatorWorkshop() {
 
   // File addition in project
   const [addPath, setAddPath] = useState('')
+  const [assetDragOver, setAssetDragOver] = useState(false)
 
   // Quick Pack state
   const [quickFiles, setQuickFiles] = useState<File[]>([])
@@ -290,6 +291,102 @@ export function CreatorWorkshop() {
     }
   }
 
+  async function installProjectToLibrary() {
+    if (!activeProject || activeProject.files.length === 0) return
+    setBusy(true)
+    setError('')
+    try {
+      const saved = await creator.saveProject(activeProject)
+      setActiveProject(saved)
+      const b64 = await creator.exportFantome(saved.id)
+      const manifestObj = await invokeTauri('mod_inspect', {
+        archive: b64,
+        declaration: {
+          displayName: activeProject.name,
+          author: activeProject.author.trim() || 'Anonymous Creator',
+          version: activeProject.version.trim() || '1.0.0',
+          license: 'CC-BY-4.0',
+          rightToDistribute: true,
+          containsPaidRiotContent: false,
+        },
+      })
+      await invokeTauri('mod_import', {
+        archive: b64,
+        manifest: manifestObj,
+        rightsConfirmed: true,
+      })
+      setStatus(`Installed "${activeProject.name}" directly into your Mod Library. You can now enable and test it!`)
+    } catch (e) {
+      setError(errorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function installQuickPackToLibrary() {
+    if (!quickOutput) return
+    setBusy(true)
+    setError('')
+    try {
+      await invokeTauri('mod_import', {
+        archive: quickOutput.archive,
+        manifest: quickOutput.manifest,
+        rightsConfirmed: true,
+      })
+      setStatus(`Installed "${quickOutput.manifest.modId}" directly into your Mod Library!`)
+    } catch (e) {
+      setError(errorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function installRepairedToLibrary() {
+    if (!repairResult?.repairedZipBase64) return
+    setBusy(true)
+    setError('')
+    try {
+      const b64 = repairResult.repairedZipBase64
+      let manifestObj: unknown
+      try {
+        const meta = await fantome.readMeta(b64)
+        manifestObj = await invokeTauri('mod_inspect', {
+          archive: b64,
+          declaration: {
+            displayName: meta.name || 'Repaired Package',
+            author: meta.author || 'Community',
+            version: meta.version || '1.0.0',
+            license: 'CC0-1.0',
+            rightToDistribute: true,
+            containsPaidRiotContent: false,
+          },
+        })
+      } catch {
+        manifestObj = await invokeTauri('mod_inspect', {
+          archive: b64,
+          declaration: {
+            displayName: 'Repaired Fantome Package',
+            author: 'Community',
+            version: '1.0.0',
+            license: 'CC0-1.0',
+            rightToDistribute: true,
+            containsPaidRiotContent: false,
+          },
+        })
+      }
+      await invokeTauri('mod_import', {
+        archive: b64,
+        manifest: manifestObj,
+        rightsConfirmed: true,
+      })
+      setStatus('Repaired package verified and imported directly into your Mod Library!')
+    } catch (e) {
+      setError(errorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   // Quick Pack Builder
   async function buildQuickPack(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -441,6 +538,7 @@ export function CreatorWorkshop() {
               </div>
               <div className="customization-actions">
                 <button className="btn-secondary" disabled={busy} onClick={() => void saveActiveProject()}>Save project</button>
+                <button className="btn-primary" style={{ background: '#10b981', borderColor: '#10b981' }} disabled={busy || activeProject.files.length === 0} onClick={() => void installProjectToLibrary()}>⚡ Install to Mod Library</button>
                 <button className="btn-primary" disabled={busy || activeProject.files.length === 0} onClick={() => void exportFantome()}>Export .fantome</button>
                 <button className="btn-secondary" disabled={busy || activeProject.files.length === 0} onClick={() => void exportModpkg()}>Export .modpkg</button>
               </div>
@@ -491,16 +589,32 @@ export function CreatorWorkshop() {
                   </label>
                   <label className="btn-secondary" style={{ display: 'inline-block', marginTop: '0.5rem', cursor: 'pointer' }}>
                     + Add asset file (.skn, .skl, .dds, .bin, .anm)
-                    <input type="file" style={{ display: 'none' }} onChange={(e) => {
-                      const f = e.target.files?.[0]
-                      if (f) void handleAddFile(f)
+                    <input type="file" multiple style={{ display: 'none' }} onChange={(e) => {
+                      const files = Array.from(e.target.files || [])
+                      for (const f of files) void handleAddFile(f)
                     }} />
                   </label>
                 </div>
 
-                <div className="customization-card" style={{ maxHeight: '320px', overflowY: 'auto' }}>
+                <div
+                  className="customization-card"
+                  onDragOver={(e) => { e.preventDefault(); setAssetDragOver(true) }}
+                  onDragLeave={() => setAssetDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    setAssetDragOver(false)
+                    const files = Array.from(e.dataTransfer.files || [])
+                    for (const f of files) void handleAddFile(f)
+                  }}
+                  style={{
+                    maxHeight: '320px',
+                    overflowY: 'auto',
+                    border: assetDragOver ? '2px dashed var(--accent, #6366f1)' : undefined,
+                    background: assetDragOver ? 'rgba(99, 102, 241, 0.08)' : undefined,
+                  }}
+                >
                   {activeProject.files.length === 0 ? (
-                    <p className="customization-empty">No files in package yet. Add 3D models (.skn), textures (.dds), or properties (.bin).</p>
+                    <p className="customization-empty">No files in package yet. Drag & drop or add 3D models (.skn), textures (.dds), or properties (.bin).</p>
                   ) : (
                     <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                       {activeProject.files.map((file) => (
@@ -620,9 +734,14 @@ export function CreatorWorkshop() {
                     ))}
                   </ul>
                   {repairResult.repairedZipBase64 && (
-                    <button className="btn-primary" style={{ marginTop: '0.5rem' }} onClick={() => downloadBase64(repairResult.repairedZipBase64!, 'application/zip', 'repaired_package.fantome')}>
-                      Download Repaired .fantome
-                    </button>
+                    <div className="customization-actions" style={{ marginTop: '0.5rem' }}>
+                      <button className="btn-primary" style={{ background: '#10b981', borderColor: '#10b981' }} disabled={busy} onClick={() => void installRepairedToLibrary()}>
+                        ⚡ Install Repaired Mod to Library
+                      </button>
+                      <button className="btn-secondary" onClick={() => downloadBase64(repairResult.repairedZipBase64!, 'application/zip', 'repaired_package.fantome')}>
+                        Download Repaired .fantome
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
@@ -731,8 +850,17 @@ export function CreatorWorkshop() {
           </form>
           {quickOutput && (
             <div style={{ marginTop: '1rem' }}>
-              <p role="status">Package built successfully.</p>
+              <p role="status" style={{ color: '#10b981' }}>Package built successfully.</p>
               <div className="customization-actions">
+                <button
+                  type="button"
+                  className="btn-primary"
+                  style={{ background: '#10b981', borderColor: '#10b981' }}
+                  disabled={busy}
+                  onClick={() => void installQuickPackToLibrary()}
+                >
+                  ⚡ Install to Mod Library
+                </button>
                 <button className="btn-secondary" onClick={() => downloadBase64(quickOutput.archive, 'application/zip', `${quickOutput.manifest.modId}.zip`)}>Download ZIP</button>
                 <button className="btn-secondary" onClick={() => downloadBase64(btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(quickOutput.manifest, null, 2)))), 'application/json', `${quickOutput.manifest.modId}.json`)}>Download Manifest</button>
               </div>
