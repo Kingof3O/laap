@@ -128,3 +128,68 @@ test('seven peers share bounded metadata and chat requires separate consent', as
     await relay.close()
   }
 })
+
+test('mod hash announcement and peer-to-peer chunk transfer flow', async () => {
+  const relay = createCommunityServer({ origins: new Set([origin]) })
+  relay.server.listen(0, '127.0.0.1')
+  await once(relay.server, 'listening')
+  const address = relay.server.address()
+  assert(address && typeof address !== 'string')
+  const url = 'ws://127.0.0.1:' + address.port + '/v1/rooms/events'
+
+  try {
+    const host = peer(url)
+    await once(host.socket, 'open')
+    host.send({ type: 'create' })
+    await host.next('membership')
+    const created = await host.next('snapshot')
+
+    const guest = peer(url)
+    await once(guest.socket, 'open')
+    guest.send({ type: 'join', invite: created.invite })
+    await guest.next('membership')
+    const joined = await guest.next('snapshot')
+
+    const modHash = 'd'.repeat(64)
+
+    // 1. Host announces custom mods
+    host.send({ type: 'announceMods', modHashes: [modHash] })
+    const snapshotWithMods = await guest.next('snapshot', (s) =>
+      s.members.some((m) => (m as any).modHashes?.includes(modHash))
+    )
+    assert(snapshotWithMods)
+
+    // 2. Guest requests mod transfer from Host
+    guest.send({ type: 'transferRequest', targetMemberId: created.self, modHash })
+    const req = await host.next('transferRequest') as any
+    assert.equal(req.fromMemberId, joined.self)
+    assert.equal(req.modHash, modHash)
+
+    // 3. Host accepts transfer
+    host.send({ type: 'transferAccept', requesterMemberId: joined.self, modHash })
+    const acc = await guest.next('transferAccept') as any
+    assert.equal(acc.fromMemberId, created.self)
+    assert.equal(acc.modHash, modHash)
+
+    // 4. Host sends chunk
+    host.send({
+      type: 'transferChunk',
+      targetMemberId: joined.self,
+      modHash,
+      chunkIndex: 0,
+      totalChunks: 1,
+      dataBase64: 'UEsDBAoAAAAIA...',
+    })
+    const chunk = await guest.next('transferChunk') as any
+    assert.equal(chunk.chunkIndex, 0)
+    assert.equal(chunk.dataBase64, 'UEsDBAoAAAAIA...')
+
+    // 5. Host finishes transfer
+    host.send({ type: 'transferComplete', targetMemberId: joined.self, modHash })
+    const comp = await guest.next('transferComplete') as any
+    assert.equal(comp.modHash, modHash)
+  } finally {
+    await relay.close()
+  }
+})
+

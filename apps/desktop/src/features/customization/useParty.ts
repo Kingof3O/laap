@@ -3,15 +3,22 @@ import { useEffect, useRef, useState } from 'react'
 
 type Request = { type: 'create' } | { type: 'join'; invite: string } |
   { type: 'resume'; room: string; token: string } | { type: 'leave' } |
-  { type: 'rotate' } | { type: 'chatConsent'; enabled: boolean } | { type: 'chat'; text: string } | { type: 'kick'; memberId: string } | { type: 'select'; skinId: number | null }
-type Member = { id: string; connected: boolean; selection: number | null }
+  { type: 'rotate' } | { type: 'chatConsent'; enabled: boolean } | { type: 'chat'; text: string } |
+  { type: 'kick'; memberId: string } | { type: 'select'; skinId: number | null } |
+  { type: 'announceMods'; modHashes: string[] } |
+  { type: 'transferRequest'; targetMemberId: string; modHash: string } |
+  { type: 'transferAccept'; requesterMemberId: string; modHash: string }
+
+export type Member = { id: string; connected: boolean; selection: number | null; modHashes?: string[] }
 type Snapshot = {
   type: 'snapshot'; room: string; self: string; owner: string; invite: string;
   seq: number; expiresAt: number; members: Member[]
 }
 export type PartyMessage = { type: 'chat'; id: string; room: string; memberId: string; text: string; sentAt: number; seq: number }
 type Event = PartyMessage | Snapshot | { type: 'membership'; room: string; token: string } |
-  { type: 'error'; message: string } | { type: 'expired' } | { type: 'left' }
+  { type: 'error'; message: string } | { type: 'expired' } | { type: 'left' } |
+  { type: 'transferRequest'; fromMemberId: string; modHash: string } |
+  { type: 'transferAccept'; fromMemberId: string; modHash: string }
 
 export function useParty() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
@@ -138,5 +145,7 @@ export function useParty() {
     },
     select: (skinId: number | null) => send({ type: 'select', skinId }),
     rotate: () => send({ type: 'rotate' }),
+    announceMods: (modHashes: string[]) => send({ type: 'announceMods', modHashes }),
+    requestTransfer: (targetMemberId: string, modHash: string) => send({ type: 'transferRequest', targetMemberId, modHash }),
   }
 }

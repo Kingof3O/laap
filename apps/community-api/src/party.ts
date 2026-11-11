@@ -8,7 +8,7 @@ const RECONNECT_WINDOW = 2 * 60 * 1000
 const MAX_ROOMS = 250
 const MAX_MEMBERS = 8
 const MAX_CLIENTS = 500
-const MAX_BUFFER = 64 * 1024
+const MAX_BUFFER = 128 * 1024
 
 type Member = {
   id: string
@@ -16,6 +16,7 @@ type Member = {
   socket?: WebSocket
   absentAt?: number
   selection: number | null
+  modHashes: string[]
   joinedAt: number
   chatEnabled: boolean
 }
@@ -39,6 +40,12 @@ type Message =
   | { type: 'chatConsent'; enabled: boolean }
   | { type: 'chat'; text: string }
   | { type: 'kick'; memberId: string }
+  | { type: 'announceMods'; modHashes: string[] }
+  | { type: 'transferRequest'; targetMemberId: string; modHash: string }
+  | { type: 'transferAccept'; requesterMemberId: string; modHash: string }
+  | { type: 'transferChunk'; targetMemberId: string; modHash: string; chunkIndex: number; totalChunks: number; dataBase64: string }
+  | { type: 'transferComplete'; targetMemberId: string; modHash: string }
+  | { type: 'transferCancel'; targetMemberId: string; modHash: string; reason?: string }
 
 const key = (length: number) => randomBytes(length).toString('hex')
 const exact = (value: Record<string, unknown>, ...keys: string[]) =>
@@ -89,6 +96,65 @@ function parse(raw: RawData): Message {
       }
       break
     }
+    case 'announceMods': {
+      if (exact(message, 'type', 'modHashes') && Array.isArray(message.modHashes) &&
+        message.modHashes.length <= 50 &&
+        message.modHashes.every((h) => validKey(h, 64))) {
+        return { type: 'announceMods', modHashes: message.modHashes as string[] }
+      }
+      break
+    }
+    case 'transferRequest': {
+      if (exact(message, 'type', 'targetMemberId', 'modHash') &&
+        validKey(message.targetMemberId, 16) && validKey(message.modHash, 64)) {
+        return { type: 'transferRequest', targetMemberId: message.targetMemberId, modHash: message.modHash }
+      }
+      break
+    }
+    case 'transferAccept': {
+      if (exact(message, 'type', 'requesterMemberId', 'modHash') &&
+        validKey(message.requesterMemberId, 16) && validKey(message.modHash, 64)) {
+        return { type: 'transferAccept', requesterMemberId: message.requesterMemberId, modHash: message.modHash }
+      }
+      break
+    }
+    case 'transferChunk': {
+      if (exact(message, 'type', 'targetMemberId', 'modHash', 'chunkIndex', 'totalChunks', 'dataBase64') &&
+        validKey(message.targetMemberId, 16) && validKey(message.modHash, 64) &&
+        typeof message.chunkIndex === 'number' && Number.isSafeInteger(message.chunkIndex) && message.chunkIndex >= 0 &&
+        typeof message.totalChunks === 'number' && Number.isSafeInteger(message.totalChunks) && message.totalChunks > 0 &&
+        typeof message.dataBase64 === 'string' && message.dataBase64.length <= 64 * 1024) {
+        return {
+          type: 'transferChunk',
+          targetMemberId: message.targetMemberId,
+          modHash: message.modHash,
+          chunkIndex: message.chunkIndex,
+          totalChunks: message.totalChunks,
+          dataBase64: message.dataBase64,
+        }
+      }
+      break
+    }
+    case 'transferComplete': {
+      if (exact(message, 'type', 'targetMemberId', 'modHash') &&
+        validKey(message.targetMemberId, 16) && validKey(message.modHash, 64)) {
+        return { type: 'transferComplete', targetMemberId: message.targetMemberId, modHash: message.modHash }
+      }
+      break
+    }
+    case 'transferCancel': {
+      if ((exact(message, 'type', 'targetMemberId', 'modHash') || exact(message, 'type', 'targetMemberId', 'modHash', 'reason')) &&
+        validKey(message.targetMemberId, 16) && validKey(message.modHash, 64) &&
+        (message.reason === undefined || (typeof message.reason === 'string' && message.reason.length <= 100))) {
+        return {
+          type: 'transferCancel',
+          targetMemberId: message.targetMemberId,
+          modHash: message.modHash,
+          reason: typeof message.reason === 'string' ? message.reason : undefined,
+        }
+      }
+      break
+    }
   }
   throw new Error('Invalid party message.')
 }
@@ -102,7 +168,12 @@ function send(socket: WebSocket | undefined, message: unknown) {
   socket.send(JSON.stringify(message))
 }
 
-export function createCommunityServer({ origins, catalog, moderation }: { origins: ReadonlySet<string>; catalog?: CatalogHandler; moderation?: CatalogHandler }) {
+export function createCommunityServer({ origins, catalog, moderation, marketplace }: {
+  origins: ReadonlySet<string>
+  catalog?: CatalogHandler
+  moderation?: CatalogHandler
+  marketplace?: CatalogHandler
+}) {
   const rooms = new Map<string, Room>()
   const invites = new Map<string, Room>()
   const connections = new Map<string, number>()
@@ -110,6 +181,7 @@ export function createCommunityServer({ origins, catalog, moderation }: { origin
     res.setHeader('Cache-Control', 'no-store')
     res.setHeader('Content-Type', 'application/json')
     if (moderation?.(req, res)) return
+    if (marketplace?.(req, res)) return
     if (catalog?.(req, res)) return
     if (req.method === 'GET' && req.url === '/v1/service/health') {
       res.end('{"status":"ok"}')
@@ -121,7 +193,7 @@ export function createCommunityServer({ origins, catalog, moderation }: { origin
   server.headersTimeout = 10_000
   server.requestTimeout = 10_000
   server.maxConnections = MAX_CLIENTS + 50
-  const ws = new WebSocketServer({ noServer: true, maxPayload: 1024, perMessageDeflate: false })
+  const ws = new WebSocketServer({ noServer: true, maxPayload: 128 * 1024, perMessageDeflate: false })
 
   function nextInvite() {
     let invite = key(6)
@@ -137,8 +209,8 @@ export function createCommunityServer({ origins, catalog, moderation }: { origin
 
   function publish(room: Room) {
     room.seq += 1
-    const members = [...room.members.values()].map(({ id, selection, socket }) => ({
-      id, selection, connected: socket?.readyState === WebSocket.OPEN,
+    const members = [...room.members.values()].map(({ id, selection, modHashes, socket }) => ({
+      id, selection, modHashes: modHashes ?? [], connected: socket?.readyState === WebSocket.OPEN,
     }))
     for (const member of room.members.values()) {
       send(member.socket, { type: 'snapshot', room: room.id, seq: room.seq, invite: room.invite,
@@ -210,7 +282,7 @@ export function createCommunityServer({ origins, catalog, moderation }: { origin
       try {
         const now = Date.now()
         if (now - windowStart >= 10_000) { windowStart = now; sent = 0 }
-        if (++sent > 20 || binary) { socket.close(1008, 'Message limit exceeded'); return }
+        if (++sent > 100 || binary) { socket.close(1008, 'Message limit exceeded'); return }
         const message = parse(raw)
         if (member && room) {
           if (member.socket !== socket || !rooms.has(room.id) || room.expiresAt <= now) {
@@ -226,6 +298,31 @@ export function createCommunityServer({ origins, catalog, moderation }: { origin
           } else if (message.type === 'select') {
             member.selection = message.skinId
             publish(room)
+          } else if (message.type === 'announceMods') {
+            member.modHashes = message.modHashes
+            publish(room)
+          } else if (message.type === 'transferRequest') {
+            const target = room.members.get(message.targetMemberId)
+            if (target) send(target.socket, { type: 'transferRequest', fromMemberId: member.id, modHash: message.modHash })
+          } else if (message.type === 'transferAccept') {
+            const requester = room.members.get(message.requesterMemberId)
+            if (requester) send(requester.socket, { type: 'transferAccept', fromMemberId: member.id, modHash: message.modHash })
+          } else if (message.type === 'transferChunk') {
+            const target = room.members.get(message.targetMemberId)
+            if (target) send(target.socket, {
+              type: 'transferChunk',
+              fromMemberId: member.id,
+              modHash: message.modHash,
+              chunkIndex: message.chunkIndex,
+              totalChunks: message.totalChunks,
+              dataBase64: message.dataBase64,
+            })
+          } else if (message.type === 'transferComplete') {
+            const target = room.members.get(message.targetMemberId)
+            if (target) send(target.socket, { type: 'transferComplete', fromMemberId: member.id, modHash: message.modHash })
+          } else if (message.type === 'transferCancel') {
+            const target = room.members.get(message.targetMemberId)
+            if (target) send(target.socket, { type: 'transferCancel', fromMemberId: member.id, modHash: message.modHash, reason: message.reason })
           } else if (message.type === 'chatConsent') {
             member.chatEnabled = message.enabled
           } else if (message.type === 'chat' && member.chatEnabled) {
@@ -278,7 +375,7 @@ export function createCommunityServer({ origins, catalog, moderation }: { origin
             if (found.members.size >= MAX_MEMBERS) throw new Error('This room is full.')
             target = found
           }
-          member = { id: key(8), token: key(32), socket, selection: null, joinedAt: now, chatEnabled: false }
+          member = { id: key(8), token: key(32), socket, selection: null, modHashes: [], joinedAt: now, chatEnabled: false }
           target.members.set(member.id, member)
           if (!target.owner) target.owner = member.id
         } else throw new Error('Create or join a room first.')

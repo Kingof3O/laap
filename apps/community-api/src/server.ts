@@ -1,6 +1,7 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { ModerationStore } from './moderation.ts'
+import { MarketplaceStore } from './marketplace.ts'
 import { approvedCatalogHandler, loadApprovedCatalog } from './catalog.ts'
 import { createCommunityServer } from './party.ts'
 
@@ -11,14 +12,23 @@ const origins = new Set((process.env.LAAP_COMMUNITY_ORIGINS ??
 const databasePath = process.env.LAAP_COMMUNITY_DATABASE ?? '.data/community.sqlite'
 await mkdir(dirname(databasePath), { recursive: true })
 const moderation = new ModerationStore(databasePath)
+const marketplace = new MarketplaceStore(databasePath)
 const approvedDirectory = process.env.LAAP_APPROVED_CATALOG_DIR
 const catalog = approvedDirectory
   ? approvedCatalogHandler(approvedDirectory, await loadApprovedCatalog(approvedDirectory), origins, (hash) => moderation.isBlocked(hash))
   : undefined
-const { server, close } = createCommunityServer({ origins, catalog, moderation: moderation.handler(origins, process.env.LAAP_MODERATION_TOKEN) })
+const { server, close } = createCommunityServer({
+  origins,
+  catalog,
+  moderation: moderation.handler(origins, process.env.LAAP_MODERATION_TOKEN),
+  marketplace: marketplace.handler(origins),
+})
 server.listen(port, host, () => {
   console.log(`LAAP community relay listening at ${host}:${port}`)
 })
-const shutdown = () => void close().finally(() => moderation.close())
+const shutdown = () => void close().finally(() => {
+  moderation.close()
+  marketplace.close()
+})
 process.once('SIGTERM', shutdown)
 process.once('SIGINT', shutdown)

@@ -8,15 +8,26 @@ static LOCK: Mutex<()> = Mutex::new(());
 #[derive(Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Preferences {
-    favorites: Vec<String>,
-    recent: Vec<Selection>,
+    pub favorites: Vec<String>,
+    pub recent: Vec<Selection>,
 }
 
-#[derive(Deserialize, Serialize)]
+impl Preferences {
+    pub fn favorites(&self) -> &[String] {
+        &self.favorites
+    }
+
+    #[allow(dead_code)]
+    pub fn recent(&self) -> &[Selection] {
+        &self.recent
+    }
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Selection {
-    champion_id: String,
-    skin_id: String,
+    pub champion_id: String,
+    pub skin_id: String,
 }
 
 #[derive(Deserialize)]

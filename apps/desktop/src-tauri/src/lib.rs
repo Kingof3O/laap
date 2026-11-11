@@ -162,6 +162,10 @@ pub fn run() {
             #[cfg(not(feature = "basic"))]
             customization::catalog::catalog_list,
             #[cfg(not(feature = "basic"))]
+            customization::catalog::catalog_tft_list,
+            #[cfg(not(feature = "basic"))]
+            customization::catalog::catalog_random_pick,
+            #[cfg(not(feature = "basic"))]
             customization::catalog_media::catalog_artwork,
             #[cfg(not(feature = "basic"))]
             customization::doctor::doctor_collect,
@@ -186,7 +190,13 @@ pub fn run() {
             #[cfg(not(feature = "basic"))]
             customization::presets::customization_preset_save,
             #[cfg(not(feature = "basic"))]
+            customization::presets::customization_preset_duplicate,
+            #[cfg(not(feature = "basic"))]
             customization::presets::customization_preset_delete,
+            #[cfg(not(feature = "basic"))]
+            customization::presets::customization_preset_restore,
+            #[cfg(not(feature = "basic"))]
+            customization::presets::customization_preset_conflicts,
             #[cfg(not(feature = "basic"))]
             customization::presets::customization_preset_export,
             #[cfg(not(feature = "basic"))]
@@ -201,6 +211,131 @@ pub fn run() {
             customization::themes::theme_preview_load,
             #[cfg(not(feature = "basic"))]
             customization::themes::theme_preview_save,
+            #[cfg(not(feature = "basic"))]
+            customization::themes::theme_list,
+            #[cfg(not(feature = "basic"))]
+            customization::themes::theme_get_active,
+            #[cfg(not(feature = "basic"))]
+            customization::themes::theme_set_active,
+            #[cfg(not(feature = "basic"))]
+            customization::themes::theme_save_custom,
+            #[cfg(not(feature = "basic"))]
+            customization::themes::theme_delete_custom,
+            #[cfg(not(feature = "basic"))]
+            customization::themes::theme_reset_default,
+            #[cfg(not(feature = "basic"))]
+            customization::themes::theme_save_media,
+            #[cfg(not(feature = "basic"))]
+            customization::library::mod_set_enabled,
+            #[cfg(not(feature = "basic"))]
+            customization::library::mod_set_priority,
+            #[cfg(not(feature = "basic"))]
+            customization::library::mod_detect_conflicts,
+            #[cfg(not(feature = "basic"))]
+            customization::library::mod_stage_overlay,
+            #[cfg(not(feature = "basic"))]
+            customization::library::mod_rollback,
+            #[cfg(not(feature = "basic"))]
+            customization::library::delete_cache_file,
+            #[cfg(not(feature = "basic"))]
+            customization::library::delete_custom_mod_cache,
+            #[cfg(not(feature = "basic"))]
+            customization::library::delete_marketplace_mod_cache,
+            #[cfg(not(feature = "basic"))]
+            customization::library::delete_custom_mod_storage,
+            #[cfg(not(feature = "basic"))]
+            customization::library::invalidate_fixed_mod_cache,
+            #[cfg(not(feature = "basic"))]
+            customization::library::fantome_read_meta,
+            #[cfg(not(feature = "basic"))]
+            customization::library::fantome_write_meta,
+            #[cfg(not(feature = "basic"))]
+            customization::library::fantome_list_contents,
+            #[cfg(not(feature = "basic"))]
+            customization::library::fantome_extract,
+            #[cfg(not(feature = "basic"))]
+            customization::creator::creator_list_projects,
+            #[cfg(not(feature = "basic"))]
+            customization::creator::creator_create_project,
+            #[cfg(not(feature = "basic"))]
+            customization::creator::creator_get_project,
+            #[cfg(not(feature = "basic"))]
+            customization::creator::creator_save_project,
+            #[cfg(not(feature = "basic"))]
+            customization::creator::creator_duplicate_project,
+            #[cfg(not(feature = "basic"))]
+            customization::creator::creator_delete_project,
+            #[cfg(not(feature = "basic"))]
+            customization::creator::creator_add_file,
+            #[cfg(not(feature = "basic"))]
+            customization::creator::creator_remove_file,
+            #[cfg(not(feature = "basic"))]
+            customization::creator::creator_export_fantome,
+            #[cfg(not(feature = "basic"))]
+            customization::creator::creator_export_modpkg,
+            #[cfg(not(feature = "basic"))]
+            customization::game_path::get_game_path,
+            #[cfg(not(feature = "basic"))]
+            customization::game_path::set_game_path,
+            #[cfg(not(feature = "basic"))]
+            customization::game_path::open_folder_in_explorer,
+            #[cfg(not(feature = "basic"))]
+            customization::client_themes::client_themes_save_asset,
+            #[cfg(not(feature = "basic"))]
+            customization::client_themes::client_themes_save_asset_path,
+            #[cfg(not(feature = "basic"))]
+            customization::client_themes::client_themes_pick_media,
+            #[cfg(not(feature = "basic"))]
+            customization::client_themes::client_themes_clear_asset,
+            #[cfg(not(feature = "basic"))]
+            customization::client_themes::client_themes_set_music_options,
+            #[cfg(not(feature = "basic"))]
+            customization::client_themes::client_themes_pick_font,
+            #[cfg(not(feature = "basic"))]
+            customization::client_themes::client_themes_set_font_preset,
+            #[cfg(not(feature = "basic"))]
+            customization::client_themes::client_themes_clear_font,
+            #[cfg(not(feature = "basic"))]
+            customization::client_themes::client_themes_set_transition,
+            #[cfg(not(feature = "basic"))]
+            customization::gameflow::lcu_test_connection,
+            #[cfg(not(feature = "basic"))]
+            customization::gameflow::lcu_get_gameflow_phase,
+            #[cfg(not(feature = "basic"))]
+            customization::gameflow::match_notice_show,
+            #[cfg(not(feature = "basic"))]
+            customization::gameflow::match_notice_ready,
+            #[cfg(not(feature = "basic"))]
+            customization::gameflow::match_notice_action,
+            #[cfg(not(feature = "basic"))]
+            customization::discord::open_discord_oauth_window,
+            #[cfg(not(feature = "basic"))]
+            customization::discord::discord_exchange_code,
+            #[cfg(not(feature = "basic"))]
+            customization::discord::discord_refresh_token,
+            #[cfg(not(feature = "basic"))]
+            customization::discord::discord_revoke_token,
+            #[cfg(not(feature = "basic"))]
+            customization::discord::set_rpc_enabled,
+            #[cfg(not(feature = "basic"))]
+            customization::discord::update_activity,
+            #[cfg(not(feature = "basic"))]
+            customization::discord::rpc_set_presence,
+            #[cfg(not(feature = "basic"))]
+            customization::stats_provider::opgg_get_summoner_profile,
+            #[cfg(not(feature = "basic"))]
+            customization::ai_assistant::ai_chat,
+            #[cfg(not(feature = "basic"))]
+            customization::ai_assistant::elevenlabs_tts,
+            #[cfg(not(feature = "basic"))]
+            customization::ai_assistant::streamelements_tts,
+            commands::system_utils::write_error_report,
+            commands::system_utils::set_developer_mode,
+            commands::system_utils::get_developer_mode,
+            commands::system_utils::get_file_info,
+            commands::system_utils::register_hotkey,
+            commands::system_utils::set_performance_mode,
+            commands::system_utils::set_app_low_priority,
             commands::updater::get_app_version,
             commands::updater::check_github_update,
             commands::updater::get_updater_preflight_status,

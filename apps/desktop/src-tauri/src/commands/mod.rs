@@ -2,6 +2,7 @@
 pub mod local_accounts;
 #[cfg(not(feature = "studio"))]
 pub mod session;
+pub mod system_utils;
 pub mod updater;
 pub mod window;
 

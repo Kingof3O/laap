@@ -1,6 +1,6 @@
 import { invokeTauri, hasTauri } from '../../lib/api'
 import { useEffect, useState, type FormEvent } from 'react'
-import { errorMessage, presets, type AccountOption, type Preset } from './api'
+import { errorMessage, presets, type AccountOption, type Preset, type PresetConflict } from './api'
 import { flavor } from '../../product/flavors'
 
 export function PresetEditor({ draft, onSaved, onCancel }: {
@@ -14,6 +14,8 @@ export function PresetEditor({ draft, onSaved, onCancel }: {
   const [notes, setNotes] = useState(draft.notes ?? '')
   const [favorite, setFavorite] = useState(draft.favorite ?? false)
   const [priority, setPriority] = useState(draft.priority ?? 0)
+  const [chromaId, setChromaId] = useState(draft.chromaId ?? '')
+  const [variantId, setVariantId] = useState(draft.variantId ?? '')
   const [accounts, setAccounts] = useState<AccountOption[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -34,7 +36,17 @@ export function PresetEditor({ draft, onSaved, onCancel }: {
     setBusy(true)
     setError('')
     try {
-      await presets.save({ ...draft, name, accountId: accountId || null, queueMode: queueMode || null, notes, favorite, priority })
+      await presets.save({
+        ...draft,
+        name,
+        accountId: accountId || null,
+        queueMode: queueMode || null,
+        notes,
+        favorite,
+        priority,
+        chromaId: chromaId || null,
+        variantId: variantId || null,
+      })
       onSaved()
     } catch (cause) {
       setError(errorMessage(cause))
@@ -61,6 +73,10 @@ export function PresetEditor({ draft, onSaved, onCancel }: {
         <option value="">Any queue</option>
         {['classic', 'quickplay', 'swiftplay', 'aram', 'arena', 'tft'].map((mode) => <option key={mode}>{mode}</option>)}
       </select></label>
+      <div className="customization-filters">
+        <label>Chroma identifier <input maxLength={40} placeholder="Optional chroma ID" value={chromaId} onChange={(e) => setChromaId(e.target.value)} /></label>
+        <label>Alternate form identifier <input maxLength={40} placeholder="Optional form ID" value={variantId} onChange={(e) => setVariantId(e.target.value)} /></label>
+      </div>
       <label>Notes <textarea maxLength={2000} value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
       <label>Priority <input type="number" min={-100} max={100} value={priority} onChange={(event) => setPriority(Number(event.target.value))} /></label>
       <label className="customization-check"><input type="checkbox" checked={favorite} onChange={(event) => setFavorite(event.target.checked)} /> Favorite preset</label>
@@ -75,6 +91,8 @@ export function PresetEditor({ draft, onSaved, onCancel }: {
 
 export function PresetLibrary({ profile, onOpen }: { profile?: { id: string; name: string }; onOpen: (preset: Preset) => void }) {
   const [rows, setRows] = useState<Preset[] | null>(null)
+  const [conflicts, setConflicts] = useState<PresetConflict[]>([])
+  const [lastDeleted, setLastDeleted] = useState<{ id: string; name: string } | null>(null)
   const [editing, setEditing] = useState<Preset | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -144,7 +162,27 @@ export function PresetLibrary({ profile, onOpen }: { profile?: { id: string; nam
     setBusy(true)
     setError('')
     try {
-      await presets.save({ ...row, id: null, revision: 0, name: row.name.slice(0, 70) + ' copy' })
+      if (row.id) {
+        await presets.duplicate(row.id)
+      } else {
+        await presets.save({ ...row, id: null, revision: 0, name: row.name.slice(0, 70) + ' copy' })
+      }
+      setStatus(`Duplicated preset "${row.name}".`)
+      load()
+    } catch (cause) {
+      setError(errorMessage(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function restore(id: string) {
+    setBusy(true)
+    setError('')
+    try {
+      await presets.restore(id)
+      setLastDeleted(null)
+      setStatus('Restored preset from trash.')
       load()
     } catch (cause) {
       setError(errorMessage(cause))
@@ -168,15 +206,18 @@ export function PresetLibrary({ profile, onOpen }: { profile?: { id: string; nam
   const load = () => {
     setError('')
     void presets.list().then(setRows).catch((cause: unknown) => setError(errorMessage(cause)))
+    void presets.conflicts().then((c) => setConflicts(c || [])).catch(() => {})
   }
 
   useEffect(() => { load() }, [])
 
   async function remove(id: string) {
     setBusy(true)
+    const target = rows?.find((r) => r.id === id)
     try {
       await presets.remove(id)
       setDeleting(null)
+      if (target) setLastDeleted({ id, name: target.name })
       load()
     } catch (cause) {
       setError(errorMessage(cause))
@@ -189,15 +230,39 @@ export function PresetLibrary({ profile, onOpen }: { profile?: { id: string; nam
 
   return (
     <>
-      <h2>{profile ? 'Presets for ' + profile.name : 'Saved presets'}</h2>
-      <p>Keep cosmetic references here. Presets are stored on this device.</p>
-      <div className="customization-actions">
-        <button className="btn-secondary" disabled={busy} onClick={() => void exportLibrary()}>Export library</button>
-        <label className="btn-secondary">Import presets <input type="file" accept=".json" disabled={busy} onChange={(event) => {
-          void previewImport(event.target.files?.[0])
-          event.target.value = ''
-        }} /></label>
+      <div className="customization-heading">
+        <div>
+          <h2>{profile ? 'Presets for ' + profile.name : 'Saved presets'}</h2>
+          <p>Organize champion-specific preferences, chromas, and queue-mode rules.</p>
+        </div>
+        <div className="customization-actions">
+          <button className="btn-secondary" disabled={busy} onClick={() => void exportLibrary()}>Export library</button>
+          <label className="btn-secondary">Import presets <input type="file" accept=".json" disabled={busy} onChange={(event) => {
+            void previewImport(event.target.files?.[0])
+            event.target.value = ''
+          }} /></label>
+        </div>
       </div>
+
+      {(conflicts?.length ?? 0) > 0 && (
+        <div className="customization-card" style={{ background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.4)', padding: '0.875rem 1rem', marginBottom: '1rem', borderRadius: '8px' }}>
+          <strong style={{ color: '#ef4444' }}>⚠️ Preset Conflicts Detected ({conflicts.length})</strong>
+          <p style={{ margin: '0.25rem 0', fontSize: '0.9rem' }}>Multiple presets for the same champion target overlapping queue or priority rules:</p>
+          <ul style={{ margin: '0.25rem 0 0 1rem', fontSize: '0.85rem' }}>
+            {conflicts.map((c, i) => (
+              <li key={i}>{c.reason}: {c.presets.map((p) => p.name).join(' vs ')}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {lastDeleted && (
+        <div className="customization-card" style={{ background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.3)', padding: '0.5rem 1rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>Deleted <strong>{lastDeleted.name}</strong>.</span>
+          <button className="btn-secondary" disabled={busy} onClick={() => void restore(lastDeleted.id)}>Restore preset</button>
+        </div>
+      )}
+
       {status && <p role="status">{status}</p>}
       {importing && <section className="customization-editor">
         <h3>Import {importing.names.length} presets?</h3><p>Imports create separate copies. Profile links are assigned locally after import.</p>
@@ -221,7 +286,7 @@ export function PresetLibrary({ profile, onOpen }: { profile?: { id: string; nam
         {visible?.map((row) => row.id && (
           <li key={row.id}>
             <strong>{row.name}</strong>
-            <span>{row.championId}{row.accountId ? ' · Linked to a local profile' : ''}</span>
+            <span>{row.championId}{row.accountId ? ' · Linked to a local profile' : ''}{row.queueMode ? ` · [${row.queueMode}]` : ''}{row.chromaId ? ' · Chroma' : ''}{row.variantId ? ` · Form: ${row.variantId}` : ''}</span>
             <div className="customization-actions">
               <button className="btn-secondary" onClick={() => onOpen(row)}>View selection</button>
               <button className="btn-secondary" disabled={busy} onClick={() => setEditing(row)}>Edit</button>

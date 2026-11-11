@@ -1,6 +1,7 @@
 use super::storage;
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::BTreeMap,
     path::{Path, PathBuf},
     sync::Mutex,
 };
@@ -8,38 +9,56 @@ use tauri::AppHandle;
 
 const MAX_BYTES: u64 = 1024 * 1024;
 const LIMIT: usize = 500;
+const TRASH_LIMIT: usize = 20;
 static LOCK: Mutex<()> = Mutex::new(());
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Preset {
-    id: Option<String>,
-    name: String,
-    champion_id: String,
-    skin_id: String,
-    account_id: Option<String>,
+    pub id: Option<String>,
+    pub name: String,
+    pub champion_id: String,
+    pub skin_id: String,
     #[serde(default)]
-    queue_mode: Option<String>,
+    pub chroma_id: Option<String>,
     #[serde(default)]
-    notes: String,
+    pub variant_id: Option<String>,
+    pub account_id: Option<String>,
     #[serde(default)]
-    favorite: bool,
+    pub queue_mode: Option<String>,
     #[serde(default)]
-    priority: i16,
+    pub notes: String,
     #[serde(default)]
-    revision: u32,
+    pub favorite: bool,
+    #[serde(default)]
+    pub priority: i16,
+    #[serde(default)]
+    pub revision: u32,
 }
 
 #[derive(Deserialize, Serialize)]
 struct Store {
     version: u32,
     presets: Vec<Preset>,
+    #[serde(default)]
+    trash: Vec<Preset>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PresetConflict {
+    pub champion_id: String,
+    pub account_id: Option<String>,
+    pub queue_mode: Option<String>,
+    pub preset_names: Vec<String>,
+    pub skin_ids: Vec<String>,
 }
 
 fn read(path: &Path) -> Result<Store, String> {
     let state = storage::read::<Store>(path, MAX_BYTES)?.unwrap_or(Store {
         version: 1,
         presets: vec![],
+        trash: vec![],
     });
     if state.version != 1 {
         return Err("Unsupported preset store version.".into());
@@ -71,6 +90,19 @@ fn validate(preset: &mut Preset) -> Result<(), String> {
     {
         return Err("Select a valid champion and skin.".into());
     }
+    if let Some(chroma) = &preset.chroma_id {
+        if chroma.is_empty() || chroma.len() > 16 || !chroma.bytes().all(|b| b.is_ascii_digit()) {
+            return Err("Invalid chroma identifier.".into());
+        }
+    }
+    if let Some(variant) = &preset.variant_id {
+        if variant.is_empty()
+            || variant.len() > 64
+            || !variant.bytes().all(|b| b.is_ascii_alphanumeric() || b"_-".contains(&b))
+        {
+            return Err("Invalid variant identifier.".into());
+        }
+    }
     if preset.notes.chars().count() > 2000
         || !(-100..=100).contains(&preset.priority)
         || preset.queue_mode.as_ref().is_some_and(|mode| {
@@ -94,6 +126,12 @@ fn validate(preset: &mut Preset) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn generate_id() -> Result<String, String> {
+    let mut random = [0; 16];
+    getrandom::fill(&mut random).map_err(|e| e.to_string())?;
+    Ok(format!("{:032x}", u128::from_be_bytes(random)))
 }
 
 #[tauri::command]
@@ -128,9 +166,7 @@ pub fn customization_preset_save(app: AppHandle, mut preset: Preset) -> Result<P
         if store.presets.len() >= LIMIT {
             return Err("The preset library is full.".into());
         }
-        let mut random = [0; 16];
-        getrandom::fill(&mut random).map_err(|e| e.to_string())?;
-        preset.id = Some(format!("{:032x}", u128::from_be_bytes(random)));
+        preset.id = Some(generate_id()?);
         preset.revision = 1;
         store.presets.push(preset.clone());
     }
@@ -139,12 +175,97 @@ pub fn customization_preset_save(app: AppHandle, mut preset: Preset) -> Result<P
 }
 
 #[tauri::command]
+pub fn customization_preset_duplicate(app: AppHandle, id: String) -> Result<Preset, String> {
+    let path = path(&app)?;
+    let _guard = LOCK.lock().map_err(|_| "Preset store is unavailable.")?;
+    let mut store = read(&path)?;
+    if store.presets.len() >= LIMIT {
+        return Err("The preset library is full.".into());
+    }
+    let original = store
+        .presets
+        .iter()
+        .find(|p| p.id.as_ref() == Some(&id))
+        .ok_or("Preset no longer exists.")?
+        .clone();
+
+    let mut copy = original;
+    copy.id = Some(generate_id()?);
+    let mut name = format!("{} (Copy)", copy.name);
+    if name.chars().count() > 80 {
+        name = name.chars().take(80).collect();
+    }
+    copy.name = name;
+    copy.revision = 1;
+    store.presets.push(copy.clone());
+    write_store(&path, &store)?;
+    Ok(copy)
+}
+
+#[tauri::command]
 pub fn customization_preset_delete(app: AppHandle, id: String) -> Result<(), String> {
     let path = path(&app)?;
     let _guard = LOCK.lock().map_err(|_| "Preset store is unavailable.")?;
     let mut store = read(&path)?;
-    store.presets.retain(|p| p.id.as_ref() != Some(&id));
-    write_store(&path, &store)
+    if let Some(pos) = store.presets.iter().position(|p| p.id.as_ref() == Some(&id)) {
+        let removed = store.presets.remove(pos);
+        if store.trash.len() >= TRASH_LIMIT {
+            store.trash.remove(0);
+        }
+        store.trash.push(removed);
+        write_store(&path, &store)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn customization_preset_restore(app: AppHandle) -> Result<Preset, String> {
+    let path = path(&app)?;
+    let _guard = LOCK.lock().map_err(|_| "Preset store is unavailable.")?;
+    let mut store = read(&path)?;
+    let mut restored = store
+        .trash
+        .pop()
+        .ok_or("No deleted presets to restore.")?;
+    if store.presets.len() >= LIMIT {
+        return Err("The preset library is full.".into());
+    }
+    // Ensure the restored preset has a unique ID
+    let current_ids: Vec<String> = store.presets.iter().filter_map(|p| p.id.clone()).collect();
+    if restored.id.as_ref().map_or(true, |id| current_ids.contains(id)) {
+        restored.id = Some(generate_id()?);
+    }
+    store.presets.push(restored.clone());
+    write_store(&path, &store)?;
+    Ok(restored)
+}
+
+#[tauri::command]
+pub fn customization_preset_conflicts(app: AppHandle) -> Result<Vec<PresetConflict>, String> {
+    let path = path(&app)?;
+    let store = read(&path)?;
+    let mut groups: BTreeMap<(String, Option<String>, Option<String>), Vec<&Preset>> = BTreeMap::new();
+    for preset in &store.presets {
+        let key = (preset.champion_id.clone(), preset.account_id.clone(), preset.queue_mode.clone());
+        groups.entry(key).or_default().push(preset);
+    }
+
+    let mut conflicts = Vec::new();
+    for ((champion_id, account_id, queue_mode), presets) in groups {
+        if presets.len() > 1 {
+            let unique_skins: std::collections::BTreeSet<&str> = presets.iter().map(|p| p.skin_id.as_str()).collect();
+            if unique_skins.len() > 1 {
+                conflicts.push(PresetConflict {
+                    champion_id,
+                    account_id,
+                    queue_mode,
+                    preset_names: presets.iter().map(|p| p.name.clone()).collect(),
+                    skin_ids: presets.iter().map(|p| p.skin_id.clone()).collect(),
+                });
+            }
+        }
+    }
+    Ok(conflicts)
 }
 
 fn write_store(path: &Path, store: &Store) -> Result<(), String> {
@@ -214,9 +335,7 @@ pub fn customization_preset_import(
         return Err("Import would exceed the 500-preset library limit.".into());
     }
     for preset in &mut imported.presets {
-        let mut random = [0; 16];
-        getrandom::fill(&mut random).map_err(|e| e.to_string())?;
-        preset.id = Some(format!("{:032x}", u128::from_be_bytes(random)));
+        preset.id = Some(generate_id()?);
     }
     store.presets.extend(imported.presets);
     write_store(&path, &store)?;
@@ -258,6 +377,7 @@ pub fn customization_preset_resolve(
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn portable_import_preserves_old_presets_and_clears_local_links() {
         let old = r#"{"version":1,"presets":[{"id":"old","name":"My preset","championId":"Ahri","skinId":"103000","accountId":"old-machine"}]}"#;
@@ -281,6 +401,8 @@ mod tests {
             name: "ARAM Build".into(),
             champion_id: "Lux".into(),
             skin_id: "99001".into(),
+            chroma_id: Some("99002".into()),
+            variant_id: Some("form_light".into()),
             account_id: None,
             queue_mode: Some("aram".into()),
             notes: "Test notes".into(),
@@ -305,6 +427,10 @@ mod tests {
         let mut invalid_skin = valid.clone();
         invalid_skin.skin_id = "abc".into();
         assert!(validate(&mut invalid_skin).is_err());
+
+        let mut invalid_chroma = valid.clone();
+        invalid_chroma.chroma_id = Some("non-digit".into());
+        assert!(validate(&mut invalid_chroma).is_err());
     }
 
     #[test]
@@ -314,6 +440,8 @@ mod tests {
             name: "Generic".into(),
             champion_id: "Ahri".into(),
             skin_id: "103000".into(),
+            chroma_id: None,
+            variant_id: None,
             account_id: None,
             queue_mode: None,
             notes: String::new(),
@@ -351,5 +479,58 @@ mod tests {
         assert_eq!(rows[1].id.as_deref(), Some("p2"));
         // Generic comes last
         assert_eq!(rows[2].id.as_deref(), Some("p1"));
+    }
+
+    #[test]
+    fn preset_conflict_detection_identifies_competing_skins() {
+        let p1 = Preset {
+            id: Some("p1".into()),
+            name: "Ahri Classic".into(),
+            champion_id: "Ahri".into(),
+            skin_id: "103000".into(),
+            chroma_id: None,
+            variant_id: None,
+            account_id: Some("acc-1".into()),
+            queue_mode: Some("classic".into()),
+            notes: String::new(),
+            favorite: false,
+            priority: 0,
+            revision: 1,
+        };
+        let mut p2 = p1.clone();
+        p2.id = Some("p2".into());
+        p2.name = "Ahri Dynasty".into();
+        p2.skin_id = "103001".into();
+
+        let store = Store {
+            version: 1,
+            presets: vec![p1, p2],
+            trash: vec![],
+        };
+
+        let mut groups: BTreeMap<(String, Option<String>, Option<String>), Vec<&Preset>> = BTreeMap::new();
+        for preset in &store.presets {
+            let key = (preset.champion_id.clone(), preset.account_id.clone(), preset.queue_mode.clone());
+            groups.entry(key).or_default().push(preset);
+        }
+
+        let mut conflicts = Vec::new();
+        for ((champion_id, account_id, queue_mode), presets) in groups {
+            if presets.len() > 1 {
+                let unique_skins: std::collections::BTreeSet<&str> = presets.iter().map(|p| p.skin_id.as_str()).collect();
+                if unique_skins.len() > 1 {
+                    conflicts.push(PresetConflict {
+                        champion_id,
+                        account_id,
+                        queue_mode,
+                        preset_names: presets.iter().map(|p| p.name.clone()).collect(),
+                        skin_ids: presets.iter().map(|p| p.skin_id.clone()).collect(),
+                    });
+                }
+            }
+        }
+        assert_eq!(conflicts.len(), 1);
+        assert_eq!(conflicts[0].champion_id, "Ahri");
+        assert_eq!(conflicts[0].preset_names.len(), 2);
     }
 }

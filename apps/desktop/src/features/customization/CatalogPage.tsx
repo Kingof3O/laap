@@ -1,6 +1,6 @@
 import { isTauriAvailable } from '../../lib/api'
 import { useEffect, useRef, useState } from 'react'
-import { catalog, errorMessage, type Champion, type ChampionDetail, type Preset, type Snapshot, type CatalogChange, type CatalogPreferences } from './api'
+import { catalog, errorMessage, type Champion, type ChampionDetail, type Preset, type Snapshot, type CatalogChange, type CatalogPreferences, type TftItem, type Chroma, type Variant } from './api'
 import { PresetEditor } from './PresetLibrary'
 
 const CDN = 'https://ddragon.leagueoflegends.com/cdn'
@@ -78,6 +78,12 @@ function CatalogArtwork({ id, version, skin, name, thumbnail = false }: { id: st
 }
 
 export function CatalogPage({ accountId, selection, onSaved, onShare }: { accountId?: string; selection: Preset | null; onSaved: () => void; onShare: (skin: { id: number; name: string }) => void }) {
+  const [tab, setTab] = useState<'champions' | 'tft'>('champions')
+  const [tftItems, setTftItems] = useState<TftItem[] | null>(null)
+  const [tftCategory, setTftCategory] = useState('all')
+  const [selectedChroma, setSelectedChroma] = useState<string | null>(selection?.chromaId ?? null)
+  const [selectedVariant, setSelectedVariant] = useState<string | null>(selection?.variantId ?? null)
+
   const [locale, setLocale] = useState('en_US')
   const [snapshot, setSnapshot] = useState<Snapshot<Champion[]> | null>(null)
   const [detail, setDetail] = useState<Snapshot<ChampionDetail> | null>(null)
@@ -105,6 +111,12 @@ export function CatalogPage({ accountId, selection, onSaved, onShare }: { accoun
     }).catch((cause: unknown) => { if (current) setPrefsError(errorMessage(cause)) })
     return () => { current = false }
   }, [])
+
+  useEffect(() => {
+    if (tab === 'tft' && !tftItems) {
+      void catalog.tftList().then(setTftItems).catch(() => {})
+    }
+  }, [tab, tftItems])
 
   useEffect(() => {
     if (locale === 'ar_AE') {
@@ -153,6 +165,8 @@ export function CatalogPage({ accountId, selection, onSaved, onShare }: { accoun
       if (current) {
         setDetail(data)
         setSkinId((id) => data.data.skins.some((skin) => skin.id === id) ? id : (data.data.skins[0]?.id ?? ''))
+        setSelectedChroma(null)
+        setSelectedVariant(null)
       }
     }).catch((cause: unknown) => {
       if (current) setDetailError(errorMessage(cause))
@@ -166,9 +180,11 @@ export function CatalogPage({ accountId, selection, onSaved, onShare }: { accoun
     (!favoritesOnly || prefs.favorites.includes(row.id)),
   ).sort((a, b) => a.name.localeCompare(b.name))
 
-  function openChampion(id: string, reference = '') {
+  function openChampion(id: string, reference = '', chroma?: string, variant?: string) {
     setSelected(id)
     setSkinId(reference)
+    setSelectedChroma(chroma ?? null)
+    setSelectedVariant(variant ?? null)
     setDetail(null)
     setDetailError('')
     setDraft(null)
@@ -181,17 +197,78 @@ export function CatalogPage({ accountId, selection, onSaved, onShare }: { accoun
     setRevision((value) => value + 1)
   }
 
+  async function triggerRandomPick() {
+    try {
+      const pick = await catalog.randomPick(favoritesOnly)
+      openChampion(pick.championId, pick.skinId)
+    } catch {
+      if (champions.length > 0) {
+        const candidate = champions[Math.floor(Math.random() * champions.length)]
+        if (candidate) openChampion(candidate.id)
+      }
+    }
+  }
+
   const skin = detail?.data.skins.find((entry) => entry.id === skinId)
+  const filteredTft = tftItems?.filter((item) => tftCategory === 'all' || item.category === tftCategory)
+
   return (
     <>
       <div className="customization-heading">
-        <div><h2>Champion catalog</h2><p>Explore Riot Data Dragon cosmetics and save local references.</p></div>
-        <button className="btn-secondary" disabled={loading} onClick={() => refresh()}>{loading ? 'Loading…' : 'Refresh catalog'}</button>
+        <div>
+          <h2>Content catalog</h2>
+          <p>Explore patch-aware League of Legends champions, skins, chromas, and TFT tacticians.</p>
+        </div>
+        <div className="customization-actions">
+          <button className={tab === 'champions' ? 'btn-primary' : 'btn-secondary'} onClick={() => setTab('champions')}>Champions & Skins</button>
+          <button className={tab === 'tft' ? 'btn-primary' : 'btn-secondary'} onClick={() => setTab('tft')}>TFT Tacticians & Arenas</button>
+          <button className="btn-secondary" disabled={loading} onClick={() => refresh()}>{loading ? 'Loading…' : 'Refresh'}</button>
+        </div>
       </div>
-      {snapshot && <p className="customization-source">Riot Data Dragon · {snapshot.version} · {snapshot.locale}{snapshot.bundled ? ' · Included with the app' : snapshot.cached ? ' · Cached copy' : ' · Current data'}</p>}
+
+      {snapshot && tab === 'champions' && (
+        <p className="customization-source">Riot Data Dragon · {snapshot.version} · {snapshot.locale}{snapshot.bundled ? ' · Included with the app' : snapshot.cached ? ' · Cached copy' : ' · Current data'}</p>
+      )}
       {error && <p role="alert">{error}</p>}
       {prefsError && <p role="alert">{prefsError}</p>}
-      {selected ? (
+
+      {tab === 'tft' ? (
+        <section>
+          <div className="customization-filters">
+            <label>Category <select value={tftCategory} onChange={(e) => setTftCategory(e.target.value)}>
+              <option value="all">All TFT Items</option>
+              <option value="Tactician">Tacticians / Little Legends</option>
+              <option value="Arena">Arenas</option>
+              <option value="Boom">Booms</option>
+            </select></label>
+          </div>
+          {!tftItems ? <p role="status">Loading TFT items…</p> : (
+            <div className="customization-grid">
+              {filteredTft?.map((item) => (
+                <div key={item.id} className="customization-card" style={{ cursor: 'default' }}>
+                  <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="badge" style={{ fontSize: '0.75rem', padding: '2px 6px', background: 'var(--accent, #6366f1)', borderRadius: '4px' }}>{item.category}</span>
+                      <span style={{ fontSize: '0.8rem', color: '#f59e0b' }}>{'★'.repeat(item.tier)}</span>
+                    </div>
+                    <strong style={{ display: 'block', marginTop: '0.5rem' }}>{item.name}</strong>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #94a3b8)', marginTop: '0.25rem' }}>{item.description}</p>
+                    <button className="btn-secondary" style={{ marginTop: '0.5rem', width: '100%' }} onClick={() => setDraft({
+                      id: null,
+                      name: item.name,
+                      championId: 'TFT_' + item.category,
+                      skinId: item.id,
+                      queueMode: 'tft',
+                      accountId: accountId ?? null,
+                    })}>Save TFT Preset</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {draft && <PresetEditor draft={draft} onSaved={onSaved} onCancel={() => setDraft(null)} />}
+        </section>
+      ) : selected ? (
         <section>
           <button className="btn-secondary" onClick={() => openChampion('')}>Back to catalog</button>
           {detailError && <p role="alert">{detailError} <button className="btn-secondary" onClick={() => { setDetailError(''); setRetry((i) => i + 1) }}>Retry</button></p>}
@@ -205,24 +282,62 @@ export function CatalogPage({ accountId, selection, onSaved, onShare }: { accoun
                   onClick={() => void updatePreferences({ action: 'favorite', id: detail.data.id, enabled: !prefs.favorites.includes(detail.data.id) })}>
                   {prefs.favorites.includes(detail.data.id) ? 'Remove favorite' : 'Favorite champion'}
                 </button>
-                <label>Skin <select value={skinId} onChange={(event) => { setSkinId(event.target.value); setDraft(null)
+                <label>Skin <select value={skinId} onChange={(event) => {
+                  setSkinId(event.target.value)
+                  setSelectedChroma(null)
+                  setSelectedVariant(null)
+                  setDraft(null)
                   void updatePreferences({ action: 'remember', selection: { championId: detail.data.id, skinId: event.target.value } })
                 }} disabled={prefsBusy}>
                   {detail.data.skins.map((entry) => <option key={entry.id} value={entry.id}>{entry.num === 0 ? 'Default' : entry.name}</option>)}
                 </select></label>
+
+                {skin?.variants && skin.variants.length > 0 && (
+                  <label>Alternate Form
+                    <select value={selectedVariant ?? ''} onChange={(e) => setSelectedVariant(e.target.value || null)}>
+                      <option value="">Standard Form</option>
+                      {skin.variants.map((v) => <option key={v.id} value={v.id}>{v.name} ({v.description})</option>)}
+                    </select>
+                  </label>
+                )}
+
+                {skin?.availableChromas && skin.availableChromas.length > 0 && (
+                  <div style={{ margin: '0.75rem 0' }}>
+                    <label>Chromas ({skin.availableChromas.length} variants available)</label>
+                    <div className="customization-actions" style={{ flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                      <button type="button" className={!selectedChroma ? 'btn-primary' : 'btn-secondary'} onClick={() => setSelectedChroma(null)}>Base Skin</button>
+                      {skin.availableChromas.map((c) => (
+                        <button key={c.id} type="button" className={selectedChroma === c.id ? 'btn-primary' : 'btn-secondary'} onClick={() => setSelectedChroma(c.id)}>
+                          {c.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {detail.data.skins.length > 1 && (
                   <button className="btn-secondary" type="button" disabled={prefsBusy} onClick={() => {
                     const choices = detail.data.skins
                     const pick = choices[Math.floor(Math.random() * choices.length)]
                     if (pick) {
                       setSkinId(pick.id)
+                      setSelectedChroma(null)
+                      setSelectedVariant(null)
                       setDraft(null)
                       void updatePreferences({ action: 'remember', selection: { championId: detail.data.id, skinId: pick.id } })
                     }
                   }}>Random skin</button>
                 )}
                 <p className="customization-source">Ownership unknown.{skin?.chromas ? ' Riot lists chromas for this skin.' : ''} Previews do not equip cosmetics.</p>
-                {skin && !draft && <button className="btn-primary" onClick={() => setDraft({ id: null, name: skin.num ? skin.name : detail.data.name, championId: detail.data.id, skinId: skin.id, accountId: accountId ?? null })}>Create preset</button>}
+                {skin && !draft && <button className="btn-primary" onClick={() => setDraft({
+                  id: null,
+                  name: (skin.num ? skin.name : detail.data.name) + (selectedChroma ? ' (Chroma)' : '') + (selectedVariant ? ' [' + selectedVariant + ']' : ''),
+                  championId: detail.data.id,
+                  skinId: skin.id,
+                  chromaId: selectedChroma,
+                  variantId: selectedVariant,
+                  accountId: accountId ?? null,
+                })}>Create preset</button>}
                 {skin && <button className="btn-secondary" onClick={() => onShare({ id: Number(skin.id), name: skin.num ? skin.name : detail.data.name })}>Open in party</button>}
                 {draft && <PresetEditor draft={draft} onSaved={onSaved} onCancel={() => setDraft(null)} />}
               </div>
@@ -244,10 +359,7 @@ export function CatalogPage({ accountId, selection, onSaved, onShare }: { accoun
           </div>
           <div className="customization-actions">
             <button className="btn-secondary" aria-pressed={favoritesOnly} onClick={() => { setFavoritesOnly((value) => !value); setVisible(PAGE_SIZE) }}>Favorites only</button>
-            {champions.length > 0 && <button className="btn-secondary" onClick={() => {
-              const candidate = champions[Math.floor(Math.random() * champions.length)]
-              if (candidate) openChampion(candidate.id)
-            }}>Random champion</button>}
+            <button className="btn-secondary" onClick={() => void triggerRandomPick()}>Random champion</button>
           </div>
           {snapshot && prefs.recent.length > 0 && <details className="customization-recent">
             <summary>Recent selections</summary>

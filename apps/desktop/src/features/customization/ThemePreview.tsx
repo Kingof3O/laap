@@ -1,52 +1,94 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { invokeTauri } from '../../lib/api'
-import { errorMessage } from './api'
+import { errorMessage, themes, type ThemeConfig } from './api'
+import { readFileBase64 } from './packageFiles'
 
-interface Theme {
-  schemaVersion: 1
-  name: string
-  canvas: string
-  panel: string
-  accent: string
-  font: 'manrope' | 'sora'
+const DEFAULT_THEME: ThemeConfig = {
+  id: 'velvet-amethyst',
+  name: 'Velvet Amethyst',
+  author: 'LAAP Team',
+  version: '1.0.0',
+  isBuiltin: true,
+  palette: {
+    background: '#161121',
+    surface: '#282038',
+    primary: '#d6b7ff',
+    secondary: '#8a72b2',
+    accent: '#d6b7ff',
+    text: '#ffffff',
+    textMuted: '#94a3b8',
+    border: '#3b3366',
+  },
+  fontFamily: 'Manrope',
+  animationsEnabled: true,
 }
-
-const DEFAULT: Theme = {
-  schemaVersion: 1, name: 'Velvet Amethyst', canvas: '#161121', panel: '#282038',
-  accent: '#d6b7ff', font: 'manrope',
-}
-
-const GALLERY_THEMES: Theme[] = [
-  DEFAULT,
-  { schemaVersion: 1, name: 'Obsidian Neon', canvas: '#0c0d12', panel: '#161922', accent: '#00ffcc', font: 'sora' },
-  { schemaVersion: 1, name: 'Cyber Hextech', canvas: '#091428', panel: '#0a3240', accent: '#c8aa6e', font: 'sora' },
-  { schemaVersion: 1, name: 'Ionian Blossom', canvas: '#1f141e', panel: '#331c2d', accent: '#ff94b8', font: 'manrope' },
-  { schemaVersion: 1, name: 'Noxian Iron', canvas: '#180b0b', panel: '#2d1313', accent: '#e84057', font: 'manrope' },
-]
 
 export function ThemePreview() {
-  const [theme, setTheme] = useState<Theme | null>(null)
+  const [themeList, setThemeList] = useState<ThemeConfig[]>([DEFAULT_THEME])
+  const [activeTheme, setActiveTheme] = useState<ThemeConfig | null>(DEFAULT_THEME)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
 
-  function load() {
+  // Media file state
+  const [mediaFile, setMediaFile] = useState<File | null>(null)
+
+  async function load() {
     setError('')
-    void invokeTauri<Theme | null>('theme_preview_load').then((saved) => setTheme(saved ?? DEFAULT))
-      .catch((cause: unknown) => setError(errorMessage(cause)))
+    try {
+      const allThemes = await themes.list()
+      const list = Array.isArray(allThemes) && allThemes.length > 0 ? allThemes : [DEFAULT_THEME]
+      setThemeList(list)
+      const current = await themes.getActive()
+      setActiveTheme(current || list[0] || DEFAULT_THEME)
+    } catch (cause) {
+      setError(errorMessage(cause))
+      setThemeList([DEFAULT_THEME])
+      setActiveTheme(DEFAULT_THEME)
+    }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    void load()
+  }, [])
 
-  async function save(event: FormEvent) {
-    event.preventDefault()
-    if (!theme) return
+  async function selectTheme(id: string) {
     setBusy(true)
     setError('')
     setStatus('')
     try {
-      await invokeTauri('theme_preview_save', { theme })
-      setStatus('Theme preview saved locally.')
+      const activated = await themes.setActive(id)
+      setActiveTheme(activated)
+      setStatus(`Activated theme "${activated.name}".`)
+    } catch (e) {
+      setError(errorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function saveCustom(event: FormEvent) {
+    event.preventDefault()
+    if (!activeTheme) return
+    setBusy(true)
+    setError('')
+    setStatus('')
+    try {
+      const saved = await themes.saveCustom(activeTheme)
+      // Also persist legacy preview state for backward-compatibility
+      await invokeTauri('theme_preview_save', {
+        preview: {
+          schemaVersion: 1,
+          name: activeTheme.name,
+          canvas: activeTheme.palette.background,
+          panel: activeTheme.palette.surface,
+          accent: activeTheme.palette.primary,
+          font: activeTheme.fontFamily.toLowerCase() === 'sora' ? 'sora' : 'manrope',
+        },
+      }).catch(() => {})
+      setActiveTheme(saved)
+      await load()
+      setStatus(`Theme "${saved.name}" saved.`)
     } catch (cause) {
       setError(errorMessage(cause))
     } finally {
@@ -54,85 +96,171 @@ export function ThemePreview() {
     }
   }
 
-  function exportTheme() {
-    if (!theme) return
-    const data = JSON.stringify(theme, null, 2)
-    const url = URL.createObjectURL(new Blob([data], { type: 'application/json' }))
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `${theme.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-theme.json`
-    link.click()
-    setTimeout(() => URL.revokeObjectURL(url), 10_000)
-    setStatus('Theme exported as JSON.')
+  async function handleResetDefault() {
+    setBusy(true)
+    setError('')
+    setStatus('')
+    try {
+      const def = await themes.resetDefault()
+      setActiveTheme(def)
+      await load()
+      setStatus('Reset to default Velvet Amethyst theme.')
+    } catch (e) {
+      setError(errorMessage(e))
+    } finally {
+      setBusy(false)
+    }
   }
 
-  function importTheme(file?: File) {
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(String(reader.result)) as Theme
-        if (parsed.schemaVersion === 1 && parsed.name && parsed.canvas && parsed.panel && parsed.accent) {
-          setTheme(parsed)
-          setStatus(`Imported theme "${parsed.name}".`)
-        } else {
-          setError('Invalid theme file format.')
-        }
-      } catch {
-        setError('Failed to parse theme JSON file.')
+  async function handleUploadMedia() {
+    if (!mediaFile || !activeTheme) return
+    setBusy(true)
+    setError('')
+    setStatus('')
+    try {
+      const b64 = await readFileBase64(mediaFile)
+      const mime = mediaFile.type || 'image/jpeg'
+      const assetPath = await themes.saveMedia(b64, mime)
+
+      const updated = {
+        ...activeTheme,
+        customMedia: {
+          ...activeTheme.customMedia,
+          wallpaperUrl: assetPath,
+          backgroundVideo: mediaFile.type.includes('video') ? assetPath : undefined,
+          backgroundGif: mediaFile.type.includes('gif') ? assetPath : undefined,
+        },
       }
+      setActiveTheme(updated)
+      await themes.saveCustom(updated)
+      setStatus(`Custom background media "${mediaFile.name}" applied.`)
+      setMediaFile(null)
+    } catch (e) {
+      setError(errorMessage(e))
+    } finally {
+      setBusy(false)
     }
-    reader.readAsText(file)
   }
 
   return (
     <>
-      <h2>Theme workshop</h2>
-      <p>Design a local color and typography preview. Local theme edits apply only to LAAP previews.</p>
-      <p className="customization-source">Client Appearance Adapter: GATED / DISABLED. Directly altering League Client stylesheets requires an approved third-party loader integration with separate platform and license consent.</p>
-      <div className="customization-filters">
-        <label>Preset gallery:
-          <select onChange={(e) => {
-            const found = GALLERY_THEMES.find((t) => t.name === e.target.value)
-            if (found) { setTheme(found); setStatus(`Loaded preset "${found.name}".`) }
-          }} value={theme?.name ?? ''}>
-            {GALLERY_THEMES.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
-          </select>
-        </label>
-        <button className="btn-secondary" type="button" onClick={exportTheme} disabled={!theme || busy}>Export theme</button>
-        <label className="btn-secondary">Import theme
-          <input type="file" accept=".json" style={{ display: 'none' }} onChange={(e) => {
-            importTheme(e.target.files?.[0])
-            e.target.value = ''
-          }} />
-        </label>
+      <div className="customization-heading">
+        <div>
+          <h2>Theme workshop & appearance</h2>
+          <p>Customize palettes, fonts, and client background animations. Includes 8 built-in themes.</p>
+        </div>
+        <div className="customization-actions">
+          <button className="btn-secondary" disabled={busy} onClick={() => void handleResetDefault()}>Reset to Default</button>
+        </div>
       </div>
-      {error && <p role="alert">{error} {!theme && <button className="btn-secondary" onClick={load}>Retry</button>}</p>}
+
+      <p className="customization-source">Live Preview: Theme selections apply locally to the LAAP Studio interface. Background video and audio loops stay local to this machine.</p>
+
+      {error && <p role="alert">{error}</p>}
       {status && <p role="status">{status}</p>}
-      {!theme && !error && <p role="status">Loading theme…</p>}
-      {theme && <div className="customization-detail">
-        <form className="customization-editor" onSubmit={(event) => void save(event)}>
-          <label>Theme name <input required maxLength={100} value={theme.name} onChange={(event) => setTheme({ ...theme, name: event.target.value })} /></label>
-          <div className="customization-filters">
-            <label>Canvas <input type="color" value={theme.canvas} onChange={(event) => setTheme({ ...theme, canvas: event.target.value })} /></label>
-            <label>Panel <input type="color" value={theme.panel} onChange={(event) => setTheme({ ...theme, panel: event.target.value })} /></label>
-            <label>Accent <input type="color" value={theme.accent} onChange={(event) => setTheme({ ...theme, accent: event.target.value })} /></label>
-          </div>
-          <label>Typeface <select value={theme.font} onChange={(event) => setTheme({ ...theme, font: event.target.value === 'sora' ? 'sora' : 'manrope' })}>
-            <option value="manrope">Manrope</option><option value="sora">Sora</option>
-          </select></label>
-          <div className="customization-actions">
-            <button className="btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save theme'}</button>
-            <button type="button" className="btn-secondary" disabled={busy} onClick={() => { setTheme(DEFAULT); setStatus('') }}>Reset draft</button>
-          </div>
-        </form>
-        <div className="theme-preview" style={{ background: theme.canvas, fontFamily: theme.font === 'sora' ? 'Sora' : 'Manrope' }} aria-label="Theme preview">
-          <div style={{ background: theme.panel, borderColor: theme.accent }}>
-            <span>LOCAL PREVIEW</span><strong>{theme.name}</strong>
-            <span className="theme-sample" style={{ background: theme.accent }} />
+
+      {/* Built-in and Custom Themes Grid */}
+      <section style={{ marginBottom: '1.5rem' }}>
+        <h3>Theme collection ({themeList.length})</h3>
+        <div className="customization-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+          {themeList.map((t) => (
+            <div
+              key={t.id}
+              className="customization-card"
+              style={{
+                cursor: 'pointer',
+                borderColor: activeTheme?.id === t.id ? 'var(--accent, #6366f1)' : undefined,
+                background: t.palette.background,
+                color: t.palette.text,
+                padding: '1rem',
+                borderRadius: '8px',
+                borderWidth: activeTheme?.id === t.id ? '2px' : '1px',
+              }}
+              onClick={() => void selectTheme(t.id)}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <strong style={{ color: t.palette.text }}>{t.name}</strong>
+                {t.isBuiltin && <span className="badge" style={{ fontSize: '0.7rem', padding: '1px 5px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px' }}>Built-in</span>}
+              </div>
+              <div style={{ display: 'flex', gap: '4px', margin: '0.5rem 0' }}>
+                <span style={{ width: '16px', height: '16px', borderRadius: '50%', background: t.palette.primary }} title="Primary" />
+                <span style={{ width: '16px', height: '16px', borderRadius: '50%', background: t.palette.secondary }} title="Secondary" />
+                <span style={{ width: '16px', height: '16px', borderRadius: '50%', background: t.palette.accent }} title="Accent" />
+                <span style={{ width: '16px', height: '16px', borderRadius: '50%', background: t.palette.surface }} title="Surface" />
+              </div>
+              <span style={{ fontSize: '0.75rem', color: t.palette.textMuted }}>{t.fontFamily}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Editor & Preview */}
+      {activeTheme && (
+        <div className="customization-detail">
+          <form className="customization-editor" onSubmit={(event) => void saveCustom(event)}>
+            <h3>Theme palette editor</h3>
+            <label>Theme name
+              <input required maxLength={100} value={activeTheme.name} onChange={(event) => setActiveTheme({ ...activeTheme, name: event.target.value })} />
+            </label>
+            <div className="customization-filters">
+              <label>Background <input type="color" value={activeTheme.palette.background} onChange={(e) => setActiveTheme({ ...activeTheme, palette: { ...activeTheme.palette, background: e.target.value } })} /></label>
+              <label>Surface <input type="color" value={activeTheme.palette.surface} onChange={(e) => setActiveTheme({ ...activeTheme, palette: { ...activeTheme.palette, surface: e.target.value } })} /></label>
+              <label>Primary <input type="color" value={activeTheme.palette.primary} onChange={(e) => setActiveTheme({ ...activeTheme, palette: { ...activeTheme.palette, primary: e.target.value } })} /></label>
+              <label>Accent <input type="color" value={activeTheme.palette.accent} onChange={(e) => setActiveTheme({ ...activeTheme, palette: { ...activeTheme.palette, accent: e.target.value } })} /></label>
+            </div>
+            <label>Font family
+              <select value={activeTheme.fontFamily} onChange={(e) => setActiveTheme({ ...activeTheme, fontFamily: e.target.value })}>
+                <option value="Manrope">Manrope</option>
+                <option value="Sora">Sora</option>
+                <option value="Segoe UI">Segoe UI</option>
+                <option value="Inter">Inter</option>
+              </select>
+            </label>
+            <label className="customization-check">
+              <input type="checkbox" checked={activeTheme.animationsEnabled} onChange={(e) => setActiveTheme({ ...activeTheme, animationsEnabled: e.target.checked })} />
+              Enable smooth UI transitions & animations
+            </label>
+
+            {/* Custom media section */}
+            <div style={{ marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '0.75rem' }}>
+              <h4>Custom background media (Video / GIF / Wallpaper)</h4>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Upload an MP4, WebM, GIF, or image to use as animated background.</p>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input type="file" accept="video/mp4,video/webm,image/gif,image/png,image/jpeg,image/webp" onChange={(e) => setMediaFile(e.target.files?.[0] ?? null)} />
+                <button type="button" className="btn-secondary" disabled={busy || !mediaFile} onClick={() => void handleUploadMedia()}>Upload media</button>
+              </div>
+            </div>
+
+            <div className="customization-actions" style={{ marginTop: '1rem' }}>
+              <button className="btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save theme'}</button>
+            </div>
+          </form>
+
+          {/* Live theme preview card */}
+          <div
+            className="theme-preview"
+            style={{
+              background: activeTheme.palette.background,
+              fontFamily: activeTheme.fontFamily,
+              color: activeTheme.palette.text,
+              borderRadius: '12px',
+              border: `1px solid ${activeTheme.palette.border}`,
+              padding: '1.5rem',
+            }}
+            aria-label="Theme preview"
+          >
+            <div style={{ background: activeTheme.palette.surface, borderColor: activeTheme.palette.accent, border: '1px solid', borderRadius: '8px', padding: '1rem' }}>
+              <span style={{ fontSize: '0.75rem', color: activeTheme.palette.textMuted }}>THEME PREVIEW</span>
+              <h3 style={{ margin: '0.25rem 0', color: activeTheme.palette.text }}>{activeTheme.name}</h3>
+              <p style={{ fontSize: '0.85rem', color: activeTheme.palette.textMuted }}>Custom styling applied locally.</p>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '0.75rem' }}>
+                <span className="theme-sample" style={{ background: activeTheme.palette.primary, padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', color: '#fff' }}>Primary</span>
+                <span className="theme-sample" style={{ background: activeTheme.palette.accent, padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', color: '#000' }}>Accent</span>
+              </div>
+            </div>
           </div>
         </div>
-      </div>}
+      )}
     </>
   )
 }
