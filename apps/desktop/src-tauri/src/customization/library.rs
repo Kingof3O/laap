@@ -151,14 +151,18 @@ pub(super) fn validate_archive(bytes: &[u8], manifest: &Manifest) -> Result<(), 
         return Err("Archive size, ZIP signature, or SHA-256 does not match the manifest.".into());
     }
     let mut zip = ZipArchive::new(Cursor::new(bytes)).map_err(|e| e.to_string())?;
-    if zip.len() != manifest.files.len() {
-        return Err("Archive entries must exactly match the manifest.".into());
-    }
+    if zip.len() > MAX_FILES * 2 { return Err("Too many archive entries.".into()); }
     let mut seen = BTreeSet::new();
     let mut expanded = 0u64;
     for i in 0..zip.len() {
         let mut file = zip.by_index(i).map_err(|e| e.to_string())?;
         let name = std::str::from_utf8(file.name_raw()).map_err(|_| "Invalid archive path.")?;
+        if file.is_dir() {
+            if !safe_name(name.trim_end_matches('/')) || file.is_symlink() || file.size() != 0 {
+                return Err("Unsafe directory entry.".into());
+            }
+            continue;
+        }
         if !safe_name(name)
             || !seen.insert(name.to_ascii_lowercase())
             || file.enclosed_name().is_none()
@@ -215,6 +219,9 @@ pub(super) fn validate_archive(bytes: &[u8], manifest: &Manifest) -> Result<(), 
         if data.len() as u64 != entry.size_bytes || digest(&data) != entry.sha256 {
             return Err("An entry did not match its declared digest or size.".into());
         }
+        if data.starts_with(b"MZ") || data.starts_with(b"\x7fELF") || data.starts_with(b"#!") {
+            return Err("Executable payload disguised as data.".into());
+        }
 
         if is_image {
             let format = match ext.as_str() {
@@ -240,7 +247,61 @@ pub(super) fn validate_archive(bytes: &[u8], manifest: &Manifest) -> Result<(), 
             }
         }
     }
+    if seen.len() != manifest.files.len() { return Err("Manifest lists missing entries.".into()); }
     Ok(())
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ImportDeclaration {
+    pub display_name: String,
+    pub author: String,
+    pub version: String,
+    pub license: String,
+    pub right_to_distribute: bool,
+    pub contains_paid_riot_content: bool,
+}
+
+fn inspect_archive(bytes: &[u8], declaration: ImportDeclaration) -> Result<Manifest, String> {
+    if bytes.len() > MAX_ARCHIVE || !bytes.starts_with(b"PK\x03\x04") {
+        return Err("Unsupported or oversized ZIP-based package.".into());
+    }
+    let mut zip = ZipArchive::new(Cursor::new(bytes)).map_err(|e| e.to_string())?;
+    if zip.len() > MAX_FILES * 2 { return Err("Too many archive entries.".into()); }
+    let mut files = Vec::new();
+    let mut total = 0u64;
+    for i in 0..zip.len() {
+        let mut file = zip.by_index(i).map_err(|e| e.to_string())?;
+        if file.is_dir() { continue; }
+        total = total.checked_add(file.size()).ok_or("Expansion overflow")?;
+        if file.size() > MAX_ENTRY || total > MAX_EXPANDED || file.size() > file.compressed_size().saturating_mul(100) {
+            return Err("Archive exceeds expansion limit.".into());
+        }
+        let name = std::str::from_utf8(file.name_raw()).map_err(|_| "Invalid path encoding")?.to_string();
+        if !safe_name(&name) { return Err("Unsafe archive path.".into()); }
+        let mut data = Vec::new();
+        let size = file.size();
+        (&mut file).take(size + 1).read_to_end(&mut data).map_err(|e| e.to_string())?;
+        files.push(Entry { relative_path: name, sha256: digest(&data), size_bytes: data.len() as u64 });
+    }
+    let sha256 = digest(bytes);
+    let manifest = Manifest {
+        schema_version: 1, mod_id: format!("import.{}", &sha256[..20]), version: declaration.version,
+        display_name: declaration.display_name, author: declaration.author, license: declaration.license,
+        right_to_distribute: declaration.right_to_distribute, contains_paid_riot_content: declaration.contains_paid_riot_content,
+        sha256, supported_game_builds: vec![], champion_ids: vec![], files, attribution_url: None, notes: None,
+    };
+    validate_archive(bytes, &manifest)?;
+    Ok(manifest)
+}
+
+#[tauri::command]
+pub async fn mod_inspect(archive: String, declaration: ImportDeclaration) -> Result<Manifest, String> {
+    if archive.len() > MAX_ARCHIVE.div_ceil(3) * 4 { return Err("Archive too large.".into()); }
+    tauri::async_runtime::spawn_blocking(move || {
+        let bytes = STANDARD.decode(archive).map_err(|_| "Invalid archive encoding")?;
+        inspect_archive(&bytes, declaration)
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[derive(Deserialize)]
@@ -357,6 +418,42 @@ fn index(dir: &Path) -> Result<Vec<InstalledMod>, String> {
     Ok(rows)
 }
 
+fn import_into(dir: &Path, bytes: &[u8], manifest: Manifest) -> Result<(), String> {
+    validate_archive(&bytes, &manifest)?;
+    let mut rows = index(&dir)?;
+    if rows
+        .iter()
+        .any(|row| row.manifest.sha256 == manifest.sha256)
+    {
+        return Ok(());
+    }
+    if rows.len() >= 200
+        || rows.iter().map(|row| row.archive_bytes).sum::<u64>() + bytes.len() as u64
+        > MAX_LIBRARY
+    {
+        return Err("The local library is full.".into());
+    }
+    let blob = dir.join("content").join(&manifest.sha256);
+    let format = format!("{:?}", super::fantome::detect_package_format(&bytes));
+    rows.push(InstalledMod {
+        manifest,
+        archive_bytes: bytes.len() as u64,
+        enabled: true,
+        priority: rows.len() as u32,
+        format,
+    });
+    let index = serde_json::to_vec(&rows).map_err(|e| e.to_string())?;
+    if index.len() as u64 > MAX_INDEX {
+        return Err("The local library metadata quota is full.".into());
+    }
+    storage::write_bytes(&blob, &bytes)?;
+    if let Err(error) = storage::write_bytes(&dir.join("index.json"), &index) {
+        let _ = fs::remove_file(blob);
+        return Err(error);
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn mod_import(
     app: AppHandle,
@@ -378,39 +475,7 @@ pub async fn mod_import(
         let bytes = STANDARD
             .decode(archive)
             .map_err(|_| "Invalid archive data.")?;
-        validate_archive(&bytes, &manifest)?;
-        let mut rows = index(&dir)?;
-        if rows
-            .iter()
-            .any(|row| row.manifest.sha256 == manifest.sha256)
-        {
-            return Ok(());
-        }
-        if rows.len() >= 200
-            || rows.iter().map(|row| row.archive_bytes).sum::<u64>() + bytes.len() as u64
-                > MAX_LIBRARY
-        {
-            return Err("The local library is full.".into());
-        }
-        let blob = dir.join("content").join(&manifest.sha256);
-        let format = format!("{:?}", super::fantome::detect_package_format(&bytes));
-        rows.push(InstalledMod {
-            manifest,
-            archive_bytes: bytes.len() as u64,
-            enabled: true,
-            priority: rows.len() as u32,
-            format,
-        });
-        let index = serde_json::to_vec(&rows).map_err(|e| e.to_string())?;
-        if index.len() as u64 > MAX_INDEX {
-            return Err("The local library metadata quota is full.".into());
-        }
-        storage::write_bytes(&blob, &bytes)?;
-        if let Err(error) = storage::write_bytes(&dir.join("index.json"), &index) {
-            let _ = fs::remove_file(blob);
-            return Err(error);
-        }
-        Ok(())
+        import_into(&dir, &bytes, manifest)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -540,16 +605,15 @@ pub struct ModPackageData {
 
 #[tauri::command]
 pub fn mod_get_package_data(app: AppHandle, sha256: String) -> Result<ModPackageData, String> {
-    if !safe_name(&sha256) {
+    if !is_hash(&sha256) {
         return Err("Invalid mod hash.".into());
     }
     let dir = storage::root(&app)?.join("library");
     let blob_path = dir.join("content").join(&sha256);
-    let manifest_path = dir.join("manifests").join(format!("{sha256}.json"));
-
-    let archive_bytes = fs::read(&blob_path).map_err(|e| format!("Failed to read mod archive content: {e}"))?;
-    let manifest = storage::read::<Manifest>(&manifest_path, 64 * 1024)?
-        .ok_or_else(|| "Mod manifest not found.".to_string())?;
+    let manifest = index(&dir)?.into_iter().find(|row| row.manifest.sha256 == sha256)
+        .ok_or("Package not in library")?.manifest;
+    let archive_bytes = super::sandbox::read_blob(&blob_path, MAX_ARCHIVE as u64)?;
+    validate_archive(&archive_bytes, &manifest)?;
 
     Ok(ModPackageData {
         sha256,
@@ -560,139 +624,22 @@ pub fn mod_get_package_data(app: AppHandle, sha256: String) -> Result<ModPackage
 
 #[tauri::command]
 pub fn mod_stage_overlay(app: AppHandle, target_game_dir: Option<String>) -> Result<StagingReport, String> {
+    if target_game_dir.is_some() { return Err("Game installation staging is unsupported. Use LAAP sandbox staging.".into()); }
+    let _guard = LOCK.try_lock().map_err(|_| "Another library operation is in progress.")?;
     let dir = storage::root(&app)?.join("library");
-    let rows = index(&dir)?;
-    let mut enabled_mods: Vec<&InstalledMod> = rows.iter().filter(|r| r.enabled).collect();
-    enabled_mods.sort_by_key(|r| r.priority);
-
-    let staging_dir = dir.join("staging").join("active_overlay");
-    if staging_dir.exists() {
-        let _ = fs::remove_dir_all(&staging_dir);
-    }
-    fs::create_dir_all(&staging_dir).map_err(|e| e.to_string())?;
-
-    let mut staged_files_count = 0;
-    let mut failed_mods = Vec::new();
-
-    for m in &enabled_mods {
-        let blob_path = dir.join("content").join(&m.manifest.sha256);
-        match fs::read(&blob_path) {
-            Ok(data) => {
-                match super::fantome::extract_fantome(&data, &staging_dir) {
-                    Ok(summary) => {
-                        staged_files_count += summary.file_count;
-                    }
-                    Err(err) => {
-                        failed_mods.push(format!("{}: extraction failed ({err})", m.manifest.display_name));
-                    }
-                }
-            }
-            Err(err) => {
-                failed_mods.push(format!("{}: read failed ({err})", m.manifest.display_name));
-            }
-        }
-    }
-
-    let mut game_overlay_dir_str = None;
-    let mut backup_manifest_str = None;
-
-    if let Some(target) = target_game_dir {
-        let game_path = std::path::Path::new(&target);
-        if game_path.exists() && game_path.is_dir() {
-            let overlay_dir = if game_path.join("Game").exists() {
-                game_path.join("Game").join("MODS_OVERLAY")
-            } else {
-                game_path.join("MODS_OVERLAY")
-            };
-            if fs::create_dir_all(&overlay_dir).is_ok() {
-                let mut backup_files = Vec::new();
-                if let Ok(entries) = fs::read_dir(&staging_dir) {
-                    for entry in entries.flatten() {
-                        let rel = entry.file_name();
-                        let dest = overlay_dir.join(&rel);
-                        if fs::copy(entry.path(), &dest).is_ok() {
-                            backup_files.push(dest.to_string_lossy().to_string());
-                        }
-                    }
-                }
-                let manifest_path = overlay_dir.join("staging_manifest.json");
-                let _ = storage::write(&manifest_path, &backup_files);
-                game_overlay_dir_str = Some(overlay_dir.to_string_lossy().to_string());
-                backup_manifest_str = Some(manifest_path.to_string_lossy().to_string());
-            }
-        }
-    }
-
-    let message = if let Some(ref g_dir) = game_overlay_dir_str {
-        format!(
-            "Staged {staged_files_count} file(s) across {} enabled mod(s) into League overlay sandbox ({g_dir}). Base game files remain untouched.",
-            enabled_mods.len() - failed_mods.len()
-        )
-    } else {
-        format!(
-            "Staged {staged_files_count} file(s) across {} enabled mod(s) into LAAP staging sandbox ({})",
-            enabled_mods.len() - failed_mods.len(),
-            staging_dir.to_string_lossy()
-        )
-    };
-
-    Ok(StagingReport {
-        staged_mods_count: enabled_mods.len() - failed_mods.len(),
-        staged_files_count,
-        skipped_or_failed_mods: failed_mods,
-        staging_directory: staging_dir.to_string_lossy().to_string(),
-        game_overlay_directory: game_overlay_dir_str,
-        backup_manifest_path: backup_manifest_str,
-        message,
-    })
+    let (path, mods, files) = super::sandbox::stage(&dir, &index(&dir)?)?;
+    Ok(StagingReport { staged_mods_count: mods, staged_files_count: files, skipped_or_failed_mods: vec![],
+        staging_directory: path.to_string_lossy().into(), game_overlay_directory: None, backup_manifest_path: None,
+        message: format!("Staged {files} file(s) in the LAAP sandbox. These files are not activated in League.") })
 }
 
 #[tauri::command]
 pub fn mod_rollback(app: AppHandle, target_game_dir: Option<String>) -> Result<RollbackReport, String> {
-    let dir = storage::root(&app)?.join("library").join("staging");
-    let mut staging_cleaned = false;
-    if dir.exists() {
-        let _ = fs::remove_dir_all(&dir);
-        let _ = fs::create_dir_all(&dir);
-        staging_cleaned = true;
-    }
-
-    let mut game_overlay_cleaned = false;
-    let mut restored_files_count = 0;
-
-    if let Some(target) = target_game_dir {
-        let game_path = std::path::Path::new(&target);
-        let overlay_dir = if game_path.join("Game").exists() {
-            game_path.join("Game").join("MODS_OVERLAY")
-        } else {
-            game_path.join("MODS_OVERLAY")
-        };
-        if overlay_dir.exists() {
-            let manifest_path = overlay_dir.join("staging_manifest.json");
-            if let Ok(Some(files)) = storage::read::<Vec<String>>(&manifest_path, 256 * 1024) {
-                for file_str in files {
-                    let p = std::path::Path::new(&file_str);
-                    if p.exists() {
-                        let _ = fs::remove_file(p);
-                        restored_files_count += 1;
-                    }
-                }
-            }
-            let _ = fs::remove_dir_all(&overlay_dir);
-            game_overlay_cleaned = true;
-        }
-    }
-
-    Ok(RollbackReport {
-        restored_files_count,
-        staging_cleaned,
-        game_overlay_cleaned,
-        message: if game_overlay_cleaned {
-            format!("Rollback complete: cleaned {restored_files_count} staged file(s) from League overlay sandbox.")
-        } else {
-            "Rollback complete: cleaned LAAP local staging sandbox.".into()
-        },
-    })
+    if target_game_dir.is_some() { return Err("Game installation rollback is unsupported; no game files were changed.".into()); }
+    let _guard = LOCK.try_lock().map_err(|_| "Another library operation is in progress.")?;
+    let count = super::sandbox::rollback(&storage::root(&app)?.join("library"))?;
+    Ok(RollbackReport { restored_files_count: count, staging_cleaned: true, game_overlay_cleaned: false,
+        message: format!("Removed {count} LAAP-owned staged file(s). Unrelated files were preserved.") })
 }
 
 #[tauri::command]
@@ -844,6 +791,33 @@ mod tests {
         assert!(validate_archive(&bytes, &manifest).is_ok());
         bytes[10] ^= 0xff;
         assert!(validate_archive(&bytes, &manifest).is_err());
+    }
+
+    #[test]
+    fn nested_fantome_and_modpkg_import_export_stage_rollback_roundtrip() {
+        use zip::{write::SimpleFileOptions,ZipWriter};
+        for metadata in ["META/info.json", "modpkg.json"] {
+            let mut zip=ZipWriter::new(Cursor::new(Vec::new()));
+            zip.add_directory("assets/",SimpleFileOptions::default()).unwrap();
+            zip.start_file(metadata,SimpleFileOptions::default()).unwrap();
+            zip.write_all(br#"{"Name":"Original art","Author":"Fixture artist","Version":"1.0.0"}"#).unwrap();
+            zip.start_file("assets/nested/original.txt",SimpleFileOptions::default()).unwrap();zip.write_all(b"Original CC0 fixture").unwrap();
+            let bytes=zip.finish().unwrap().into_inner();
+            let m=inspect_archive(&bytes,ImportDeclaration{display_name:"Original art".into(),author:"Fixture artist".into(),version:"1.0.0".into(),license:"CC0-1.0".into(),right_to_distribute:true,contains_paid_riot_content:false}).unwrap();
+            let dir=std::env::temp_dir().join(format!("laap-roundtrip-{}",rand::random::<u64>()));
+            import_into(&dir,&bytes,m.clone()).unwrap();
+            let stored=super::super::sandbox::read_blob(&dir.join("content").join(&m.sha256),MAX_ARCHIVE as u64).unwrap();assert_eq!(stored,bytes);
+            let rows=index(&dir).unwrap();assert_eq!(rows.len(),1);assert_eq!(rows[0].manifest,m);
+            validate_archive(&stored,&rows[0].manifest).unwrap();
+            import_into(&dir,&stored,m.clone()).unwrap();assert_eq!(index(&dir).unwrap().len(),1);
+            let (stage,mods,files)=super::super::sandbox::stage(&dir,&rows).unwrap();assert_eq!(mods,1);assert_eq!(files,2);
+            assert_eq!(fs::read(stage.join("assets/nested/original.txt")).unwrap(),b"Original CC0 fixture");
+            fs::write(stage.join("unrelated.txt"),b"retain").unwrap();assert_eq!(super::super::sandbox::rollback(&dir).unwrap(),2);assert!(stage.join("unrelated.txt").exists());
+            // Failed next-stage validation must leave the committed previous generation intact.
+            let (prior,_,_)=super::super::sandbox::stage(&dir,&rows).unwrap();fs::write(dir.join("content").join(&m.sha256),b"truncated").unwrap();
+            assert!(super::super::sandbox::stage(&dir,&rows).is_err());assert!(prior.join("assets/nested/original.txt").exists());
+            fs::remove_dir_all(dir).unwrap();
+        }
     }
 
     #[test]

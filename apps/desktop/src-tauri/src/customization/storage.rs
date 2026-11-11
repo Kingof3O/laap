@@ -14,6 +14,7 @@ pub fn root(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 pub fn read<T: DeserializeOwned>(path: &Path, limit: u64) -> Result<Option<T>, String> {
+    if path.exists() { super::sandbox::check_chain(path, false)?; }
     let file = match fs::File::open(path) {
         Ok(file) => file,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -44,7 +45,7 @@ fn write_with(
     write: impl FnOnce(&mut fs::File) -> std::io::Result<()>,
 ) -> Result<(), String> {
     let parent = path.parent().ok_or("Missing data directory.")?;
-    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    super::sandbox::check_chain(parent, true)?;
     let mut random = [0; 16];
     getrandom::fill(&mut random).map_err(|e| e.to_string())?;
     let temp = parent.join(format!(".{:032x}.tmp", u128::from_be_bytes(random)));

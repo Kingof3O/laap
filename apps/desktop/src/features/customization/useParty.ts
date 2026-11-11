@@ -1,7 +1,7 @@
 import { relayUrl as endpoint } from './communityEndpoint'
 import { useEffect, useRef, useState } from 'react'
 import { invokeTauri } from '../../lib/api'
-import { mods } from './api'
+import { mods, type PackageManifest } from './api'
 
 type Request =
   | { type: 'create' }
@@ -15,10 +15,11 @@ type Request =
   | { type: 'select'; skinId: number | null }
   | { type: 'announceMods'; modHashes: string[] }
   | { type: 'transferRequest'; targetMemberId: string; modHash: string }
-  | { type: 'transferAccept'; requesterMemberId: string; modHash: string }
-  | { type: 'transferChunk'; targetMemberId: string; modHash: string; chunkIndex: number; totalChunks: number; dataBase64: string }
-  | { type: 'transferComplete'; targetMemberId: string; modHash: string }
-  | { type: 'transferCancel'; targetMemberId: string; modHash: string; reason: string }
+  | { type: 'transferAccept'; transferId: string; manifest: PackageManifest; bytes: number }
+  | { type: 'transferChunk'; transferId: string; chunkIndex: number; dataBase64: string }
+  | { type: 'transferComplete'; transferId: string }
+  | { type: 'transferCancel'; transferId: string }
+
 
 export type Member = { id: string; connected: boolean; selection: number | null; modHashes?: string[] }
 type Snapshot = {
@@ -39,25 +40,14 @@ type Event =
   | { type: 'error'; message: string }
   | { type: 'expired' }
   | { type: 'left' }
-  | { type: 'transferRequest'; fromMemberId: string; modHash: string }
-  | { type: 'transferAccept'; fromMemberId: string; modHash: string }
-  | { type: 'transferChunk'; fromMemberId: string; modHash: string; chunkIndex: number; totalChunks: number; dataBase64: string }
-  | { type: 'transferComplete'; fromMemberId: string; modHash: string }
-  | { type: 'transferCancel'; fromMemberId: string; modHash: string; reason: string }
-
-export interface TransferProgress {
-  modHash: string
-  progress: number
-  status: string
-}
-
-interface IncomingTransfer {
-  modHash: string
-  fromMemberId: string
-  totalChunks: number
-  chunks: string[]
-  receivedCount: number
-}
+  | { type: 'transferRequest'; transferId: string; fromMemberId: string; modHash: string }
+  | { type: 'transferPending'; transferId: string; fromMemberId: string; modHash: string }
+  | { type: 'transferAccept'; transferId: string; fromMemberId: string; modHash: string; manifest: PackageManifest; bytes: number; totalChunks: number }
+  | { type: 'transferChunk'; transferId: string; fromMemberId: string; modHash: string; chunkIndex: number; dataBase64: string }
+  | { type: 'transferComplete'; transferId: string; fromMemberId: string; modHash: string }
+  | { type: 'transferCancel'; transferId: string; fromMemberId: string; modHash: string; reason: string }
+export interface TransferProgress { modHash: string; progress: number; status: string }
+interface IncomingTransfer {modHash:string;fromMemberId:string;manifest:PackageManifest;bytes:number;totalChunks:number;chunks:Map<number,string>}
 
 export function useParty(onModImported?: (modHash: string) => void) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
@@ -74,6 +64,10 @@ export function useParty(onModImported?: (modHash: string) => void) {
   const timeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const attempt = useRef(0)
   const incomingTransfers = useRef<Map<string, IncomingTransfer>>(new Map())
+  const requested = useRef(new Map<string, {member:string; hash:string}>())
+  const requestedHashes = useRef(new Set<string>())
+  const outgoing = useRef(new Map<string, AbortController>())
+  const [pendingApproval, setPendingApproval] = useState<{transferId:string;fromMemberId:string;modHash:string} | null>(null)
   const onModImportedRef = useRef(onModImported)
   onModImportedRef.current = onModImported
 
@@ -86,6 +80,9 @@ export function useParty(onModImported?: (modHash: string) => void) {
     attempt.current = 0
     chatConsent.current = false
     incomingTransfers.current.clear()
+    requested.current.clear(); requestedHashes.current.clear()
+    for (const controller of outgoing.current.values()) controller.abort()
+    outgoing.current.clear(); setPendingApproval(null)
     if (current?.readyState === WebSocket.OPEN) current.send(JSON.stringify({ type: 'leave' }))
     current?.close()
   }
@@ -102,103 +99,46 @@ export function useParty(onModImported?: (modHash: string) => void) {
     setError('')
   }
 
-  async function handleSendModChunks(requesterMemberId: string, modHash: string) {
+  async function approveTransfer() {
+    const request = pendingApproval
+    if (!request) return
+    setPendingApproval(null)
+    const controller = new AbortController(); outgoing.current.set(request.transferId, controller)
     try {
-      const pkg = await mods.getPackageData(modHash)
-      if (!pkg || !pkg.archiveBase64) return
-      send({ type: 'transferAccept', requesterMemberId, modHash })
-
-      const archive = pkg.archiveBase64
-      const CHUNK_SIZE = 32 * 1024 // 32 KB chunk
-      const totalChunks = Math.ceil(archive.length / CHUNK_SIZE)
-
-      for (let i = 0; i < totalChunks; i++) {
-        const slice = archive.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)
-        send({
-          type: 'transferChunk',
-          targetMemberId: requesterMemberId,
-          modHash,
-          chunkIndex: i,
-          totalChunks,
-          dataBase64: slice,
-        })
-        await new Promise((r) => setTimeout(r, 5))
+      const pkg = await mods.getPackageData(request.modHash)
+      if (!pkg.manifest.rightToDistribute || pkg.manifest.containsPaidRiotContent) throw Error('Redistribution is not permitted by this package license.')
+      const bytes = Math.floor(pkg.archiveBase64.length*3/4) - (pkg.archiveBase64.endsWith('==')?2:pkg.archiveBase64.endsWith('=')?1:0)
+      if (bytes > 12*1024*1024) throw Error('Relay package limit is 12 MiB.')
+      send({type:'transferAccept',transferId:request.transferId,manifest:pkg.manifest,bytes})
+      for(let i=0; i<Math.ceil(pkg.archiveBase64.length/32768);i++) {
+        if(controller.signal.aborted || socket.current?.readyState!==WebSocket.OPEN) throw Error('Transfer interrupted')
+        send({type:'transferChunk',transferId:request.transferId,chunkIndex:i,dataBase64:pkg.archiveBase64.slice(i*32768,(i+1)*32768)})
+        await new Promise(r=>setTimeout(r,120))
       }
-      send({ type: 'transferComplete', targetMemberId: requesterMemberId, modHash })
-    } catch (e) {
-      send({
-        type: 'transferCancel',
-        targetMemberId: requesterMemberId,
-        modHash,
-        reason: e instanceof Error ? e.message : 'Mod export failed',
-      })
-    }
+      send({type:'transferComplete',transferId:request.transferId})
+    } catch(e) { send({type:'transferCancel',transferId:request.transferId});setError(e instanceof Error?e.message:String(e)) }
+    finally {outgoing.current.delete(request.transferId)}
   }
-
-  async function handleCompleteReceivedTransfer(event: { fromMemberId: string; modHash: string }) {
-    const record = incomingTransfers.current.get(event.modHash)
-    if (!record || record.receivedCount !== record.totalChunks) return
-
-    setTransferProgress({
-      modHash: event.modHash,
-      progress: 99,
-      status: 'Verifying package checksum...',
-    })
-
-    const fullBase64 = record.chunks.join('')
-    const binary = atob(fullBase64)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-
-    const digestBuffer = await crypto.subtle.digest('SHA-256', bytes)
-    const calculatedHash = Array.from(new Uint8Array(digestBuffer))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('')
-
-    if (calculatedHash.toLowerCase() !== event.modHash.toLowerCase()) {
-      setTransferProgress({
-        modHash: event.modHash,
-        progress: 0,
-        status: `Checksum mismatch! Expected ${event.modHash.slice(0, 8)}, got ${calculatedHash.slice(0, 8)}.`,
-      })
-      incomingTransfers.current.delete(event.modHash)
-      return
-    }
-
+  async function handleCompleteReceivedTransfer(event: {transferId:string;fromMemberId:string;modHash:string}) {
+    const record = incomingTransfers.current.get(event.transferId)
+    if(!record || record.fromMemberId!==event.fromMemberId || record.modHash!==event.modHash || record.chunks.size!==record.totalChunks)return
+    incomingTransfers.current.delete(event.transferId);requested.current.delete(event.transferId)
+    setTransferProgress({modHash:record.modHash,progress:95,status:'Validating archive and importing into local library…'})
     try {
-      await invokeTauri('mod_import', {
-        archive: fullBase64,
-        manifest: {
-          schemaVersion: 1,
-          modId: event.modHash.slice(0, 16),
-          displayName: `Synced Mod ${event.modHash.slice(0, 8)}`,
-          version: '1.0.0',
-          author: `Party Peer ${event.fromMemberId.slice(0, 6)}`,
-          championId: 'Synced',
-          targetSkinId: '0',
-          license: 'Custom Party Sync',
-          containsPaidRiotContent: false,
-          files: [],
-          sha256: event.modHash,
-        },
-        rightsConfirmed: true,
-      })
-      setTransferProgress({
-        modHash: event.modHash,
-        progress: 100,
-        status: `Mod ${event.modHash.slice(0, 8)} successfully verified and imported!`,
-      })
-      onModImportedRef.current?.(event.modHash)
-    } catch (e) {
-      setTransferProgress({
-        modHash: event.modHash,
-        progress: 0,
-        status: `Import error: ${e instanceof Error ? e.message : String(e)}`,
-      })
-    }
-    incomingTransfers.current.delete(event.modHash)
+      const archive=Array.from({length:record.totalChunks},(_,i)=>record.chunks.get(i)??'').join('')
+      const binary=atob(archive);if(binary.length!==record.bytes)throw Error('Transfer size mismatch')
+      const bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('')
+      if(hash!==record.modHash)throw Error('Transfer checksum mismatch')
+      await invokeTauri('mod_import',{archive,manifest:record.manifest,rightsConfirmed:true})
+      setTransferProgress({modHash:record.modHash,progress:100,status:'Verified and imported into the local library.'})
+      onModImportedRef.current?.(record.modHash)
+    }catch(e){setTransferProgress({modHash:record.modHash,progress:0,status:'Import failed: '+(e instanceof Error?e.message:String(e))})}
   }
-
+  function cancelTransfers() {
+    for(const id of new Set([...requested.current.keys(),...outgoing.current.keys()]))send({type:'transferCancel',transferId:id})
+    for(const c of outgoing.current.values())c.abort()
+    outgoing.current.clear();incomingTransfers.current.clear();requested.current.clear();requestedHashes.current.clear();setPendingApproval(null);setTransferProgress(null)
+  }
   function open(request: Request) {
     if (!endpoint) return
     setState(request.type === 'resume' ? 'reconnecting' : 'connecting')
@@ -255,45 +195,28 @@ export function useParty(onModImported?: (modHash: string) => void) {
             : [...prior.filter((item) => Date.now() - item.sentAt < 5 * 60_000), event].slice(-20),
         )
       } else if (event.type === 'transferRequest') {
-        void handleSendModChunks(event.fromMemberId, event.modHash)
+        setPendingApproval(previous => previous ?? event)
+      } else if (event.type === 'transferPending') {
+        if(requestedHashes.current.delete(event.fromMemberId+event.modHash) && /^[a-f0-9]{32}$/.test(event.transferId))requested.current.set(event.transferId,{member:event.fromMemberId,hash:event.modHash})
       } else if (event.type === 'transferAccept') {
-        setTransferProgress({
-          modHash: event.modHash,
-          progress: 1,
-          status: 'Peer accepted transfer. Receiving chunks...',
-        })
+        const consent=requested.current.get(event.transferId)
+        if(!consent || consent.member!==event.fromMemberId || consent.hash!==event.modHash || incomingTransfers.current.size>=2)return
+        if(!Number.isSafeInteger(event.bytes)||event.bytes<=0||event.bytes>12*1024*1024||event.totalChunks!==Math.ceil(Math.ceil(event.bytes/3)*4/32768)||!event.manifest||event.manifest.sha256!==event.modHash||event.manifest.rightToDistribute!==true||event.manifest.containsPaidRiotContent!==false){send({type:'transferCancel',transferId:event.transferId});return}
+        incomingTransfers.current.set(event.transferId,{modHash:event.modHash,fromMemberId:event.fromMemberId,manifest:event.manifest,bytes:event.bytes,totalChunks:event.totalChunks,chunks:new Map()})
+        setTransferProgress({modHash:event.modHash,progress:0,status:`Receiving ${event.manifest.displayName} · ${event.manifest.license}`})
       } else if (event.type === 'transferChunk') {
-        const key = event.modHash
-        let record = incomingTransfers.current.get(key)
-        if (!record) {
-          record = {
-            modHash: event.modHash,
-            fromMemberId: event.fromMemberId,
-            totalChunks: event.totalChunks,
-            chunks: new Array(event.totalChunks).fill(''),
-            receivedCount: 0,
-          }
-          incomingTransfers.current.set(key, record)
-        }
-        if (!record.chunks[event.chunkIndex]) {
-          record.chunks[event.chunkIndex] = event.dataBase64
-          record.receivedCount++
-          const pct = Math.round((record.receivedCount / record.totalChunks) * 100)
-          setTransferProgress({
-            modHash: event.modHash,
-            progress: pct,
-            status: `Downloading: ${pct}% (${record.receivedCount}/${record.totalChunks} chunks)`,
-          })
-        }
+        const record=incomingTransfers.current.get(event.transferId)
+        if(!record||record.fromMemberId!==event.fromMemberId||record.modHash!==event.modHash||!Number.isSafeInteger(event.chunkIndex)||event.chunkIndex<0||event.chunkIndex>=record.totalChunks||typeof event.dataBase64!=='string'||event.dataBase64.length>32768)return
+        const expected=event.chunkIndex===record.totalChunks-1?Math.ceil(record.bytes/3)*4-32768*(record.totalChunks-1):32768
+        if(event.dataBase64.length!==expected)return
+        const old=record.chunks.get(event.chunkIndex);if(old&&old!==event.dataBase64){cancelTransfers();setError('Conflicting duplicate transfer chunk');return}
+        record.chunks.set(event.chunkIndex,event.dataBase64)
+        setTransferProgress({modHash:event.modHash,progress:Math.floor(record.chunks.size/record.totalChunks*90),status:'Receiving package via community relay…'})
       } else if (event.type === 'transferComplete') {
         void handleCompleteReceivedTransfer(event)
       } else if (event.type === 'transferCancel') {
-        setTransferProgress({
-          modHash: event.modHash,
-          progress: 0,
-          status: `Transfer cancelled by peer: ${event.reason}`,
-        })
-        incomingTransfers.current.delete(event.modHash)
+        incomingTransfers.current.delete(event.transferId);requested.current.delete(event.transferId);outgoing.current.get(event.transferId)?.abort()
+        setTransferProgress({modHash:event.modHash,progress:0,status:'Transfer cancelled: '+event.reason})
       } else if (event.type === 'expired') {
         leave()
         setError('The room expired. Create or join another room.')
@@ -307,6 +230,7 @@ export function useParty(onModImported?: (modHash: string) => void) {
     })
     connection.addEventListener('close', (event) => {
       if (socket.current !== connection) return
+      cancelTransfers()
       socket.current = null
       if (timeout.current) clearTimeout(timeout.current)
       const current = membership.current
@@ -337,6 +261,10 @@ export function useParty(onModImported?: (modHash: string) => void) {
     messages,
     chatEnabled,
     transferProgress,
+    pendingApproval,
+    approveTransfer,
+    declineTransfer: () => { if(pendingApproval)send({type:'transferCancel',transferId:pendingApproval.transferId});setPendingApproval(null) },
+    cancelTransfers,
     setChatConsent: (enabled: boolean) => {
       chatConsent.current = enabled
       setChatEnabled(enabled)
@@ -361,7 +289,6 @@ export function useParty(onModImported?: (modHash: string) => void) {
     select: (skinId: number | null) => send({ type: 'select', skinId }),
     rotate: () => send({ type: 'rotate' }),
     announceMods: (modHashes: string[]) => send({ type: 'announceMods', modHashes }),
-    requestTransfer: (targetMemberId: string, modHash: string) =>
-      send({ type: 'transferRequest', targetMemberId, modHash }),
+    requestTransfer: (targetMemberId: string, modHash: string) => { requestedHashes.current.add(targetMemberId+modHash);send({ type: 'transferRequest', targetMemberId, modHash }) },
   }
 }

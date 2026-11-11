@@ -16,3 +16,7 @@ pub mod client_themes;
 pub mod discord;
 pub mod stats_provider;
 pub mod ai_assistant;
+
+mod sandbox;
+
+pub mod community_credentials;

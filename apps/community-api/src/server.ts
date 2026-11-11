@@ -12,7 +12,7 @@ const origins = new Set((process.env.LAAP_COMMUNITY_ORIGINS ??
 const databasePath = process.env.LAAP_COMMUNITY_DATABASE ?? '.data/community.sqlite'
 await mkdir(dirname(databasePath), { recursive: true })
 const moderation = new ModerationStore(databasePath)
-const marketplace = new MarketplaceStore(databasePath)
+const marketplace = new MarketplaceStore(databasePath, { adminKey: process.env.COMMUNITY_ADMIN_KEY, isBlocked: (hash) => moderation.isBlocked(hash) })
 const approvedDirectory = process.env.LAAP_APPROVED_CATALOG_DIR
 const catalog = approvedDirectory
   ? approvedCatalogHandler(approvedDirectory, await loadApprovedCatalog(approvedDirectory), origins, (hash) => moderation.isBlocked(hash))

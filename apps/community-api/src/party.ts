@@ -1,3 +1,4 @@
+import { TransferRelay, parseTransfer, type TransferMessage } from './transferRelay.ts'
 import type { CatalogHandler } from './catalog.ts'
 import { randomBytes } from 'node:crypto'
 import { createServer } from 'node:http'
@@ -41,11 +42,7 @@ type Message =
   | { type: 'chat'; text: string }
   | { type: 'kick'; memberId: string }
   | { type: 'announceMods'; modHashes: string[] }
-  | { type: 'transferRequest'; targetMemberId: string; modHash: string }
-  | { type: 'transferAccept'; requesterMemberId: string; modHash: string }
-  | { type: 'transferChunk'; targetMemberId: string; modHash: string; chunkIndex: number; totalChunks: number; dataBase64: string }
-  | { type: 'transferComplete'; targetMemberId: string; modHash: string }
-  | { type: 'transferCancel'; targetMemberId: string; modHash: string; reason?: string }
+  | TransferMessage
 
 const key = (length: number) => randomBytes(length).toString('hex')
 const exact = (value: Record<string, unknown>, ...keys: string[]) =>
@@ -104,58 +101,9 @@ function parse(raw: RawData): Message {
       }
       break
     }
-    case 'transferRequest': {
-      if (exact(message, 'type', 'targetMemberId', 'modHash') &&
-        validKey(message.targetMemberId, 16) && validKey(message.modHash, 64)) {
-        return { type: 'transferRequest', targetMemberId: message.targetMemberId, modHash: message.modHash }
-      }
-      break
-    }
-    case 'transferAccept': {
-      if (exact(message, 'type', 'requesterMemberId', 'modHash') &&
-        validKey(message.requesterMemberId, 16) && validKey(message.modHash, 64)) {
-        return { type: 'transferAccept', requesterMemberId: message.requesterMemberId, modHash: message.modHash }
-      }
-      break
-    }
-    case 'transferChunk': {
-      if (exact(message, 'type', 'targetMemberId', 'modHash', 'chunkIndex', 'totalChunks', 'dataBase64') &&
-        validKey(message.targetMemberId, 16) && validKey(message.modHash, 64) &&
-        typeof message.chunkIndex === 'number' && Number.isSafeInteger(message.chunkIndex) && message.chunkIndex >= 0 &&
-        typeof message.totalChunks === 'number' && Number.isSafeInteger(message.totalChunks) && message.totalChunks > 0 &&
-        typeof message.dataBase64 === 'string' && message.dataBase64.length <= 64 * 1024) {
-        return {
-          type: 'transferChunk',
-          targetMemberId: message.targetMemberId,
-          modHash: message.modHash,
-          chunkIndex: message.chunkIndex,
-          totalChunks: message.totalChunks,
-          dataBase64: message.dataBase64,
-        }
-      }
-      break
-    }
-    case 'transferComplete': {
-      if (exact(message, 'type', 'targetMemberId', 'modHash') &&
-        validKey(message.targetMemberId, 16) && validKey(message.modHash, 64)) {
-        return { type: 'transferComplete', targetMemberId: message.targetMemberId, modHash: message.modHash }
-      }
-      break
-    }
-    case 'transferCancel': {
-      if ((exact(message, 'type', 'targetMemberId', 'modHash') || exact(message, 'type', 'targetMemberId', 'modHash', 'reason')) &&
-        validKey(message.targetMemberId, 16) && validKey(message.modHash, 64) &&
-        (message.reason === undefined || (typeof message.reason === 'string' && message.reason.length <= 100))) {
-        return {
-          type: 'transferCancel',
-          targetMemberId: message.targetMemberId,
-          modHash: message.modHash,
-          reason: typeof message.reason === 'string' ? message.reason : undefined,
-        }
-      }
-      break
-    }
+
   }
+  if (typeof message.type === 'string' && message.type.startsWith('transfer')) return parseTransfer(message)
   throw new Error('Invalid party message.')
 }
 
@@ -175,6 +123,7 @@ export function createCommunityServer({ origins, catalog, moderation, marketplac
   marketplace?: CatalogHandler
 }) {
   const rooms = new Map<string, Room>()
+  const transfers = new TransferRelay((roomId, memberId, event) => send(rooms.get(roomId)?.members.get(memberId)?.socket, event))
   const invites = new Map<string, Room>()
   const connections = new Map<string, number>()
   const server = createServer((req, res) => {
@@ -240,6 +189,7 @@ export function createCommunityServer({ origins, catalog, moderation, marketplac
         if (member.absentAt && now - member.absentAt > RECONNECT_WINDOW) remove(room, member)
       }
     }
+    transfers.prune()
     for (const socket of ws.clients) {
       if (!alive.delete(socket)) socket.terminate()
       else if (socket.readyState === WebSocket.OPEN) socket.ping()
@@ -301,28 +251,10 @@ export function createCommunityServer({ origins, catalog, moderation, marketplac
           } else if (message.type === 'announceMods') {
             member.modHashes = message.modHashes
             publish(room)
-          } else if (message.type === 'transferRequest') {
-            const target = room.members.get(message.targetMemberId)
-            if (target) send(target.socket, { type: 'transferRequest', fromMemberId: member.id, modHash: message.modHash })
-          } else if (message.type === 'transferAccept') {
-            const requester = room.members.get(message.requesterMemberId)
-            if (requester) send(requester.socket, { type: 'transferAccept', fromMemberId: member.id, modHash: message.modHash })
-          } else if (message.type === 'transferChunk') {
-            const target = room.members.get(message.targetMemberId)
-            if (target) send(target.socket, {
-              type: 'transferChunk',
-              fromMemberId: member.id,
-              modHash: message.modHash,
-              chunkIndex: message.chunkIndex,
-              totalChunks: message.totalChunks,
-              dataBase64: message.dataBase64,
-            })
-          } else if (message.type === 'transferComplete') {
-            const target = room.members.get(message.targetMemberId)
-            if (target) send(target.socket, { type: 'transferComplete', fromMemberId: member.id, modHash: message.modHash })
-          } else if (message.type === 'transferCancel') {
-            const target = room.members.get(message.targetMemberId)
-            if (target) send(target.socket, { type: 'transferCancel', fromMemberId: member.id, modHash: message.modHash, reason: message.reason })
+          } else if (message.type.startsWith('transfer')) {
+            void transfers.handle(room.id, member.id, message as TransferMessage,
+              (id, hash) => !!room?.members.get(id)?.socket && !!room?.members.get(id)?.modHashes.includes(hash))
+              .catch(e => send(socket, {type:'error',message:e instanceof Error ? e.message : 'Transfer failed'}))
           } else if (message.type === 'chatConsent') {
             member.chatEnabled = message.enabled
           } else if (message.type === 'chat' && member.chatEnabled) {
@@ -390,6 +322,7 @@ export function createCommunityServer({ origins, catalog, moderation, marketplac
       }
     })
     socket.on('close', () => {
+      if (room && member) transfers.disconnect(room.id, member.id)
       clearTimeout(handshake)
       if (room && member?.socket === socket && rooms.has(room.id)) {
         member.socket = undefined

@@ -1,7 +1,7 @@
 import { readFileBase64 } from './packageFiles'
 import { useEffect, useState, type FormEvent } from 'react'
 import { invokeTauri } from '../../lib/api'
-import { errorMessage, mods, gamePath, type ConflictReport, type FantomeEntry, type FantomeMeta } from './api'
+import { errorMessage, mods, type ConflictReport, type FantomeEntry, type FantomeMeta } from './api'
 
 interface AssetEntry {
   relativePath: string
@@ -38,15 +38,17 @@ export function ModLibrary() {
 
   // Conflict and staging state
   const [conflicts, setConflicts] = useState<ConflictReport | null>(null)
-  const [gameDir, setGameDir] = useState<string>('')
+  const [assetName, setAssetName] = useState('')
+  const [assetAuthor, setAssetAuthor] = useState('')
+  const [assetLicense, setAssetLicense] = useState('')
+  const [redistributable, setRedistributable] = useState(false)
   const [stagingReport, setStagingReport] = useState<string>('')
 
   async function load() {
     try {
       setPackages(await invokeTauri<PackageRecord[]>('mod_list'))
       setConflicts(await mods.conflicts())
-      const pathCfg = await gamePath.get()
-      if (pathCfg.leaguePath) setGameDir(pathCfg.leaguePath)
+
     } catch (cause) {
       setError(errorMessage(cause))
     }
@@ -75,10 +77,12 @@ export function ModLibrary() {
       }
 
       // If Fantome, read metadata automatically
-      if (format === 'Fantome') {
+      if (format.toLowerCase() === 'fantome') {
         try {
           const meta = await mods.readMeta(b64)
           setFantomeMeta(meta)
+          setAssetName(meta.name)
+          setAssetAuthor(meta.author)
           setStatus(`Detected Fantome package: "${meta.name}" by ${meta.author}.`)
         } catch {
           // No META/info.json
@@ -91,7 +95,7 @@ export function ModLibrary() {
 
   async function add(event: FormEvent) {
     event.preventDefault()
-    if (!archive || (!manifest && !fantomeMeta) || !confirmed) return
+    if (!archive || (!manifest && (!assetName || !assetAuthor || !assetLicense)) || !confirmed) return
     setError('')
     setStatus('')
     if (archive.size > 32 * 1024 * 1024) {
@@ -105,24 +109,11 @@ export function ModLibrary() {
       let manifestObj: unknown
       if (manifest) {
         manifestObj = JSON.parse(await manifest.text())
-      } else if (fantomeMeta) {
-        // Auto-generate manifest from Fantome metadata
-        manifestObj = {
-          schemaVersion: 1,
-          modId: (fantomeMeta.targetChampion ?? 'custom') + '.' + fantomeMeta.name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
-          version: fantomeMeta.version || '1.0.0',
-          displayName: fantomeMeta.name,
-          author: fantomeMeta.author || 'Community Creator',
-          license: 'Community-Mod',
-          rightToDistribute: true,
-          containsPaidRiotContent: false,
-          sha256: '', // native validator computes SHA-256
-          files: (archiveEntries ?? []).map((e) => ({
-            relativePath: e.relativePath,
-            sha256: '0'.repeat(64),
-            sizeBytes: e.sizeBytes,
-          })),
-        }
+      } else {
+        manifestObj = await invokeTauri('mod_inspect', { archive: archiveB64, declaration: {
+          displayName: assetName, author: assetAuthor, version: fantomeMeta?.version || '1.0.0',
+          license: assetLicense, rightToDistribute: redistributable, containsPaidRiotContent: false,
+        } })
       }
 
       await invokeTauri('mod_import', {
@@ -167,7 +158,7 @@ export function ModLibrary() {
     setError('')
     setStagingReport('')
     try {
-      const rep = await mods.stageOverlay(gameDir || null)
+      const rep = await mods.stageOverlay()
       setStagingReport(rep.message)
       if (rep.skippedOrFailedMods.length > 0) {
         setError(`Some mods had extraction issues: ${rep.skippedOrFailedMods.join('; ')}`)
@@ -184,26 +175,8 @@ export function ModLibrary() {
     setError('')
     setStagingReport('')
     try {
-      const rep = await mods.rollback(gameDir || null)
+      const rep = await mods.rollback()
       setStagingReport(rep.message)
-    } catch (e) {
-      setError(errorMessage(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function detectGamePath() {
-    setBusy(true)
-    try {
-      const detected = await gamePath.detect()
-      if (detected) {
-        setGameDir(detected)
-        await gamePath.set(detected)
-        setStatus(`Detected League directory: ${detected}`)
-      } else {
-        setStatus('Could not auto-detect League installation. Please enter path manually.')
-      }
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -243,16 +216,10 @@ export function ModLibrary() {
       {/* Game Path & Overlay Staging */}
       <section className="customization-editor" style={{ marginBottom: '1.5rem' }}>
         <h3>Mod staging & rollback</h3>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #94a3b8)' }}>Stage enabled mods into LAAP's managed staging sandbox or the configured League overlay directory. Base game files remain untouched.</p>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <label style={{ flex: 1, margin: 0 }}>League directory (optional for overlay sandbox)
-            <input type="text" placeholder="C:\Riot Games\League of Legends\Game" value={gameDir} onChange={(e) => setGameDir(e.target.value)} />
-          </label>
-          <button type="button" className="btn-secondary" style={{ marginTop: '1.4rem' }} disabled={busy} onClick={() => void detectGamePath()}>Detect path</button>
-        </div>
+        <p>Stage verified files in LAAP's sandbox. No League files are changed and no in-game activation is performed.</p>
         <div className="customization-actions" style={{ marginTop: '0.75rem' }}>
-          <button type="button" className="btn-primary" disabled={busy} onClick={() => void stageMods()}>Stage mod overlay</button>
-          <button type="button" className="btn-secondary" disabled={busy} onClick={() => void rollbackMods()}>Rollback overlay</button>
+          <button type="button" className="btn-primary" disabled={busy} onClick={() => void stageMods()}>Stage in LAAP sandbox</button>
+          <button type="button" className="btn-secondary" disabled={busy} onClick={() => void rollbackMods()}>Clear owned staging</button>
         </div>
         {stagingReport && <p role="status" style={{ color: '#10b981', marginTop: '0.5rem' }}>{stagingReport}</p>}
       </section>
@@ -267,11 +234,15 @@ export function ModLibrary() {
           <p style={{ fontSize: '0.85rem' }}>Detected Format: <strong>{detectedFormat}</strong> {archiveEntries ? `(${archiveEntries.length} files inside)` : ''}</p>
         )}
 
-        {!fantomeMeta && (
-          <label>LAAP manifest JSON (optional if .fantome metadata is detected)
-            <input type="file" accept=".json" disabled={busy} onChange={(event) => setManifest(event.target.files?.[0])} />
-          </label>
-        )}
+        <label>LAAP manifest JSON (optional)
+          <input type="file" accept=".json" disabled={busy} onChange={(event) => setManifest(event.target.files?.[0])} />
+        </label>
+        {!manifest && <>
+          <label>Package name <input required maxLength={160} value={assetName} onChange={e => setAssetName(e.target.value)} /></label>
+          <label>Original author <input required maxLength={120} value={assetAuthor} onChange={e => setAssetAuthor(e.target.value)} /></label>
+          <label>License or permission <input required maxLength={80} value={assetLicense} onChange={e => setAssetLicense(e.target.value)} /></label>
+          <label className="customization-check"><input type="checkbox" checked={redistributable} onChange={e => setRedistributable(e.target.checked)} />The license also permits redistribution to others.</label>
+        </>}
 
         {archiveEntries && archiveEntries.length > 0 && (
           <details style={{ margin: '0.5rem 0' }}>
@@ -288,7 +259,7 @@ export function ModLibrary() {
           <input type="checkbox" required checked={confirmed} disabled={busy} onChange={(event) => setConfirmed(event.target.checked)} />
           I confirm I have permission to use these assets and the package contains no paid Riot content or executables.
         </label>
-        <button className="btn-primary" disabled={busy || !archive || (!manifest && !fantomeMeta) || !confirmed}>
+        <button className="btn-primary" disabled={busy || !archive || (!manifest && (!assetName || !assetAuthor || !assetLicense)) || !confirmed}>
           {busy ? 'Validating…' : 'Validate and import'}
         </button>
       </form>

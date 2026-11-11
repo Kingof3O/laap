@@ -102,7 +102,6 @@ export interface ModInfo {
   sizeBytes: number
   fileCount: number
   format: string
-  installedAt: string
 }
 
 export interface ConflictReport {
@@ -262,48 +261,33 @@ export interface RollbackReport {
   message: string
 }
 
-export interface ModManifestFile {
-  relativePath: string
-  sizeBytes: number
-  sha256: string
-  formatType: string
+export interface PackageManifest {
+  schemaVersion: number; modId: string; version: string; displayName: string; author: string; license: string
+  rightToDistribute: boolean; containsPaidRiotContent: boolean; sha256: string; supportedGameBuilds: string[]
+  championIds: number[]; files: { relativePath: string; sha256: string; sizeBytes: number }[]
+  attributionUrl?: string | null; notes?: string | null
 }
-
-export interface ModManifest {
-  schemaVersion: number
-  name: string
-  author: string
-  version: string
-  description: string
-  modType: string
-  targetChampion?: string | null
-  targetSkin?: number | null
-  createdAt: string
-  files: ModManifestFile[]
-}
-
-export interface ModPackageData {
-  sha256: string
-  archiveBase64: string
-  manifest: ModManifest
-}
-
+export interface InstalledPackage { manifest: PackageManifest; archiveBytes: number; enabled: boolean; priority: number; format: string }
+export interface ModPackageData { sha256: string; archiveBase64: string; manifest: PackageManifest }
 export const mods = {
-  list: () => invokeTauri<ModInfo[]>('mod_list'),
-  setEnabled: (id: string, enabled: boolean) => invokeTauri<ModInfo>('mod_set_enabled', { id, enabled }),
-  setPriority: (id: string, priority: number) => invokeTauri<ModInfo>('mod_set_priority', { id, priority }),
-  conflicts: () => invokeTauri<ConflictReport>('mod_detect_conflicts'),
-  stageOverlay: (targetGameDir?: string | null) =>
-    invokeTauri<StagingReport>('mod_stage_overlay', { targetGameDir: targetGameDir || null }),
-  rollback: (targetGameDir?: string | null) =>
-    invokeTauri<RollbackReport>('mod_rollback', { targetGameDir: targetGameDir || null }),
-  getPackageData: (sha256: string) =>
-    invokeTauri<ModPackageData>('mod_get_package_data', { sha256 }),
+  list: async () => (await invokeTauri<InstalledPackage[]>('mod_list')).map(r => ({
+    id: r.manifest.sha256, name: r.manifest.displayName, author: r.manifest.author, version: r.manifest.version,
+    description: r.manifest.notes ?? '', enabled: r.enabled, priority: r.priority, sha256: r.manifest.sha256,
+    sizeBytes: r.archiveBytes, fileCount: r.manifest.files.length, format: r.format,
+  })),
+  setEnabled: (hash: string, enabled: boolean) => invokeTauri<void>('mod_set_enabled', { hash, enabled }),
+  setPriority: (hash: string, priority: number) => invokeTauri<void>('mod_set_priority', { hash, priority }),
+  conflicts: async (): Promise<ConflictReport> => {
+    const conflicts = await invokeTauri<ConflictReport['conflicts']>('mod_detect_conflicts')
+    return { hasConflicts: conflicts.length > 0, conflicts }
+  },
+  stageOverlay: () => invokeTauri<StagingReport>('mod_stage_overlay', { targetGameDir: null }),
+  rollback: () => invokeTauri<RollbackReport>('mod_rollback', { targetGameDir: null }),
+  getPackageData: (sha256: string) => invokeTauri<ModPackageData>('mod_get_package_data', { sha256 }),
   detectFormat: (archiveBase64: string) => invokeTauri<string>('fantome_detect_format', { archiveBase64 }),
-  listContents: (archiveBase64: string) => invokeTauri<FantomeEntry[]>('fantome_list_contents', { archiveBase64 }),
-  readMeta: (archiveBase64: string) => invokeTauri<FantomeMeta>('fantome_read_meta', { archiveBase64 }),
-  extract: (archiveBase64: string, targetDir: string) =>
-    invokeTauri<ExtractionSummary>('fantome_extract', { archiveBase64, targetDir }),
+  listContents: (zipBase64: string) => invokeTauri<FantomeEntry[]>('fantome_list_contents', { zipBase64 }),
+  readMeta: (zipBase64: string) => invokeTauri<FantomeMeta>('fantome_read_meta', { zipBase64 }),
+  extract: (zipBase64: string, folderName: string) => invokeTauri<ExtractionSummary>('fantome_extract', { zipBase64, folderName }),
 }
 
 export const creator = {
@@ -352,11 +336,11 @@ export const gameflow = {
 }
 
 export const discord = {
-  openOAuth: (clientId: string, redirectUri: string) =>
-    invokeTauri<string>('open_discord_oauth_window', { clientId, redirectUri }),
+  configure: (clientId: string) => invokeTauri<void>('discord_configure', { clientId }),
   setRpc: (enabled: boolean) => invokeTauri<boolean>('set_rpc_enabled', { enabled }),
-  updateActivity: (state?: string, details?: string, largeImage?: string) =>
-    invokeTauri<boolean>('update_activity', { state: state ?? null, details: details ?? null, largeImage: largeImage ?? null }),
+  updateActivity: (state: string, details: string, champion?: string) => invokeTauri('update_activity', {
+    activity: {state,details,champion:champion??null,partySize:null,partyMax:null,startTimestamp:Math.floor(Date.now()/1000)},
+  }),
 }
 
 export const ai = {

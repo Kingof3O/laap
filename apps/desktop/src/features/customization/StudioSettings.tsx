@@ -36,9 +36,9 @@ export function StudioSettings({ update, onOpenRelease, onClose }: {
   const [busy, setBusy] = useState(false)
 
   async function handleToggleDiscord(enabled: boolean) {
-    setDiscordEnabled(enabled)
     try {
       await discord.setRpc(enabled)
+      setDiscordEnabled(enabled)
       if (enabled) {
         await discord.updateActivity('Browsing Studio Catalog', 'LAAP Studio', 'logo')
         setDiscordStatus('Discord Rich Presence enabled. Status updated.')
@@ -46,15 +46,16 @@ export function StudioSettings({ update, onOpenRelease, onClose }: {
         setDiscordStatus('Discord Rich Presence disabled.')
       }
     } catch (e) {
-      setDiscordStatus('Failed to update Discord presence.')
+      setDiscordEnabled(false)
+      setDiscordStatus('Discord presence failed: '+String(e))
     }
   }
 
   async function handleConnectDiscord() {
     if (!discordClientId.trim()) return
     try {
-      const url = await discord.openOAuth(discordClientId.trim(), 'http://localhost:1420/oauth/discord')
-      setDiscordStatus(`OAuth authorization URL generated: ${url.slice(0, 48)}…`)
+      await discord.configure(discordClientId.trim())
+      setDiscordStatus('Application ID saved. Enable presence to connect to local Discord. No OAuth login is needed for presence.')
     } catch (e) {
       setDiscordStatus('Error initializing Discord OAuth.')
     }
@@ -142,7 +143,7 @@ export function StudioSettings({ update, onOpenRelease, onClose }: {
             </label>
             <div style={{ display: 'flex', gap: '8px', marginTop: '0.5rem' }}>
               <input placeholder="Discord Client ID (e.g. 109876543210987654)" value={discordClientId} onChange={(e) => setDiscordClientId(e.target.value)} />
-              <button className="btn-secondary" onClick={() => void handleConnectDiscord()}>Authorize</button>
+              <button className="btn-secondary" onClick={() => void handleConnectDiscord()}>Save application ID</button>
             </div>
             {discordStatus && <p style={{ fontSize: '0.85rem', color: '#10b981', marginTop: '0.5rem' }}>{discordStatus}</p>}
           </div>

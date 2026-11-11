@@ -54,16 +54,17 @@ export function PartyPage({ selection }: { selection: { id: number; name: string
       {working && <p role="status">{party.state === 'connecting' ? 'Connecting…' : 'Reconnecting…'}</p>}
       {syncStatus && <p role="status" style={{ color: '#10b981' }}>{syncStatus}</p>}
 
+      {party.pendingApproval && <section className="customization-editor"><h3>Package sharing request</h3><p>A room member requested {party.pendingApproval.modHash.slice(0,8)}. Approve only if you permit sending the original archive and its license metadata through the relay. Non-redistributable content is blocked.</p><button className="btn-primary" onClick={()=>void party.approveTransfer()}>Approve this transfer</button><button className="btn-secondary" onClick={party.declineTransfer}>Decline</button></section>}
       {party.transferProgress && (
         <div className="customization-card" style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: '6px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-            <strong>P2P Mod Transfer ({party.transferProgress.modHash.slice(0, 8)}…)</strong>
+            <strong>Relay package transfer ({party.transferProgress.modHash.slice(0, 8)}…)</strong>
             <span>{party.transferProgress.progress}%</span>
           </div>
           <div style={{ background: '#334155', borderRadius: '4px', height: '6px', overflow: 'hidden', margin: '0.5rem 0' }}>
             <div style={{ background: '#6366f1', height: '100%', width: `${party.transferProgress.progress}%`, transition: 'width 0.2s ease' }} />
           </div>
-          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{party.transferProgress.status}</span>
+          <button className="btn-secondary" onClick={party.cancelTransfers}>Cancel transfer</button><span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{party.transferProgress.status}</span>
         </div>
       )}
 

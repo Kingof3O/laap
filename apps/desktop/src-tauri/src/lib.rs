@@ -179,6 +179,14 @@ pub fn run() {
             customization::catalog_preferences::catalog_preferences,
             #[cfg(not(feature = "basic"))]
             customization::library::mod_import,
+            #[cfg(all(feature = "customization", not(feature = "basic")))]
+            customization::community_credentials::community_credential_load,
+            #[cfg(all(feature = "customization", not(feature = "basic")))]
+            customization::community_credentials::community_credential_save,
+            #[cfg(all(feature = "customization", not(feature = "basic")))]
+            customization::community_credentials::community_credential_clear,
+            #[cfg(all(feature = "customization", not(feature = "basic")))]
+            customization::library::mod_inspect,
             #[cfg(not(feature = "basic"))]
             customization::library::mod_list,
             #[cfg(not(feature = "basic"))]
@@ -310,11 +318,7 @@ pub fn run() {
             #[cfg(not(feature = "basic"))]
             customization::gameflow::match_notice_action,
             #[cfg(not(feature = "basic"))]
-            customization::discord::open_discord_oauth_window,
-            #[cfg(not(feature = "basic"))]
-            customization::discord::discord_exchange_code,
-            #[cfg(not(feature = "basic"))]
-            customization::discord::discord_refresh_token,
+            customization::discord::discord_configure,
             #[cfg(not(feature = "basic"))]
             customization::discord::discord_revoke_token,
             #[cfg(not(feature = "basic"))]

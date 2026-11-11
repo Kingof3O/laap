@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { invokeTauri } from '../../lib/api'
-import { errorMessage } from './api'
+import { errorMessage, mods, type ModPackageData } from './api'
+import { CreatorIdentity, marketplaceRequest, type CreatorCredential } from './CreatorIdentity'
 import { catalogOrigin } from './communityEndpoint'
 import { readFileBase64 } from './packageFiles'
 
@@ -49,11 +50,11 @@ export function Marketplace() {
   const [reviewsList, setReviewsList] = useState<ReviewItem[]>([])
   const [newRating, setNewRating] = useState(5)
   const [newComment, setNewComment] = useState('')
-  const [reviewAuthor, setReviewAuthor] = useState('')
+  const [credential, setCredential] = useState<CreatorCredential | null>(null)
 
   // Submit mod modal
   const [showSubmitModal, setShowSubmitModal] = useState(false)
-  const [subCreatorId, setSubCreatorId] = useState('creator_' + Math.random().toString(36).slice(2, 8))
+  const [localPackages, setLocalPackages] = useState<ModPackageData[]>([])
   const [subHash, setSubHash] = useState('')
   const [subTitle, setSubTitle] = useState('')
   const [subDesc, setSubDesc] = useState('')
@@ -86,8 +87,8 @@ export function Marketplace() {
             version: b.version,
             creatorName: b.author,
             bytes: b.bytes,
-            averageRating: 5.0,
-            downloadCount: 1,
+            averageRating: undefined,
+            downloadCount: undefined,
             reviewCount: 0,
             tags: [],
           })))
@@ -109,7 +110,7 @@ export function Marketplace() {
     setWorking(true)
     setError('')
     try {
-      const base = '/v1/catalog/mods/' + hash
+      const base = '/v1/marketplace/mods/' + hash
       const res = await fetch(catalogOrigin + base, { cache: 'no-store' })
       if (!res.ok) throw new Error('Failed to retrieve package manifest.')
       const manifest = await res.json() as { sha256?: string; rightToDistribute?: boolean; containsPaidRiotContent?: boolean }
@@ -121,8 +122,6 @@ export function Marketplace() {
 
       await invokeTauri('mod_import', { archive, manifest, rightsConfirmed: true })
 
-      // Record download metric
-      void fetch(catalogOrigin + '/v1/marketplace/download/' + hash, { method: 'POST' }).catch(() => {})
 
       setSelected(null)
       setStatus('Package verified and added to your mod library.')
@@ -161,10 +160,8 @@ export function Marketplace() {
       const res = await fetch(catalogOrigin + '/v1/marketplace/reviews/' + hash)
       if (res.ok) {
         setReviewsList(await res.json() as ReviewItem[])
-      }
-    } catch {
-      // Ignored
-    }
+      } else throw new Error('Reviews unavailable.')
+    } catch (e) { setError(errorMessage(e)) }
   }
 
   async function submitReview(e: React.FormEvent) {
@@ -172,17 +169,8 @@ export function Marketplace() {
     if (!viewingReviews || !catalogOrigin) return
     setWorking(true)
     try {
-      const res = await fetch(catalogOrigin + '/v1/marketplace/review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          packageHash: viewingReviews,
-          author: reviewAuthor.trim() || 'Community Member',
-          rating: newRating,
-          comment: newComment.trim(),
-        }),
-      })
-      if (!res.ok) throw new Error('Failed to submit review.')
+      if (!credential) throw new Error('Sign in to your community identity before reviewing.')
+      await marketplaceRequest(catalogOrigin, '/review', {packageHash:viewingReviews,rating:newRating,comment:newComment.trim()}, credential)
       setNewComment('')
       await openReviews(viewingReviews)
       await load()
@@ -199,21 +187,14 @@ export function Marketplace() {
     if (!catalogOrigin || !subConfirmed || !validHash(subHash)) return
     setWorking(true)
     try {
-      const res = await fetch(catalogOrigin + '/v1/marketplace/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          creatorId: subCreatorId,
-          packageHash: subHash,
-          title: subTitle.trim(),
-          description: subDesc.trim(),
-          champion: subChamp.trim(),
-          version: '1.0.0',
-          tags: subTags.split(',').map((t) => t.trim()).filter(Boolean),
-          rightsConfirmed: true,
-        }),
-      })
-      if (!res.ok) throw new Error('Package submission rejected.')
+      if (!credential) throw new Error('Create or recover your community identity first.')
+      const pkg = await mods.getPackageData(subHash)
+      if (!pkg.manifest.rightToDistribute || pkg.manifest.containsPaidRiotContent) throw new Error('Package license does not permit distribution.')
+      await marketplaceRequest(catalogOrigin, '/submit', {
+        creatorId:credential.id, packageHash:subHash, archiveBase64:pkg.archiveBase64,manifest:pkg.manifest,
+        title:subTitle.trim()||pkg.manifest.displayName,description:subDesc.trim(),champion:subChamp.trim(),
+        tags:subTags.split(',').map(t=>t.trim()).filter(Boolean),rightsConfirmed:true,
+      }, credential)
       setShowSubmitModal(false)
       setSubHash('')
       setSubTitle('')
@@ -221,7 +202,7 @@ export function Marketplace() {
       setSubChamp('')
       setSubConfirmed(false)
       await load()
-      setStatus('Package published to community catalog.')
+      setStatus('Package uploaded and queued for human review. It is not published yet.')
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -237,20 +218,27 @@ export function Marketplace() {
           <p>Browse, review, and discover community-published custom skins and overlays.</p>
         </div>
         <div className="customization-actions">
-          <button className="btn-primary" onClick={() => setShowSubmitModal(true)}>+ Publish mod</button>
+          <button className="btn-primary" disabled={!catalogOrigin || !credential || working} onClick={() => {
+            setError(''); void mods.list().then(async rows => {
+              const available = await Promise.all(rows.filter(r => r.sizeBytes <= 12*1024*1024).map(r => mods.getPackageData(r.sha256)))
+              setLocalPackages(available.filter(r => r.manifest.rightToDistribute));setShowSubmitModal(true)
+            }).catch(e => setError(errorMessage(e)))
+          }}>Submit local package</button>
           <button className="btn-secondary" disabled={working} onClick={() => void load()}>{working ? 'Loading…' : 'Refresh'}</button>
         </div>
       </div>
 
       {!catalogOrigin && <p role="status">This build has no configured community catalog.</p>}
+      {catalogOrigin && <CreatorIdentity origin={catalogOrigin} onChange={setCredential} />}
       {error && <p role="alert">{error}</p>}
       {status && <p role="status">{status}</p>}
 
       {/* Publish Mod Modal */}
       {showSubmitModal && (
         <form className="customization-editor" style={{ marginBottom: '1.5rem' }} onSubmit={(e) => void submitMod(e)}>
-          <h3>Publish mod to marketplace</h3>
-          <label>Package SHA-256 hash <input required pattern="[a-f0-9]{64}" placeholder="64-character hex hash" value={subHash} onChange={(e) => setSubHash(e.target.value.toLowerCase().trim())} /></label>
+          <h3>Submit for moderation</h3>
+          <label>Redistributable local package (up to 12 MiB)<select required value={subHash} onChange={e => setSubHash(e.target.value)}><option value="">Choose a verified package</option>{localPackages.map(p => <option key={p.sha256} value={p.sha256}>{p.manifest.displayName} · {p.manifest.version}</option>)}</select></label>
+          {localPackages.length === 0 && <p>Import a rights-cleared redistributable package in the mod library first.</p>}
           <label>Mod title <input required placeholder="e.g. Cyberpunk Ahri" value={subTitle} onChange={(e) => setSubTitle(e.target.value)} /></label>
           <label>Champion <input required placeholder="e.g. Ahri" value={subChamp} onChange={(e) => setSubChamp(e.target.value)} /></label>
           <label>Tags (comma separated) <input placeholder="Sci-Fi, VFX, Audio" value={subTags} onChange={(e) => setSubTags(e.target.value)} /></label>
@@ -277,7 +265,7 @@ export function Marketplace() {
           <form onSubmit={(e) => void submitReview(e)} style={{ margin: '1rem 0' }}>
             <h4>Write a review</h4>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <label style={{ flex: 1 }}>Your name <input placeholder="Player name" value={reviewAuthor} onChange={(e) => setReviewAuthor(e.target.value)} /></label>
+              <span>Reviews use your authenticated community display name.</span>
               <label style={{ width: '120px' }}>Rating
                 <select value={newRating} onChange={(e) => setNewRating(Number(e.target.value))}>
                   <option value={5}>★★★★★ (5)</option>
@@ -289,7 +277,7 @@ export function Marketplace() {
               </label>
             </div>
             <label>Review comment <textarea rows={2} required maxLength={500} placeholder="Share feedback on texture quality, in-game look, or bugs…" value={newComment} onChange={(e) => setNewComment(e.target.value)} /></label>
-            <button type="submit" className="btn-primary" disabled={working || !newComment.trim()}>Post review</button>
+            <button type="submit" className="btn-primary" disabled={working || !credential || !newComment.trim()}>Save my review</button>
           </form>
 
           <ul style={{ paddingLeft: 0, listStyle: 'none' }}>
