@@ -61,7 +61,23 @@ test riot::tests::test_provisioner_flow ... ok
 test riot::tests::test_recover_orphaned_session_restores_original_settings ... ok
 test riot::tests::test_session_injection_and_cleanup ... ok
 
-test result: ok. 57 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 2.16s
+test result: ok. 57 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 1.71s
 
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.81s
-     Running unittests src\lib.rs (target\debug\deps\laap_desktop_core-09cd7544dbc8f0a8.exe)
+   Compiling zstd-sys v2.1.2+zstd.1.5.7
+   Compiling tauri v2.12.5
+   Compiling tauri-codegen v2.7.4
+   Compiling tokio-rustls v0.26.6
+   Compiling zstd-safe v7.4.0
+   Compiling rustls-platform-verifier v0.7.1
+   Compiling laap-desktop-core v1.0.0 (C:\pw\laap\apps\desktop\src-tauri)
+   Compiling image v0.25.10
+   Compiling hyper-rustls v0.27.10
+   Compiling reqwest v0.13.4
+   Compiling reqwest v0.12.28
+   Compiling tauri-macros v2.7.4
+   Compiling tauri-plugin-updater v2.14.1
+   Compiling zstd v0.13.4
+   Compiling ltk_wad v0.5.13
+   Compiling tauri-plugin-single-instance v2.5.5
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 31s
+     Running unittests src\lib.rs (target\debug\deps\laap_desktop_core-f31e243f26437a49.exe)

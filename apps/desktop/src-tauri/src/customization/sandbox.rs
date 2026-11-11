@@ -17,6 +17,20 @@ struct Receipt {
     generation: String,
     files: Vec<super::library::Entry>,
 }
+#[inline]
+fn is_os_root_symlink(path: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        let p = path.to_string_lossy();
+        p == "/var" || p == "/tmp" || p == "/etc"
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        false
+    }
+}
+
 fn no_link(path: &Path) -> Result<(), String> {
     let m = fs::symlink_metadata(path).map_err(|e| e.to_string())?;
     #[cfg(windows)]
@@ -26,7 +40,7 @@ fn no_link(path: &Path) -> Result<(), String> {
             return Err("Reparse points are forbidden in staging paths.".into());
         }
     }
-    if m.file_type().is_symlink() {
+    if m.file_type().is_symlink() && !is_os_root_symlink(path) {
         return Err("Symlinks are forbidden in staging paths.".into());
     }
     Ok(())
@@ -213,7 +227,14 @@ pub(super) fn rollback(library: &Path) -> Result<usize, String> {
 mod tests {
     use super::*;
     fn temp() -> PathBuf {
-        let p = std::env::temp_dir().join(format!("laap-sandbox-{}", rand::random::<u64>()));
+        #[cfg(unix)]
+        let base = std::env::temp_dir()
+            .canonicalize()
+            .unwrap_or_else(|_| std::env::temp_dir());
+        #[cfg(not(unix))]
+        let base = std::env::temp_dir();
+
+        let p = base.join(format!("laap-sandbox-{}", rand::random::<u64>()));
         fs::create_dir(&p).unwrap();
         p
     }

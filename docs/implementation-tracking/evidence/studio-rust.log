@@ -1,5 +1,5 @@
 
-running 60 tests
+running 64 tests
 test commands::system_utils::tests::test_file_info_on_temp_file ... ok
 test commands::updater::tests::studio_installer_cannot_cross_legacy_channels ... ok
 test commands::updater::tests::test_default_updater_pubkey_parsing ... ok
@@ -16,6 +16,8 @@ test customization::ai_assistant::tests::real_http_fixtures_enforce_ai_schema_ou
 test customization::bin_tool::tests::test_bin_round_trip ... ok
 test customization::bin_tool::tests::test_bin_round_trip_with_rich_types ... ok
 test customization::bin_tool::tests::test_bin_strict_numeric_validation ... ok
+test customization::bin_tool::tests::test_ltk_meta_interoperability_read ... ok
+test customization::bin_tool::tests::test_ltk_meta_interoperability_serialize_to_ltk ... ok
 test customization::catalog::tests::attach_chromas_and_variants_handles_lux_and_chromas ... ok
 test customization::catalog::tests::live_studio_catalog_contract ... ignored, Uses the public Riot Data Dragon HTTPS service
 test customization::catalog::tests::provider_keys_are_not_paths ... ok
@@ -55,14 +57,22 @@ test customization::stats_provider::tests::regions_do_not_fall_back_to_na ... ok
 test customization::themes::tests::media_rejects_disguised_payloads_and_fonts_are_allowlisted ... ok
 test customization::themes::tests::test_builtin_themes_count_and_default ... ok
 test customization::themes::tests::theme_previews_reject_css_payloads ... ok
+test customization::wad_tool::tests::test_ltk_wad_interoperability_builder_and_extract ... ok
+test customization::wad_tool::tests::test_ltk_wad_interoperability_mount ... ok
 test customization::wad_tool::tests::test_wad_round_trip ... ok
 test customization::wad_tool::tests::test_wad_v3_standard_compliance ... ok
 test customization::wad_tool::tests::test_xxhash64_basic ... ok
 test product::tests::native_capabilities_match_identity_and_update_channel ... ok
 test product::tests::permission_boundaries_enforced ... ok
 
-test result: ok. 58 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.75s
+test result: ok. 62 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.49s
 
+   Compiling tauri-macros v2.7.4
+   Compiling tauri-plugin-fs v2.7.1
    Compiling laap-desktop-core v1.0.0 (C:\pw\laap\apps\desktop\src-tauri)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 00s
-     Running unittests src\lib.rs (target\debug\deps\laap_desktop_core-e1d602347ef61d01.exe)
+   Compiling tauri-plugin-dialog v2.8.4
+   Compiling tauri v2.12.5
+   Compiling tauri-plugin-updater v2.14.1
+   Compiling tauri-plugin-single-instance v2.5.5
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 19s
+     Running unittests src\lib.rs (target\debug\deps\laap_desktop_core-cd728fde075bce69.exe)

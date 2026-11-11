@@ -632,7 +632,13 @@ mod tests {
 
     #[test]
     fn test_extract_fantome_prevents_executables_and_traversal() {
-        let temp = std::env::temp_dir().join(format!("laap_fantome_test_{}", std::process::id()));
+        #[cfg(unix)]
+        let base = std::env::temp_dir()
+            .canonicalize()
+            .unwrap_or_else(|_| std::env::temp_dir());
+        #[cfg(not(unix))]
+        let base = std::env::temp_dir();
+        let temp = base.join(format!("laap_fantome_test_{}", std::process::id()));
         let zip = create_test_fantome_zip();
         let summary = extract_fantome(&zip, &temp).unwrap();
         assert_eq!(summary.file_count, 3);

@@ -13,9 +13,9 @@
     "tests/download-bounds.test.ts",
     "tests/i18n.test.ts"
   ],
-  "startedAt": "2026-11-11T05:05:32.593Z",
-  "finishedAt": "2026-11-11T05:05:35.510Z",
-  "head": "57a0b11750d6718c265a12d0514a7a71fa899bfc",
+  "startedAt": "2026-11-11T06:18:49.439Z",
+  "finishedAt": "2026-11-11T06:18:51.698Z",
+  "head": "7bcee5e52a074722639942f50a126d6f5f1c69ee",
   "source": {
     "sha256": "5a7d66131ad635f6a60896a0aba224c69649dd76e396c0936a2616845d69c553",
     "files": [
@@ -641,5 +641,5 @@
   "exitCode": 0,
   "error": null,
   "log": "frontend-units.log",
-  "logSha256": "c68b770bd2e3592dcd32b429fdcc4a5a35b3e5102506a183e5aa9892733ca909"
+  "logSha256": "44c31d1cf0e955313b352249961e6eced4eea7943b4d7b23a388b5588ee9550c"
 }

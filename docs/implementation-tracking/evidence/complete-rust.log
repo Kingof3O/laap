@@ -1,5 +1,5 @@
 
-running 107 tests
+running 111 tests
 test commands::system_utils::tests::test_auto_launch_settings_load ... ok
 test commands::system_utils::tests::test_file_info_on_temp_file ... ok
 test commands::system_utils::tests::test_minimize_to_tray_settings_round_trip ... ok
@@ -19,6 +19,8 @@ test customization::ai_assistant::tests::real_http_fixtures_enforce_ai_schema_ou
 test customization::bin_tool::tests::test_bin_round_trip ... ok
 test customization::bin_tool::tests::test_bin_round_trip_with_rich_types ... ok
 test customization::bin_tool::tests::test_bin_strict_numeric_validation ... ok
+test customization::bin_tool::tests::test_ltk_meta_interoperability_read ... ok
+test customization::bin_tool::tests::test_ltk_meta_interoperability_serialize_to_ltk ... ok
 test customization::catalog::tests::attach_chromas_and_variants_handles_lux_and_chromas ... ok
 test customization::catalog::tests::live_studio_catalog_contract ... ignored, Uses the public Riot Data Dragon HTTPS service
 test customization::catalog::tests::provider_keys_are_not_paths ... ok
@@ -58,6 +60,8 @@ test customization::stats_provider::tests::regions_do_not_fall_back_to_na ... ok
 test customization::themes::tests::media_rejects_disguised_payloads_and_fonts_are_allowlisted ... ok
 test customization::themes::tests::test_builtin_themes_count_and_default ... ok
 test customization::themes::tests::theme_previews_reject_css_payloads ... ok
+test customization::wad_tool::tests::test_ltk_wad_interoperability_builder_and_extract ... ok
+test customization::wad_tool::tests::test_ltk_wad_interoperability_mount ... ok
 test customization::wad_tool::tests::test_wad_round_trip ... ok
 test customization::wad_tool::tests::test_wad_v3_standard_compliance ... ok
 test customization::wad_tool::tests::test_xxhash64_basic ... ok
@@ -108,8 +112,7 @@ test riot::tests::test_provisioner_flow ... ok
 test riot::tests::test_recover_orphaned_session_restores_original_settings ... ok
 test riot::tests::test_session_injection_and_cleanup ... ok
 
-test result: ok. 102 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 2.14s
+test result: ok. 106 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 2.66s
 
-   Compiling laap-desktop-core v1.0.0 (C:\pw\laap\apps\desktop\src-tauri)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 18s
-     Running unittests src\lib.rs (target\debug\deps\laap_desktop_core-df0a68ee666a1e2c.exe)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.52s
+     Running unittests src\lib.rs (target\debug\deps\laap_desktop_core-4c5bc9048447fe69.exe)

@@ -916,8 +916,13 @@ mod tests {
                 },
             )
             .unwrap();
-            let dir =
-                std::env::temp_dir().join(format!("laap-roundtrip-{}", rand::random::<u64>()));
+            #[cfg(unix)]
+            let base = std::env::temp_dir()
+                .canonicalize()
+                .unwrap_or_else(|_| std::env::temp_dir());
+            #[cfg(not(unix))]
+            let base = std::env::temp_dir();
+            let dir = base.join(format!("laap-roundtrip-{}", rand::random::<u64>()));
             import_into(&dir, &bytes, m.clone()).unwrap();
             let stored = super::super::sandbox::read_blob(
                 &dir.join("content").join(&m.sha256),

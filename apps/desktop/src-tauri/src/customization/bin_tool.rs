@@ -74,6 +74,14 @@ pub fn type_name(val_type: u8) -> &'static str {
         22 => "Option",
         23 => "Map",
         24 => "Flag",
+        128 => "Container",
+        129 => "UnorderedContainer",
+        130 => "Structure",
+        131 => "Embedded",
+        132 => "Link",
+        133 => "Option",
+        134 => "Map",
+        135 => "BitBool",
         _ => "Unknown",
     }
 }
@@ -166,6 +174,279 @@ pub fn parse_bin(bytes: &[u8]) -> Result<BinTree, String> {
         return Err("Exceeded maximum supported entries in PROP file.".into());
     }
 
+    let entries_start_pos = cursor.position();
+
+    // Standard League format puts the class-hash table before object payloads.
+    // If standard parsing succeeds, use it; fallback to legacy interleaved if standard encounters an error.
+    let entries = match parse_entries_standard(bytes, entries_start_pos, entry_count) {
+        Ok(parsed) if parsed.len() == entry_count => parsed,
+        _ => parse_entries_interleaved(bytes, entries_start_pos, entry_count)?,
+    };
+
+    Ok(BinTree {
+        magic: magic_str,
+        version,
+        linked_files,
+        entries,
+    })
+}
+
+fn parse_field_value<R: Read>(
+    cursor: &mut R,
+    val_type: u8,
+) -> Result<(String, Option<String>), String> {
+    let mut raw_hex = None;
+    let value_str = match val_type {
+        0 => "empty".to_string(),
+        1 | 24 | 135 => {
+            let mut b = [0u8; 1];
+            cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
+            format!("{}", b[0] != 0)
+        }
+        2 => {
+            let mut b = [0u8; 1];
+            cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
+            format!("{}", b[0] as i8)
+        }
+        3 => {
+            let mut b = [0u8; 1];
+            cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
+            format!("{}", b[0])
+        }
+        4 => {
+            let mut b = [0u8; 2];
+            cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
+            format!("{}", i16::from_le_bytes(b))
+        }
+        5 => {
+            let mut b = [0u8; 2];
+            cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
+            format!("{}", u16::from_le_bytes(b))
+        }
+        6 => {
+            let mut b = [0u8; 4];
+            cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
+            format!("{}", i32::from_le_bytes(b))
+        }
+        7 => {
+            let mut b = [0u8; 4];
+            cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
+            format!("0x{:08x}", u32::from_le_bytes(b))
+        }
+        8 => {
+            let mut b = [0u8; 8];
+            cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
+            format!("{}", i64::from_le_bytes(b))
+        }
+        9 => {
+            let mut b = [0u8; 8];
+            cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
+            format!("0x{:016x}", u64::from_le_bytes(b))
+        }
+        10 => {
+            let mut b = [0u8; 4];
+            cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
+            format!("{}", f32::from_le_bytes(b))
+        }
+        11 => {
+            let mut b = [0u8; 8];
+            cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
+            let x = f32::from_le_bytes(b[0..4].try_into().unwrap());
+            let y = f32::from_le_bytes(b[4..8].try_into().unwrap());
+            format!("[{}, {}]", x, y)
+        }
+        12 => {
+            let mut b = [0u8; 12];
+            cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
+            let x = f32::from_le_bytes(b[0..4].try_into().unwrap());
+            let y = f32::from_le_bytes(b[4..8].try_into().unwrap());
+            let z = f32::from_le_bytes(b[8..12].try_into().unwrap());
+            format!("[{}, {}, {}]", x, y, z)
+        }
+        13 => {
+            let mut b = [0u8; 16];
+            cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
+            let x = f32::from_le_bytes(b[0..4].try_into().unwrap());
+            let y = f32::from_le_bytes(b[4..8].try_into().unwrap());
+            let z = f32::from_le_bytes(b[8..12].try_into().unwrap());
+            let w = f32::from_le_bytes(b[12..16].try_into().unwrap());
+            format!("[{}, {}, {}, {}]", x, y, z, w)
+        }
+        14 => {
+            let mut b = [0u8; 64];
+            cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
+            raw_hex = Some(to_hex_str(&b));
+            "matrix4x4".to_string()
+        }
+        15 => {
+            let mut b = [0u8; 4];
+            cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
+            format!("#{:02x}{:02x}{:02x}{:02x}", b[0], b[1], b[2], b[3])
+        }
+        16 => {
+            let mut len_b = [0u8; 2];
+            cursor.read_exact(&mut len_b).map_err(|e| e.to_string())?;
+            let slen = u16::from_le_bytes(len_b) as usize;
+            let mut sbytes = vec![0u8; slen];
+            cursor.read_exact(&mut sbytes).map_err(|e| e.to_string())?;
+            String::from_utf8_lossy(&sbytes).to_string()
+        }
+        17 | 21 | 132 => {
+            let mut b = [0u8; 4];
+            cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
+            format!("0x{:08x}", u32::from_le_bytes(b))
+        }
+        18 | 128 | 129 => {
+            let mut head = [0u8; 9];
+            cursor.read_exact(&mut head).map_err(|e| e.to_string())?;
+            let data_size = u32::from_le_bytes(head[1..5].try_into().unwrap()) as usize;
+            let count = u32::from_le_bytes(head[5..9].try_into().unwrap());
+            let payload_len = data_size;
+            let mut payload = vec![0u8; payload_len];
+            if payload_len > 0 {
+                cursor.read_exact(&mut payload).map_err(|e| e.to_string())?;
+            }
+            let mut full_bytes = Vec::with_capacity(9 + payload_len);
+            full_bytes.extend_from_slice(&head);
+            full_bytes.extend_from_slice(&payload);
+            raw_hex = Some(to_hex_str(&full_bytes));
+            format!("Container(type={}, count={})", head[0], count)
+        }
+        19 | 20 | 130 | 131 => {
+            let mut head = [0u8; 10];
+            cursor.read_exact(&mut head).map_err(|e| e.to_string())?;
+            let s_name = u32::from_le_bytes(head[0..4].try_into().unwrap());
+            let s_size = u32::from_le_bytes(head[4..8].try_into().unwrap()) as usize;
+            let s_fcount = u16::from_le_bytes(head[8..10].try_into().unwrap());
+            let payload_len = s_size;
+            let mut payload = vec![0u8; payload_len];
+            if payload_len > 0 {
+                cursor.read_exact(&mut payload).map_err(|e| e.to_string())?;
+            }
+            let mut full_bytes = Vec::with_capacity(10 + payload_len);
+            full_bytes.extend_from_slice(&head);
+            full_bytes.extend_from_slice(&payload);
+            raw_hex = Some(to_hex_str(&full_bytes));
+            format!(
+                "{}(name=0x{:08x}, fields={})",
+                if val_type == 19 || val_type == 130 { "Struct" } else { "Embedded" },
+                s_name,
+                s_fcount
+            )
+        }
+        _ => {
+            let mut b = [0u8; 4];
+            if cursor.read_exact(&mut b).is_ok() {
+                raw_hex = Some(to_hex_str(&b));
+            }
+            format!("UnknownType({})", val_type)
+        }
+    };
+    Ok((value_str, raw_hex))
+}
+
+fn parse_entries_standard(
+    bytes: &[u8],
+    start_pos: u64,
+    entry_count: usize,
+) -> Result<Vec<BinEntry>, String> {
+    let mut cursor = Cursor::new(bytes);
+    cursor.set_position(start_pos);
+
+    let mut class_hashes = Vec::with_capacity(entry_count);
+    for i in 0..entry_count {
+        let mut class_bytes = [0u8; 4];
+        cursor
+            .read_exact(&mut class_bytes)
+            .map_err(|e| format!("Truncated class hash {i}: {e}"))?;
+        class_hashes.push(u32::from_le_bytes(class_bytes));
+    }
+
+    let mut entries = Vec::with_capacity(entry_count);
+    for e_idx in 0..entry_count {
+        if cursor.position() as usize >= bytes.len() {
+            break;
+        }
+
+        let class_hash = class_hashes[e_idx];
+
+        let mut size_bytes = [0u8; 4];
+        cursor
+            .read_exact(&mut size_bytes)
+            .map_err(|e| format!("Truncated entry {e_idx} size: {e}"))?;
+        let entry_size = u32::from_le_bytes(size_bytes) as usize;
+
+        let entry_start_pos = cursor.position() as usize;
+
+        let mut name_bytes = [0u8; 4];
+        cursor
+            .read_exact(&mut name_bytes)
+            .map_err(|e| format!("Truncated entry {e_idx} name hash: {e}"))?;
+        let name_hash = u32::from_le_bytes(name_bytes);
+
+        let mut count_bytes = [0u8; 2];
+        cursor
+            .read_exact(&mut count_bytes)
+            .map_err(|e| format!("Truncated entry {e_idx} field count: {e}"))?;
+        let field_count = u16::from_le_bytes(count_bytes) as usize;
+
+        let mut fields = Vec::with_capacity(field_count.min(1024));
+        for f_idx in 0..field_count {
+            if cursor.position() as usize + 5 > bytes.len() {
+                break;
+            }
+
+            let mut fname_bytes = [0u8; 4];
+            cursor
+                .read_exact(&mut fname_bytes)
+                .map_err(|e| format!("Truncated field {f_idx} name hash: {e}"))?;
+            let fname_hash = u32::from_le_bytes(fname_bytes);
+
+            let mut ftype_bytes = [0u8; 1];
+            cursor
+                .read_exact(&mut ftype_bytes)
+                .map_err(|e| format!("Truncated field {f_idx} type: {e}"))?;
+            let val_type = ftype_bytes[0];
+
+            let (value_str, raw_hex) = parse_field_value(&mut cursor, val_type)?;
+
+            fields.push(BinField {
+                name_hash: fname_hash,
+                name_hash_hex: format!("0x{:08x}", fname_hash),
+                value_type: val_type,
+                type_name: type_name(val_type).into(),
+                value_string: value_str,
+                raw_bytes_hex: raw_hex,
+            });
+        }
+
+        if entry_size > 0 {
+            let current_read = (cursor.position() as usize).saturating_sub(entry_start_pos);
+            if current_read < entry_size && entry_start_pos + entry_size <= bytes.len() {
+                cursor.set_position((entry_start_pos + entry_size) as u64);
+            }
+        }
+
+        entries.push(BinEntry {
+            class_hash,
+            class_hash_hex: format!("0x{:08x}", class_hash),
+            name_hash,
+            name_hash_hex: format!("0x{:08x}", name_hash),
+            fields,
+        });
+    }
+
+    Ok(entries)
+}
+
+fn parse_entries_interleaved(
+    bytes: &[u8],
+    start_pos: u64,
+    entry_count: usize,
+) -> Result<Vec<BinEntry>, String> {
+    let mut cursor = Cursor::new(bytes);
+    cursor.set_position(start_pos);
+
     let mut entries = Vec::with_capacity(entry_count);
     for e_idx in 0..entry_count {
         if cursor.position() as usize >= bytes.len() {
@@ -216,165 +497,7 @@ pub fn parse_bin(bytes: &[u8]) -> Result<BinTree, String> {
                 .map_err(|e| format!("Truncated field {f_idx} type: {e}"))?;
             let val_type = ftype_bytes[0];
 
-            let mut raw_hex = None;
-            let value_str = match val_type {
-                0 => "empty".to_string(),
-                1 => {
-                    let mut b = [0u8; 1];
-                    cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
-                    format!("{}", b[0] != 0)
-                }
-                2 => {
-                    let mut b = [0u8; 1];
-                    cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
-                    format!("{}", b[0] as i8)
-                }
-                3 => {
-                    let mut b = [0u8; 1];
-                    cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
-                    format!("{}", b[0])
-                }
-                4 => {
-                    let mut b = [0u8; 2];
-                    cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
-                    format!("{}", i16::from_le_bytes(b))
-                }
-                5 => {
-                    let mut b = [0u8; 2];
-                    cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
-                    format!("{}", u16::from_le_bytes(b))
-                }
-                6 => {
-                    let mut b = [0u8; 4];
-                    cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
-                    format!("{}", i32::from_le_bytes(b))
-                }
-                7 => {
-                    let mut b = [0u8; 4];
-                    cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
-                    format!("0x{:08x}", u32::from_le_bytes(b))
-                }
-                8 => {
-                    let mut b = [0u8; 8];
-                    cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
-                    format!("{}", i64::from_le_bytes(b))
-                }
-                9 => {
-                    let mut b = [0u8; 8];
-                    cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
-                    format!("0x{:016x}", u64::from_le_bytes(b))
-                }
-                10 => {
-                    let mut b = [0u8; 4];
-                    cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
-                    format!("{}", f32::from_le_bytes(b))
-                }
-                11 => {
-                    let mut b = [0u8; 8];
-                    cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
-                    let x = f32::from_le_bytes(b[0..4].try_into().unwrap());
-                    let y = f32::from_le_bytes(b[4..8].try_into().unwrap());
-                    format!("[{}, {}]", x, y)
-                }
-                12 => {
-                    let mut b = [0u8; 12];
-                    cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
-                    let x = f32::from_le_bytes(b[0..4].try_into().unwrap());
-                    let y = f32::from_le_bytes(b[4..8].try_into().unwrap());
-                    let z = f32::from_le_bytes(b[8..12].try_into().unwrap());
-                    format!("[{}, {}, {}]", x, y, z)
-                }
-                13 => {
-                    let mut b = [0u8; 16];
-                    cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
-                    let x = f32::from_le_bytes(b[0..4].try_into().unwrap());
-                    let y = f32::from_le_bytes(b[4..8].try_into().unwrap());
-                    let z = f32::from_le_bytes(b[8..12].try_into().unwrap());
-                    let w = f32::from_le_bytes(b[12..16].try_into().unwrap());
-                    format!("[{}, {}, {}, {}]", x, y, z, w)
-                }
-                14 => {
-                    let mut b = [0u8; 64];
-                    cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
-                    raw_hex = Some(to_hex_str(&b));
-                    "matrix4x4".to_string()
-                }
-                15 => {
-                    let mut b = [0u8; 4];
-                    cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
-                    format!("#{:02x}{:02x}{:02x}{:02x}", b[0], b[1], b[2], b[3])
-                }
-                16 => {
-                    let mut len_b = [0u8; 2];
-                    cursor.read_exact(&mut len_b).map_err(|e| e.to_string())?;
-                    let slen = u16::from_le_bytes(len_b) as usize;
-                    let mut sbytes = vec![0u8; slen];
-                    cursor.read_exact(&mut sbytes).map_err(|e| e.to_string())?;
-                    String::from_utf8_lossy(&sbytes).to_string()
-                }
-                17 | 21 => {
-                    let mut b = [0u8; 4];
-                    cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
-                    format!("0x{:08x}", u32::from_le_bytes(b))
-                }
-                18 => {
-                    // Container: value_type (1) + data_size (4) + count (4)
-                    let mut head = [0u8; 9];
-                    cursor.read_exact(&mut head).map_err(|e| e.to_string())?;
-                    let data_size = u32::from_le_bytes(head[1..5].try_into().unwrap()) as usize;
-                    let count = u32::from_le_bytes(head[5..9].try_into().unwrap());
-                    let payload_len = data_size;
-                    let mut payload = vec![0u8; payload_len];
-                    if payload_len > 0 {
-                        cursor
-                            .read_exact(&mut payload)
-                            .map_err(|e| e.to_string())?;
-                    }
-                    let mut full_bytes = Vec::with_capacity(9 + payload_len);
-                    full_bytes.extend_from_slice(&head);
-                    full_bytes.extend_from_slice(&payload);
-                    raw_hex = Some(to_hex_str(&full_bytes));
-                    format!("Container(type={}, count={})", head[0], count)
-                }
-                19 | 20 => {
-                    // Struct / Embedded: name_hash (4) + data_size (4) + field_count (2)
-                    let mut head = [0u8; 10];
-                    cursor.read_exact(&mut head).map_err(|e| e.to_string())?;
-                    let s_name = u32::from_le_bytes(head[0..4].try_into().unwrap());
-                    let s_size = u32::from_le_bytes(head[4..8].try_into().unwrap()) as usize;
-                    let s_fcount = u16::from_le_bytes(head[8..10].try_into().unwrap());
-                    let payload_len = s_size;
-                    let mut payload = vec![0u8; payload_len];
-                    if payload_len > 0 {
-                        cursor
-                            .read_exact(&mut payload)
-                            .map_err(|e| e.to_string())?;
-                    }
-                    let mut full_bytes = Vec::with_capacity(10 + payload_len);
-                    full_bytes.extend_from_slice(&head);
-                    full_bytes.extend_from_slice(&payload);
-                    raw_hex = Some(to_hex_str(&full_bytes));
-                    format!(
-                        "{}(name=0x{:08x}, fields={})",
-                        if val_type == 19 { "Struct" } else { "Embedded" },
-                        s_name,
-                        s_fcount
-                    )
-                }
-                24 => {
-                    let mut b = [0u8; 1];
-                    cursor.read_exact(&mut b).map_err(|e| e.to_string())?;
-                    format!("{}", b[0] != 0)
-                }
-                _ => {
-                    // For unknown types, preserve remaining bytes of field or read 4-byte chunk
-                    let mut b = [0u8; 4];
-                    if cursor.read_exact(&mut b).is_ok() {
-                        raw_hex = Some(to_hex_str(&b));
-                    }
-                    format!("UnknownType({})", val_type)
-                }
-            };
+            let (value_str, raw_hex) = parse_field_value(&mut cursor, val_type)?;
 
             fields.push(BinField {
                 name_hash: fname_hash,
@@ -386,7 +509,6 @@ pub fn parse_bin(bytes: &[u8]) -> Result<BinTree, String> {
             });
         }
 
-        // Align cursor to declared entry size boundary if provided
         if entry_size > 0 {
             let current_read = (cursor.position() as usize).saturating_sub(entry_start_pos);
             if current_read < entry_size && entry_start_pos + entry_size <= bytes.len() {
@@ -403,12 +525,7 @@ pub fn parse_bin(bytes: &[u8]) -> Result<BinTree, String> {
         });
     }
 
-    Ok(BinTree {
-        magic: magic_str,
-        version,
-        linked_files,
-        entries,
-    })
+    Ok(entries)
 }
 
 /// Serializes a BinTree back into binary format.
@@ -442,10 +559,14 @@ pub fn serialize_bin(tree: &BinTree) -> Result<Vec<u8>, String> {
     out.write_all(&entries_count.to_le_bytes())
         .map_err(|e| e.to_string())?;
 
+    // 1. Write standard League class-hash table (all class hashes in entry order)
     for entry in &tree.entries {
         out.write_all(&entry.class_hash.to_le_bytes())
             .map_err(|e| e.to_string())?;
+    }
 
+    // 2. Write each object payload with entry size prefix
+    for entry in &tree.entries {
         let mut entry_buf = Cursor::new(Vec::new());
         entry_buf
             .write_all(&entry.name_hash.to_le_bytes())
@@ -865,5 +986,78 @@ mod tests {
         let res = serialize_bin(&tree);
         assert!(res.is_err());
         assert!(res.unwrap_err().contains("Invalid S32 value"));
+    }
+
+    #[test]
+    fn test_ltk_meta_interoperability_read() {
+        use ltk_meta::{property::values, Bin, BinObject};
+        let tree = Bin::builder()
+            .dependency("common.bin")
+            .object(
+                BinObject::builder(0x12345678u32, 0xABCDEF00u32)
+                    .property(0x1111, values::I32::new(42))
+                    .property(0x2222, values::String::from("FoxFire"))
+                    .build(),
+            )
+            .build();
+
+        let mut buffer = Cursor::new(Vec::new());
+        tree.to_writer(&mut buffer).expect("failed to write Bin with ltk_meta");
+        let bytes = buffer.into_inner();
+
+        let parsed = parse_bin(&bytes).expect("parse_bin failed to parse ltk_meta binary");
+        assert_eq!(parsed.version, 3);
+        assert_eq!(parsed.linked_files, vec!["common.bin"]);
+        assert_eq!(parsed.entries.len(), 1);
+        assert_eq!(parsed.entries[0].class_hash, 0xABCDEF00);
+        assert_eq!(parsed.entries[0].name_hash, 0x12345678);
+        assert_eq!(parsed.entries[0].fields.len(), 2);
+        assert_eq!(parsed.entries[0].fields[0].name_hash, 0x1111);
+        assert_eq!(parsed.entries[0].fields[0].value_string, "42");
+        assert_eq!(parsed.entries[0].fields[1].name_hash, 0x2222);
+        assert_eq!(parsed.entries[0].fields[1].value_string, "FoxFire");
+    }
+
+    #[test]
+    fn test_ltk_meta_interoperability_serialize_to_ltk() {
+        let tree = BinTree {
+            magic: "PROP".into(),
+            version: 3,
+            linked_files: vec!["shared_assets.bin".into()],
+            entries: vec![BinEntry {
+                class_hash: 0x99887766,
+                class_hash_hex: "0x99887766".into(),
+                name_hash: 0x55443322,
+                name_hash_hex: "0x55443322".into(),
+                fields: vec![
+                    BinField {
+                        name_hash: 0x10101010,
+                        name_hash_hex: "0x10101010".into(),
+                        value_type: 6, // S32
+                        type_name: "S32".into(),
+                        value_string: "1337".into(),
+                        raw_bytes_hex: None,
+                    },
+                    BinField {
+                        name_hash: 0x20202020,
+                        name_hash_hex: "0x20202020".into(),
+                        value_type: 16, // String
+                        type_name: "String".into(),
+                        value_string: "AhriSpiritBlossom".into(),
+                        raw_bytes_hex: None,
+                    },
+                ],
+            }],
+        };
+
+        let binary = serialize_bin(&tree).expect("serialize_bin failed");
+        let mut cur = Cursor::new(binary);
+        let ltk_tree = ltk_meta::Bin::from_reader(&mut cur).expect("ltk_meta failed to parse LAAP binary");
+        assert_eq!(ltk_tree.dependencies, vec!["shared_assets.bin"]);
+        assert_eq!(ltk_tree.objects.len(), 1);
+        let obj = ltk_tree.objects.values().next().unwrap();
+        assert_eq!(*obj.class_hash, 0x99887766);
+        assert_eq!(*obj.path_hash, 0x55443322);
+        assert_eq!(obj.properties.len(), 2);
     }
 }

@@ -25,6 +25,9 @@ futures-util = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls", "stream"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 sha2 = "0.10"
+flate2 = { version = "1", optional = true }
+zstd = { version = "0.13", optional = true }
+xxhash-rust = { version = "0.8", features = ["xxh3", "xxh64"], optional = true }
 symphonia = { version = "=0.5.5", default-features = false, features = ["mp3"], optional = true }
 axum = "0.8"
 tokio = { version = "1", features = ["rt-multi-thread", "net", "io-util", "sync", "time", "macros"] }
@@ -51,10 +54,15 @@ tauri-plugin-updater = "2"
 minisign-verify = "0.3"
 tauri-plugin-dialog = { version = "2.8.4", optional = true }
 
+[dev-dependencies]
+ltk_wad = "=0.5.13"
+ltk_meta = "=0.9.4"
+ltk_hash = "=0.5.4"
+
 [features]
 basic = []
 studio = ["customization"]
-customization = ["dep:zip", "dep:tauri-plugin-dialog", "dep:symphonia"]
+customization = ["dep:zip", "dep:tauri-plugin-dialog", "dep:symphonia", "dep:flate2", "dep:zstd", "dep:xxhash-rust"]
 default = ["custom-protocol", "customization"]
 custom-protocol = ["tauri/custom-protocol"]
 

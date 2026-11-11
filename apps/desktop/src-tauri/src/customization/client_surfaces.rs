@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::AppHandle;
 
+#[allow(dead_code)]
 pub const DEFAULT_SURFACES_COUNT: usize = 16;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]

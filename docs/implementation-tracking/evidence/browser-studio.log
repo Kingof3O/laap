@@ -1,8 +1,8 @@
 
 Running 3 tests using 1 worker
 
-  ok 1 tests\remediation\studio.spec.ts:223:1 › browser UI + real HTTP: creator registration, verified local bytes submission, human approval, download import acknowledgement (3.5s)
-  ok 2 tests\remediation\studio.spec.ts:329:1 › theme contract restores active colors after navigation and restart; fonts and reduced motion render (2.9s)
-  ok 3 tests\remediation\studio.spec.ts:416:1 › native-shaped preset conflict reports render without a contract crash (1.0s)
+  ok 1 tests\remediation\studio.spec.ts:223:1 › browser UI + real HTTP: creator registration, verified local bytes submission, human approval, download import acknowledgement (2.5s)
+  ok 2 tests\remediation\studio.spec.ts:329:1 › theme contract restores active colors after navigation and restart; fonts and reduced motion render (2.4s)
+  ok 3 tests\remediation\studio.spec.ts:416:1 › native-shaped preset conflict reports render without a contract crash (788ms)
 
-  3 passed (13.7s)
+  3 passed (12.4s)

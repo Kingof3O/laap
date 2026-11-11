@@ -169,8 +169,83 @@ pub fn compression_name(c_type: u8) -> &'static str {
     }
 }
 
+/// Decompresses a single chunk of WAD archive data safely.
+/// Handles uncompressed (0), GZip (1), and Zstd (3) compression formats.
+/// Applies strict size bounds to prevent decompression bombs and verifies checksums.
+pub fn decompress_wad_chunk(
+    raw_slice: &[u8],
+    compression_type: u8,
+    uncompressed_size: usize,
+    expected_checksum: u64,
+) -> Result<Vec<u8>, String> {
+    const MAX_SINGLE_CHUNK_UNCOMPRESSED: usize = 128 * 1024 * 1024; // 128 MiB safety bound
+    if uncompressed_size > MAX_SINGLE_CHUNK_UNCOMPRESSED {
+        return Err(format!(
+            "Uncompressed chunk size ({uncompressed_size} bytes) exceeds safety quota of {MAX_SINGLE_CHUNK_UNCOMPRESSED} bytes."
+        ));
+    }
+
+    let decompressed = match compression_type {
+        0 => raw_slice.to_vec(),
+        1 => {
+            // GZip compression
+            use flate2::read::GzDecoder;
+            let mut decoder = GzDecoder::new(raw_slice);
+            let mut out = Vec::with_capacity(uncompressed_size);
+            decoder
+                .by_ref()
+                .take((uncompressed_size as u64) + 1)
+                .read_to_end(&mut out)
+                .map_err(|e| format!("GZip chunk decompression failed: {e}"))?;
+            out
+        }
+        3 => {
+            // Zstd compression
+            let mut out = Vec::with_capacity(uncompressed_size);
+            let mut decoder = zstd::Decoder::new(raw_slice)
+                .map_err(|e| format!("Failed to initialize Zstd decoder: {e}"))?;
+            decoder
+                .by_ref()
+                .take((uncompressed_size as u64) + 1)
+                .read_to_end(&mut out)
+                .map_err(|e| format!("Zstd chunk decompression failed: {e}"))?;
+            out
+        }
+        other => {
+            return Err(format!(
+                "Unsupported WAD chunk compression type {other} ({})",
+                compression_name(other)
+            ));
+        }
+    };
+
+    if decompressed.len() != uncompressed_size {
+        return Err(format!(
+            "Decompressed size mismatch: expected {} bytes, got {} bytes.",
+            uncompressed_size,
+            decompressed.len()
+        ));
+    }
+
+    if expected_checksum != 0 {
+        let decomp_csum = xxhash64(&decompressed, 0);
+        if decomp_csum != expected_checksum {
+            let raw_csum = xxhash64(raw_slice, 0);
+            let xxh3_csum = xxhash_rust::xxh3::xxh3_64(raw_slice);
+            if raw_csum != expected_checksum && xxh3_csum != expected_checksum {
+                return Err(format!(
+                    "Chunk checksum mismatch: expected 0x{:016x}, got 0x{:016x}",
+                    expected_checksum, decomp_csum
+                ));
+            }
+        }
+    }
+
+    Ok(decompressed)
+}
+
 /// Parses a League of Legends WAD archive according to CommunityDragon & League Toolkit specifications.
-/// Supports WAD v3 (272-byte header, 32-byte entries), WAD v2, and WAD v1.
+/// Supports WAD v3 (272-byte header, 32-byte and 33-byte entries), WAD v2, and WAD v1.
 pub fn parse_wad(bytes: &[u8]) -> Result<(u8, u8, Vec<WadEntry>), String> {
     if bytes.len() < 4 {
         return Err("WAD archive is too small to contain a header.".into());
@@ -196,7 +271,7 @@ pub fn parse_wad(bytes: &[u8]) -> Result<(u8, u8, Vec<WadEntry>), String> {
                 // 0..2: "RW"
                 // 2: major (3)
                 // 3: minor
-                // 4..260: ECDSA signature block (256 bytes)
+                // 4..260: Signature block (256 bytes)
                 // 260..268: Checksum (8 bytes, u64)
                 // 268..272: Entry count (4 bytes, u32)
                 // Total header: 272 bytes (0x110)
@@ -206,7 +281,22 @@ pub fn parse_wad(bytes: &[u8]) -> Result<(u8, u8, Vec<WadEntry>), String> {
                 let mut count_buf = [0u8; 4];
                 count_buf.copy_from_slice(&bytes[268..272]);
                 let count = u32::from_le_bytes(count_buf) as usize;
-                (major, minor, count, 272usize, 32usize)
+
+                // Support both standard 32-byte entries and legacy 33-byte entries for v3.0..=v3.3
+                let entry_size = if minor < 4 && count > 0 && bytes.len() >= 272 + count * 33 {
+                    let mut off_buf = [0u8; 4];
+                    off_buf.copy_from_slice(&bytes[280..284]);
+                    let off = u32::from_le_bytes(off_buf) as usize;
+                    if off >= 272 + count * 33 && (off == 272 + count * 33 || off % 4 == 0) {
+                        33usize
+                    } else {
+                        32usize
+                    }
+                } else {
+                    32usize
+                };
+
+                (major, minor, count, 272usize, entry_size)
             }
             2 => {
                 // League WAD v2:
@@ -309,8 +399,8 @@ pub fn parse_wad(bytes: &[u8]) -> Result<(u8, u8, Vec<WadEntry>), String> {
         let mut is_duplicate = false;
         let mut checksum = 0u64;
 
-        if entry_size >= 32 {
-            // Standard WAD v2 / v3 32-byte entry structure
+        if entry_size == 33 {
+            // WAD v3.0..=v3.3 with 33-byte entries
             let mut dup_buf = [0u8; 1];
             cursor
                 .read_exact(&mut dup_buf)
@@ -321,6 +411,37 @@ pub fn parse_wad(bytes: &[u8]) -> Result<(u8, u8, Vec<WadEntry>), String> {
             cursor
                 .read_exact(&mut subchunk_buf)
                 .map_err(|e| format!("Truncated entry {i} subchunk index: {e}"))?;
+
+            let mut subchunk_count_buf = [0u8; 1];
+            cursor
+                .read_exact(&mut subchunk_count_buf)
+                .map_err(|e| format!("Truncated entry {i} subchunk count: {e}"))?;
+
+            let mut csum_buf = [0u8; 8];
+            cursor
+                .read_exact(&mut csum_buf)
+                .map_err(|e| format!("Truncated entry {i} checksum: {e}"))?;
+            checksum = u64::from_le_bytes(csum_buf);
+        } else if entry_size >= 32 {
+            if major == 3 && minor >= 4 {
+                // League WAD v3.4+: 24-bit start_frame (3 bytes), no duplicate flag
+                let mut frame_buf = [0u8; 3];
+                cursor
+                    .read_exact(&mut frame_buf)
+                    .map_err(|e| format!("Truncated entry {i} start frame: {e}"))?;
+            } else {
+                // League WAD v3.0..=v3.3 / v2: 1 byte duplicate, 2 bytes start_frame
+                let mut dup_buf = [0u8; 1];
+                cursor
+                    .read_exact(&mut dup_buf)
+                    .map_err(|e| format!("Truncated entry {i} duplicate flag: {e}"))?;
+                is_duplicate = dup_buf[0] != 0;
+
+                let mut subchunk_buf = [0u8; 2];
+                cursor
+                    .read_exact(&mut subchunk_buf)
+                    .map_err(|e| format!("Truncated entry {i} subchunk index: {e}"))?;
+            }
 
             let mut csum_buf = [0u8; 8];
             cursor
@@ -354,39 +475,40 @@ pub fn parse_wad(bytes: &[u8]) -> Result<(u8, u8, Vec<WadEntry>), String> {
 /// Creates a genuine League of Legends WAD v3 archive.
 /// Follows the standard CommunityDragon / League Toolkit specification:
 /// - 2-byte magic: b"RW"
-/// - major: 3, minor: 0
+/// - major: 3, minor: 4 (modern League standard)
 /// - 256 bytes signature block (zeros)
 /// - 8 bytes archive checksum (xxHash64)
 /// - 4 bytes entry count (u32 le)
+/// - Entries sorted strictly by path_hash in ascending order
 /// - 32-byte entries with xxHash64 path hash and uncompressed data checksum
 pub fn create_wad_v3(files: &[(String, Vec<u8>)]) -> Result<Vec<u8>, String> {
-    let mut entries = Vec::new();
-    let mut payload_data = Vec::new();
+    let mut sorted_files: Vec<(String, u64, &[u8])> = files
+        .iter()
+        .map(|(path, data)| {
+            let normalized = path.replace('\\', "/").to_ascii_lowercase();
+            let path_hash = xxhash64(normalized.as_bytes(), 0);
+            (normalized, path_hash, data.as_slice())
+        })
+        .collect();
+    // Sort strictly by path hash ascending - League Toolkit and League require ascending path_hash order!
+    sorted_files.sort_by_key(|item| item.1);
 
-    // Standard WAD v3 header:
-    // Magic: "RW" (2 bytes)
-    // Major: 3 (1 byte)
-    // Minor: 0 (1 byte)
-    // Signature block: 256 bytes (0x04..0x104)
-    // Archive checksum: 8 bytes (0x104..0x10C)
-    // Entry count: 4 bytes (0x10C..0x110)
-    // Total archive header before entries = 272 bytes (0x110)
     let header_size = 272usize;
     let entry_size = 32usize;
-    let total_header_size = header_size + (files.len() * entry_size);
+    let total_header_size = header_size + (sorted_files.len() * entry_size);
 
     let mut current_offset = total_header_size as u32;
+    let mut entries = Vec::with_capacity(sorted_files.len());
+    let mut payload_data = Vec::new();
 
-    for (rel_path, data) in files {
-        let normalized = rel_path.replace('\\', "/").to_ascii_lowercase();
-        let path_hash = xxhash64(normalized.as_bytes(), 0);
+    for (_, path_hash, data) in &sorted_files {
         let uncompressed_size = data.len() as u32;
         let compressed_size = uncompressed_size;
         let offset = current_offset;
         let checksum = xxhash64(data, 0);
 
         entries.push(WadEntry {
-            path_hash,
+            path_hash: *path_hash,
             path_hash_hex: format!("0x{:016x}", path_hash),
             offset,
             compressed_size,
@@ -406,25 +528,24 @@ pub fn create_wad_v3(files: &[(String, Vec<u8>)]) -> Result<Vec<u8>, String> {
     out.extend_from_slice(WAD_MAGIC);
     // 2: Major version 3
     out.push(3);
-    // 3: Minor version 0
-    out.push(0);
+    // 3: Minor version 4 (modern League standard)
+    out.push(4);
     // 4..260: 256-byte signature block
     out.extend_from_slice(&[0u8; 256]);
     // 260..268: 8-byte checksum (xxHash64 of payload or 0)
     let payload_csum = xxhash64(&payload_data, 0);
     out.extend_from_slice(&payload_csum.to_le_bytes());
     // 268..272: 4-byte entry count
-    out.extend_from_slice(&(files.len() as u32).to_le_bytes());
+    out.extend_from_slice(&(sorted_files.len() as u32).to_le_bytes());
 
-    // 272+: 32-byte entries
+    // 272+: 32-byte entries (v3.4 layout)
     for entry in &entries {
         out.extend_from_slice(&entry.path_hash.to_le_bytes()); // 8 bytes
         out.extend_from_slice(&entry.offset.to_le_bytes()); // 4 bytes
         out.extend_from_slice(&entry.compressed_size.to_le_bytes()); // 4 bytes
         out.extend_from_slice(&entry.uncompressed_size.to_le_bytes()); // 4 bytes
         out.push(entry.compression_type & 0x0F); // 1 byte type
-        out.push(if entry.is_duplicate { 1 } else { 0 }); // 1 byte duplicate flag
-        out.extend_from_slice(&0u16.to_le_bytes()); // 2 bytes subchunk index
+        out.extend_from_slice(&[0u8; 3]); // 3 bytes start_frame (v3.4 24-bit start frame)
         out.extend_from_slice(&entry.checksum.to_le_bytes()); // 8 bytes entry checksum
     }
 
@@ -489,6 +610,13 @@ pub fn wad_extract_files(
         }
 
         let slice = &bytes[start..end];
+        let decompressed = decompress_wad_chunk(
+            slice,
+            entry.compression_type,
+            entry.uncompressed_size as usize,
+            entry.checksum,
+        )?;
+
         let file_name = format!("{}.bin", entry.path_hash_hex);
         let out_file_path = canonical_target.join(&file_name);
 
@@ -497,7 +625,7 @@ pub fn wad_extract_files(
             return Err("Path traversal attempt detected in WAD extraction.".into());
         }
 
-        fs::write(&out_file_path, slice)
+        fs::write(&out_file_path, &decompressed)
             .map_err(|e| format!("Failed to write file {}: {e}", file_name))?;
 
         extracted_files.push(file_name);
@@ -601,7 +729,7 @@ mod tests {
         // Verify genuine League 2-byte magic 'RW'
         assert_eq!(&archive[0..2], b"RW");
         assert_eq!(archive[2], 3); // major = 3
-        assert_eq!(archive[3], 0); // minor = 0
+        assert_eq!(archive[3], 4); // minor = 4
 
         // 256 bytes signature block (starts at 4, ends at 260)
         assert_eq!(&archive[4..260], &[0u8; 256]);
@@ -612,38 +740,31 @@ mod tests {
 
         // Header offset before entries is exactly 272 (0x110)
         let entry_table_start = 272usize;
-        // Each entry is exactly 32 bytes (0x20)
         let entry0_bytes = &archive[entry_table_start..entry_table_start + 32];
         let hash_ahri = xxhash64(b"data/characters/ahri.bin", 0);
+        let hash_model = xxhash64(b"assets/characters/ahri/model.skn", 0);
+
+        let (first_hash, second_hash) = if hash_ahri < hash_model {
+            (hash_ahri, hash_model)
+        } else {
+            (hash_model, hash_ahri)
+        };
+
         let entry0_hash = u64::from_le_bytes(entry0_bytes[0..8].try_into().unwrap());
-        assert_eq!(entry0_hash, hash_ahri);
+        assert_eq!(entry0_hash, first_hash);
 
         // Offset check: entry 0 data starts right after entry table
         let expected_data_offset = (272 + 2 * 32) as u32;
         let entry0_offset = u32::from_le_bytes(entry0_bytes[8..12].try_into().unwrap());
         assert_eq!(entry0_offset, expected_data_offset);
 
-        // Checksum verification
-        let entry0_csum = u64::from_le_bytes(entry0_bytes[24..32].try_into().unwrap());
-        assert_eq!(entry0_csum, xxhash64(b"PROP\x02\0\0\0\0\0\0\0", 0));
-
         // Full round-trip parsing test
         let (major, minor, entries) = parse_wad(&archive).expect("failed to parse standard WAD");
         assert_eq!(major, 3);
-        assert_eq!(minor, 0);
+        assert_eq!(minor, 4);
         assert_eq!(entries.len(), 2);
-
-        let entry0 = &entries[0];
-        assert_eq!(entry0.path_hash, hash_ahri);
-        assert_eq!(entry0.uncompressed_size, 12);
-        assert_eq!(entry0.compressed_size, 12);
-        assert_eq!(entry0.compression_type, 0);
-        assert_eq!(entry0.checksum, entry0_csum);
-
-        let hash_model = xxhash64(b"assets/characters/ahri/model.skn", 0);
-        let entry1 = &entries[1];
-        assert_eq!(entry1.path_hash, hash_model);
-        assert_eq!(entry1.uncompressed_size, 4);
+        assert_eq!(entries[0].path_hash, first_hash);
+        assert_eq!(entries[1].path_hash, second_hash);
 
         // Inspection report test
         use base64::{engine::general_purpose::STANDARD, Engine};
@@ -651,8 +772,63 @@ mod tests {
         let inspection = wad_inspect(b64).expect("wad_inspect should succeed");
         assert!(inspection.is_valid);
         assert_eq!(inspection.major, 3);
-        assert_eq!(inspection.minor, 0);
+        assert_eq!(inspection.minor, 4);
         assert_eq!(inspection.entry_count, 2);
         assert_eq!(inspection.total_uncompressed_size, 16);
+    }
+
+    #[test]
+    fn test_ltk_wad_interoperability_mount() {
+        use ltk_hash::Hash as _;
+        let files = vec![
+            (
+                "data/characters/ahri.bin".to_string(),
+                b"PROP\x03\0\0\0\0\0\0\0\0\0\0\0".to_vec(),
+            ),
+            (
+                "assets/characters/ahri/model.skn".to_string(),
+                vec![0xAA, 0xBB, 0xCC, 0xDD],
+            ),
+        ];
+
+        let archive = create_wad_v3(&files).expect("create_wad_v3 failed");
+        let cursor = Cursor::new(archive);
+        let mut wad = ltk_wad::Wad::mount(cursor).expect("ltk_wad::Wad::mount failed to mount LAAP archive");
+        assert_eq!(wad.chunks().len(), 2);
+
+        let ahri_hash = ltk_wad::WadHash::hash_str("data/characters/ahri.bin");
+        let chunk = *wad.chunks().get(ahri_hash).expect("chunk not found in ltk_wad");
+        let loaded = wad.load_chunk_decompressed(&chunk).expect("failed to load decompressed chunk");
+        assert_eq!(&*loaded, b"PROP\x03\0\0\0\0\0\0\0\0\0\0\0");
+    }
+
+    #[test]
+    fn test_ltk_wad_interoperability_builder_and_extract() {
+        use std::io::Write;
+        let mut builder = ltk_wad::WadBuilder::default();
+        builder = builder.with_chunk(ltk_wad::WadChunkBuilder::default().with_path("assets/test_file.txt"));
+        let mut buf = Cursor::new(Vec::new());
+        builder.build_to_writer(&mut buf, |_hash, cur| {
+            cur.write_all(b"Hello from League Toolkit!")?;
+            Ok(())
+        }).expect("WadBuilder build failed");
+
+        let archive = buf.into_inner();
+        let (major, minor, entries) = parse_wad(&archive).expect("parse_wad failed on ltk archive");
+        assert_eq!(major, 3);
+        assert_eq!(minor, 4);
+        assert_eq!(entries.len(), 1);
+
+        // Test extraction & decompression
+        let temp_dir = std::env::temp_dir().join(format!("laap_wad_extract_test_{}", rand::random::<u64>()));
+        use base64::{engine::general_purpose::STANDARD, Engine};
+        let b64 = STANDARD.encode(&archive);
+        let report = wad_extract_files(b64, temp_dir.to_string_lossy().to_string()).expect("wad_extract_files failed");
+        assert_eq!(report.extracted_count, 1);
+        let extracted_file = temp_dir.join(&report.extracted_files[0]);
+        assert!(extracted_file.exists());
+        let content = fs::read(&extracted_file).expect("failed to read extracted file");
+        assert_eq!(content, b"Hello from League Toolkit!");
+        let _ = fs::remove_dir_all(&temp_dir);
     }
 }

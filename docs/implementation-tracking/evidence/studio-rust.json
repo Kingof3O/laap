@@ -15,19 +15,19 @@
     "--",
     "--test-threads=1"
   ],
-  "startedAt": "2026-11-11T05:03:44.527Z",
-  "finishedAt": "2026-11-11T05:04:53.749Z",
-  "head": "57a0b11750d6718c265a12d0514a7a71fa899bfc",
+  "startedAt": "2026-11-11T06:15:54.286Z",
+  "finishedAt": "2026-11-11T06:18:19.657Z",
+  "head": "7bcee5e52a074722639942f50a126d6f5f1c69ee",
   "source": {
-    "sha256": "44bcd641e1ea77c7c72e9177e169a21b6c987cdd4fe014d03125f458abe5442f",
+    "sha256": "dc10f22bd94da233a16f4c3f0e92b147d9c2f34ba054558e702c9d35c9229518",
     "files": [
       [
         "apps/desktop/src-tauri/Cargo.lock",
-        "0c0e87d360d402c50ff48e96145480b511663b2c5cc9b103c55f83fbf51ae2b1"
+        "22a434dedfb8490b18ca57a3dc0283924c5a0b01b66f49480d8051bdad13a188"
       ],
       [
         "apps/desktop/src-tauri/Cargo.toml",
-        "de05f63625face4121a3460f8a7c027a89df3c6028a73dc2426002573ae82b1a"
+        "0b5ea44df5d0e1337cdbb74887f59c6ffe2035600dc4b7f7a55fcf2ae4bffd17"
       ],
       [
         "apps/desktop/src-tauri/build.rs",
@@ -71,7 +71,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/customization/bin_tool.rs",
-        "42e978f451afb378fc5dc12e84f3f110a62adcfabbe55236d405ce6065c7793e"
+        "de9d4d2dcd2697fff381c46baac7469f1d82ac1d714935da08c14dba313dcdfa"
       ],
       [
         "apps/desktop/src-tauri/src/customization/catalog.rs",
@@ -91,7 +91,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/customization/client_surfaces.rs",
-        "07ff502cfda998566f0b90ace5713aae85011a09a802a256ae45f5e2456c226c"
+        "18784319932b67bb7ceb3b1b6ef9c7dd53a2b35fb78ab1c2b6344f7819727bde"
       ],
       [
         "apps/desktop/src-tauri/src/customization/client_themes.rs",
@@ -119,7 +119,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/customization/fantome.rs",
-        "893150af9aad838476c2194a8e79a2675133e57168d8073b19d872babf1b30dd"
+        "9c5d2fb54dc71d828ee1e96df6d731527e3851d0e4758b7cc8cb86b76283e8f9"
       ],
       [
         "apps/desktop/src-tauri/src/customization/game_path.rs",
@@ -131,7 +131,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/customization/library.rs",
-        "b0f356ac5efeff38b270dd91a990dc6b5f0827bfa493290bf3ee4bc7e2d028e1"
+        "a23e705ff62e9cc77d6db48ad1500c8b7512863790ab111164feda4fe131049e"
       ],
       [
         "apps/desktop/src-tauri/src/customization/mod.rs",
@@ -147,7 +147,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/customization/sandbox.rs",
-        "7cbf2efc3d17dab1bbd9c3fd17d49cd6409d9e2302e4f640e89cd12d58ee8faa"
+        "d0c5d00cc9f17bc133d894165aa45a6ba5943c3eeaf9aecc73dc3d32ab5163c5"
       ],
       [
         "apps/desktop/src-tauri/src/customization/stats_provider.rs",
@@ -163,7 +163,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/customization/wad_tool.rs",
-        "f58f0890d84c547d9755fa3d2fa5c75f1c3be7a039cf647b4134c8739e6a288d"
+        "1656f6e499da0db2fdbf5ce5102a35732ec76ed7cacd54e86d3e530dd3c482e9"
       ],
       [
         "apps/desktop/src-tauri/src/device.rs",
@@ -275,5 +275,5 @@
   "exitCode": 0,
   "error": null,
   "log": "studio-rust.log",
-  "logSha256": "6389f90cd6eb52470548ed509c9dfbc08fa4b57303d2961be97e43165c0d169f"
+  "logSha256": "13a92f3ce3f78bcff4756462141b3571944cd9142211533a92f8d875dd092180"
 }

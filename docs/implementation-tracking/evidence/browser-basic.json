@@ -9,9 +9,9 @@
     "test",
     "--reporter=list"
   ],
-  "startedAt": "2026-11-11T05:06:17.020Z",
-  "finishedAt": "2026-11-11T05:07:49.092Z",
-  "head": "57a0b11750d6718c265a12d0514a7a71fa899bfc",
+  "startedAt": "2026-11-11T06:19:58.034Z",
+  "finishedAt": "2026-11-11T06:21:00.242Z",
+  "head": "7bcee5e52a074722639942f50a126d6f5f1c69ee",
   "source": {
     "sha256": "5a7d66131ad635f6a60896a0aba224c69649dd76e396c0936a2616845d69c553",
     "files": [
@@ -637,5 +637,5 @@
   "exitCode": 0,
   "error": null,
   "log": "browser-basic.log",
-  "logSha256": "b1f9500bf1cbc1331669629f84098c059809ab6ff7f6b7660d4b50d34185f6d5"
+  "logSha256": "3e3b255b32e2c62688bb81c38fd81f58c83a067e20a51fb4e03324d523fb6bf5"
 }
