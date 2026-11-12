@@ -86,9 +86,15 @@ fn now_iso() -> String {
 
 fn validate_project(project: &CreatorProject) -> Result<(), String> {
     validate_project_id(&project.id)?;
+    if project.version.trim().is_empty() || project.version.chars().count() > 40 || project.version.chars().any(char::is_control) {
+        return Err("Project version must contain 1–40 visible characters.".into());
+    }
+    if project.champion.trim().is_empty() || project.champion.chars().count() > 80 {
+        return Err("Set a target champion or project category of at most 80 characters.".into());
+    }
     if project.name.trim().is_empty()
         || project.name.chars().count() > 80
-        || project.author.len() > 120
+        || project.author.chars().count() > 120
         || project.description.len() > 2000
         || project.tags.len() > 20
         || project.files.len() > MAX_FILES_PER_PROJECT
@@ -508,6 +514,8 @@ mod tests {
         let file = root.join("owned-fixture.json");
         write_project(&file, &project).unwrap();
         let saved = project.clone();
+        let mut invalid = saved.clone(); invalid.version.clear();
+        assert!(write_project(&file, &invalid).unwrap_err().contains("version"));
         project.files[0].data_base64 = Some(STANDARD.encode(b"corrupted"));
         assert!(write_project(&file, &project).is_err());
         assert_eq!(storage::read::<CreatorProject>(&file, 8 * 1024 * 1024).unwrap().unwrap(), saved);
