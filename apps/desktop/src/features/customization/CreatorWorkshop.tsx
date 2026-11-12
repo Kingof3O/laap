@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { invokeTauri, hasTauri } from '../../lib/api'
 import {
   errorMessage,
@@ -15,6 +15,8 @@ import {
   type WadInspectionReport,
 } from './api'
 import { readFileBase64 } from './packageFiles'
+import { ProjectSaveQueue, readRecovery, writeRecovery, removeRecovery, removeSavedRecovery, validateSnapshot, projectFingerprint } from './projectPersistence'
+import { LibraryImportDialog, type LibraryImportSource } from './LibraryImportDialog'
 
 function downloadBase64(base64: string, mimeType: string, filename: string) {
   const binary = atob(base64)
@@ -37,13 +39,69 @@ export function CreatorWorkshop() {
   const [tab, setTab] = useState<'projects' | 'quick' | 'repair' | 'bintool' | 'wadtool'>('projects')
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null)
   const [activeProject, setActiveProject] = useState<CreatorProject | null>(null)
+  const [libraryImport, setLibraryImport] = useState<LibraryImportSource | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
-  const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [recoverySnapshot, setRecoverySnapshot] = useState<CreatorProject | null>(null)
 
+  const saveQueue = useRef(new ProjectSaveQueue(creator.saveProject))
+  const current = useRef(activeProject)
+  current.current = activeProject
+  const clean = useRef('')
+  const revision = useRef(0)
+  const autosaveTimer = useRef<number | undefined>(undefined)
+  const nativeMutation = useRef(false)
+  const savesInFlight = useRef(0)
+  const undo = useRef<CreatorProject[]>([])
+  const redo = useRef<CreatorProject[]>([])
+
+  async function persist(project: CreatorProject) {
+    window.clearTimeout(autosaveTimer.current)
+    const fingerprint = projectFingerprint(project)
+    savesInFlight.current++
+    let saved: CreatorProject
+    try { saved = await saveQueue.current.enqueue(project) }
+    finally { savesInFlight.current-- }
+    // Track what actually reached disk even if a newer edit is already visible.
+    // Returning an edit to its earlier value must not hide an in-flight write.
+    clean.current = fingerprint
+    if (projectFingerprint(current.current) === fingerprint) {
+      setAutosaveStatus('saved')
+      setError(previous => previous.startsWith('Project save failed:') ? '' : previous)
+      await removeSavedRecovery(project)
+    }
+    return saved
+  }
+  async function leaveProject() {
+    if (busy || recoverySnapshot) return
+    setBusy(true)
+    try {
+      if (activeProject && projectFingerprint(activeProject) !== clean.current) await persist(activeProject)
+      setActiveProject(null)
+      await loadProjects()
+    } catch (cause) { setAutosaveStatus('error'); setError(errorMessage(cause)) }
+    finally { setBusy(false) }
+  }
+  function editProject(next: CreatorProject) {
+    if (!activeProject) return
+    // Metadata undo is bounded; asset payloads are shared until edited.
+    undo.current = [...undo.current, activeProject].slice(-30)
+    redo.current = []
+    setActiveProject(next)
+  }
+  function undoEdit() {
+    const previous = undo.current.pop()
+    if (previous && activeProject) { redo.current.push(activeProject); setActiveProject(previous) }
+  }
+  function redoEdit() {
+    const next = redo.current.pop()
+    if (next && activeProject) { undo.current.push(activeProject); setActiveProject(next) }
+  }
+
   // New project modal
+  const [deletingProject, setDeletingProject] = useState<string | null>(null)
   const [showNewModal, setShowNewModal] = useState(false)
   const [newName, setNewName] = useState('')
   const [newChampion, setNewChampion] = useState('')
@@ -55,7 +113,7 @@ export function CreatorWorkshop() {
 
   // Quick Pack state
   const [quickFiles, setQuickFiles] = useState<File[]>([])
-  const [quickOutput, setQuickOutput] = useState<{ archive: string; manifest: { modId: string; sha256: string } } | null>(null)
+  const [quickOutput, setQuickOutput] = useState<{ archive: string; manifest: import('./api').PackageManifest } | null>(null)
 
   // Repair Tool State
   const [repairB64, setRepairB64] = useState<string>('')
@@ -89,19 +147,19 @@ export function CreatorWorkshop() {
     setRecoverySnapshot(null)
     try {
       const proj = await creator.getProject(id)
-      setActiveProject(proj)
-      // Check for local crash recovery snapshot
+      let snapshot: CreatorProject | null = null
+      try { snapshot = await readRecovery(id) }
+      catch (cause) { setError(`Recovery rejected: ${errorMessage(cause)}. Opening the last native save.`) }
+      // Migrate the old small browser snapshot once; native files remain authoritative.
       try {
         const raw = localStorage.getItem(`laap_creator_snapshot_${id}`)
-        if (raw) {
-          const snap = JSON.parse(raw) as CreatorProject
-          if (snap && snap.id === id && snap.updatedAt !== proj.updatedAt) {
-            setRecoverySnapshot(snap)
-          }
-        }
-      } catch {
-        // ignore snapshot parse errors
-      }
+        if (!snapshot && raw) snapshot = validateSnapshot(JSON.parse(raw), id)
+      } catch (cause) { setError(`Legacy recovery could not be loaded: ${errorMessage(cause)}`) }
+      clean.current = projectFingerprint(proj)
+      undo.current = []; redo.current = []
+      if (snapshot && projectFingerprint(snapshot) !== projectFingerprint(proj)) setRecoverySnapshot(snapshot)
+      setAutosaveStatus('saved')
+      setActiveProject(proj)
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -109,35 +167,49 @@ export function CreatorWorkshop() {
     }
   }
 
-  // Debounced autosave effect
   useEffect(() => {
-    if (!activeProject) return
-    try {
-      localStorage.setItem(`laap_creator_snapshot_${activeProject.id}`, JSON.stringify(activeProject))
-    } catch {
-      // ignore storage quota issues
+    if (!activeProject || recoverySnapshot) return
+    if (projectFingerprint(activeProject) === clean.current && savesInFlight.current === 0) {
+      setAutosaveStatus('saved')
+      return
     }
+    const project = activeProject
+    const sequence = ++revision.current
     setAutosaveStatus('saving')
-    const timer = setTimeout(async () => {
-      try {
-        await creator.saveProject(activeProject)
-        setAutosaveStatus('saved')
-      } catch {
-        setAutosaveStatus('idle')
-      }
-    }, 2000)
-    return () => clearTimeout(timer)
-  }, [activeProject])
+    void writeRecovery(project, sequence).then(() => {
+      try { localStorage.removeItem(`laap_creator_snapshot_${project.id}`) } catch { /* Native persistence is independent. */ }
+    }).catch(cause => {
+      setError(`Crash recovery unavailable: ${errorMessage(cause)}. Save the project before closing.`)
+    })
+    const timer = autosaveTimer.current = window.setTimeout(() => {
+      void persist(project).catch(cause => {
+        if (current.current?.id === project.id) {
+          setAutosaveStatus('error')
+          setError(`Project save failed: ${errorMessage(cause)}. Your draft remains open; retry Save project.`)
+        }
+      })
+    }, 800)
+    return () => window.clearTimeout(timer)
+  }, [activeProject, recoverySnapshot])
+
+  useEffect(() => () => {
+    const project = current.current
+    if (!nativeMutation.current && project && projectFingerprint(project) !== clean.current) void saveQueue.current.enqueue(project).catch(() => {
+      // The versioned recovery snapshot remains available on reopening.
+    })
+  }, [])
 
   function restoreRecoverySnapshot() {
     if (recoverySnapshot) {
+      setAutosaveStatus('saving')
       setActiveProject(recoverySnapshot)
       setRecoverySnapshot(null)
       setStatus('Restored unsaved project state from crash recovery snapshot.')
     }
   }
 
-  function discardRecoverySnapshot() {
+  async function discardRecoverySnapshot() {
+    if (activeProject) await removeRecovery(activeProject.id).catch(cause => setError(errorMessage(cause)))
     if (activeProject) {
       try {
         localStorage.removeItem(`laap_creator_snapshot_${activeProject.id}`)
@@ -160,6 +232,9 @@ export function CreatorWorkshop() {
       setNewChampion('')
       setNewAuthor('')
       await loadProjects()
+      clean.current = projectFingerprint(proj)
+      undo.current = []; redo.current = []
+      setAutosaveStatus('saved')
       setActiveProject(proj)
       setStatus(`Project "${proj.name}" created.`)
     } catch (err) {
@@ -174,15 +249,49 @@ export function CreatorWorkshop() {
     setBusy(true)
     setError('')
     try {
-      const saved = await creator.saveProject(activeProject)
-      setActiveProject(saved)
-      setStatus('Project saved and crash recovery snapshot updated.')
+      const saved = await persist(activeProject)
+      setStatus('Project saved to this device.')
       await loadProjects()
     } catch (e) {
       setError(errorMessage(e))
     } finally {
       setBusy(false)
     }
+  }
+
+  async function importProject(file: File) {
+    if (busy) return
+    setBusy(true)
+    setError('')
+    try {
+      if (file.size > 8 * 1024 * 1024) throw Error('Project imports are limited to 8 MiB.')
+      const project: CreatorProject = JSON.parse(await file.text())
+      validateSnapshot(project, project.id)
+      const imported = await creator.importProject(project)
+      clean.current = projectFingerprint(imported)
+      undo.current = []; redo.current = []
+      setActiveProject(imported); setAutosaveStatus('saved')
+      await loadProjects()
+      setStatus('Imported project as a new local copy; original credits and assets are preserved.')
+    } catch (cause) { setError(errorMessage(cause)) }
+    finally { setBusy(false) }
+  }
+  async function exportProject() {
+    if (!activeProject || busy || recoverySnapshot) return
+    setBusy(true); setError('')
+    try {
+      const saved = await persist(activeProject)
+      if (hasTauri) {
+        const written = await creator.exportFile(saved.id, 'project')
+        setStatus(written ? 'Project backup saved, including original asset bytes.' : 'Project export cancelled.')
+        return
+      }
+      const url = URL.createObjectURL(new Blob([JSON.stringify(saved, null, 2)], { type: 'application/json' }))
+      const link = document.createElement('a'); link.href = url; link.download = `${saved.id}.laap-project.json`; link.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 10000)
+      setStatus('Project backup download requested, including original asset bytes.')
+    } catch (cause) { setError(errorMessage(cause)) }
+    finally { setBusy(false) }
   }
 
   async function duplicateProject(id: string) {
@@ -203,7 +312,10 @@ export function CreatorWorkshop() {
     setBusy(true)
     setError('')
     try {
+      window.clearTimeout(autosaveTimer.current)
       await creator.deleteProject(id)
+      await removeRecovery(id)
+      setDeletingProject(null)
       if (activeProject?.id === id) setActiveProject(null)
       await loadProjects()
       setStatus('Project deleted.')
@@ -214,47 +326,46 @@ export function CreatorWorkshop() {
     }
   }
 
-  async function handleAddFile(file: File) {
-    if (!activeProject) return
+  async function handleAddFiles(files: File[]) {
+    if (!activeProject || busy || recoverySnapshot) return
     setBusy(true)
+    nativeMutation.current = true
     setError('')
     try {
-      const b64 = await readFileBase64(file)
-      const relPath = addPath.trim()
-        ? `${addPath.trim().replace(/\\/g, '/')}/${file.name}`
-        : `assets/characters/${activeProject.champion.toLowerCase()}/skins/skin${activeProject.skinNum}/${file.name}`
-      const fileRecord = await creator.addFile(activeProject.id, relPath, b64)
-
-      setActiveProject((prev) => {
-        if (!prev) return prev
-        const filtered = prev.files.filter((f) => f.relativePath !== fileRecord.relativePath)
-        return { ...prev, files: [...filtered, fileRecord] }
-      })
-      setStatus(`Added "${file.name}" to package structure.`)
+      await persist(activeProject)
+      let added = 0
+      for (const file of files) {
+        const b64 = await readFileBase64(file)
+        const folder = addPath.trim() || `assets/characters/${activeProject.champion.toLowerCase()}/skins/skin${activeProject.skinNum}`
+        await creator.addFile(activeProject.id, `${folder.replace(/\\/g, '/')}/${file.name}`, b64)
+        added++
+      }
+      setStatus(`Added ${added} asset(s).`)
       setAddPath('')
-    } catch (e) {
-      setError(errorMessage(e))
-    } finally {
+    } catch (cause) { setError(`Asset import stopped: ${errorMessage(cause)}. Previously imported files are retained.`) }
+    finally {
+      try {
+        const saved = await creator.getProject(activeProject.id)
+        clean.current = projectFingerprint(saved); undo.current = []; redo.current = []; setActiveProject(saved); setAutosaveStatus('saved')
+      } catch (cause) { setError(errorMessage(cause)) }
+      nativeMutation.current = false
       setBusy(false)
     }
   }
 
   async function handleRemoveFile(relPath: string) {
-    if (!activeProject) return
+    if (!activeProject || busy || recoverySnapshot) return
     setBusy(true)
+    nativeMutation.current = true
     setError('')
     try {
+      await persist(activeProject)
       await creator.removeFile(activeProject.id, relPath)
-      setActiveProject((prev) => {
-        if (!prev) return prev
-        return { ...prev, files: prev.files.filter((f) => f.relativePath !== relPath) }
-      })
+      const saved = await creator.getProject(activeProject.id)
+      clean.current = projectFingerprint(saved); undo.current = []; redo.current = []; setActiveProject(saved)
       setStatus(`Removed "${relPath}".`)
-    } catch (e) {
-      setError(errorMessage(e))
-    } finally {
-      setBusy(false)
-    }
+    } catch (cause) { setError(errorMessage(cause)) }
+    finally { nativeMutation.current = false; setBusy(false) }
   }
 
   async function exportFantome() {
@@ -262,8 +373,12 @@ export function CreatorWorkshop() {
     setBusy(true)
     setError('')
     try {
-      const saved = await creator.saveProject(activeProject)
-      setActiveProject(saved)
+      const saved = await persist(activeProject)
+      if (hasTauri) {
+        const written = await creator.exportFile(saved.id, 'fantome')
+        setStatus(written ? 'Saved .fantome package to the selected file.' : 'Package export cancelled.')
+        return
+      }
       const b64 = await creator.exportFantome(saved.id)
       downloadBase64(b64, 'application/zip', `${activeProject.champion}_${activeProject.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}.fantome`)
       setStatus('Exported .fantome archive successfully.')
@@ -279,8 +394,12 @@ export function CreatorWorkshop() {
     setBusy(true)
     setError('')
     try {
-      const saved = await creator.saveProject(activeProject)
-      setActiveProject(saved)
+      const saved = await persist(activeProject)
+      if (hasTauri) {
+        const written = await creator.exportFile(saved.id, 'modpkg')
+        setStatus(written ? 'Saved .modpkg package to the selected file.' : 'Package export cancelled.')
+        return
+      }
       const b64 = await creator.exportModpkg(saved.id)
       downloadBase64(b64, 'application/zip', `${activeProject.champion}_${activeProject.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}.modpkg`)
       setStatus('Exported .modpkg archive successfully.')
@@ -296,26 +415,10 @@ export function CreatorWorkshop() {
     setBusy(true)
     setError('')
     try {
-      const saved = await creator.saveProject(activeProject)
-      setActiveProject(saved)
+      const saved = await persist(activeProject)
       const b64 = await creator.exportFantome(saved.id)
-      const manifestObj = await invokeTauri('mod_inspect', {
-        archive: b64,
-        declaration: {
-          displayName: activeProject.name,
-          author: activeProject.author.trim() || 'Anonymous Creator',
-          version: activeProject.version.trim() || '1.0.0',
-          license: 'CC-BY-4.0',
-          rightToDistribute: true,
-          containsPaidRiotContent: false,
-        },
-      })
-      await invokeTauri('mod_import', {
-        archive: b64,
-        manifest: manifestObj,
-        rightsConfirmed: true,
-      })
-      setStatus(`Installed "${activeProject.name}" directly into your Mod Library. You can now enable and test it!`)
+      setLibraryImport({ archive: b64, displayName: saved.name, author: saved.author,
+        version: saved.version })
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -325,66 +428,20 @@ export function CreatorWorkshop() {
 
   async function installQuickPackToLibrary() {
     if (!quickOutput) return
-    setBusy(true)
-    setError('')
-    try {
-      await invokeTauri('mod_import', {
-        archive: quickOutput.archive,
-        manifest: quickOutput.manifest,
-        rightsConfirmed: true,
-      })
-      setStatus(`Installed "${quickOutput.manifest.modId}" directly into your Mod Library!`)
-    } catch (e) {
-      setError(errorMessage(e))
-    } finally {
-      setBusy(false)
-    }
+    setLibraryImport({ archive: quickOutput.archive, ...quickOutput.manifest, manifest: quickOutput.manifest })
   }
 
   async function installRepairedToLibrary() {
-    if (!repairResult?.repairedZipBase64) return
+    if (!repairResult?.repairedArchiveBase64) return
     setBusy(true)
     setError('')
     try {
-      const b64 = repairResult.repairedZipBase64
-      let manifestObj: unknown
-      try {
-        const meta = await fantome.readMeta(b64)
-        manifestObj = await invokeTauri('mod_inspect', {
-          archive: b64,
-          declaration: {
-            displayName: meta.name || 'Repaired Package',
-            author: meta.author || 'Community',
-            version: meta.version || '1.0.0',
-            license: 'CC0-1.0',
-            rightToDistribute: true,
-            containsPaidRiotContent: false,
-          },
-        })
-      } catch {
-        manifestObj = await invokeTauri('mod_inspect', {
-          archive: b64,
-          declaration: {
-            displayName: 'Repaired Fantome Package',
-            author: 'Community',
-            version: '1.0.0',
-            license: 'CC0-1.0',
-            rightToDistribute: true,
-            containsPaidRiotContent: false,
-          },
-        })
-      }
-      await invokeTauri('mod_import', {
-        archive: b64,
-        manifest: manifestObj,
-        rightsConfirmed: true,
-      })
-      setStatus('Repaired package verified and imported directly into your Mod Library!')
-    } catch (e) {
-      setError(errorMessage(e))
-    } finally {
-      setBusy(false)
-    }
+      const b64 = repairResult.repairedArchiveBase64
+      const meta = await fantome.readMeta(b64)
+      setLibraryImport({ archive: b64, displayName: meta.name, author: meta.author,
+        version: meta.version, license: meta.license })
+    } catch (e) { setError(errorMessage(e)) }
+    finally { setBusy(false) }
   }
 
   // Quick Pack Builder
@@ -399,7 +456,7 @@ export function CreatorWorkshop() {
     }
     setBusy(true)
     try {
-      const res = await invokeTauri<{ archive: string; manifest: { modId: string; sha256: string } }>('creator_build_package', {
+      const res = await invokeTauri<{ archive: string; manifest: import('./api').PackageManifest }>('creator_build_package', {
         request: {
           modId: String(fields.get('id')).trim(),
           version: String(fields.get('version')).trim(),
@@ -444,10 +501,10 @@ export function CreatorWorkshop() {
     try {
       const res = await fantome.repair(repairB64)
       setRepairResult(res)
-      if (res.repairedZipBase64) {
-        setRepairB64(res.repairedZipBase64)
+      if (res.repairedArchiveBase64) {
+        setRepairB64(res.repairedArchiveBase64)
       }
-      setStatus(`Repair finished: ${res.issuesFixed.length} issues corrected.`)
+      setStatus(`Repair finished: ${res.actionsTaken.length} issues corrected.`)
     } catch (err) {
       setError(errorMessage(err))
     } finally {
@@ -522,25 +579,31 @@ export function CreatorWorkshop() {
         </div>
       </div>
 
+      {libraryImport && <LibraryImportDialog source={libraryImport}
+        onClose={() => setLibraryImport(null)}
+        onImported={name => { setLibraryImport(null); setStatus(`Imported "${name}" into the local Mod Library. Game-side application is unavailable.`) }} />}
       {error && <p role="alert">{error}</p>}
       {status && <p role="status">{status}</p>}
 
       {tab === 'projects' && (
         activeProject ? (
           /* Active Project Editor */
-          <section className="customization-editor">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <section className="customization-editor creator-workbench">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <button className="btn-secondary" onClick={() => setActiveProject(null)}>← Back to projects</button>
+                <button className="btn-secondary" disabled={busy || !!recoverySnapshot} onClick={() => void leaveProject()}>← Back to projects</button>
                 <span style={{ fontSize: '0.8rem', padding: '2px 8px', borderRadius: '4px', background: autosaveStatus === 'saved' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(234, 179, 8, 0.15)', color: autosaveStatus === 'saved' ? '#4ade80' : '#facc15' }}>
-                  {autosaveStatus === 'saving' ? '● Autosaving...' : '✓ All changes autosaved'}
+                  {autosaveStatus === 'saving' ? 'Saving…' : autosaveStatus === 'saved' ? 'Saved to this device' : autosaveStatus === 'error' ? 'Save failed — retry required' : 'Unsaved changes'}
                 </span>
               </div>
               <div className="customization-actions">
-                <button className="btn-secondary" disabled={busy} onClick={() => void saveActiveProject()}>Save project</button>
-                <button className="btn-primary" style={{ background: '#10b981', borderColor: '#10b981' }} disabled={busy || activeProject.files.length === 0} onClick={() => void installProjectToLibrary()}>⚡ Install to Mod Library</button>
-                <button className="btn-primary" disabled={busy || activeProject.files.length === 0} onClick={() => void exportFantome()}>Export .fantome</button>
-                <button className="btn-secondary" disabled={busy || activeProject.files.length === 0} onClick={() => void exportModpkg()}>Export .modpkg</button>
+                <button className="btn-secondary" disabled={busy || !undo.current.length} onClick={undoEdit}>Undo metadata edit</button>
+                <button className="btn-secondary" disabled={busy || !redo.current.length} onClick={redoEdit}>Redo metadata edit</button>
+                <button className="btn-secondary" disabled={busy || !!recoverySnapshot} onClick={() => void saveActiveProject()}>Save project</button>
+                <button className="btn-primary" disabled={busy || !!recoverySnapshot || activeProject.files.length === 0} onClick={() => void installProjectToLibrary()}>Import into local Mod Library</button>
+                <button className="btn-secondary" disabled={busy || !!recoverySnapshot} onClick={() => void exportProject()}>Export project backup</button>
+                <button className="btn-primary" disabled={busy || !!recoverySnapshot || activeProject.files.length === 0} onClick={() => void exportFantome()}>Export .fantome</button>
+                <button className="btn-secondary" disabled={busy || !!recoverySnapshot || activeProject.files.length === 0} onClick={() => void exportModpkg()}>Export .modpkg</button>
               </div>
             </div>
 
@@ -551,34 +614,34 @@ export function CreatorWorkshop() {
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button className="btn-primary" style={{ padding: '4px 12px', fontSize: '0.85rem' }} onClick={restoreRecoverySnapshot}>Restore Snapshot</button>
-                  <button className="btn-secondary" style={{ padding: '4px 12px', fontSize: '0.85rem' }} onClick={discardRecoverySnapshot}>Discard</button>
+                  <button className="btn-secondary" style={{ padding: '4px 12px', fontSize: '0.85rem' }} onClick={() => void discardRecoverySnapshot()}>Discard</button>
                 </div>
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 22rem), 1fr))', gap: '1rem' }}>
               <div>
-                <h3>Project metadata</h3>
+                <fieldset disabled={busy || !!recoverySnapshot}><h3>Project metadata</h3>
                 <label>Skin / project name
-                  <input value={activeProject.name} onChange={(e) => setActiveProject({ ...activeProject, name: e.target.value })} />
+                  <input value={activeProject.name} onChange={(e) => editProject({ ...activeProject, name: e.target.value })} />
                 </label>
                 <label>Target champion
-                  <input value={activeProject.champion} onChange={(e) => setActiveProject({ ...activeProject, champion: e.target.value })} />
+                  <input value={activeProject.champion} onChange={(e) => editProject({ ...activeProject, champion: e.target.value })} />
                 </label>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <label style={{ flex: 1 }}>Skin index
-                    <input type="number" min={0} max={99} value={activeProject.skinNum} onChange={(e) => setActiveProject({ ...activeProject, skinNum: Number(e.target.value) })} />
+                    <input type="number" min={0} max={99} value={activeProject.skinNum} onChange={(e) => editProject({ ...activeProject, skinNum: Number(e.target.value) })} />
                   </label>
                   <label style={{ flex: 1 }}>Version
-                    <input value={activeProject.version} onChange={(e) => setActiveProject({ ...activeProject, version: e.target.value })} />
+                    <input maxLength={40} value={activeProject.version} onChange={(e) => editProject({ ...activeProject, version: e.target.value })} />
                   </label>
                 </div>
                 <label>Author
-                  <input value={activeProject.author} onChange={(e) => setActiveProject({ ...activeProject, author: e.target.value })} />
+                  <input value={activeProject.author} onChange={(e) => editProject({ ...activeProject, author: e.target.value })} />
                 </label>
                 <label>Description
-                  <textarea rows={3} value={activeProject.description} onChange={(e) => setActiveProject({ ...activeProject, description: e.target.value })} />
-                </label>
+                  <textarea rows={3} value={activeProject.description} onChange={(e) => editProject({ ...activeProject, description: e.target.value })} />
+                </label></fieldset>
               </div>
 
               <div>
@@ -589,9 +652,9 @@ export function CreatorWorkshop() {
                   </label>
                   <label className="btn-secondary" style={{ display: 'inline-block', marginTop: '0.5rem', cursor: 'pointer' }}>
                     + Add asset file (.skn, .skl, .dds, .bin, .anm)
-                    <input type="file" multiple style={{ display: 'none' }} onChange={(e) => {
+                    <input type="file" disabled={busy || !!recoverySnapshot} multiple style={{ display: 'none' }} onChange={(e) => {
                       const files = Array.from(e.target.files || [])
-                      for (const f of files) void handleAddFile(f)
+                      void handleAddFiles(files)
                     }} />
                   </label>
                 </div>
@@ -604,7 +667,7 @@ export function CreatorWorkshop() {
                     e.preventDefault()
                     setAssetDragOver(false)
                     const files = Array.from(e.dataTransfer.files || [])
-                    for (const f of files) void handleAddFile(f)
+                    void handleAddFiles(files)
                   }}
                   style={{
                     maxHeight: '320px',
@@ -620,6 +683,7 @@ export function CreatorWorkshop() {
                       {activeProject.files.map((file) => (
                         <li key={file.relativePath} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                           <div>
+                            {file.dataBase64 && /\.(png|jpe?g|webp)$/i.test(file.relativePath) && <img loading="lazy" alt={`Asset preview: ${file.relativePath}`} src={`data:image/${/\.png$/i.test(file.relativePath) ? 'png' : /\.webp$/i.test(file.relativePath) ? 'webp' : 'jpeg'};base64,${file.dataBase64}`} style={{ width: 64, height: 64, objectFit: 'contain' }} />}
                             <span style={{ fontSize: '0.85rem', fontFamily: 'monospace' }}>{file.relativePath}</span>
                             <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary, #888)', marginLeft: '8px' }}>
                               ({(file.sizeBytes / 1024).toFixed(1)} KB)
@@ -639,13 +703,14 @@ export function CreatorWorkshop() {
           <section className="customization-grid">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gridColumn: '1 / -1' }}>
               <h3>Local Projects ({projects?.length ?? 0})</h3>
-              <button className="btn-primary" onClick={() => setShowNewModal(true)}>+ New Project</button>
+              <div className="customization-actions"><label>Import project backup<input type="file" accept=".json" disabled={busy} onChange={e => { const file = e.target.files?.[0]; if (file) void importProject(file); e.target.value = '' }} /></label>
+              <button className="btn-primary" disabled={busy} onClick={() => setShowNewModal(true)}>+ New Project</button></div>
             </div>
 
             {showNewModal && (
               <div className="customization-card" style={{ gridColumn: '1 / -1', padding: '1.5rem', borderRadius: '8px' }}>
                 <h4>Create new custom skin project</h4>
-                <form onSubmit={(e) => void createProject(e)} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+                <form onSubmit={(e) => void createProject(e)} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 22rem), 1fr))', gap: '1rem', marginTop: '1rem' }}>
                   <label>Project name
                     <input required value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Spirit Blossom Chroma" />
                   </label>
@@ -677,7 +742,11 @@ export function CreatorWorkshop() {
                 <div className="customization-actions" style={{ marginTop: '1rem' }}>
                   <button className="btn-primary" onClick={() => void openProject(p.id)}>Open</button>
                   <button className="btn-secondary" onClick={() => void duplicateProject(p.id)}>Duplicate</button>
-                  <button className="btn-secondary" onClick={() => void deleteProject(p.id)}>Delete</button>
+                  {deletingProject === p.id ? <>
+                    <span>Remove this project and its local assets?</span>
+                    <button className="btn-secondary" disabled={busy} onClick={() => void deleteProject(p.id)}>Confirm project deletion</button>
+                    <button className="btn-secondary" onClick={() => setDeletingProject(null)}>Cancel deletion</button>
+                  </> : <button className="btn-secondary" disabled={busy} onClick={() => setDeletingProject(p.id)}>Delete…</button>}
                 </div>
               </div>
             ))}
@@ -686,7 +755,7 @@ export function CreatorWorkshop() {
       )}
 
       {tab === 'repair' && (
-        <section className="customization-editor" style={{ padding: '1.5rem' }}>
+        <section className="customization-editor creator-workbench" style={{ padding: '1.5rem' }}>
           <h3>Fantome Package Inspector & Structural Repair</h3>
           <p>Inspect community .fantome packages, detect missing metadata, casing discrepancies, or missing skeletons, and reconstruct standard packages.</p>
 
@@ -707,8 +776,7 @@ export function CreatorWorkshop() {
                 <div>META/info.json: <strong>{inspectionReport.metaFound ? 'Found' : 'Missing'}</strong></div>
                 <div>3D Mesh (.skn): <strong>{inspectionReport.hasMesh ? 'Present' : 'None'}</strong></div>
                 <div>Textures (.dds): <strong>{inspectionReport.hasTextures ? 'Present' : 'None'}</strong></div>
-                <div>Skeletons (.skl): <strong>{inspectionReport.hasSkeletons ? 'Present' : 'None'}</strong></div>
-                <div>Property BIN (.bin): <strong>{inspectionReport.hasPropertyBin ? 'Present' : 'None'}</strong></div>
+                <div>Skeletons (.skl): <strong>{inspectionReport.hasSkeleton ? 'Present' : 'None'}</strong></div>
               </div>
 
               {inspectionReport.issuesFound.length > 0 && (
@@ -729,16 +797,16 @@ export function CreatorWorkshop() {
                 <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '6px' }}>
                   <strong>Repair Summary:</strong>
                   <ul>
-                    {repairResult.issuesFixed.map((fix, idx) => (
+                    {repairResult.actionsTaken.map((fix, idx) => (
                       <li key={idx}>{fix}</li>
                     ))}
                   </ul>
-                  {repairResult.repairedZipBase64 && (
+                  {repairResult.repairedArchiveBase64 && (
                     <div className="customization-actions" style={{ marginTop: '0.5rem' }}>
-                      <button className="btn-primary" style={{ background: '#10b981', borderColor: '#10b981' }} disabled={busy} onClick={() => void installRepairedToLibrary()}>
-                        ⚡ Install Repaired Mod to Library
+                      <button className="btn-primary" disabled={busy} onClick={() => void installRepairedToLibrary()}>
+                        Import into local Mod Library
                       </button>
-                      <button className="btn-secondary" onClick={() => downloadBase64(repairResult.repairedZipBase64!, 'application/zip', 'repaired_package.fantome')}>
+                      <button className="btn-secondary" onClick={() => downloadBase64(repairResult.repairedArchiveBase64!, 'application/zip', 'repaired_package.fantome')}>
                         Download Repaired .fantome
                       </button>
                     </div>
@@ -751,7 +819,7 @@ export function CreatorWorkshop() {
       )}
 
       {tab === 'bintool' && (
-        <section className="customization-editor" style={{ padding: '1.5rem' }}>
+        <section className="customization-editor creator-workbench" style={{ padding: '1.5rem' }}>
           <h3>League PROP Binary (.bin) Converter</h3>
           <p>Inspect, decompile to JSON, and recompile League of Legends binary property files.</p>
 
@@ -782,9 +850,9 @@ export function CreatorWorkshop() {
       )}
 
       {tab === 'wadtool' && (
-        <section className="customization-editor" style={{ padding: '1.5rem' }}>
+        <section className="customization-editor creator-workbench" style={{ padding: '1.5rem' }}>
           <h3>League WAD Archive Inspector</h3>
-          <p>Inspect League WAD archives (RWAC v3.x), examine entry tables, xxHash64 digests, and verify container integrity.</p>
+          <p>Inspect supported RW WAD archives and entry metadata. Inspection does not verify Riot signatures or apply assets to League.</p>
 
           <label className="btn-secondary" style={{ display: 'inline-block', margin: '1rem 0', cursor: 'pointer' }}>
             Choose .wad / .wad.client file to inspect
@@ -797,6 +865,12 @@ export function CreatorWorkshop() {
           {wadReport && (
             <div className="customization-card" style={{ padding: '1rem', marginTop: '1rem' }}>
               <h4>WAD v{wadReport.major}.{wadReport.minor} Archive</h4>
+              <button className="btn-secondary" disabled={busy} onClick={() => {
+                setBusy(true); setError('')
+                void wadTool.extractLocal(wadB64).then(result => setStatus(`Extracted ${result.extractedCount} files into LAAP's local export folder: ${result.outputDir}. No League files were changed.`))
+                  .catch(cause => setError(`Extraction stopped: ${errorMessage(cause)}. Any completed files remain in the separate LAAP export folder.`))
+                  .finally(() => setBusy(false))
+              }}>{busy ? 'Extracting…' : 'Extract into a new LAAP export folder'}</button>
               <p>Entries: <strong>{wadReport.entryCount}</strong> · Total Uncompressed: <strong>{(wadReport.totalUncompressedSize / (1024 * 1024)).toFixed(2)} MB</strong> · Compressed: <strong>{(wadReport.totalCompressedSize / (1024 * 1024)).toFixed(2)} MB</strong></p>
 
               <div style={{ maxHeight: '300px', overflowY: 'auto', marginTop: '1rem' }}>
@@ -832,9 +906,9 @@ export function CreatorWorkshop() {
       )}
 
       {tab === 'quick' && (
-        <section className="customization-editor">
+        <section className="customization-editor creator-workbench">
           <h3>Quick image pack builder</h3>
-          <p>Package loose PNG/WebP images into a signed, hash-verified LAAP mod package without creating a persistent project.</p>
+          <p>Package loose PNG/WebP images into a hash-verified LAAP mod package without creating a persistent project.</p>
           <form onSubmit={(event) => void buildQuickPack(event)}>
             <fieldset disabled={busy}>
               <label>Package ID <input required name="id" maxLength={100} pattern="[a-zA-Z0-9._\-]+" placeholder="creator.project" /></label>
@@ -855,11 +929,10 @@ export function CreatorWorkshop() {
                 <button
                   type="button"
                   className="btn-primary"
-                  style={{ background: '#10b981', borderColor: '#10b981' }}
                   disabled={busy}
                   onClick={() => void installQuickPackToLibrary()}
                 >
-                  ⚡ Install to Mod Library
+                  Import into local Mod Library
                 </button>
                 <button className="btn-secondary" onClick={() => downloadBase64(quickOutput.archive, 'application/zip', `${quickOutput.manifest.modId}.zip`)}>Download ZIP</button>
                 <button className="btn-secondary" onClick={() => downloadBase64(btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(quickOutput.manifest, null, 2)))), 'application/json', `${quickOutput.manifest.modId}.json`)}>Download Manifest</button>

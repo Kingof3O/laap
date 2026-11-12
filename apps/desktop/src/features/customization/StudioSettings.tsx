@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { SETTINGS_CATEGORIES, SettingsNavRail, type SettingsCategory } from '../../shared/ui/settings/SettingsNavRail'
 import { AppearanceSettings } from '../../shared/ui/settings/AppearanceSettings'
 import { UpdatesSettings } from '../../shared/ui/settings/UpdatesSettings'
@@ -23,8 +23,19 @@ export function StudioSettings({ update, onOpenRelease, onClose }: {
   const [discordEnabled, setDiscordEnabled] = useState(false)
   const [discordClientId, setDiscordClientId] = useState('')
   const [discordStatus, setDiscordStatus] = useState('')
+  const [discordBusy, setDiscordBusy] = useState(false)
+  useEffect(() => {
+    let current = true
+    void discord.status().then(value => { if (current) {
+      setDiscordClientId(value.clientId ?? ''); setDiscordEnabled(value.enabled)
+      setDiscordStatus(value.connected ? 'Connected to Discord desktop IPC.' : value.enabled ? 'Presence preference is enabled, but Discord is disconnected. Disable and re-enable to retry.' : 'Discord Presence is disabled.')
+    } }).catch(cause => { if (current) setDiscordStatus('Could not load Discord preferences: ' + String(cause)) })
+    return () => { current = false }
+  }, [])
 
   async function handleToggleDiscord(enabled: boolean) {
+    if (discordBusy) return
+    setDiscordBusy(true)
     try {
       await discord.setRpc(enabled)
       setDiscordEnabled(enabled)
@@ -37,17 +48,20 @@ export function StudioSettings({ update, onOpenRelease, onClose }: {
     } catch (e) {
       setDiscordEnabled(false)
       setDiscordStatus('Discord presence failed: '+String(e))
-    }
+      await discord.setRpc(false).catch(() => {})
+    } finally { setDiscordBusy(false) }
   }
 
   async function handleConnectDiscord() {
-    if (!discordClientId.trim()) return
+    if (!discordClientId.trim() || discordBusy) return
+    setDiscordBusy(true)
     try {
       await discord.configure(discordClientId.trim())
+      setDiscordEnabled(false)
       setDiscordStatus('Application ID saved. Enable presence to connect to local Discord. No OAuth login is needed for presence.')
     } catch (e) {
-      setDiscordStatus('Error initializing Discord OAuth.')
-    }
+      setDiscordStatus('Could not save Discord application ID: ' + String(e))
+    } finally { setDiscordBusy(false) }
   }
 
   return <section className="studio-settings" aria-label="Studio settings">
@@ -64,6 +78,7 @@ export function StudioSettings({ update, onOpenRelease, onClose }: {
           <div className="customization-card" style={{ marginTop: '1rem', padding: '1rem', borderRadius: '8px' }}>
             <strong>{t('settings.language')}</strong>
             <p className="customization-source">{t('settings.language_desc')}</p>
+            {locale !== 'en_US' && <p role="status">Interface translation is partial and has not been professionally reviewed. Untranslated screens still use English. Catalog language is independent.</p>}
             <div style={{ marginTop: '0.5rem' }}>
               <select
                 aria-label={t('settings.language')}
@@ -73,7 +88,7 @@ export function StudioSettings({ update, onOpenRelease, onClose }: {
               >
                 {locales.map((loc) => (
                   <option key={loc.code} value={loc.code}>
-                    {loc.nativeName} ({loc.name})
+                    {loc.nativeName} ({loc.name}){loc.coverage === 'partial' ? ' · Partial UI translation' : ''}
                   </option>
                 ))}
               </select>
@@ -101,14 +116,14 @@ export function StudioSettings({ update, onOpenRelease, onClose }: {
             <strong>Discord Rich Presence</strong>
             <p className="customization-source">Share your champion select presets and active Studio sessions on Discord.</p>
             <label className="customization-check" style={{ margin: '0.5rem 0' }}>
-              <input type="checkbox" checked={discordEnabled} onChange={(e) => void handleToggleDiscord(e.target.checked)} />
+              <input type="checkbox" checked={discordEnabled} disabled={discordBusy} onChange={(e) => void handleToggleDiscord(e.target.checked)} />
               Enable Discord Presence broadcast
             </label>
             <div style={{ display: 'flex', gap: '8px', marginTop: '0.5rem' }}>
-              <input placeholder="Discord Client ID (e.g. 109876543210987654)" value={discordClientId} onChange={(e) => setDiscordClientId(e.target.value)} />
-              <button className="btn-secondary" onClick={() => void handleConnectDiscord()}>Save application ID</button>
+              <input aria-label="Discord application ID" disabled={discordBusy} placeholder="Discord Client ID (e.g. 109876543210987654)" value={discordClientId} onChange={(e) => setDiscordClientId(e.target.value)} />
+              <button className="btn-secondary" disabled={discordBusy} onClick={() => void handleConnectDiscord()}>Save application ID</button>
             </div>
-            {discordStatus && <p style={{ fontSize: '0.85rem', color: '#10b981', marginTop: '0.5rem' }}>{discordStatus}</p>}
+            {discordStatus && <p role="status">{discordStatus}</p>}
           </div>
 
           <ProviderSettings />

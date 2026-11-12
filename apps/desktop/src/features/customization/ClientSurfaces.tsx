@@ -89,10 +89,12 @@ export function ClientSurfaces() {
     setError('')
     setStatus('')
     try {
+      if (config) await clientSurfaces.saveConfig(config)
       const css = await clientSurfaces.exportSnippet()
       // Copy to clipboard
-      await navigator.clipboard.writeText(css)
-      setCopiedSnippet(true)
+      let copied = false
+      try { await navigator.clipboard.writeText(css); copied = true } catch { /* Download remains available without clipboard permission. */ }
+      setCopiedSnippet(copied)
       setTimeout(() => setCopiedSnippet(false), 3000)
 
       // Also trigger a file download
@@ -106,12 +108,36 @@ export function ClientSurfaces() {
       a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 10_000)
 
-      setStatus('CSS snippet copied to clipboard and downloaded as laap-client-surfaces.css.')
+      setStatus(copied ? 'Saved configuration; CSS copied and download requested.' : 'Saved configuration; CSS download requested. Clipboard permission was unavailable.')
     } catch (e) {
       setError(errorMessage(e))
     } finally {
       setBusy(false)
     }
+  }
+
+  async function importConfiguration(file: File) {
+    setBusy(true); setError(''); setStatus('')
+    try {
+      if (file.size > 1024 * 1024) throw Error('Surface configurations are limited to 1 MiB.')
+      const imported: ClientSurfacesConfig = JSON.parse(await file.text())
+      await clientSurfaces.validate(imported)
+      setConfig(imported)
+      setStatus('Validated configuration loaded for review. Save Configuration to persist it; no League-client changes are applied.')
+    } catch (cause) { setError(errorMessage(cause)) }
+    finally { setBusy(false) }
+  }
+  async function exportConfiguration() {
+    if (!config) return
+    setBusy(true); setError('')
+    try {
+      await clientSurfaces.validate(config)
+      const url = URL.createObjectURL(new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' }))
+      const link = document.createElement('a'); link.href = url; link.download = 'laap-client-surfaces.json'; link.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 10000)
+      setStatus('Validated configuration download requested. Import restores editable definitions, not a League-client integration.')
+    } catch (cause) { setError(errorMessage(cause)) }
+    finally { setBusy(false) }
   }
 
   const categories = ['all', ...(config ? Array.from(new Set(config.surfaces.map((s) => s.category))) : [])]
@@ -128,11 +154,13 @@ export function ClientSurfaces() {
           </p>
         </div>
         <div className="customization-actions">
+          <label>Import configuration<input type="file" accept=".json" disabled={busy} onChange={e => { const file = e.target.files?.[0]; if (file) void importConfiguration(file); e.target.value = '' }} /></label>
+          <button className="btn-secondary" disabled={busy || !config} onClick={() => void exportConfiguration()}>Export configuration JSON</button>
           <button className="btn-primary" disabled={busy || !config} onClick={() => void handleSave()}>
             {busy ? 'Saving…' : 'Save Configuration'}
           </button>
           <button className="btn-secondary" disabled={busy || !config} onClick={() => void handleExportSnippet()}>
-            {copiedSnippet ? '✓ Snippet Copied & Downloaded' : 'Export CSS Snippet'}
+            {copiedSnippet ? '✓ Snippet Copied & Downloaded' : 'Save and export CSS snippet'}
           </button>
           <button className="btn-secondary" disabled={busy || !config} onClick={() => void handleReset()}>
             Reset Defaults
@@ -153,7 +181,7 @@ export function ClientSurfaces() {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <strong>Client Injection Adapter Status</strong>
+            <strong>Client Integration Status</strong>
             <p style={{ margin: '0.25rem 0', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
               {adapterStatus?.message || `${activeCount}/16 surfaces enabled.`}
             </p>
@@ -169,7 +197,7 @@ export function ClientSurfaces() {
               border: '1px solid rgba(245, 158, 11, 0.3)',
             }}
           >
-            Vanguard Safe · Snippet Mode
+            Configuration only · Integration unavailable
           </span>
         </div>
       </div>
@@ -241,6 +269,8 @@ export function ClientSurfaces() {
                     <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', margin: 0 }}>
                       <input
                         type="checkbox"
+                        aria-label={`Enable ${surface.name} definition`}
+                        disabled={busy}
                         checked={surface.enabled}
                         onChange={(e) => updateSurface(surface.id, { enabled: e.target.checked })}
                       />
@@ -280,7 +310,7 @@ export function ClientSurfaces() {
                     <label style={{ fontSize: '0.8rem' }}>
                       Asset / Background URL:
                       <input
-                        placeholder="https://... or local data URI"
+                        placeholder="https://… (reference only)"
                         value={surface.assetUrl ?? ''}
                         onChange={(e) => updateSurface(surface.id, { assetUrl: e.target.value.trim() || undefined })}
                       />
@@ -306,7 +336,7 @@ export function ClientSurfaces() {
                             fontSize: '0.8rem',
                             resize: 'vertical',
                           }}
-                          placeholder={`/* Custom CSS overrides for ${surface.name} */\n.custom-class { ... }`}
+                          placeholder={`.custom-class { color: #b388ff; }`}
                           value={surface.cssOverrides}
                           onChange={(e) => updateSurface(surface.id, { cssOverrides: e.target.value })}
                         />

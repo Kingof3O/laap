@@ -126,6 +126,7 @@ export interface FantomeMeta {
   modType: string
   targetChampion?: string
   targetSkin?: number
+  license?: string
 }
 
 export interface ExtractionSummary {
@@ -271,8 +272,8 @@ export const mods = {
   listContents: (zipBase64: string) => invokeTauri<FantomeEntry[]>('fantome_list_contents', { zipBase64 }),
   readMeta: (zipBase64: string) => invokeTauri<FantomeMeta>('fantome_read_meta', { zipBase64 }),
   extract: (zipBase64: string, folderName: string) => invokeTauri<ExtractionSummary>('fantome_extract', { zipBase64, folderName }),
-  inspect: (zipBase64: string) => invokeTauri<FantomeInspectionReport>('fantome_inspect_package', { zipBase64 }),
-  repair: (zipBase64: string) => invokeTauri<FantomeRepairResult>('fantome_repair_package', { zipBase64 }),
+  inspect: (zipBase64: string) => invokeTauri<FantomeInspectionReport>('fantome_inspect_package', { archiveBase64: zipBase64 }),
+  repair: (zipBase64: string) => invokeTauri<FantomeRepairResult>('fantome_repair_package', { archiveBase64: zipBase64 }),
 }
 
 export const fantome = {
@@ -280,8 +281,8 @@ export const fantome = {
   listContents: (zipBase64: string) => invokeTauri<FantomeEntry[]>('fantome_list_contents', { zipBase64 }),
   readMeta: (zipBase64: string) => invokeTauri<FantomeMeta>('fantome_read_meta', { zipBase64 }),
   extract: (zipBase64: string, folderName: string) => invokeTauri<ExtractionSummary>('fantome_extract', { zipBase64, folderName }),
-  inspect: (zipBase64: string) => invokeTauri<FantomeInspectionReport>('fantome_inspect_package', { zipBase64 }),
-  repair: (zipBase64: string) => invokeTauri<FantomeRepairResult>('fantome_repair_package', { zipBase64 }),
+  inspect: (zipBase64: string) => invokeTauri<FantomeInspectionReport>('fantome_inspect_package', { archiveBase64: zipBase64 }),
+  repair: (zipBase64: string) => invokeTauri<FantomeRepairResult>('fantome_repair_package', { archiveBase64: zipBase64 }),
 }
 
 export interface FantomeInspectionReport {
@@ -291,15 +292,18 @@ export interface FantomeInspectionReport {
   hasMesh: boolean
   hasTextures: boolean
   hasAnimations: boolean
-  hasSkeletons: boolean
-  hasPropertyBin: boolean
+  hasSkeleton: boolean
+  warnings: string[]
+  totalSizeBytes: number
+  detectedFormat: string
+  meta?: FantomeMeta | null
   issuesFound: string[]
 }
 
 export interface FantomeRepairResult {
   repaired: boolean
-  issuesFixed: string[]
-  repairedZipBase64?: string
+  actionsTaken: string[]
+  repairedArchiveBase64?: string | null
 }
 
 export interface BinField {
@@ -328,8 +332,8 @@ export interface BinInspectionReport {
 }
 
 export const binTool = {
-  inspect: (bytesBase64: string) => invokeTauri<BinInspectionReport>('bin_inspect', { bytesBase64 }),
-  convertToJson: (bytesBase64: string) => invokeTauri<string>('bin_convert_to_json', { bytesBase64 }),
+  inspect: (bytesBase64: string) => invokeTauri<BinInspectionReport>('bin_inspect', { binBase64: bytesBase64 }),
+  convertToJson: (bytesBase64: string) => invokeTauri<string>('bin_convert_to_json', { binBase64: bytesBase64 }),
   convertFromJson: (jsonStr: string) => invokeTauri<string>('bin_convert_from_json', { jsonStr }),
 }
 
@@ -363,6 +367,7 @@ export interface WadPackReport {
 
 export const wadTool = {
   inspect: (archiveBase64: string) => invokeTauri<WadInspectionReport>('wad_inspect', { archiveBase64 }),
+  extractLocal: (archiveBase64: string) => invokeTauri<{ extractedCount: number; outputDir: string }>('wad_extract_local', { archiveBase64 }),
   extractFiles: (archiveBase64: string, targetDir: string) =>
     invokeTauri<{ success: boolean; extractedCount: number; outputDir: string; extractedFiles: string[] }>('wad_extract_files', { archiveBase64, targetDir }),
   packFiles: (sourceDir: string) => invokeTauri<WadPackReport>('wad_pack_files', { sourceDir }),
@@ -388,6 +393,7 @@ export interface ClientSurfacesConfig {
 }
 
 export const clientSurfaces = {
+  validate: (config: ClientSurfacesConfig) => invokeTauri<void>('client_surfaces_validate_config', { config }),
   getConfig: () => invokeTauri<ClientSurfacesConfig>('client_surfaces_get_config'),
   saveConfig: (config: ClientSurfacesConfig) => invokeTauri<void>('client_surfaces_save_config', { config }),
   resetDefaults: () => invokeTauri<ClientSurfacesConfig>('client_surfaces_reset_defaults'),
@@ -396,6 +402,8 @@ export const clientSurfaces = {
 }
 
 export const creator = {
+  exportFile: (projectId: string, kind: 'project' | 'fantome' | 'modpkg') => invokeTauri<boolean>('creator_export_file', { projectId, kind }),
+  importProject: (project: CreatorProject) => invokeTauri<CreatorProject>('creator_import_project', { project }),
   listProjects: () => invokeTauri<ProjectSummary[]>('creator_list_projects'),
   createProject: (name: string, champion: string, author?: string) =>
     invokeTauri<CreatorProject>('creator_create_project', { name, champion, author: author ?? '' }),
@@ -412,6 +420,8 @@ export const creator = {
 }
 
 export const themes = {
+  exportFile: (theme: ThemeConfig) => invokeTauri<boolean>('theme_export_file', { theme }),
+  importBundle: (json: string) => invokeTauri<ThemeConfig>('theme_import_bundle', { json }),
   list: () => invokeTauri<ThemeConfig[]>('theme_list'),
   getActive: () => invokeTauri<ThemeConfig>('theme_get_active'),
   setActive: (id: string) => invokeTauri<ThemeConfig>('theme_set_active', { id }),
@@ -434,6 +444,7 @@ export const gameflow = {
 }
 
 export const discord = {
+  status: () => invokeTauri<{ clientId: string | null; enabled: boolean; connected: boolean }>('discord_get_status'),
   configure: (clientId: string) => invokeTauri<void>('discord_configure', { clientId }),
   setRpc: (enabled: boolean) => invokeTauri<boolean>('set_rpc_enabled', { enabled }),
   updateActivity: (state: string, details: string, champion?: string) => invokeTauri('update_activity', {

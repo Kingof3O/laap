@@ -2,15 +2,14 @@ import { useEffect, useState, type FormEvent } from "react";
 import { errorMessage, themes, type ThemeConfig } from "./api";
 import { notifyThemeChanged } from "./themeRuntime";
 import { readFileBase64 } from "./packageFiles";
-import { ClientSurfaces } from "./ClientSurfaces";
 export function ThemePreview() {
-  const [activeTab, setActiveTab] = useState<"app" | "surfaces">("app");
   const [list, setList] = useState<ThemeConfig[]>([]);
   const [draft, setDraft] = useState<ThemeConfig | null>(null);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<ThemeConfig[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [future, setFuture] = useState<ThemeConfig[]>([]);
   const defaultTheme: ThemeConfig = {
     id: "velvet-amethyst",
@@ -68,7 +67,7 @@ export function ThemePreview() {
       setBusy(false);
     }
   }
-  async function save(e: FormEvent) {
+  async function save(e: FormEvent, apply = true) {
     e.preventDefault();
     if (!draft) return;
     await run(async () => {
@@ -77,10 +76,10 @@ export function ThemePreview() {
         id: draft.isBuiltin ? "" : draft.id,
         isBuiltin: false,
       });
-      await themes.setActive(saved.id);
-      notifyThemeChanged();
+      if (apply) { await themes.setActive(saved.id); notifyThemeChanged(); }
       await load();
-      setStatus("Theme saved and applied to LAAP. It will restore at startup.");
+      setDraft(saved);
+      setStatus(apply ? "Theme saved and applied to LAAP. It will restore at startup." : "Theme saved to the gallery. Your active app theme has not changed.");
     });
   }
   const fields = [
@@ -99,46 +98,27 @@ export function ThemePreview() {
         <div>
           <h2>LAAP theme workshop</h2>
           <p>
-            Local app appearance and League-client appearance customization surfaces.
+            Customize LAAP colors, typography and backgrounds. Client surfaces have a separate configuration page.
           </p>
         </div>
-        <div className="customization-actions">
-          <button
-            className={activeTab === "app" ? "btn-primary" : "btn-secondary"}
-            onClick={() => setActiveTab("app")}
-          >
-            App Themes
-          </button>
-          <button
-            className={activeTab === "surfaces" ? "btn-primary" : "btn-secondary"}
-            onClick={() => setActiveTab("surfaces")}
-          >
-            Client Surfaces (16)
-          </button>
-          {activeTab === "app" && (
-            <button
-              className="btn-secondary"
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  await themes.resetDefault();
-                  notifyThemeChanged();
-                  await load();
-                  setStatus("Restored Velvet Amethyst.");
-                })
-              }
-            >
-              Reset to Velvet Amethyst
-            </button>
-          )}
-        </div>
       </div>
-      {activeTab === "surfaces" ? (
-        <ClientSurfaces />
-      ) : (
-        <>
           {error && <p role="alert">{error}</p>}
           {status && <p role="status">{status}</p>}
+      <div className="customization-actions">
+        <button className="btn-secondary" type="button" disabled={busy} onClick={() => void run(async () => {
+          await themes.resetDefault(); notifyThemeChanged(); await load(); setHistory([]); setFuture([]); setConfirmDelete(false)
+          setStatus('Restored Velvet Amethyst. Your saved custom themes remain in the gallery.')
+        })}>Reset to Velvet Amethyst</button>
+        {draft && !draft.isBuiltin && (confirmDelete ? <>
+          <span>Delete the saved theme? Its active appearance will reset to Velvet Amethyst.</span>
+          <button className="btn-secondary" disabled={busy} onClick={() => void run(async () => {
+            if (!await themes.deleteCustom(draft.id)) throw Error('Saved theme was not found. Refresh the gallery.')
+            notifyThemeChanged(); await load(); setConfirmDelete(false); setHistory([]); setFuture([])
+            setStatus('Saved theme removed. Background files remain in the local media cache.')
+          })}>Confirm theme deletion</button>
+          <button className="btn-secondary" disabled={busy} onClick={() => setConfirmDelete(false)}>Keep theme</button>
+        </> : <button className="btn-secondary" disabled={busy} onClick={() => setConfirmDelete(true)}>Delete saved theme…</button>)}
+      </div>
       <div className="customization-grid">
         {(list || []).map((t) => (
           <button
@@ -155,7 +135,7 @@ export function ThemePreview() {
               void run(async () => {
                 await themes.setActive(t.id);
                 notifyThemeChanged();
-                setDraft(t);
+                setDraft(t); setConfirmDelete(false);
                 setHistory([]);
                 setFuture([]);
                 setStatus("Applied " + t.name);
@@ -202,6 +182,13 @@ export function ThemePreview() {
                 <option>Segoe UI</option>
               </select>
             </label>
+            <label>Surface opacity
+              <input type="range" min="0.5" max="1" step="0.05" value={draft.opacity} onChange={e => edit({ opacity: Number(e.target.value) })} />
+              <output>{Math.round(draft.opacity * 100)}%</output>
+            </label>
+            <label>Transition speed<select value={draft.animationSpeed} onChange={e => edit({ animationSpeed: e.target.value })}>
+              <option value="normal">Subtle</option><option value="fast">Fast</option><option value="slow">Slow</option><option value="off">Off</option>
+            </select></label>
             <label className="customization-check">
               <input
                 type="checkbox"
@@ -285,9 +272,25 @@ export function ThemePreview() {
               <button className="btn-primary" disabled={busy} type="submit">
                 Save and apply
               </button>
-              <button className="btn-secondary" disabled={busy} type="button" onClick={(e) => void save(e)}>
+              <button className="btn-secondary" disabled={busy} type="button" onClick={(e) => void save(e, false)}>
                 Save theme
               </button>
+            </div>
+            <div className="customization-actions">
+              <button type="button" disabled={busy} onClick={() => void run(async () => {
+                const saved = await themes.exportFile(draft)
+                setStatus(saved ? 'Theme file saved with its original background media. Share only media you have permission to redistribute.' : 'Theme export cancelled.')
+              })}>Export theme including media</button>
+              <label>Import theme including media<input type="file" accept=".json" disabled={busy} onChange={event => {
+                const file = event.target.files?.[0]
+                if (file) void run(async () => {
+                  if (file.size > 46 * 1024 * 1024) throw Error('Portable theme exceeds 46 MiB.')
+                  const saved = await themes.importBundle(await file.text())
+                  await load(); setDraft(saved)
+                  setStatus('Theme and media validated and imported as a new copy. Save and apply to activate.')
+                })
+                event.target.value = ''
+              }} /></label>
             </div>
             <div className="customization-actions">
               <button
@@ -377,14 +380,12 @@ export function ThemePreview() {
               <p style={{ color: draft.textSecondary }}>
                 Preview your app palette before saving.
               </p>
-              <button style={{ background: draft.accent, color: draft.canvas }}>
-                Example action
+              <button type="button" disabled aria-label="Non-interactive theme preview sample" style={{ background: draft.accent, color: draft.canvas }}>
+                Button preview
               </button>
             </div>
           </section>
         </div>
-      )}
-        </>
       )}
     </>
   );

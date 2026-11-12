@@ -27,7 +27,8 @@ const I18nContext = createContext<I18nContextType>({
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<string>(() => {
     try {
-      return localStorage.getItem('laap_ui_locale') || 'en_US'
+      const saved = localStorage.getItem('laap_ui_locale')
+      return LEAGUE_LOCALES.some(item => item.code === saved) ? saved! : 'en_US'
     } catch {
       return 'en_US'
     }
@@ -46,7 +47,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   }, [locale, isRtl])
 
   function setLocale(newLocale: string) {
-    setLocaleState(newLocale)
+    if (LEAGUE_LOCALES.some(item => item.code === newLocale)) setLocaleState(newLocale)
   }
 
   function t(key: TranslationKey): string {

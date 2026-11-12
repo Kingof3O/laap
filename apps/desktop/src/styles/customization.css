@@ -74,3 +74,23 @@
 [data-studio-theme] .app-container > .main-viewport { position: relative; z-index: 1; }
 [data-studio-theme] .app-container > .titlebar { position: relative; z-index: 40; }
 .studio-reduced-motion *, .studio-reduced-motion *::before, .studio-reduced-motion *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+
+/* Workbenches span the workspace; small editors retain their readable measure. */
+.customization-editor.creator-workbench { max-width: none; min-width: 0; width: 100%; }
+.creator-workbench > div, .creator-workbench label { min-width: 0; }
+.creator-workbench input, .creator-workbench textarea { max-width: 100%; min-width: 0; }
+dialog.customization-editor { display: none; }
+dialog.customization-editor[open] { display: grid; position: fixed; inset: 0; margin: auto; width: min(38rem, calc(100vw - 3rem)); max-width: 38rem; max-height: calc(100dvh - 3rem); overflow-y: auto; padding: 1.5rem; border: 1px solid var(--border-subtle); border-radius: 1rem; background: var(--bg-canvas, #181020); color: var(--text-primary); }
+dialog.customization-editor::backdrop { background: #08050dbb; }
+dialog.customization-editor dd { margin-inline-start: 0; margin-block-end: .75rem; overflow-wrap: anywhere; }
+
+[data-studio-theme] .customization-workspace :is(button, input, select, .customization-card) { transition-duration: var(--studio-transition, 150ms); }
+[dir=rtl] .customization-workspace { text-align: start; }
+[dir=rtl] .customization-workspace select { background-position: left .75rem center; }
+@media (prefers-reduced-motion: reduce) { .customization-workspace *, .customization-workspace *::before, .customization-workspace *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+
+.customization-workspace :is(p[role="status"], p[role="alert"]) { overflow-wrap: anywhere; }
+
+.studio-theme-media-notice { position: fixed; inset-block-end: 1rem; inset-inline-end: 1rem; z-index: 60; max-width: 24rem; padding: .75rem 1rem; color: var(--text-primary); background: var(--bg-canvas); border: 1px solid var(--border-default); border-radius: .75rem; }
+
+.customization-card { min-width: 0; overflow-wrap: anywhere; }

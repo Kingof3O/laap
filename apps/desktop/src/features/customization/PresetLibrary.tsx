@@ -1,6 +1,6 @@
 import { invokeTauri, hasTauri } from '../../lib/api'
 import { useEffect, useState, type FormEvent } from 'react'
-import { errorMessage, presets, type AccountOption, type Preset, type PresetConflict } from './api'
+import { errorMessage, catalog, presets, type Skin, type AccountOption, type Preset, type PresetConflict } from './api'
 import { flavor } from '../../product/flavors'
 
 export function PresetEditor({ draft, onSaved, onCancel }: {
@@ -16,6 +16,8 @@ export function PresetEditor({ draft, onSaved, onCancel }: {
   const [priority, setPriority] = useState(draft.priority ?? 0)
   const [chromaId, setChromaId] = useState(draft.chromaId ?? '')
   const [variantId, setVariantId] = useState(draft.variantId ?? '')
+  const [skin, setSkin] = useState<Skin | null>(null)
+  const [catalogError, setCatalogError] = useState('')
   const [accounts, setAccounts] = useState<AccountOption[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -30,6 +32,14 @@ export function PresetEditor({ draft, onSaved, onCancel }: {
     })
     return () => { current = false }
   }, [])
+
+  useEffect(() => {
+    let mounted = true
+    void catalog.list('en_US', false).then(snapshot => catalog.detail(draft.championId, snapshot)).then(result => {
+      if (mounted) setSkin(result.data.skins.find(s => s.id === draft.skinId) ?? null)
+    }).catch(cause => { if (mounted) setCatalogError(errorMessage(cause)) })
+    return () => { mounted = false }
+  }, [draft.championId, draft.skinId])
 
   async function save(event: FormEvent) {
     event.preventDefault()
@@ -74,8 +84,17 @@ export function PresetEditor({ draft, onSaved, onCancel }: {
         {['classic', 'quickplay', 'swiftplay', 'aram', 'arena', 'tft'].map((mode) => <option key={mode}>{mode}</option>)}
       </select></label>
       <div className="customization-filters">
-        <label>Chroma identifier <input maxLength={40} placeholder="Optional chroma ID" value={chromaId} onChange={(e) => setChromaId(e.target.value)} /></label>
-        <label>Alternate form identifier <input maxLength={40} placeholder="Optional form ID" value={variantId} onChange={(e) => setVariantId(e.target.value)} /></label>
+        <label>Chroma <select value={chromaId} onChange={e => setChromaId(e.target.value)}>
+          <option value="">No chroma preference</option>
+          {chromaId && !skin?.availableChromas?.some(c => c.id === chromaId) && <option value={chromaId}>Saved selection (not available in current catalog)</option>}
+          {skin?.availableChromas?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select></label>
+        <label>Alternate form <select value={variantId} onChange={e => setVariantId(e.target.value)}>
+          <option value="">No alternate form preference</option>
+          {variantId && !skin?.variants?.some(v => v.id === variantId) && <option value={variantId}>Saved selection (not available in current catalog)</option>}
+          {skin?.variants?.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+        </select></label>
+        {catalogError && <p role="status">Cosmetic options are unavailable: {catalogError}. Saved references are preserved.</p>}
       </div>
       <label>Notes <textarea maxLength={2000} value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
       <label>Priority <input type="number" min={-100} max={100} value={priority} onChange={(event) => setPriority(Number(event.target.value))} /></label>
@@ -226,7 +245,7 @@ export function PresetLibrary({ profile, onOpen }: { profile?: { id: string; nam
     }
   }
 
-  const visible = rows?.filter((row) => !profile || !row.accountId || row.accountId === profile.id)
+  const visible = rows?.filter((row) => !row.accountId || row.accountId === profile?.id)
 
   return (
     <>

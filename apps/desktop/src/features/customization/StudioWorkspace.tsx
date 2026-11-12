@@ -8,6 +8,7 @@ import { ThemePreview } from './ThemePreview'
 import { ClientSurfaces } from './ClientSurfaces'
 import { ModLibrary } from './ModLibrary'
 import { useState } from 'react'
+import { useI18n } from '../../context/I18nContext'
 import { CatalogPage } from './CatalogPage'
 import { PresetLibrary } from './PresetLibrary'
 import type { Preset } from './api'
@@ -22,6 +23,7 @@ export default function StudioWorkspace({
   onSelectProfile?: (next: { id: string; name: string } | undefined) => void
   profiles?: { id: string; name: string }[]
 } = {}) {
+  const { t } = useI18n()
   const [page, setPage] = useState<'catalog' | 'presets' | 'library' | 'themes' | 'surfaces' | 'party' | 'creator' | 'community' | 'home' | 'doctor' | 'client'>(profile ? 'presets' : 'home')
   const [selection, setSelection] = useState<Preset | null>(null)
   const [partySelection, setPartySelection] = useState<{ id: number; name: string } | null>(null)
@@ -29,14 +31,14 @@ export default function StudioWorkspace({
     <div className="customization-workspace">
       <nav className="mode-nav" aria-label="Customization" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
         <button className="mode-pill" aria-pressed={page === 'home'} onClick={() => setPage('home')}>Overview</button>
-        <button className="mode-pill" aria-pressed={page === 'catalog'} onClick={() => { setSelection(null); setPage('catalog') }}>Catalog</button>
-        <button className="mode-pill" aria-pressed={page === 'presets'} onClick={() => setPage('presets')}>Presets</button>
+        <button className="mode-pill" aria-pressed={page === 'catalog'} onClick={() => { setSelection(null); setPage('catalog') }}>{t('nav.catalog')}</button>
+        <button className="mode-pill" aria-pressed={page === 'presets'} onClick={() => setPage('presets')}>{t('nav.presets')}</button>
         <button className="mode-pill" aria-pressed={page === 'library'} onClick={() => setPage('library')}>Mod library</button>
-        <button className="mode-pill" aria-pressed={page === 'themes'} onClick={() => setPage('themes')}>Themes</button>
+        <button className="mode-pill" aria-pressed={page === 'themes'} onClick={() => setPage('themes')}>{t('nav.themes')}</button>
         <button className="mode-pill" aria-pressed={page === 'surfaces'} onClick={() => setPage('surfaces')}>Client surfaces</button>
-        <button className="mode-pill" aria-pressed={page === 'party'} onClick={() => setPage('party')}>Party</button>
-        <button className="mode-pill" aria-pressed={page === 'creator'} onClick={() => setPage('creator')}>Creator</button>
-        <button className="mode-pill" aria-pressed={page === 'community'} onClick={() => setPage('community')}>Community</button>
+        <button className="mode-pill" aria-pressed={page === 'party'} onClick={() => setPage('party')}>{t('nav.party')}</button>
+        <button className="mode-pill" aria-pressed={page === 'creator'} onClick={() => setPage('creator')}>{t('nav.workshop')}</button>
+        <button className="mode-pill" aria-pressed={page === 'community'} onClick={() => setPage('community')}>{t('nav.marketplace')}</button>
         <button className="mode-pill" aria-pressed={page === 'doctor'} onClick={() => setPage('doctor')}>Health</button>
         <button className="mode-pill" aria-pressed={page === 'client'} onClick={() => setPage('client')}>Client</button>
 
@@ -44,6 +46,7 @@ export default function StudioWorkspace({
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Preset Context:</span>
             <select
+              aria-label="Preset context"
               style={{ padding: '4px 8px', fontSize: '0.8rem' }}
               value={profile?.id ?? ''}
               onChange={(e) => {

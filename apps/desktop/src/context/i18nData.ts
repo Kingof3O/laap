@@ -3,32 +3,33 @@ export interface LocaleDefinition {
   name: string
   nativeName: string
   isRtl?: boolean
-  coverage: 'complete' | 'full'
+  coverage: 'source' | 'partial'
+  reviewStatus?: 'unreviewed'
 }
 
 export const LEAGUE_LOCALES: LocaleDefinition[] = [
-  { code: 'en_US', name: 'English (US)', nativeName: 'English (US)', coverage: 'complete' },
-  { code: 'en_GB', name: 'English (UK)', nativeName: 'English (UK)', coverage: 'complete' },
-  { code: 'de_DE', name: 'German', nativeName: 'Deutsch', coverage: 'complete' },
-  { code: 'es_ES', name: 'Spanish (Spain)', nativeName: 'Español (España)', coverage: 'complete' },
-  { code: 'es_MX', name: 'Spanish (LatAm)', nativeName: 'Español (Latinoamérica)', coverage: 'complete' },
-  { code: 'fr_FR', name: 'French', nativeName: 'Français', coverage: 'complete' },
-  { code: 'it_IT', name: 'Italian', nativeName: 'Italiano', coverage: 'complete' },
-  { code: 'pl_PL', name: 'Polish', nativeName: 'Polski', coverage: 'complete' },
-  { code: 'el_GR', name: 'Greek', nativeName: 'Ελληνικά', coverage: 'complete' },
-  { code: 'ro_RO', name: 'Romanian', nativeName: 'Română', coverage: 'complete' },
-  { code: 'hu_HU', name: 'Hungarian', nativeName: 'Magyar', coverage: 'complete' },
-  { code: 'cs_CZ', name: 'Czech', nativeName: 'Čeština', coverage: 'complete' },
-  { code: 'pt_BR', name: 'Portuguese (Brazil)', nativeName: 'Português (Brasil)', coverage: 'complete' },
-  { code: 'ja_JP', name: 'Japanese', nativeName: '日本語', coverage: 'complete' },
-  { code: 'ko_KR', name: 'Korean', nativeName: '한국어', coverage: 'complete' },
-  { code: 'zh_CN', name: 'Chinese (Simplified)', nativeName: '简体中文', coverage: 'complete' },
-  { code: 'zh_TW', name: 'Chinese (Traditional)', nativeName: '繁體中文', coverage: 'complete' },
-  { code: 'tr_TR', name: 'Turkish', nativeName: 'Türkçe', coverage: 'complete' },
-  { code: 'ru_RU', name: 'Russian', nativeName: 'Русский', coverage: 'complete' },
-  { code: 'vi_VN', name: 'Vietnamese', nativeName: 'Tiếng Việt', coverage: 'complete' },
-  { code: 'th_TH', name: 'Thai', nativeName: 'ไทย', coverage: 'complete' },
-  { code: 'ar_AE', name: 'Arabic', nativeName: 'العربية (RTL)', isRtl: true, coverage: 'complete' },
+  { code: 'en_US', name: 'English (US)', nativeName: 'English (US)', coverage: 'source' },
+  { code: 'en_GB', name: 'English (UK)', nativeName: 'English (UK)', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'de_DE', name: 'German', nativeName: 'Deutsch', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'es_ES', name: 'Spanish (Spain)', nativeName: 'Español (España)', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'es_MX', name: 'Spanish (LatAm)', nativeName: 'Español (Latinoamérica)', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'fr_FR', name: 'French', nativeName: 'Français', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'it_IT', name: 'Italian', nativeName: 'Italiano', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'pl_PL', name: 'Polish', nativeName: 'Polski', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'el_GR', name: 'Greek', nativeName: 'Ελληνικά', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'ro_RO', name: 'Romanian', nativeName: 'Română', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'hu_HU', name: 'Hungarian', nativeName: 'Magyar', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'cs_CZ', name: 'Czech', nativeName: 'Čeština', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'pt_BR', name: 'Portuguese (Brazil)', nativeName: 'Português (Brasil)', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'ja_JP', name: 'Japanese', nativeName: '日本語', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'ko_KR', name: 'Korean', nativeName: '한국어', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'zh_CN', name: 'Chinese (Simplified)', nativeName: '简体中文', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'zh_TW', name: 'Chinese (Traditional)', nativeName: '繁體中文', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'tr_TR', name: 'Turkish', nativeName: 'Türkçe', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'ru_RU', name: 'Russian', nativeName: 'Русский', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'vi_VN', name: 'Vietnamese', nativeName: 'Tiếng Việt', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'th_TH', name: 'Thai', nativeName: 'ไทย', coverage: 'partial', reviewStatus: 'unreviewed' },
+  { code: 'ar_AE', name: 'Arabic', nativeName: 'العربية (RTL)', isRtl: true, coverage: 'partial', reviewStatus: 'unreviewed' },
 ]
 
 export type TranslationKey =
@@ -63,10 +64,10 @@ export const TRANSLATIONS: Record<string, Record<TranslationKey, string>> = {
   en_US: {
     'nav.catalog': 'Catalog',
     'nav.presets': 'Presets',
-    'nav.workshop': 'Creator Workshop',
+    'nav.workshop': 'Creator',
     'nav.themes': 'Themes',
-    'nav.party': 'Party Sync',
-    'nav.marketplace': 'Marketplace',
+    'nav.party': 'Party',
+    'nav.marketplace': 'Community',
     'nav.settings': 'Settings',
     'catalog.search_placeholder': 'Search champions or skins...',
     'catalog.all_champions': 'All Champions',
@@ -91,10 +92,10 @@ export const TRANSLATIONS: Record<string, Record<TranslationKey, string>> = {
   en_GB: {
     'nav.catalog': 'Catalogue',
     'nav.presets': 'Presets',
-    'nav.workshop': 'Creator Workshop',
+    'nav.workshop': 'Creator',
     'nav.themes': 'Themes',
-    'nav.party': 'Party Sync',
-    'nav.marketplace': 'Marketplace',
+    'nav.party': 'Party',
+    'nav.marketplace': 'Community',
     'nav.settings': 'Settings',
     'catalog.search_placeholder': 'Search champions or skins...',
     'catalog.all_champions': 'All Champions',

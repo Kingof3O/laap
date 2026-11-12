@@ -6,9 +6,9 @@ const tokens = (t: ThemeConfig): Record<string, string> => ({
   "--bg-canvas": t.canvas,
   "--velvet-canvas": t.canvas,
   "--bg-surface": t.panel,
-  "--surface-2": t.panel,
+  "--surface-2": t.panel.slice(0, 7) + Math.round(t.opacity * 255).toString(16).padStart(2, "0"),
   "--bg-surface-elevated": t.surface,
-  "--bg-card": t.surface,
+  "--bg-card": t.surface.slice(0, 7) + Math.round(t.opacity * 255).toString(16).padStart(2, "0"),
   "--bg-card-hover": t.panel,
   "--bg-card-selected": t.surface,
   "--bg-surface-hover": t.surface,
@@ -27,6 +27,9 @@ const tokens = (t: ThemeConfig): Record<string, string> => ({
   "--text-muted": t.textSecondary,
   "--border-default": t.border,
   "--border-card": t.border,
+  "--studio-transition": ({ fast: "90ms", slow: "240ms", normal: "150ms", off: "0ms" } as Record<string, string>)[t.animationSpeed] ?? "150ms",
+  "--border-subtle": t.border,
+  "--color-accent-400": t.accent,
   "--font-body": `${t.fontFamily}, 'Segoe UI', sans-serif`,
 });
 export function applyThemeToDom(t: ThemeConfig) {
@@ -72,6 +75,8 @@ export function ThemeBackground({ theme }: { theme: ThemeConfig | null }) {
     let alive = true;
     setSource("");
     setFailed(false);
+    const animated = ['video', 'gif'].includes(theme?.backgroundMediaType ?? '')
+    if (animated && (reduced || theme?.reducedMotion || theme?.performanceMode)) return
     if (theme?.backgroundMediaPath)
       void invokeTauri<string>("theme_media_read", {
         path: theme.backgroundMediaPath,
@@ -85,8 +90,9 @@ export function ThemeBackground({ theme }: { theme: ThemeConfig | null }) {
     return () => {
       alive = false;
     };
-  }, [theme?.backgroundMediaPath]);
-  if (!source || failed || !theme) return null;
+  }, [theme?.backgroundMediaPath, theme?.backgroundMediaType, theme?.reducedMotion, theme?.performanceMode, reduced]);
+  if (failed) return <p role="status" className="studio-theme-media-notice">Theme background could not be loaded. Open Themes to replace or remove the media.</p>;
+  if (!source || !theme) return null;
   const animated = ["video", "gif"].includes(theme.backgroundMediaType ?? "");
   if (animated && (reduced || theme.reducedMotion || theme.performanceMode))
     return null;
@@ -109,13 +115,14 @@ export function ThemeBackground({ theme }: { theme: ThemeConfig | null }) {
 }
 function useReducedMotion() {
   const [value, setValue] = useState(
-    () => matchMedia("(prefers-reduced-motion: reduce)").matches,
+    () => matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.classList.contains("reduced-motion"),
   );
   useEffect(() => {
     const m = matchMedia("(prefers-reduced-motion: reduce)");
-    const change = () => setValue(m.matches);
+    const change = () => setValue(m.matches || document.documentElement.classList.contains("reduced-motion"));
     m.addEventListener("change", change);
-    return () => m.removeEventListener("change", change);
+    window.addEventListener("laap:motion-change", change);
+    return () => { m.removeEventListener("change", change); window.removeEventListener("laap:motion-change", change); };
   }, []);
   return value;
 }

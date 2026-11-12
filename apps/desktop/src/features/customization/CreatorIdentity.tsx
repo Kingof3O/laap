@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invokeTauri } from "../../lib/api";
+import { readFileBase64 } from "./packageFiles";
 import { errorMessage } from "./api";
 export interface CreatorCredential {
   id: string;
@@ -55,7 +56,13 @@ export function CreatorIdentity({
   const [busy, setBusy] = useState(false);
   const [mine, setMine] = useState<OwnSubmission[]>([]);
   const [recoveryCopy, setRecoveryCopy] = useState("");
-  async function accept(value: CreatorCredential) {
+  const [profileStatus, setProfileStatus] = useState("");
+  async function accept(received: CreatorCredential) {
+    if (typeof received?.id !== 'string' || !received.id || received.id.length > 64 ||
+      typeof received.authToken !== 'string' || !/^[a-f0-9]{64}$/.test(received.authToken)) throw Error('Invalid creator credential response.')
+    // Registration also returns profile metadata. Only this strict credential
+    // contract may cross the native secret-store boundary.
+    const value: CreatorCredential = { id: received.id, authToken: received.authToken }
     const res = await marketplaceRequest(origin, "/creator", undefined, value);
     const profile = (await res.json()) as { id: string; displayName: string };
     if (profile.id !== value.id) throw Error("Creator identity mismatch");
@@ -116,6 +123,7 @@ export function CreatorIdentity({
         name.
       </p>
       {error && <p role="alert">{error}</p>}
+      {profileStatus && <p role="status">{profileStatus}</p>}
       {!credential ? (
         <>
           <label>
@@ -214,6 +222,16 @@ export function CreatorIdentity({
               <li key={s.packageHash}>
                 {s.title} · {s.version} · {s.status}
                 {s.moderationNote ? " — " + s.moderationNote : ""}
+                <label>Upload preview for {s.title}<input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={event => {
+                  const file = event.target.files?.[0]
+                  if (file) void run(async () => {
+                    if (file.size > 5 * 1024 * 1024) throw Error('Preview exceeds 5 MiB.')
+                    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) throw Error('Choose a PNG, JPEG or WebP preview.')
+                    await marketplaceRequest(origin, `/mods/${s.packageHash}/preview`, { mimeType: file.type, imageBase64: await readFileBase64(file) }, credential)
+                    setProfileStatus('Preview uploaded. Refresh the marketplace to see approved content.')
+                  })
+                  event.target.value = ''
+                }} /></label>
               </li>
             ))}
           </ul>

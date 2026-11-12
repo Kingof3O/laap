@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { LEAGUE_LOCALES, TRANSLATIONS, type TranslationKey } from '../src/context/i18nData.ts'
 
-test('i18n 22 League client locales comprehensive coverage', async (t) => {
+test('i18n locale registry and existing 26-key dictionary coverage', async (t) => {
   await t.test('declares all 22 official League client locales', () => {
     assert.equal(LEAGUE_LOCALES.length, 22)
     const codes = new Set(LEAGUE_LOCALES.map((l) => l.code))
@@ -29,6 +29,13 @@ test('i18n 22 League client locales comprehensive coverage', async (t) => {
     assert.ok(codes.has('vi_VN'))
     assert.ok(codes.has('th_TH'))
     assert.ok(codes.has('ar_AE'))
+  })
+
+  await t.test('dictionary coverage does not claim full application translation', () => {
+    for (const locale of LEAGUE_LOCALES) {
+      assert.equal(locale.coverage, locale.code === 'en_US' ? 'source' : 'partial')
+      if (locale.code !== 'en_US') assert.equal(locale.reviewStatus, 'unreviewed')
+    }
   })
 
   await t.test('Arabic locale has isRtl flag enabled', () => {

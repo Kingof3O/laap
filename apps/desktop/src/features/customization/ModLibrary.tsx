@@ -1,5 +1,6 @@
 import { readFileBase64 } from './packageFiles'
-import { useEffect, useState, type FormEvent, type DragEvent } from 'react'
+import { runBatch, type BatchResult } from './batchOperations'
+import { useEffect, useRef, useState, type FormEvent, type DragEvent } from 'react'
 import { invokeTauri, hasTauri } from '../../lib/api'
 import { errorMessage, mods, type ConflictReport, type FantomeEntry, type FantomeMeta } from './api'
 
@@ -65,6 +66,13 @@ export function ModLibrary() {
 
   // Selection & Batch Operations State
   const [selectedHashes, setSelectedHashes] = useState<Set<string>>(new Set())
+  const batchController = useRef<AbortController | null>(null)
+  const archiveSequence = useRef(0)
+  const importController = useRef<AbortController | null>(null)
+  const [importPhase, setImportPhase] = useState<'idle' | 'reading' | 'validating' | 'committing'>('idle')
+  const [batchResult, setBatchResult] = useState<BatchResult | null>(null)
+  const [batchProgress, setBatchProgress] = useState('')
+  const [stateFilter, setStateFilter] = useState('all')
   const [batchRemoving, setBatchRemoving] = useState(false)
 
   // Conflict and staging state
@@ -87,10 +95,23 @@ export function ModLibrary() {
     }
   }
 
-  useEffect(() => { void load() }, [])
+  useEffect(() => {
+    void load()
+    const refresh = () => { void load() }
+    window.addEventListener('laap:library-changed', refresh)
+    return () => { batchController.current?.abort(); importController.current?.abort(); window.removeEventListener('laap:library-changed', refresh) }
+  }, [])
 
   async function onArchiveSelected(file: File | undefined) {
+    if (busy) return
+    const sequence = ++archiveSequence.current
     setArchive(file)
+    setManifest(undefined)
+    setConfirmed(false)
+    setAssetName('')
+    setAssetAuthor('')
+    setAssetLicense('')
+    setRedistributable(false)
     setDetectedFormat('')
     setFantomeMeta(null)
     setArchiveEntries(null)
@@ -99,10 +120,12 @@ export function ModLibrary() {
     try {
       const b64 = await readFileBase64(file)
       const format = await mods.detectFormat(b64)
+      if (sequence !== archiveSequence.current) return
       setDetectedFormat(format)
 
       try {
         const entries = await mods.listContents(b64)
+        if (sequence !== archiveSequence.current) return
         setArchiveEntries(entries)
       } catch {
         // Not a standard zip
@@ -111,9 +134,11 @@ export function ModLibrary() {
       if (format.toLowerCase() === 'fantome') {
         try {
           const meta = await mods.readMeta(b64)
+          if (sequence !== archiveSequence.current) return
           setFantomeMeta(meta)
           setAssetName(meta.name)
           setAssetAuthor(meta.author)
+          setAssetLicense(meta.license ?? '')
           setStatus(`Detected Fantome package: "${meta.name}" by ${meta.author}.`)
         } catch {
           // No META/info.json
@@ -135,6 +160,7 @@ export function ModLibrary() {
 
   async function add(event: FormEvent) {
     event.preventDefault()
+    if (busy || importController.current) return
     if (!archive || (!manifest && (!assetName || !assetAuthor || !assetLicense)) || !confirmed) return
     setError('')
     setStatus('')
@@ -142,12 +168,19 @@ export function ModLibrary() {
       setError('Choose an archive up to 32 MiB.')
       return
     }
+    const controller = new AbortController()
+    importController.current = controller
     setBusy(true)
+    setImportPhase('reading')
     try {
-      const archiveB64 = await readFileBase64(archive)
+      const archiveB64 = await readFileBase64(archive, controller.signal, fraction => setStatus(`Reading archive: ${Math.round(fraction * 100)}%`))
+      controller.signal.throwIfAborted()
+      setImportPhase('validating')
+      setStatus('Validating package contents and permissions…')
 
       let manifestObj: unknown
       if (manifest) {
+        if (manifest.size > 1024 * 1024) throw Error('Manifest exceeds 1 MiB.')
         manifestObj = JSON.parse(await manifest.text())
       } else {
         manifestObj = await invokeTauri('mod_inspect', { archive: archiveB64, declaration: {
@@ -156,6 +189,9 @@ export function ModLibrary() {
         } })
       }
 
+      controller.signal.throwIfAborted()
+      setImportPhase('committing')
+      setStatus('Committing the verified package to the local library…')
       await invokeTauri('mod_import', {
         archive: archiveB64,
         manifest: manifestObj,
@@ -171,8 +207,11 @@ export function ModLibrary() {
       setFormKey((key) => key + 1)
       await load()
     } catch (cause) {
-      setError(errorMessage(cause))
+      setStatus('')
+      setError(controller.signal.aborted ? 'Import cancelled before commit. No package was added.' : errorMessage(cause))
     } finally {
+      importController.current = null
+      setImportPhase('idle')
       setBusy(false)
     }
   }
@@ -231,19 +270,11 @@ export function ModLibrary() {
     try {
       const data = await mods.getPackageData(item.manifest.sha256)
       if (hasTauri) {
-        try {
-          const saved = await invokeTauri<boolean>('creator_save_package', {
-            archive: data.archiveBase64,
-            manifest: item.manifest,
-            kind: 'zip',
-          })
-          if (saved) {
-            setStatus(`Exported "${item.manifest.displayName}" successfully.`)
-            return
-          }
-        } catch {
-          // Fallback to browser blob download
-        }
+        const saved = await invokeTauri<boolean>('creator_save_package', {
+          archive: data.archiveBase64, manifest: item.manifest, kind: 'zip',
+        })
+        setStatus(saved ? `Exported "${item.manifest.displayName}".` : 'Export cancelled.')
+        return
       }
       downloadBase64(
         data.archiveBase64,
@@ -260,12 +291,13 @@ export function ModLibrary() {
 
   // Batch operations
   function toggleSelectAll() {
-    if (!packages) return
-    if (selectedHashes.size === packages.length) {
-      setSelectedHashes(new Set())
-    } else {
-      setSelectedHashes(new Set(packages.map((p) => p.manifest.sha256)))
-    }
+    const hashes = filteredPackages?.map(item => item.manifest.sha256) ?? []
+    const allSelected = hashes.length > 0 && hashes.every(hash => selectedHashes.has(hash))
+    setSelectedHashes(previous => {
+      const next = new Set(previous)
+      for (const hash of hashes) { if (allSelected) next.delete(hash); else next.add(hash) }
+      return next
+    })
   }
 
   function toggleSelectOne(hash: string) {
@@ -277,41 +309,31 @@ export function ModLibrary() {
     })
   }
 
-  async function executeBatchSetEnabled(enabled: boolean) {
-    if (selectedHashes.size === 0) return
+  async function executeBatch(kind: 'enable' | 'disable' | 'remove') {
+    if (busy || batchController.current || selectedHashes.size === 0) return
+    const controller = new AbortController()
+    batchController.current = controller
     setBusy(true)
     setError('')
+    setStatus('')
+    setBatchResult(null)
     try {
-      for (const hash of selectedHashes) {
-        await mods.setEnabled(hash, enabled)
-      }
-      setStatus(`${enabled ? 'Enabled' : 'Disabled'} ${selectedHashes.size} selected mod(s).`)
-      await load()
-    } catch (e) {
-      setError(errorMessage(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function executeBatchDelete() {
-    if (selectedHashes.size === 0) return
-    setBusy(true)
-    setError('')
-    try {
-      for (const hash of selectedHashes) {
-        await invokeTauri('mod_remove', { hash })
-      }
-      setStatus(`Removed ${selectedHashes.size} selected mod(s).`)
-      setSelectedHashes(new Set())
+      const result = await runBatch([...selectedHashes], hash => kind === 'remove'
+        ? invokeTauri('mod_remove', { hash }) : mods.setEnabled(hash, kind === 'enable'),
+        controller.signal, (done, total) => setBatchProgress(`${done} / ${total} processed`))
+      setBatchResult(result)
+      setSelectedHashes(new Set([...result.failed.map(item => item.id), ...result.cancelled]))
       setBatchRemoving(false)
-      await load()
-    } catch (e) {
-      setError(errorMessage(e))
+      setStatus(`${result.succeeded.length} succeeded; ${result.failed.length} failed; ${result.cancelled.length} not started. Failed and unstarted packages remain selected for retry.`)
     } finally {
+      await load()
+      batchController.current = null
+      setBatchProgress('')
       setBusy(false)
     }
   }
+  const executeBatchSetEnabled = (enabled: boolean) => executeBatch(enabled ? 'enable' : 'disable')
+  const executeBatchDelete = () => executeBatch('remove')
 
   async function stageMods() {
     setBusy(true)
@@ -345,6 +367,7 @@ export function ModLibrary() {
   }
 
   const filteredPackages = packages?.filter((item) => {
+    if (stateFilter === 'enabled' && !item.enabled || stateFilter === 'disabled' && item.enabled) return false
     if (!searchQuery) return true
     const q = searchQuery.toLowerCase()
     return item.manifest.displayName.toLowerCase().includes(q) ||
@@ -366,7 +389,7 @@ export function ModLibrary() {
         <div className="customization-card" style={{ background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.4)', padding: '1rem', marginBottom: '1.25rem', borderRadius: '8px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <strong style={{ color: '#ef4444' }}>⚠️ Mod File Overlaps Detected ({conflicts.conflicts.length})</strong>
-            <span style={{ fontSize: '0.8rem', color: '#fca5a5' }}>Higher priority mods override lower priority mods for overlapping files.</span>
+            <span style={{ fontSize: '0.8rem', color: '#fca5a5' }}>Overlapping files block staging. Disable a conflicting package or edit its contents before retrying.</span>
           </div>
           <p style={{ margin: '0.35rem 0', fontSize: '0.875rem' }}>Multiple enabled mods target identical asset paths in the game asset hierarchy:</p>
           <div style={{ display: 'grid', gap: '6px', maxHeight: '180px', overflowY: 'auto', marginTop: '0.5rem' }}>
@@ -389,7 +412,7 @@ export function ModLibrary() {
             <div>
               <strong style={{ fontSize: '1rem' }}>Local Sandbox Staging</strong>
               <p style={{ margin: '0.25rem 0', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                Stage active verified mod files in LAAP's sandbox. No League game installation files are modified and Vanguard integrity is protected.
+                Stage active verified mod files in LAAP's sandbox. No League installation files are modified. Staging does not activate mods in the game.
               </p>
             </div>
             <div className="customization-actions" style={{ margin: 0 }}>
@@ -480,6 +503,9 @@ export function ModLibrary() {
       {status && <p role="status" style={{ color: '#10b981' }}>{status}</p>}
       {!packages && !error && <p role="status">Loading library…</p>}
 
+      {batchProgress && <div role="status">{batchProgress} <button onClick={() => batchController.current?.abort()}>Stop after current package</button></div>}
+      {batchResult && batchResult.failed.length > 0 && <section aria-label="Batch failures"><h3>Packages to retry</h3><ul>{batchResult.failed.map(item => <li key={item.id}>{packages?.find(p => p.manifest.sha256 === item.id)?.manifest.displayName ?? item.id}: {item.error}</li>)}</ul></section>}
+      {importPhase !== 'idle' && <p role="status">Import: {importPhase}. {importPhase !== 'committing' && <button type="button" onClick={() => importController.current?.abort()}>Cancel before import</button>}</p>}
       {/* Library Toolbar & Batch Operations */}
       {packages && packages.length > 0 && (
         <div className="customization-card" style={{ padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem' }}>
@@ -488,11 +514,12 @@ export function ModLibrary() {
               <label className="customization-check" style={{ margin: 0 }}>
                 <input
                   type="checkbox"
-                  checked={packages.length > 0 && selectedHashes.size === packages.length}
+                  disabled={busy}
+                  checked={!!filteredPackages?.length && filteredPackages.every(item => selectedHashes.has(item.manifest.sha256))}
                   onChange={toggleSelectAll}
                 />
                 <span style={{ fontSize: '0.875rem' }}>
-                  {selectedHashes.size > 0 ? `${selectedHashes.size} Selected` : 'Select All'}
+                  {selectedHashes.size > 0 ? `${selectedHashes.size} Selected` : 'Select visible packages'}
                 </span>
               </label>
 
@@ -525,11 +552,12 @@ export function ModLibrary() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <input
                 type="search"
-                placeholder="Search mods by name, author, format…"
+                aria-label="Search mods" placeholder="Search mods by name, author, format…"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => { setSearchQuery(e.target.value); setSelectedHashes(new Set()); setBatchRemoving(false) }}
                 style={{ minWidth: '260px' }}
               />
+              <select aria-label="Package state" value={stateFilter} onChange={e => { setStateFilter(e.target.value); setSelectedHashes(new Set()); setBatchRemoving(false) }}><option value="all">All packages</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option></select>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                 {filteredPackages?.length} of {packages.length}
               </span>
@@ -558,6 +586,8 @@ export function ModLibrary() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <input
                     type="checkbox"
+                    aria-label={`Select ${item.manifest.displayName}`}
+                    disabled={busy}
                     checked={isSelected}
                     onChange={() => toggleSelectOne(item.manifest.sha256)}
                   />

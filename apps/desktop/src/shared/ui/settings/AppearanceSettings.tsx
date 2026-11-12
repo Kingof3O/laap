@@ -25,28 +25,29 @@ export function AppearanceSettings({ disabled = false, showRosterLayout = true }
     }
   })
 
+  const [error, setError] = useState('')
+
   const handleViewModeChange = (mode: ViewMode) => {
-    setViewMode(mode)
+    setError('')
     try {
       localStorage.setItem(VIEW_MODE_KEY, mode)
+      setViewMode(mode)
       window.dispatchEvent(new Event('laap:viewmode-change'))
-    } catch {}
+    } catch { setError('Layout preference could not be saved. The previous layout is retained.') }
   }
 
   const handleReducedMotionToggle = (enabled: boolean) => {
     setReducedMotion(enabled)
-    try {
-      localStorage.setItem('laap_reduced_motion', String(enabled))
-      if (enabled) {
-        document.documentElement.classList.add('reduced-motion')
-      } else {
-        document.documentElement.classList.remove('reduced-motion')
-      }
-    } catch {}
+    setError('')
+    try { localStorage.setItem('laap_reduced_motion', String(enabled)) }
+    catch { setError('Motion preference applies for this session but could not be saved for restart.') }
+    document.documentElement.classList.toggle('reduced-motion', enabled)
+    window.dispatchEvent(new Event('laap:motion-change'))
   }
 
   return (
     <div className="settings-section" aria-label="Appearance Settings">
+      {error && <p role="alert">{error}</p>}
       <div className="settings-section-header">
         <h3 className="settings-section-title">Interface & Appearance</h3>
         <p className="settings-section-desc">

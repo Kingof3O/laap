@@ -1,6 +1,8 @@
+import { MarketplacePreview } from "./MarketplacePreview";
+import { ModeratorPanel } from "./ModeratorPanel";
 import { useEffect, useRef, useState } from "react";
 import { invokeTauri } from "../../lib/api";
-import { errorMessage, mods, type ModPackageData } from "./api";
+import { errorMessage, mods, type ModPackageData, type InstalledPackage } from "./api";
 import {
   CreatorIdentity,
   marketplaceRequest,
@@ -56,13 +58,16 @@ export function Marketplace() {
   // Reviews modal
   const [viewingReviews, setViewingReviews] = useState<string | null>(null);
   const [reviewsList, setReviewsList] = useState<ReviewItem[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsError, setReviewsError] = useState("");
+  const reviewRequest = useRef<AbortController | null>(null);
   const [newRating, setNewRating] = useState(5);
   const [newComment, setNewComment] = useState("");
   const [credential, setCredential] = useState<CreatorCredential | null>(null);
 
   // Submit mod modal
   const [showSubmitModal, setShowSubmitModal] = useState(false);
-  const [localPackages, setLocalPackages] = useState<ModPackageData[]>([]);
+  const [localPackages, setLocalPackages] = useState<Pick<ModPackageData, "sha256" | "manifest">[]>([]);
   const [subHash, setSubHash] = useState("");
   const [subTitle, setSubTitle] = useState("");
   const [subDesc, setSubDesc] = useState("");
@@ -73,8 +78,10 @@ export function Marketplace() {
   const active = useRef<AbortController | null>(null);
   const [nativeImporting, setNativeImporting] = useState(false);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [favoriteWorking, setFavoriteWorking] = useState<string | null>(null);
 
-  useEffect(() => () => active.current?.abort(), []);
+  useEffect(() => () => { active.current?.abort(); reviewRequest.current?.abort(); }, []);
+  useEffect(() => { if (!viewingReviews) reviewRequest.current?.abort() }, [viewingReviews]);
 
   useEffect(() => {
     if (!catalogOrigin || !credential?.authToken) {
@@ -94,41 +101,21 @@ export function Marketplace() {
       setError("Sign in with a creator identity to save favorite mods.");
       return;
     }
+    if (favoriteWorking) return;
     const isFav = favorites.has(hash);
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (isFav) next.delete(hash);
-      else next.add(hash);
-      return next;
-    });
-    setModsList((prev) =>
-      prev
-        ? prev.map((m) =>
-            m.packageHash === hash
-              ? {
-                  ...m,
-                  favoriteCount: Math.max(0, (m.favoriteCount ?? 0) + (isFav ? -1 : 1)),
-                }
-              : m,
-          )
-        : null,
-    );
+    setFavoriteWorking(hash); setError('');
     try {
-      const res = await marketplaceRequest(
-        catalogOrigin + `/v1/marketplace/mods/${hash}/favorite`,
-        credential.authToken,
-        isFav ? "DELETE" : "POST",
-      );
-      if (!res.ok) throw new Error("Favorite request failed.");
-    } catch (e) {
-      setFavorites((prev) => {
-        const next = new Set(prev);
-        if (isFav) next.add(hash);
-        else next.delete(hash);
+      const res = await marketplaceRequest(catalogOrigin, `/mods/${hash}/favorite`, undefined, credential, isFav ? 'DELETE' : 'POST');
+      const result = await res.json() as { packageHash: string; isFavorite: boolean };
+      if (result.packageHash !== hash || typeof result.isFavorite !== 'boolean') throw Error('Invalid favorite response. Refresh the marketplace.');
+      setFavorites(previous => {
+        const next = new Set(previous);
+        if (result.isFavorite) next.add(hash); else next.delete(hash);
         return next;
       });
-      setError(errorMessage(e));
-    }
+      await load();
+    } catch (cause) { setError(errorMessage(cause)); }
+    finally { setFavoriteWorking(null); }
   }
 
   async function load() {
@@ -253,6 +240,7 @@ export function Marketplace() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ reason, notes }),
+          signal: AbortSignal.timeout(30000),
         },
       );
       if (!res.ok) throw new Error("Report request failed.");
@@ -268,17 +256,21 @@ export function Marketplace() {
 
   async function openReviews(hash: string) {
     if (!catalogOrigin) return;
-    setViewingReviews(hash);
-    setReviewsList([]);
+    reviewRequest.current?.abort();
+    const controller = new AbortController(); reviewRequest.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(), 30000);
+    setViewingReviews(hash); setReviewsList([]); setReviewsLoading(true); setReviewsError('');
     try {
-      const res = await fetch(
-        catalogOrigin + "/v1/marketplace/reviews/" + hash,
-      );
-      if (res.ok) {
-        setReviewsList((await res.json()) as ReviewItem[]);
-      } else throw new Error("Reviews unavailable.");
-    } catch (e) {
-      setError(errorMessage(e));
+      const response = await fetch(catalogOrigin + '/v1/marketplace/reviews/' + hash, { signal: controller.signal });
+      if (!response.ok) throw Error('Reviews unavailable. Retry after checking the community connection.');
+      const reviews = await response.json() as ReviewItem[];
+      if (!Array.isArray(reviews)) throw Error('Invalid reviews response.');
+      if (reviewRequest.current === controller) setReviewsList(reviews);
+    } catch (cause) {
+      if (reviewRequest.current === controller) setReviewsError(controller.signal.aborted ? 'Reviews request interrupted or timed out. Retry when connected.' : errorMessage(cause));
+    } finally {
+      clearTimeout(timeout);
+      if (reviewRequest.current === controller) setReviewsLoading(false);
     }
   }
 
@@ -375,20 +367,12 @@ export function Marketplace() {
             disabled={!catalogOrigin || !credential || working}
             onClick={() => {
               setError("");
-              void mods
-                .list()
-                .then(async (rows) => {
-                  const available = await Promise.all(
-                    rows
-                      .filter((r) => r.sizeBytes <= 12 * 1024 * 1024)
-                      .map((r) => mods.getPackageData(r.sha256)),
-                  );
-                  setLocalPackages(
-                    available.filter((r) => r.manifest.rightToDistribute),
-                  );
-                  setShowSubmitModal(true);
-                })
-                .catch((e) => setError(errorMessage(e)));
+              setWorking(true);
+              void invokeTauri<InstalledPackage[]>('mod_list').then(rows => {
+                setLocalPackages(rows.filter(row => row.archiveBytes <= 12 * 1024 * 1024 && row.manifest.rightToDistribute)
+                  .map(row => ({ sha256: row.manifest.sha256, manifest: row.manifest })));
+                setShowSubmitModal(true);
+              }).catch(cause => setError(errorMessage(cause))).finally(() => setWorking(false));
             }}
           >
             Submit local package
@@ -526,6 +510,8 @@ export function Marketplace() {
             }}
           >
             <h3>Community reviews ({reviewsList.length})</h3>
+            {reviewsLoading && <p role="status">Loading reviews…</p>}
+            {reviewsError && <p role="alert">{reviewsError} <button className="btn-secondary" onClick={() => void openReviews(viewingReviews)}>Retry reviews</button></p>}
             <button
               className="btn-secondary"
               onClick={() => setViewingReviews(null)}
@@ -600,7 +586,7 @@ export function Marketplace() {
                 </p>
               </li>
             ))}
-            {reviewsList.length === 0 && (
+            {!reviewsLoading && !reviewsError && reviewsList.length === 0 && (
               <p style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
                 No reviews yet. Be the first to review this mod!
               </p>
@@ -662,21 +648,12 @@ export function Marketplace() {
         <p>No packages found in the community catalog.</p>
       )}
 
+      {catalogOrigin && <ModeratorPanel origin={catalogOrigin} />}
       <ul className="customization-list">
         {modsList?.map((item) => (
           <li key={item.packageHash}>
             {item.previewUrl && catalogOrigin && (
-              <img
-                src={catalogOrigin + item.previewUrl}
-                alt={item.title}
-                style={{
-                  width: "100%",
-                  maxHeight: "160px",
-                  objectFit: "cover",
-                  borderRadius: "6px",
-                  marginBottom: "8px",
-                }}
-              />
+              <MarketplacePreview origin={catalogOrigin} source={item.previewUrl} title={item.title} />
             )}
             <div
               style={{
@@ -748,6 +725,7 @@ export function Marketplace() {
             >
               <button
                 className="btn-secondary"
+                disabled={favoriteWorking !== null || working}
                 onClick={() => void toggleFavorite(item.packageHash)}
               >
                 {favorites.has(item.packageHash) ? "★ Saved" : "☆ Save"} ({item.favoriteCount ?? 0})

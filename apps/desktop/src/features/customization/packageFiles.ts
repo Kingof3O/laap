@@ -1,8 +1,14 @@
-export function readFileBase64(file: File): Promise<string> {
+export function readFileBase64(file: File, signal?: AbortSignal, progress?: (fraction: number) => void): Promise<string> {
   if (file.size > 32 * 1024 * 1024)
     return Promise.reject(new Error("Choose a file up to 32 MiB."));
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
+    const abort = () => reader.abort();
+    if (signal?.aborted) return reject(new DOMException('File reading cancelled.', 'AbortError'));
+    signal?.addEventListener('abort', abort, { once: true });
+    reader.onloadend = () => signal?.removeEventListener('abort', abort);
+    reader.onabort = () => reject(new DOMException('File reading cancelled.', 'AbortError'));
+    reader.onprogress = event => { if (event.lengthComputable) progress?.(event.loaded / event.total) };
     reader.onerror = () => reject(reader.error);
     reader.onload = () => {
       if (typeof reader.result !== "string")

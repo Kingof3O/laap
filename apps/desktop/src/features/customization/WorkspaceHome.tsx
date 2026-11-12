@@ -47,8 +47,8 @@ export function WorkspaceHome({ navigate }: { navigate: (page: WorkspacePage) =>
       {Object.entries(counts).filter(([, count]) => count.error).map(([name, count]) => <p role="alert" key={name}>{name}: {count.error}</p>)}
       <h3>Explore your workspace</h3>
       <div className="studio-feature-grid">
-        <button className="studio-feature-card" onClick={() => navigate('creator')}><strong>Creator workshop</strong><p>Build checksummed packages from your original images.</p></button>
-        <button className="studio-feature-card" onClick={() => navigate('themes')}><strong>Theme workshop</strong><p>Preview and save colors and typography locally.</p></button>
+        <button className="studio-feature-card" onClick={() => navigate('creator')}><strong>Creator workshop</strong><p>Create projects, organize assets, inspect formats and import verified packages locally.</p></button>
+        <button className="studio-feature-card" onClick={() => navigate('themes')}><strong>Theme workshop</strong><p>Customize and apply app colors, fonts and media; restore your saved theme at startup.</p></button>
         <button className="studio-feature-card" onClick={() => navigate('party')}><strong>Party rooms</strong><p>{catalogOrigin ? 'Create or join a room with your permission.' : 'Review connection options and service availability.'}</p></button>
         <button className="studio-feature-card" onClick={() => navigate('community')}><strong>Community catalog</strong><p>{catalogOrigin ? 'Discover packages approved by the service operator.' : 'Review approved-package download capabilities.'}</p></button>
       </div>

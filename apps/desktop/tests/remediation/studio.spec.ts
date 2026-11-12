@@ -172,6 +172,7 @@ test.beforeEach(async ({ page }) => {
       if (command === "community_credential_load") return credential;
 
       if (command === "community_credential_save") {
+        expect(Object.keys(args.credential).sort()).toEqual(['authToken', 'id']);
         credential = args.credential;
 
         return null;
@@ -314,6 +315,15 @@ test("browser UI + real HTTP: creator registration, verified local bytes submiss
   ).toBeVisible();
 
   expect(imported).toBe(1);
+
+  await page.getByRole('button', { name: /☆ Save/ }).click();
+  await expect(page.getByRole('button', { name: /★ Saved/ })).toBeVisible();
+  const favoriteCredential = credential as { authToken: string };
+  expect(await (await fetch('http://127.0.0.1:4175/v1/marketplace/favorites', { headers: { Authorization: 'Bearer ' + favoriteCredential.authToken } })).json()).toContain(fixture.packageHash);
+  await page.getByRole('button', { name: /★ Saved/ }).click();
+  await expect(page.getByRole('button', { name: /☆ Save/ })).toBeVisible();
+  expect(await (await fetch('http://127.0.0.1:4175/v1/marketplace/favorites', { headers: { Authorization: 'Bearer ' + favoriteCredential.authToken } })).json()).not.toContain(fixture.packageHash);
+
 
   await page.setViewportSize({ width: 1160, height: 760 });
 

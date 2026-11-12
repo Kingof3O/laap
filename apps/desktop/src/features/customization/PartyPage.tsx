@@ -5,11 +5,13 @@ import { mods } from './api'
 export function PartyPage({ selection }: { selection: { id: number; name: string } | null }) {
   const [installedHashes, setInstalledHashes] = useState<string[]>([])
   const [syncStatus, setSyncStatus] = useState('')
+  const [libraryError, setLibraryError] = useState('')
 
   function refreshInstalled() {
     void mods.list().then((list) => {
       setInstalledHashes(list.map((m) => m.sha256))
-    }).catch(() => {})
+      setLibraryError('')
+    }).catch(cause => setLibraryError('Local package list could not be refreshed: ' + String(cause)))
   }
 
   const party = useParty((_modHash) => {
@@ -22,6 +24,8 @@ export function PartyPage({ selection }: { selection: { id: number; name: string
 
   useEffect(() => {
     refreshInstalled()
+    window.addEventListener('laap:library-changed', refreshInstalled)
+    return () => window.removeEventListener('laap:library-changed', refreshInstalled)
   }, [])
 
   function announceMyMods() {
@@ -36,6 +40,7 @@ export function PartyPage({ selection }: { selection: { id: number; name: string
 
   return (
     <>
+      {libraryError && <p role="alert">{libraryError} <button onClick={refreshInstalled}>Retry package refresh</button></p>}
       <div className="customization-heading">
         <div>
           <h2>Party sync & lobby rooms</h2>
