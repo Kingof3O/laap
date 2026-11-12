@@ -226,6 +226,34 @@ impl Default for ClientSurfacesConfig {
     }
 }
 
+fn validate_config(config: &ClientSurfacesConfig) -> Result<(), String> {
+    let defaults = ClientSurfacesConfig::default();
+    if config.version != 1 || config.surfaces.len() != DEFAULT_SURFACES_COUNT || config.adapter_name.len() > 100 {
+        return Err("Unsupported client-surface configuration version or size".into());
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    for surface in &config.surfaces {
+        if !defaults.surfaces.iter().any(|s| s.id == surface.id) || !seen.insert(&surface.id)
+            || surface.name.contains("*/") || surface.name.chars().any(char::is_control) || surface.name.len() > 120 || surface.description.len() > 1000 || surface.category.len() > 80
+            || !surface.opacity.is_finite() || !(0.0..=1.0).contains(&surface.opacity) || surface.blur_px > 40
+            || surface.css_overrides.len() > 16384 {
+            return Err(format!("Invalid surface definition: {}", surface.id));
+        }
+        let css = surface.css_overrides.to_ascii_lowercase();
+        if ["@import", "url(", "expression(", "javascript:", "</", "\\"].iter().any(|v| css.contains(v)) {
+            return Err(format!("Surface {}: external resources and executable CSS are not allowed; use the asset reference field", surface.id));
+        }
+        if let Some(asset) = &surface.asset_url {
+            let url = reqwest::Url::parse(asset).map_err(|_| "Invalid asset URL")?;
+            if url.scheme() != "https" || !url.username().is_empty() || url.password().is_some()
+                || asset.len() > 2048 || asset.chars().any(|c| c.is_control() || "'\"()<>*".contains(c)) {
+                return Err("Asset references must be bounded HTTPS URLs without credentials or CSS delimiters".into());
+            }
+        }
+    }
+    Ok(())
+}
+
 fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(storage::root(app)?.join("client_surfaces.json"))
 }
@@ -233,17 +261,24 @@ fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
 pub fn load_config(app: &AppHandle) -> Result<ClientSurfacesConfig, String> {
     let p = config_path(app)?;
     if let Some(cfg) = storage::read::<ClientSurfacesConfig>(&p, 1024 * 1024)? {
+        validate_config(&cfg)?;
         Ok(cfg)
     } else {
         let def = ClientSurfacesConfig::default();
-        let _ = storage::write(&p, &def);
+        storage::write(&p, &def)?;
         Ok(def)
     }
 }
 
 pub fn save_config(app: &AppHandle, config: &ClientSurfacesConfig) -> Result<(), String> {
+    validate_config(config)?;
     let p = config_path(app)?;
     storage::write(&p, config)
+}
+
+#[tauri::command]
+pub fn client_surfaces_validate_config(config: ClientSurfacesConfig) -> Result<(), String> {
+    validate_config(&config)
 }
 
 #[tauri::command]
@@ -303,7 +338,7 @@ pub fn client_surfaces_get_adapter_status(
         adapter_type: "configuration_and_snippet_exporter".into(),
         active_surfaces_count: active_count,
         message: format!(
-            "16 customizable League client surfaces configured in LAAP ({active_count}/{} active). Styling snippets and assets are exportable for external client mod loaders (e.g. Pengu Loader) to prevent Vanguard integrity violations.",
+            "16 customizable League client surfaces configured in LAAP ({active_count}/{} active). These are local configuration definitions only. No League-client integration adapter is installed or verified; no game-client changes are applied.",
             config.surfaces.len()
         ),
     })
@@ -312,6 +347,20 @@ pub fn client_surfaces_get_adapter_status(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn configuration_validation_rejects_invalid_bounds_ids_and_external_css() {
+        let mut cfg = ClientSurfacesConfig::default();
+        assert!(validate_config(&cfg).is_ok());
+        cfg.surfaces[0].opacity = f32::NAN;
+        assert!(validate_config(&cfg).is_err());
+        cfg.surfaces[0].opacity = 1.0;
+        cfg.surfaces[0].css_overrides = "@import 'https://invalid.test/x'".into();
+        assert!(validate_config(&cfg).is_err());
+        cfg.surfaces[0].css_overrides.clear();
+        cfg.surfaces[0].id = "unknown".into();
+        assert!(validate_config(&cfg).is_err());
+    }
 
     #[test]
     fn test_default_16_surfaces() {

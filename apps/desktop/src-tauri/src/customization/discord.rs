@@ -13,6 +13,8 @@ static CONNECTION: Mutex<Option<Box<dyn Ipc>>> = Mutex::const_new(None);
 #[serde(rename_all = "camelCase")]
 struct Config {
     client_id: Option<String>,
+    #[serde(default)]
+    rpc_enabled: bool,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -47,6 +49,7 @@ pub async fn discord_configure(app: AppHandle, client_id: String) -> Result<(), 
         &storage::root(&app)?.join("discord_state.json"),
         &Config {
             client_id: Some(client_id),
+            rpc_enabled: false,
         },
     )
 }
@@ -137,18 +140,39 @@ async fn connect(id: &str) -> Result<Box<dyn Ipc>, String> {
 }
 #[tauri::command]
 pub async fn set_rpc_enabled(app: AppHandle, enabled: bool) -> Result<bool, String> {
-    let cfg = load(&app)?;
     let mut connection = CONNECTION.lock().await;
+    let mut cfg = load(&app)?;
     if !enabled {
         *connection = None;
+        cfg.rpc_enabled = false;
+        storage::write(&storage::root(&app)?.join("discord_state.json"), &cfg)?;
         return Ok(false);
     }
-    let id = cfg
-        .client_id
-        .filter(|v| valid_client(v))
+    let id = cfg.client_id.as_deref().filter(|v| valid_client(v))
         .ok_or("Configure your Discord application ID first")?;
-    *connection = Some(connect(&id).await?);
+    let next = connect(id).await?;
+    cfg.rpc_enabled = true;
+    storage::write(&storage::root(&app)?.join("discord_state.json"), &cfg)?;
+    *connection = Some(next);
     Ok(true)
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscordStatus { client_id: Option<String>, enabled: bool, connected: bool }
+#[tauri::command]
+pub async fn discord_get_status(app: AppHandle) -> Result<DiscordStatus, String> {
+    let connection = CONNECTION.lock().await;
+    let cfg = load(&app)?;
+    Ok(DiscordStatus { client_id: cfg.client_id, enabled: cfg.rpc_enabled, connected: connection.is_some() })
+}
+pub(crate) async fn restore_connection(app: AppHandle) -> Result<(), String> {
+    let mut connection = CONNECTION.lock().await;
+    let cfg = load(&app)?;
+    if cfg.rpc_enabled {
+        let id = cfg.client_id.as_deref().filter(|v| valid_client(v)).ok_or("Invalid saved Discord application ID")?;
+        *connection = Some(connect(id).await?);
+    }
+    Ok(())
 }
 #[tauri::command]
 pub async fn discord_revoke_token(app: AppHandle) -> Result<bool, String> {

@@ -51,6 +51,14 @@ pub(super) fn check_chain(path: &Path, create: bool) -> Result<(), String> {
     }
     let mut current = PathBuf::new();
     for part in path.components() {
+        // A Windows drive/UNC/verbatim prefix is not itself a directory. Probing
+        // `\\?\C:` before appending RootDir fails with ACCESS_DENIED and `C:`
+        // otherwise refers to a drive-relative working directory. Validate the
+        // assembled volume root and every real descendant instead.
+        if matches!(part, std::path::Component::Prefix(_)) {
+            current.push(part);
+            continue;
+        }
         if matches!(
             part,
             std::path::Component::ParentDir | std::path::Component::CurDir

@@ -587,7 +587,10 @@ pub fn wad_extract_files(
 
     let (_, _, entries) = parse_wad(&bytes)?;
 
+    let total: u64 = entries.iter().map(|e| u64::from(e.uncompressed_size)).sum();
+    if total > 512 * 1024 * 1024 { return Err("Extraction exceeds the 512 MiB output quota".into()); }
     let target_path = PathBuf::from(&target_dir);
+    super::sandbox::check_chain(&target_path, true)?;
     if !target_path.exists() {
         fs::create_dir_all(&target_path)
             .map_err(|e| format!("Failed to create output directory: {e}"))?;
@@ -625,8 +628,10 @@ pub fn wad_extract_files(
             return Err("Path traversal attempt detected in WAD extraction.".into());
         }
 
-        fs::write(&out_file_path, &decompressed)
-            .map_err(|e| format!("Failed to write file {}: {e}", file_name))?;
+        use std::io::Write;
+        let mut output = fs::OpenOptions::new().write(true).create_new(true).open(&out_file_path)
+            .map_err(|e| format!("Will not overwrite extraction entry {file_name}: {e}"))?;
+        output.write_all(&decompressed).map_err(|e| format!("Failed to write {file_name}: {e}"))?;
 
         extracted_files.push(file_name);
     }
@@ -637,6 +642,20 @@ pub fn wad_extract_files(
         output_dir: canonical_target.to_string_lossy().to_string(),
         extracted_files,
     })
+}
+
+#[tauri::command]
+pub async fn wad_extract_local(app: tauri::AppHandle, archive_base64: String) -> Result<WadExtractReport, String> {
+    if archive_base64.len() > (32usize * 1024 * 1024).div_ceil(3) * 4 {
+        return Err("WAD extraction input exceeds 32 MiB".into());
+    }
+    let root = super::storage::root(&app)?.join("wad_exports");
+    super::sandbox::check_chain(&root, true)?;
+    let mut random = [0u8; 16];
+    getrandom::fill(&mut random).map_err(|e| e.to_string())?;
+    let destination = root.join(format!("{:032x}", u128::from_be_bytes(random)));
+    tauri::async_runtime::spawn_blocking(move || wad_extract_files(archive_base64, destination.to_string_lossy().into_owned()))
+        .await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -695,6 +714,21 @@ fn collect_files_recursive(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn extraction_refuses_to_overwrite_existing_destination_entries() {
+        use base64::{engine::general_purpose::STANDARD, Engine};
+        let root = std::env::temp_dir().join(format!("laap-wad-destination-{}", rand::random::<u64>()));
+        fs::create_dir(&root).unwrap();
+        let root = root.canonicalize().unwrap();
+        let archive = create_wad_v3(&[("assets/original.txt".into(), b"original".to_vec())]).unwrap();
+        let (_, _, entries) = parse_wad(&archive).unwrap();
+        let existing = root.join(format!("{}.bin", entries[0].path_hash_hex));
+        fs::write(&existing, b"Retain existing user file").unwrap();
+        assert!(wad_extract_files(STANDARD.encode(archive), root.to_string_lossy().into_owned()).is_err());
+        assert_eq!(fs::read(existing).unwrap(), b"Retain existing user file");
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn test_xxhash64_basic() {

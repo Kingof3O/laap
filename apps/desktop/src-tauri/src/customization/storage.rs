@@ -7,6 +7,17 @@ use std::{
 use tauri::{AppHandle, Manager};
 
 pub fn root(app: &AppHandle) -> Result<PathBuf, String> {
+    // Development-only isolation for real WebView/IPC acceptance tests. Release
+    // binaries never read this environment variable or redirect customer data.
+    #[cfg(debug_assertions)]
+    if let Some(root) = std::env::var_os("LAAP_DEV_CUSTOMIZATION_ROOT") {
+        let root = PathBuf::from(root);
+        if !root.is_absolute() {
+            return Err("Development data root must be absolute".into());
+        }
+        super::sandbox::check_chain(&root, true)?;
+        return Ok(root);
+    }
     app.path()
         .app_local_data_dir()
         .map(|dir| dir.join("customization").join("v1"))

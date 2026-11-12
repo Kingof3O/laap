@@ -12,6 +12,8 @@ const MAX_ARCHIVE: usize = 32 * 1024 * 1024;
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct FantomeMeta {
+    #[serde(alias = "License", default, skip_serializing_if = "Option::is_none")]
+    pub license: Option<String>,
     #[serde(alias = "Name")]
     pub name: String,
     #[serde(alias = "Author", default)]
@@ -463,24 +465,41 @@ pub fn repair_fantome(zip_bytes: &[u8]) -> Result<FantomeRepairResult, String> {
     if !zip_bytes.starts_with(b"PK\x03\x04") {
         return Err("Not a valid ZIP archive.".into());
     }
+    if zip_bytes.len() > MAX_ARCHIVE { return Err("Archive exceeds 32 MiB repair limit".into()); }
     let mut old_zip = ZipArchive::new(Cursor::new(zip_bytes)).map_err(|e| e.to_string())?;
+    if old_zip.len() > 512 { return Err("Repair archive has too many entries".into()); }
+    let mut expanded = 0u64;
+    for i in 0..old_zip.len() {
+        let entry = old_zip.by_index(i).map_err(|e| e.to_string())?;
+        expanded = expanded.checked_add(entry.size()).ok_or("Repair expansion overflow")?;
+        if entry.size() > 64 * 1024 * 1024 || expanded > 128 * 1024 * 1024
+            || entry.size() > entry.compressed_size().saturating_mul(100) {
+            return Err("Repair archive exceeds expansion limits".into());
+        }
+    }
     let mut actions = Vec::new();
 
-    let meta = match read_fantome_meta(zip_bytes) {
-        Ok(m) => m,
-        Err(_) => {
-            actions.push("Constructed standard META/info.json metadata.".into());
-            FantomeMeta {
-                name: "Repaired Mod Package".into(),
-                author: "Unknown Creator".into(),
-                version: "1.0.0".into(),
-                description: "Repaired by LAAP Studio Workshop".into(),
-                mod_type: "Skin".into(),
-                target_champion: None,
-                target_skin: None,
-            }
+    // Keep original authorship, licensing and extension fields verbatim. Repair is
+    // never authorization to relicense or claim another creator's content.
+    let mut metadata = None;
+    for i in 0..old_zip.len() {
+        let mut entry = old_zip.by_index(i).map_err(|e| e.to_string())?;
+        let name = entry.name().unwrap_or_default().to_ascii_lowercase();
+        if name == "meta/info.json" || name == "info.json" {
+            if metadata.is_some() { return Err("Conflicting metadata entries; resolve them before repair.".into()); }
+            if entry.size() > 512 * 1024 { return Err("Metadata exceeds 512 KiB".into()); }
+            let mut bytes = Vec::new();
+            (&mut entry).take(512 * 1024 + 1).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+            let value: serde_json::Value = serde_json::from_slice(&bytes)
+                .map_err(|e| format!("Invalid metadata must be repaired explicitly: {e}"))?;
+            if !value.is_object() { return Err("Metadata must be an object".into()); }
+            metadata = Some(bytes);
         }
-    };
+    }
+    let meta_bytes = metadata.unwrap_or_else(|| {
+        actions.push("Created missing metadata without claiming authorship or redistribution rights.".into());
+        br#"{"name":"Repaired Mod Package","author":"","version":"1.0.0"}"#.to_vec()
+    });
 
     let mut out_buffer = Cursor::new(Vec::with_capacity(zip_bytes.len() + 1024));
     let mut new_zip = ZipWriter::new(&mut out_buffer);
@@ -488,7 +507,6 @@ pub fn repair_fantome(zip_bytes: &[u8]) -> Result<FantomeRepairResult, String> {
 
     // 1. Write clean canonical META/info.json
     new_zip.start_file("META/info.json", options).map_err(|e| e.to_string())?;
-    let meta_bytes = serde_json::to_vec_pretty(&meta).map_err(|e| e.to_string())?;
     new_zip.write_all(&meta_bytes).map_err(|e| e.to_string())?;
 
     // 2. Normalize and copy all asset entries
@@ -532,7 +550,9 @@ pub fn repair_fantome(zip_bytes: &[u8]) -> Result<FantomeRepairResult, String> {
 
         new_zip.start_file(&target_path, options).map_err(|e| e.to_string())?;
         let mut content = Vec::new();
-        file.read_to_end(&mut content).map_err(|e| e.to_string())?;
+        let size = file.size();
+        (&mut file).take(size + 1).read_to_end(&mut content).map_err(|e| e.to_string())?;
+        if content.len() as u64 != size { return Err("Repair entry length mismatch".into()); }
         new_zip.write_all(&content).map_err(|e| e.to_string())?;
     }
 
@@ -570,6 +590,7 @@ mod tests {
 
         zip.start_file("META/info.json", opts).unwrap();
         let meta = FantomeMeta {
+            license: None,
             name: "Spirit Blossom Ahri Mod".into(),
             author: "CreatorX".into(),
             version: "1.2.0".into(),
@@ -590,6 +611,23 @@ mod tests {
 
         zip.finish().unwrap();
         buf.into_inner()
+    }
+
+    #[test]
+    fn repair_preserves_original_metadata_bytes_without_relicensing() {
+        let original = br#"{"Name":"Original","Author":"Original artist","Version":"1.2","License":"All rights reserved","rightToDistribute":false,"extension":{"attribution":"Keep me"}}"#;
+        let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
+        zip.start_file("META/info.json", SimpleFileOptions::default()).unwrap();
+        zip.write_all(original).unwrap();
+        zip.start_file("assets/original.txt", SimpleFileOptions::default()).unwrap();
+        zip.write_all(b"original").unwrap();
+        let bytes = zip.finish().unwrap().into_inner();
+        let repaired = repair_fantome(&bytes).unwrap();
+        let bytes = STANDARD.decode(repaired.repaired_archive_base64.unwrap()).unwrap();
+        let mut zip = ZipArchive::new(Cursor::new(bytes)).unwrap();
+        let mut actual = Vec::new();
+        zip.by_name("META/info.json").unwrap().read_to_end(&mut actual).unwrap();
+        assert_eq!(actual, original);
     }
 
     #[test]

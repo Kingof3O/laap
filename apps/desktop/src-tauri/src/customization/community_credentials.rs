@@ -25,7 +25,13 @@ fn validate_origin(origin: &str) -> Result<(), String> {
 fn entry(app: &AppHandle, origin: &str) -> Result<keyring::Entry, String> {
     validate_origin(origin)?;
     let account = format!("marketplace-{:x}", Sha256::digest(origin.as_bytes()));
-    keyring::Entry::new(&format!("{}.community", app.config().identifier), &account)
+    let service = format!("{}.community", app.config().identifier);
+    #[cfg(debug_assertions)]
+    let service = if std::env::var_os("LAAP_DEV_CUSTOMIZATION_ROOT").is_some() {
+        let root = super::storage::root(app)?.canonicalize().map_err(|e| e.to_string())?;
+        format!("{service}.dev-{:x}", Sha256::digest(root.to_string_lossy().as_bytes()))
+    } else { service };
+    keyring::Entry::new(&service, &account)
         .map_err(|_| "OS credential store unavailable".into())
 }
 #[tauri::command]

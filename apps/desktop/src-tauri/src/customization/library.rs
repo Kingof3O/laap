@@ -138,6 +138,10 @@ fn validate_manifest(manifest: &Manifest) -> Result<(), String> {
     {
         return Err("Invalid manifest or unsupported rights declaration.".into());
     }
+    let license = manifest.license.trim().to_ascii_lowercase();
+    if manifest.right_to_distribute && ["private", "local-only", "private / local-only", "all rights reserved", "not declared", "unknown"].contains(&license.as_str()) {
+        return Err("Redistribution conflicts with the selected license or permission. Import for local use only.".into());
+    }
     Ok(())
 }
 
@@ -479,10 +483,10 @@ fn index(dir: &Path) -> Result<Vec<InstalledMod>, String> {
 fn import_into(dir: &Path, bytes: &[u8], manifest: Manifest) -> Result<(), String> {
     validate_archive(&bytes, &manifest)?;
     let mut rows = index(&dir)?;
-    if rows
-        .iter()
-        .any(|row| row.manifest.sha256 == manifest.sha256)
-    {
+    if let Some(existing) = rows.iter().find(|row| row.manifest.sha256 == manifest.sha256) {
+        if existing.manifest != manifest {
+            return Err("This archive is already in the library with different metadata or permissions. Its existing declarations were preserved; inspect that copy before replacing it.".into());
+        }
         return Ok(());
     }
     if rows.len() >= 200
@@ -860,6 +864,45 @@ pub fn fantome_extract(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn duplicate_import_is_idempotent_but_never_silently_relicenses_existing_bytes() {
+        let root = std::env::temp_dir().join(format!("laap-rights-{}", rand::random::<u64>()));
+        std::fs::create_dir(&root).unwrap();
+        let root = root.canonicalize().unwrap();
+        let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        zip.start_file("assets/original.txt", zip::write::SimpleFileOptions::default()).unwrap();
+        zip.write_all(b"Original test asset").unwrap();
+        let bytes = zip.finish().unwrap().into_inner();
+        let m = inspect_archive(&bytes, ImportDeclaration { display_name: "Original".into(), author: "Fixture".into(), version: "1".into(), license: "CC0-1.0".into(), right_to_distribute: true, contains_paid_riot_content: false }).unwrap();
+        import_into(&root, &bytes, m.clone()).unwrap();
+        import_into(&root, &bytes, m.clone()).unwrap();
+        let mut conflicting = m.clone(); conflicting.license = "Private / local-only".into(); conflicting.right_to_distribute = false;
+        assert!(import_into(&root, &bytes, conflicting).unwrap_err().contains("different metadata"));
+        let rows = index(&root).unwrap();
+        assert_eq!(rows.len(), 1); assert_eq!(rows[0].manifest, m);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn permission_declarations_reject_missing_invalid_and_conflicting_rights() {
+        let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        zip.start_file("assets/original.txt", zip::write::SimpleFileOptions::default()).unwrap();
+        zip.write_all(b"Original test asset").unwrap();
+        let bytes = zip.finish().unwrap().into_inner();
+        for (license, distribute, accepted) in [("", false, false), ("Private / local-only", true, false),
+            ("All rights reserved", true, false), ("Private / local-only", false, true), ("CC-BY-4.0", true, true)] {
+            let result = inspect_archive(&bytes, ImportDeclaration {
+                display_name: "Original asset".into(), author: "Fixture creator".into(), version: "1.0.0".into(),
+                license: license.into(), right_to_distribute: distribute, contains_paid_riot_content: false,
+            });
+            assert_eq!(result.is_ok(), accepted, "{license}, {distribute}");
+        }
+        assert!(serde_json::from_value::<ImportDeclaration>(serde_json::json!({
+            "displayName":"Original", "author":"Creator", "version":"1", "license":"MIT",
+            "containsPaidRiotContent":false
+        })).is_err(), "Redistribution declaration is required rather than inferred");
+    }
 
     #[test]
     fn original_image_package_round_trips_and_rejects_changed_payload() {

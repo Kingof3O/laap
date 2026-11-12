@@ -49,6 +49,15 @@ pub fn run() {
             if customization::discord::scrub_legacy_config(app.handle()).is_err() {
                 eprintln!("Legacy Discord configuration cleanup failed; review local integration settings.");
             }
+            #[cfg(not(feature = "basic"))]
+            {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    if customization::discord::restore_connection(handle).await.is_err() {
+                        eprintln!("Saved Discord presence connection is unavailable; retry from integration settings.");
+                    }
+                });
+            }
             #[cfg(target_os = "windows")]
             {
                 if let Some(window) = app.get_webview_window("main") {
@@ -228,6 +237,10 @@ pub fn run() {
             #[cfg(not(feature = "basic"))]
             customization::themes::theme_preview_save,
             #[cfg(not(feature = "basic"))]
+            customization::themes::theme_export_file,
+            #[cfg(not(feature = "basic"))]
+            customization::themes::theme_import_bundle,
+            #[cfg(not(feature = "basic"))]
             customization::themes::theme_list,
             #[cfg(not(feature = "basic"))]
             customization::themes::theme_get_active,
@@ -290,6 +303,10 @@ pub fn run() {
             #[cfg(not(feature = "basic"))]
             customization::creator::creator_remove_file,
             #[cfg(not(feature = "basic"))]
+            customization::creator::creator_export_file,
+            #[cfg(not(feature = "basic"))]
+            customization::creator::creator_import_project,
+            #[cfg(not(feature = "basic"))]
             customization::creator::creator_export_fantome,
             #[cfg(not(feature = "basic"))]
             customization::creator::creator_export_modpkg,
@@ -328,6 +345,8 @@ pub fn run() {
             #[cfg(not(feature = "basic"))]
             customization::gameflow::match_notice_action,
             #[cfg(not(feature = "basic"))]
+            customization::discord::discord_get_status,
+            #[cfg(not(feature = "basic"))]
             customization::discord::discord_configure,
             #[cfg(not(feature = "basic"))]
             customization::discord::discord_revoke_token,
@@ -360,9 +379,13 @@ pub fn run() {
             #[cfg(not(feature = "basic"))]
             customization::wad_tool::wad_inspect,
             #[cfg(not(feature = "basic"))]
+            customization::wad_tool::wad_extract_local,
+            #[cfg(not(feature = "basic"))]
             customization::wad_tool::wad_extract_files,
             #[cfg(not(feature = "basic"))]
             customization::wad_tool::wad_pack_files,
+            #[cfg(not(feature = "basic"))]
+            customization::client_surfaces::client_surfaces_validate_config,
             #[cfg(not(feature = "basic"))]
             customization::client_surfaces::client_surfaces_get_config,
             #[cfg(not(feature = "basic"))]

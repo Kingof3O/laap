@@ -61,7 +61,7 @@ pub fn default_velvet_amethyst() -> ThemeConfig {
 }
 
 pub fn builtin_themes() -> Vec<ThemeConfig> {
-    vec![
+    let mut themes = vec![
         default_velvet_amethyst(),
         ThemeConfig {
             id: "hextech-arcane".into(),
@@ -203,7 +203,24 @@ pub fn builtin_themes() -> Vec<ThemeConfig> {
             reduced_motion: false,
             performance_mode: false,
         },
-    ]
+    ];
+    // Original LAAP palettes; no third-party artwork or client modifications.
+    for (id, name, canvas, panel, surface, accent, hover, border) in [
+        ("midnight-jade", "Midnight Jade", "#081713", "#10241f", "#19332b", "#6edab3", "#9aeacb", "#2c5948"),
+        ("silver-orbit", "Silver Orbit", "#101218", "#1b202a", "#252d3b", "#bdcbe4", "#dce5f5", "#45536b"),
+        ("ember-velvet", "Ember Velvet", "#180f11", "#2a191b", "#3a2326", "#f4ad91", "#ffd1ba", "#70443e"),
+        ("glacial-sapphire", "Glacial Sapphire", "#09141e", "#122637", "#1a3448", "#82cfff", "#b7e3ff", "#345c78"),
+        ("copper-nocturne", "Copper Nocturne", "#17110d", "#282019", "#392c22", "#dbb18a", "#f4d2b2", "#68503d"),
+        ("misty-lilac", "Misty Lilac", "#16121d", "#252033", "#332c47", "#d2b8ef", "#e8d6fa", "#625273"),
+        ("forest-moon", "Forest Moon", "#101711", "#1c271e", "#28382b", "#bdd59b", "#dcebc5", "#4e6546"),
+    ] {
+        themes.push(ThemeConfig {
+            id: id.into(), name: name.into(), canvas: canvas.into(), panel: panel.into(), surface: surface.into(),
+            accent: accent.into(), accent_hover: hover.into(), border: border.into(),
+            ..default_velvet_amethyst()
+        });
+    }
+    themes
 }
 
 fn validate_hex_color(val: &str) -> bool {
@@ -494,6 +511,68 @@ pub fn theme_media_read(app: AppHandle, path: String) -> Result<String, String> 
     Ok(format!("data:{mime};base64,{}", STANDARD.encode(bytes)))
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PortableTheme {
+    schema_version: u32,
+    theme: ThemeConfig,
+    #[serde(default)]
+    media_name: Option<String>,
+    #[serde(default)]
+    media_base64: Option<String>,
+}
+fn validate_portable(bundle: &PortableTheme) -> Result<(), String> {
+    if bundle.schema_version != 2 || bundle.theme.background_media_path.is_some()
+        || bundle.media_name.is_some() != bundle.media_base64.is_some() {
+        return Err("Unsupported portable theme or external media path".into());
+    }
+    validate_theme(&bundle.theme)?;
+    if let (Some(name), Some(data)) = (&bundle.media_name, &bundle.media_base64) {
+        if name.len() > 100 || name.contains('/') || name.contains('\\') || name.contains("..") {
+            return Err("Invalid portable media name".into());
+        }
+        if data.len() > MAX_MEDIA_BYTES.div_ceil(3) * 4 { return Err("Portable media exceeds 32 MiB".into()); }
+        let ext = name.rsplit('.').next().ok_or("Missing media extension")?;
+        let bytes = STANDARD.decode(data).map_err(|_| "Invalid portable media encoding")?;
+        validate_media(&bytes, ext)?;
+        let kind = match ext { "gif" => "gif", "mp4" | "webm" => "video", _ => "image" };
+        if bundle.theme.background_media_type.as_deref() != Some(kind) { return Err("Portable media type mismatch".into()); }
+    } else if bundle.theme.background_media_type.is_some() {
+        return Err("Portable theme declares missing media".into());
+    }
+    Ok(())
+}
+#[tauri::command]
+pub async fn theme_export_file(app: AppHandle, theme: ThemeConfig) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        validate_theme(&theme)?;
+        let mut portable = PortableTheme { schema_version: 2, theme, media_name: None, media_base64: None };
+        if let Some(path) = portable.theme.background_media_path.take() {
+            let name = std::path::Path::new(&path).file_name().and_then(|v| v.to_str()).ok_or("Invalid media name")?;
+            let uri = theme_media_read(app.clone(), path.clone())?;
+            portable.media_name = Some(format!("media.{}", name.rsplit('.').next().ok_or("Missing media extension")?));
+            portable.media_base64 = Some(uri.split_once(',').ok_or("Invalid media encoding")?.1.into());
+        } else { portable.theme.background_media_type = None; }
+        portable.theme.id.clear(); portable.theme.is_builtin = false;
+        validate_portable(&portable)?;
+        let bytes = serde_json::to_vec(&portable).map_err(|e| e.to_string())?;
+        super::exports::save_dialog(&app, &bytes, "laap-theme.json", "json")
+    }).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+pub async fn theme_import_bundle(app: AppHandle, json: String) -> Result<ThemeConfig, String> {
+    if json.len() > 46 * 1024 * 1024 { return Err("Theme import exceeds 46 MiB".into()); }
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut bundle: PortableTheme = serde_json::from_str(&json).map_err(|e| format!("Invalid portable theme: {e}"))?;
+        validate_portable(&bundle)?;
+        if let (Some(name), Some(data)) = (bundle.media_name.take(), bundle.media_base64.take()) {
+            bundle.theme.background_media_path = Some(theme_save_media(app.clone(), name, data)?);
+        }
+        bundle.theme.id.clear(); bundle.theme.is_builtin = false;
+        theme_save_custom(app, bundle.theme)
+    }).await.map_err(|e| e.to_string())?
+}
+
 // Backward-compatible wrappers for legacy theme_preview_load and theme_preview_save
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -571,6 +650,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn portable_themes_reject_paths_missing_media_and_type_conflicts() {
+        let mut bundle = PortableTheme { schema_version: 2, theme: default_velvet_amethyst(), media_name: None, media_base64: None };
+        assert!(validate_portable(&bundle).is_ok());
+        bundle.theme.background_media_path = Some("C:/outside/private.png".into());
+        assert!(validate_portable(&bundle).is_err());
+        bundle.theme.background_media_path = None;
+        bundle.media_name = Some("media.png".into());
+        assert!(validate_portable(&bundle).is_err());
+        bundle.media_base64 = Some(STANDARD.encode(b"not an image"));
+        assert!(validate_portable(&bundle).is_err());
+    }
+
+    #[test]
     fn theme_previews_reject_css_payloads() {
         let mut theme = ThemeConfig {
             id: "test".into(),
@@ -600,7 +692,9 @@ mod tests {
     #[test]
     fn test_builtin_themes_count_and_default() {
         let list = builtin_themes();
-        assert!(list.len() >= 8);
+        assert_eq!(list.len(), 15);
+        let mut ids = std::collections::BTreeSet::new();
+        for theme in &list { assert!(validate_theme(theme).is_ok()); assert!(ids.insert(&theme.id)); assert!(theme.is_builtin); }
         assert_eq!(list[0].id, "velvet-amethyst");
     }
     #[test]

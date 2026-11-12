@@ -95,6 +95,10 @@ fn validate_project(project: &CreatorProject) -> Result<(), String> {
     {
         return Err("Invalid project metadata or quota".into());
     }
+    let encoded_size = project.files.iter().try_fold(0usize, |size, file| {
+        size.checked_add(file.data_base64.as_ref().map_or(0, String::len)).ok_or("Project size overflow")
+    })?;
+    if encoded_size > 8 * 1024 * 1024 { return Err("Project exceeds 8 MiB asset budget".into()); }
     let mut seen = std::collections::BTreeSet::new();
     for file in &project.files {
         if !super::library::safe_name(&file.relative_path)
@@ -185,11 +189,7 @@ pub fn creator_create_project(
     let project = CreatorProject {
         id: id.clone(),
         name: trimmed_name.to_string(),
-        author: if author.trim().is_empty() {
-            "Community Creator".into()
-        } else {
-            author.trim().into()
-        },
+        author: author.trim().into(),
         version: "1.0.0".into(),
         description: String::new(),
         champion: champion.trim().to_string(),
@@ -223,14 +223,32 @@ pub fn creator_save_project(
     let dir = projects_dir(&app)?;
     let _guard = LOCK.lock().map_err(|_| "Projects lock unavailable.")?;
 
-    project.updated_at = now_iso();
     let path = dir.join(format!("{}.json", project.id));
+    if !path.exists() { return Err("Project was removed; import a recovery copy to preserve your draft.".into()); }
+    project.updated_at = now_iso();
     write_project(&path, &project)?;
 
     // Write crash recovery autosave
     let autosave_dir = dir.join("autosave");
     storage::write(&autosave_dir.join(format!("{}.json", project.id)), &project)?;
 
+    Ok(project)
+}
+
+/// Portable project imports receive a new local identity and never overwrite an existing project.
+#[tauri::command]
+pub fn creator_import_project(app: AppHandle, mut project: CreatorProject) -> Result<CreatorProject, String> {
+    validate_project(&project)?;
+    let dir = projects_dir(&app)?;
+    let _guard = LOCK.lock().map_err(|_| "Projects lock unavailable.")?;
+    if std::fs::read_dir(&dir).map_err(|e| e.to_string())?.filter_map(Result::ok)
+        .filter(|e| e.path().extension().is_some_and(|v| v == "json")).count() >= MAX_PROJECTS {
+        return Err("Maximum number of projects reached (100).".into());
+    }
+    project.id = generate_id()?;
+    project.created_at = now_iso();
+    project.updated_at = project.created_at.clone();
+    write_project(&dir.join(format!("{}.json", project.id)), &project)?;
     Ok(project)
 }
 
@@ -380,6 +398,7 @@ pub fn creator_export_fantome(app: AppHandle, project_id: String) -> Result<Stri
 
     // Build META/info.json
     let meta = FantomeMeta {
+        license: None,
         name: proj.name,
         author: proj.author,
         version: proj.version,
@@ -457,9 +476,43 @@ pub fn creator_export_modpkg(app: AppHandle, project_id: String) -> Result<Strin
     Ok(STANDARD.encode(buf.into_inner()))
 }
 
+#[tauri::command]
+pub async fn creator_export_file(app: AppHandle, project_id: String, kind: String) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let (bytes, extension) = match kind.as_str() {
+            "project" => {
+                let project = creator_get_project(app.clone(), project_id.clone())?;
+                validate_project(&project)?;
+                (serde_json::to_vec_pretty(&project).map_err(|e| e.to_string())?, "json")
+            }
+            "fantome" => (STANDARD.decode(creator_export_fantome(app.clone(), project_id.clone())?).map_err(|e| e.to_string())?, "fantome"),
+            "modpkg" => (STANDARD.decode(creator_export_modpkg(app.clone(), project_id.clone())?).map_err(|e| e.to_string())?, "modpkg"),
+            _ => return Err("Unsupported project export type".into()),
+        };
+        super::exports::save_dialog(&app, &bytes, &format!("{project_id}.{extension}"), extension)
+    }).await.map_err(|e| e.to_string())?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn persisted_project_preserves_assets_and_failed_validation_keeps_last_save() {
+        let root = std::env::temp_dir().join(format!("laap-project-{}", rand::random::<u64>()));
+        std::fs::create_dir(&root).unwrap();
+        let root = root.canonicalize().unwrap();
+        let bytes = b"Original text asset";
+        let mut project = CreatorProject { id: "owned-fixture".into(), name: "Original".into(), author: "Fixture author".into(), version: "1".into(), description: "".into(), champion: "Ahri".into(), skin_num: 0, tags: vec![], created_at: now_iso(), updated_at: now_iso(),
+            files: vec![ProjectFile { relative_path: "assets/original.txt".into(), size_bytes: bytes.len() as u64, sha256: format!("{:x}", Sha256::digest(bytes)), format_type: "Other Asset".into(), data_base64: Some(STANDARD.encode(bytes)) }] };
+        let file = root.join("owned-fixture.json");
+        write_project(&file, &project).unwrap();
+        let saved = project.clone();
+        project.files[0].data_base64 = Some(STANDARD.encode(b"corrupted"));
+        assert!(write_project(&file, &project).is_err());
+        assert_eq!(storage::read::<CreatorProject>(&file, 8 * 1024 * 1024).unwrap().unwrap(), saved);
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn test_project_file_handling() {
