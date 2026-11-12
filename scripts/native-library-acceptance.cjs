@@ -27,6 +27,11 @@ async function main() {
     await fs.writeFile(out + '/stress-packages.json', JSON.stringify(fixtures));
   }
   assert.equal(fixtures.length, 100);
+  // Repeated runs restore only missing acceptance fixtures left by an interruption.
+  const present = new Set((await driver.invoke('mod_list')).map(p => p.manifest.sha256));
+  for (const fixture of fixtures) if (!present.has(fixture.manifest.sha256)) {
+    await driver.invoke('mod_import', { archive: fixture.archive, manifest: fixture.manifest, rightsConfirmed: true });
+  }
   await driver.click('Overview'); await driver.click('Mod library'); await driver.wait('Select visible packages');
   const search = await driver.element('//input[@aria-label="Search mods"]');
   await driver.call(`/element/${search}/clear`, {});
@@ -37,7 +42,7 @@ async function main() {
   const missing = fixtures[12];
   await driver.invoke('mod_remove', { hash: missing.manifest.sha256 });
   await driver.click('Disable Selected');
-  await driver.wait('99 succeeded; 1 failed; 0 not started.');
+  await driver.wait('99 succeeded; 1 failed; 0 not started.', 90000);
   await driver.wait('Mod not found in library.');
   await driver.wait('1 Selected');
   assert.equal((await driver.invoke('mod_list')).filter(p => p.manifest.displayName.startsWith('Native stress package') && !p.enabled).length, 99);

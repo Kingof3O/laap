@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "baseline": "93ed1fbce023e2b2493ed565d6d306c8fff8c2f7",
+  "baseline": "2d56476462f8c1f6d91af1ce0c666944e41fe14c",
   "requirements": {
     "WF-001": {
       "status": "PARTIAL",
@@ -17,7 +17,8 @@
         }
       ],
       "dependencyClass": "native Windows filesystem / local fixtures",
-      "limitation": "Basic/Complete atomic preference writes pass. Studio preference coverage and all settings UI persistence journeys are not complete."
+      "limitation": "Basic/Complete atomic preference writes pass. Studio preference coverage and all settings UI persistence journeys are not complete.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-002": {
       "status": "NOT_TESTED",
@@ -43,7 +44,8 @@
         }
       ],
       "dependencyClass": "native Windows registry / filesystem",
-      "limitation": "Startup registration configured via HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run without admin elevation; tray startup preference persisted."
+      "limitation": "Startup registration configured via HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run without admin elevation; tray startup preference persisted.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-004": {
       "status": "PARTIAL",
@@ -60,7 +62,8 @@
         }
       ],
       "dependencyClass": "native Windows filesystem / local fixtures",
-      "limitation": "Native helper verified with original fixtures; installed-app journey and full parity not verified."
+      "limitation": "Native helper verified with original fixtures; installed-app journey and full parity not verified.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-005": {
       "status": "NOT_TESTED",
@@ -142,7 +145,8 @@
         }
       ],
       "dependencyClass": "native Windows filesystem / local fixtures",
-      "limitation": "App-owned sandbox only. Game-install targets rejected. Rollback preserves unrelated and modified files. Activation in League is unavailable; crash-orphan recovery is incomplete."
+      "limitation": "App-owned sandbox only. Game-install targets rejected. Rollback preserves unrelated and modified files. Activation in League is unavailable; crash-orphan recovery is incomplete.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-014": {
       "status": "PARTIAL",
@@ -160,7 +164,8 @@
         }
       ],
       "dependencyClass": "native Windows filesystem / local fixtures",
-      "limitation": "App-owned sandbox only. Game-install targets rejected. Rollback preserves unrelated and modified files. Activation in League is unavailable; crash-orphan recovery is incomplete."
+      "limitation": "App-owned sandbox only. Game-install targets rejected. Rollback preserves unrelated and modified files. Activation in League is unavailable; crash-orphan recovery is incomplete.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-015": {
       "status": "NOT_TESTED",
@@ -182,19 +187,32 @@
       "status": "PARTIAL",
       "implementation": [
         "apps/desktop/src-tauri/src/customization/library.rs",
-        "apps/desktop/src-tauri/src/customization/sandbox.rs"
+        "apps/desktop/src-tauri/src/customization/sandbox.rs",
+        "apps/desktop/src/features/customization/LibraryImportDialog.tsx",
+        "apps/desktop/src/features/customization/ModLibrary.tsx",
+        "apps/desktop/src/features/customization/batchOperations.ts"
       ],
       "registration": [
-        "apps/desktop/src-tauri/src/lib.rs"
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
           "run": "complete-rust",
           "test": "customization::library::tests::nested_fantome_and_modpkg_import_export_stage_rollback_roundtrip"
+        },
+        {
+          "run": "native-studio",
+          "test": "Explicit permissions → native library import → refreshed library"
+        },
+        {
+          "run": "native-library",
+          "test": "100-package UI batch reports 99 successes and the concurrent-removal failure; only failed package stays selected"
         }
       ],
-      "dependencyClass": "native Windows filesystem / local fixtures",
-      "limitation": "Nested original Fantome/Modpkg bytes import/export/reimport and app-owned stage/rollback pass on Windows. No approved game adapter, dependency solver, complete rights-scanner or installed WebView journey verified."
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Native original-content import and exact library refresh pass with explicit author, local-use permission and no default redistribution. Native 100-package partial failures/cancellation/retry pass. Rights are declarations, not an automated IP ownership or malware verdict. No game activation adapter.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-018": {
       "status": "PARTIAL",
@@ -209,10 +227,19 @@
         {
           "run": "complete-rust",
           "test": "customization::fantome::tests::test_fantome_inspection_and_repair"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::fantome::tests::repair_preserves_original_metadata_bytes_without_relicensing"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::fantome::tests::repair_preserves_original_metadata_bytes_without_relicensing"
         }
       ],
       "dependencyClass": "native Fantome package parser / local fixtures",
-      "limitation": "Fantome inspection and structural repair normalizes path casing, validates bone and animation pairings, reconstructs META/info.json, and strips unsafe entries."
+      "limitation": "Bounded Fantome repair preserves original metadata bytes, including attribution and unknown fields; refuses conflicting metadata and unsafe content. This does not verify arbitrary model/skeleton repair or game compatibility.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-019": {
       "status": "NOT_TESTED",
@@ -326,7 +353,8 @@
         }
       ],
       "dependencyClass": "real loopback WebSocket + original generated ZIP; separate Rust import test",
-      "limitation": "Real WebSocket relay transfers a generated original archive with sender consent, ID binding, bounds and server validation. Native import is tested separately. Interrupted transfers cancel, without byte-level resume. Full two-installed-client transfer/import journey not verified."
+      "limitation": "Real local relay transfers original archive bytes with consent, forged-ID/corruption/bounds/cancellation tests. Two browser clients use real relay but mocked native APIs. Two independent native clients not accepted: second isolated Complete launch was rejected by automatic approval review. No direct P2P or byte-resume claim.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-032": {
       "status": "PARTIAL",
@@ -344,7 +372,8 @@
         }
       ],
       "dependencyClass": "real loopback WebSocket + original generated ZIP; separate Rust import test",
-      "limitation": "Real WebSocket relay transfers a generated original archive with sender consent, ID binding, bounds and server validation. Native import is tested separately. Interrupted transfers cancel, without byte-level resume. Full two-installed-client transfer/import journey not verified."
+      "limitation": "Real local relay transfers original archive bytes with consent, forged-ID/corruption/bounds/cancellation tests. Two browser clients use real relay but mocked native APIs. Two independent native clients not accepted: second isolated Complete launch was rejected by automatic approval review. No direct P2P or byte-resume claim.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-033": {
       "status": "PARTIAL",
@@ -362,7 +391,8 @@
         }
       ],
       "dependencyClass": "real loopback WebSocket + original generated ZIP; separate Rust import test",
-      "limitation": "Real WebSocket relay transfers a generated original archive with sender consent, ID binding, bounds and server validation. Native import is tested separately. Interrupted transfers cancel, without byte-level resume. Full two-installed-client transfer/import journey not verified."
+      "limitation": "Real local relay transfers original archive bytes with consent, forged-ID/corruption/bounds/cancellation tests. Two browser clients use real relay but mocked native APIs. Two independent native clients not accepted: second isolated Complete launch was rejected by automatic approval review. No direct P2P or byte-resume claim.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-034": {
       "status": "PARTIAL",
@@ -380,17 +410,22 @@
         }
       ],
       "dependencyClass": "real loopback WebSocket + original generated ZIP; separate Rust import test",
-      "limitation": "Real WebSocket relay transfers a generated original archive with sender consent, ID binding, bounds and server validation. Native import is tested separately. Interrupted transfers cancel, without byte-level resume. Full two-installed-client transfer/import journey not verified."
+      "limitation": "Real local relay transfers original archive bytes with consent, forged-ID/corruption/bounds/cancellation tests. Two browser clients use real relay but mocked native APIs. Two independent native clients not accepted: second isolated Complete launch was rejected by automatic approval review. No direct P2P or byte-resume claim.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-035": {
       "status": "PARTIAL",
       "implementation": [
         "apps/community-api/src/marketplace.ts",
         "apps/community-api/src/packageValidation.ts",
-        "apps/desktop/src/features/customization/Marketplace.tsx"
+        "apps/desktop/src/features/customization/Marketplace.tsx",
+        "apps/desktop/src/features/customization/CreatorIdentity.tsx",
+        "apps/desktop/src/features/customization/ModeratorPanel.tsx"
       ],
       "registration": [
-        "apps/community-api/src/server.ts"
+        "apps/community-api/src/server.ts",
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
@@ -400,20 +435,29 @@
         {
           "run": "browser-studio",
           "test": "browser UI + real HTTP: creator registration, verified local bytes submission, human approval, download import acknowledgement"
+        },
+        {
+          "run": "native-community",
+          "test": "Real HTTP manifest + byte download → native validation → new local library import; exact source bytes preserved"
         }
       ],
-      "dependencyClass": "real loopback HTTP / SQLite / yauzl archive traversal",
-      "limitation": "Real HTTP/SQLite authenticated bytes upload, approval, reviews, downloads, takedown and restart pass. Replaceable local SQLite blob storage, not R2; malware/IP human review is not automated proof. Creator-version migration, deletion/export and full moderation UI incomplete."
+      "dependencyClass": "Windows native UI + real loopback HTTP/SQLite + OS credential storage",
+      "limitation": "Actual desktop registration/recovery, upload, pending status, human native archive inspection, approval, verified download/new native import, reviews, reports and takedown/restore pass against disposable real HTTP/SQLite. Not R2 or production hosting. Complete version/deletion/export lifecycle and adversarial multi-device acceptance remain incomplete.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-036": {
       "status": "PARTIAL",
       "implementation": [
         "apps/community-api/src/marketplace.ts",
         "apps/community-api/src/packageValidation.ts",
-        "apps/desktop/src/features/customization/Marketplace.tsx"
+        "apps/desktop/src/features/customization/Marketplace.tsx",
+        "apps/desktop/src/features/customization/CreatorIdentity.tsx",
+        "apps/desktop/src/features/customization/ModeratorPanel.tsx"
       ],
       "registration": [
-        "apps/community-api/src/server.ts"
+        "apps/community-api/src/server.ts",
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
@@ -423,20 +467,29 @@
         {
           "run": "browser-studio",
           "test": "browser UI + real HTTP: creator registration, verified local bytes submission, human approval, download import acknowledgement"
+        },
+        {
+          "run": "native-community",
+          "test": "Real HTTP manifest + byte download → native validation → new local library import; exact source bytes preserved"
         }
       ],
-      "dependencyClass": "real loopback HTTP / SQLite / yauzl archive traversal",
-      "limitation": "Real HTTP/SQLite authenticated bytes upload, approval, reviews, downloads, takedown and restart pass. Replaceable local SQLite blob storage, not R2; malware/IP human review is not automated proof. Creator-version migration, deletion/export and full moderation UI incomplete."
+      "dependencyClass": "Windows native UI + real loopback HTTP/SQLite + OS credential storage",
+      "limitation": "Actual desktop registration/recovery, upload, pending status, human native archive inspection, approval, verified download/new native import, reviews, reports and takedown/restore pass against disposable real HTTP/SQLite. Not R2 or production hosting. Complete version/deletion/export lifecycle and adversarial multi-device acceptance remain incomplete.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-037": {
       "status": "PARTIAL",
       "implementation": [
         "apps/community-api/src/marketplace.ts",
         "apps/community-api/src/packageValidation.ts",
-        "apps/desktop/src/features/customization/Marketplace.tsx"
+        "apps/desktop/src/features/customization/Marketplace.tsx",
+        "apps/desktop/src/features/customization/CreatorIdentity.tsx",
+        "apps/desktop/src/features/customization/ModeratorPanel.tsx"
       ],
       "registration": [
-        "apps/community-api/src/server.ts"
+        "apps/community-api/src/server.ts",
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
@@ -446,134 +499,233 @@
         {
           "run": "browser-studio",
           "test": "browser UI + real HTTP: creator registration, verified local bytes submission, human approval, download import acknowledgement"
+        },
+        {
+          "run": "native-community",
+          "test": "Real HTTP manifest + byte download → native validation → new local library import; exact source bytes preserved"
         }
       ],
-      "dependencyClass": "real loopback HTTP / SQLite / yauzl archive traversal",
-      "limitation": "Real HTTP/SQLite authenticated bytes upload, approval, reviews, downloads, takedown and restart pass. Replaceable local SQLite blob storage, not R2; malware/IP human review is not automated proof. Creator-version migration, deletion/export and full moderation UI incomplete."
+      "dependencyClass": "Windows native UI + real loopback HTTP/SQLite + OS credential storage",
+      "limitation": "Actual desktop registration/recovery, upload, pending status, human native archive inspection, approval, verified download/new native import, reviews, reports and takedown/restore pass against disposable real HTTP/SQLite. Not R2 or production hosting. Complete version/deletion/export lifecycle and adversarial multi-device acceptance remain incomplete.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-038": {
       "status": "PARTIAL",
       "implementation": [
         "apps/community-api/src/marketplace.ts",
-        "apps/desktop/src/features/customization/Marketplace.tsx"
+        "apps/desktop/src/features/customization/Marketplace.tsx",
+        "apps/desktop/src/features/customization/MarketplacePreview.tsx"
       ],
       "registration": [
-        "apps/community-api/src/marketplace.ts"
+        "apps/community-api/src/marketplace.ts",
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
           "run": "community-tests",
           "test": "marketplace favorites and preview attachments with magic byte validation"
+        },
+        {
+          "run": "native-community",
+          "test": "Independent reviewer → persisted review and favorite → actual CSP-safe preview rendering"
         }
       ],
-      "dependencyClass": "community marketplace favorites store",
-      "limitation": "Authenticated creator favorites with duplicate prevention, favorite counts, optimistic UI, and deletion."
+      "dependencyClass": "Windows native UI + real loopback HTTP/SQLite",
+      "limitation": "Authenticated review/favorite persistence and actual image rendering pass in native WebView2 with original PNG. Live production service, all supported media and long-running discovery performance unverified.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-039": {
       "status": "PARTIAL",
       "implementation": [
         "apps/community-api/src/marketplace.ts",
         "apps/community-api/src/packageValidation.ts",
-        "apps/desktop/src/features/customization/Marketplace.tsx"
+        "apps/desktop/src/features/customization/Marketplace.tsx",
+        "apps/desktop/src/features/customization/CreatorIdentity.tsx",
+        "apps/desktop/src/features/customization/ModeratorPanel.tsx"
       ],
       "registration": [
-        "apps/community-api/src/server.ts"
+        "apps/community-api/src/server.ts",
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
           "run": "community-tests",
           "test": "marketplace authenticated upload → moderation → verified bytes, ownership, reviews and persistent takedown"
+        },
+        {
+          "run": "native-community",
+          "test": "Real HTTP manifest + byte download → native validation → new local library import; exact source bytes preserved"
         }
       ],
-      "dependencyClass": "real loopback HTTP / SQLite / yauzl archive traversal",
-      "limitation": "Real HTTP/SQLite authenticated bytes upload, approval, reviews, downloads, takedown and restart pass. Replaceable local SQLite blob storage, not R2; malware/IP human review is not automated proof. Creator-version migration, deletion/export and full moderation UI incomplete."
+      "dependencyClass": "Windows native UI + real loopback HTTP/SQLite + OS credential storage",
+      "limitation": "Actual desktop registration/recovery, upload, pending status, human native archive inspection, approval, verified download/new native import, reviews, reports and takedown/restore pass against disposable real HTTP/SQLite. Not R2 or production hosting. Complete version/deletion/export lifecycle and adversarial multi-device acceptance remain incomplete.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-040": {
       "status": "PARTIAL",
       "implementation": [
         "apps/community-api/src/marketplace.ts",
-        "apps/desktop/src/features/customization/Marketplace.tsx"
+        "apps/desktop/src/features/customization/Marketplace.tsx",
+        "apps/desktop/src/features/customization/MarketplacePreview.tsx"
       ],
       "registration": [
-        "apps/community-api/src/marketplace.ts"
+        "apps/community-api/src/marketplace.ts",
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
           "run": "community-tests",
           "test": "marketplace favorites and preview attachments with magic byte validation"
+        },
+        {
+          "run": "native-community",
+          "test": "Independent reviewer → persisted review and favorite → actual CSP-safe preview rendering"
         }
       ],
-      "dependencyClass": "community marketplace preview URL endpoint",
-      "limitation": "Serves public preview URLs for marketplace packages with author ownership verification."
+      "dependencyClass": "Windows native UI + real loopback HTTP/SQLite",
+      "limitation": "Authenticated review/favorite persistence and actual image rendering pass in native WebView2 with original PNG. Live production service, all supported media and long-running discovery performance unverified.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-041": {
       "status": "PARTIAL",
       "implementation": [
         "apps/community-api/src/marketplace.ts",
-        "apps/desktop/src/features/customization/Marketplace.tsx"
+        "apps/desktop/src/features/customization/Marketplace.tsx",
+        "apps/desktop/src/features/customization/MarketplacePreview.tsx"
       ],
       "registration": [
-        "apps/community-api/src/marketplace.ts"
+        "apps/community-api/src/marketplace.ts",
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
           "run": "community-tests",
           "test": "marketplace favorites and preview attachments with magic byte validation"
+        },
+        {
+          "run": "native-community",
+          "test": "Independent reviewer → persisted review and favorite → actual CSP-safe preview rendering"
         }
       ],
-      "dependencyClass": "community marketplace preview image storage",
-      "limitation": "Fetches verified image preview payloads with magic byte signature checks (PNG, JPEG, WebP) and 5MB upload limits."
+      "dependencyClass": "Windows native UI + real loopback HTTP/SQLite",
+      "limitation": "Authenticated review/favorite persistence and actual image rendering pass in native WebView2 with original PNG. Live production service, all supported media and long-running discovery performance unverified.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-042": {
       "status": "PARTIAL",
       "implementation": [
         "apps/community-api/src/marketplace.ts",
         "apps/community-api/src/packageValidation.ts",
-        "apps/desktop/src/features/customization/Marketplace.tsx"
+        "apps/desktop/src/features/customization/Marketplace.tsx",
+        "apps/desktop/src/features/customization/CreatorIdentity.tsx",
+        "apps/desktop/src/features/customization/ModeratorPanel.tsx"
       ],
       "registration": [
-        "apps/community-api/src/server.ts"
+        "apps/community-api/src/server.ts",
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
           "run": "community-tests",
           "test": "marketplace authenticated upload → moderation → verified bytes, ownership, reviews and persistent takedown"
+        },
+        {
+          "run": "native-community",
+          "test": "Real HTTP manifest + byte download → native validation → new local library import; exact source bytes preserved"
         }
       ],
-      "dependencyClass": "real loopback HTTP / SQLite / yauzl archive traversal",
-      "limitation": "Real HTTP/SQLite authenticated bytes upload, approval, reviews, downloads, takedown and restart pass. Replaceable local SQLite blob storage, not R2; malware/IP human review is not automated proof. Creator-version migration, deletion/export and full moderation UI incomplete."
+      "dependencyClass": "Windows native UI + real loopback HTTP/SQLite + OS credential storage",
+      "limitation": "Actual desktop registration/recovery, upload, pending status, human native archive inspection, approval, verified download/new native import, reviews, reports and takedown/restore pass against disposable real HTTP/SQLite. Not R2 or production hosting. Complete version/deletion/export lifecycle and adversarial multi-device acceptance remain incomplete.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-043": {
-      "status": "NOT_TESTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src/features/customization/CreatorWorkshop.tsx",
+        "apps/desktop/src/features/customization/projectPersistence.ts",
+        "apps/desktop/src-tauri/src/customization/creator.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
+      ],
+      "executions": [
+        {
+          "run": "native-studio",
+          "test": "Create → edit → autosave → close → reopen uses native project files"
+        }
+      ],
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Native project create/edit/autosave/reopen, original PNG asset preview, interrupted WebView recovery and explicit local-only library import pass. Native export dialogs tested separately. Advanced asset-format previews and every Creator action are not fully accepted.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-044": {
-      "status": "NOT_TESTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src/features/customization/CreatorWorkshop.tsx",
+        "apps/desktop/src/features/customization/projectPersistence.ts",
+        "apps/desktop/src-tauri/src/customization/creator.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
+      ],
+      "executions": [
+        {
+          "run": "native-studio",
+          "test": "Create → edit → autosave → close → reopen uses native project files"
+        }
+      ],
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Native project create/edit/autosave/reopen, original PNG asset preview, interrupted WebView recovery and explicit local-only library import pass. Native export dialogs tested separately. Advanced asset-format previews and every Creator action are not fully accepted.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-045": {
-      "status": "NOT_TESTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src/features/customization/CreatorWorkshop.tsx",
+        "apps/desktop/src/features/customization/projectPersistence.ts",
+        "apps/desktop/src-tauri/src/customization/creator.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
+      ],
+      "executions": [
+        {
+          "run": "native-studio",
+          "test": "Create → edit → autosave → close → reopen uses native project files"
+        }
+      ],
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Native project create/edit/autosave/reopen, original PNG asset preview, interrupted WebView recovery and explicit local-only library import pass. Native export dialogs tested separately. Advanced asset-format previews and every Creator action are not fully accepted.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-046": {
-      "status": "NOT_TESTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src/features/customization/CreatorWorkshop.tsx",
+        "apps/desktop/src/features/customization/projectPersistence.ts",
+        "apps/desktop/src-tauri/src/customization/creator.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
+      ],
+      "executions": [
+        {
+          "run": "native-studio",
+          "test": "Create → edit → autosave → close → reopen uses native project files"
+        }
+      ],
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Native project create/edit/autosave/reopen, original PNG asset preview, interrupted WebView recovery and explicit local-only library import pass. Native export dialogs tested separately. Advanced asset-format previews and every Creator action are not fully accepted.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-047": {
       "status": "NOT_TESTED",
@@ -592,20 +744,46 @@
       "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
     },
     "WF-049": {
-      "status": "NOT_TESTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src/features/customization/CreatorWorkshop.tsx",
+        "apps/desktop/src/features/customization/projectPersistence.ts",
+        "apps/desktop/src-tauri/src/customization/creator.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
+      ],
+      "executions": [
+        {
+          "run": "native-studio",
+          "test": "Create → edit → autosave → close → reopen uses native project files"
+        }
+      ],
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Native project create/edit/autosave/reopen, original PNG asset preview, interrupted WebView recovery and explicit local-only library import pass. Native export dialogs tested separately. Advanced asset-format previews and every Creator action are not fully accepted.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-050": {
-      "status": "NOT_TESTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src/features/customization/CreatorWorkshop.tsx",
+        "apps/desktop/src/features/customization/projectPersistence.ts",
+        "apps/desktop/src-tauri/src/customization/creator.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
+      ],
+      "executions": [
+        {
+          "run": "native-studio",
+          "test": "Create → edit → autosave → close → reopen uses native project files"
+        }
+      ],
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Native project create/edit/autosave/reopen, original PNG asset preview, interrupted WebView recovery and explicit local-only library import pass. Native export dialogs tested separately. Advanced asset-format previews and every Creator action are not fully accepted.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-051": {
       "status": "PARTIAL",
@@ -622,7 +800,8 @@
         }
       ],
       "dependencyClass": "native Windows filesystem / local fixtures",
-      "limitation": "Real native ZIP metadata helper tests pass; complete creator-format support is not established."
+      "limitation": "Native ZIP metadata/contents helper tests pass. Repair preserves original attribution/license bytes. Independent Fantome ecosystem and all GUI utility paths not fully accepted.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-052": {
       "status": "PARTIAL",
@@ -639,7 +818,8 @@
         }
       ],
       "dependencyClass": "native Windows filesystem / local fixtures",
-      "limitation": "Real native ZIP metadata helper tests pass; complete creator-format support is not established."
+      "limitation": "Native ZIP metadata/contents helper tests pass. Repair preserves original attribution/license bytes. Independent Fantome ecosystem and all GUI utility paths not fully accepted.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-053": {
       "status": "PARTIAL",
@@ -656,7 +836,8 @@
         }
       ],
       "dependencyClass": "native Windows filesystem / local fixtures",
-      "limitation": "Real native ZIP metadata helper tests pass; complete creator-format support is not established."
+      "limitation": "Native ZIP metadata/contents helper tests pass. Repair preserves original attribution/license bytes. Independent Fantome ecosystem and all GUI utility paths not fully accepted.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-054": {
       "status": "NOT_TESTED",
@@ -690,7 +871,8 @@
         }
       ],
       "dependencyClass": "native Windows filesystem / local fixtures",
-      "limitation": "App-owned sandbox only. Game-install targets rejected. Rollback preserves unrelated and modified files. Activation in League is unavailable; crash-orphan recovery is incomplete."
+      "limitation": "App-owned sandbox only. Game-install targets rejected. Rollback preserves unrelated and modified files. Activation in League is unavailable; crash-orphan recovery is incomplete.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-057": {
       "status": "NOT_TESTED",
@@ -721,10 +903,27 @@
         {
           "run": "complete-rust",
           "test": "customization::bin_tool::tests::test_bin_round_trip"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::bin_tool::tests::test_ltk_meta_interoperability_read"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::bin_tool::tests::test_ltk_meta_interoperability_serialize_to_ltk"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::bin_tool::tests::test_ltk_meta_interoperability_read"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::bin_tool::tests::test_ltk_meta_interoperability_serialize_to_ltk"
         }
       ],
       "dependencyClass": "native binary PROP parser",
-      "limitation": "Inspects League PROP and PTCH binary property files, decoding all CommunityDragon types (Bool, S8/U8, S16/U16, S32/U32, S64/U64, Float, Vec2/3/4, Matrix44, RGBA, String, Hash, Container, Struct, Link, Flag) to structured JSON with zero data corruption."
+      "limitation": "Existing independently parsed ltk_meta PROP interoperability and strict numeric tests pass on Windows. Not a claim that every legacy type, unknown payload or PTCH edit is supported; unsupported edits must remain rejected. No new parser expansion in this directive.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-060": {
       "status": "PARTIAL",
@@ -739,10 +938,27 @@
         {
           "run": "complete-rust",
           "test": "customization::bin_tool::tests::test_bin_round_trip"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::bin_tool::tests::test_ltk_meta_interoperability_read"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::bin_tool::tests::test_ltk_meta_interoperability_serialize_to_ltk"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::bin_tool::tests::test_ltk_meta_interoperability_read"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::bin_tool::tests::test_ltk_meta_interoperability_serialize_to_ltk"
         }
       ],
       "dependencyClass": "native binary PROP compiler",
-      "limitation": "Compiles structured property tree JSON AST back to binary League PROP and PTCH container formats, preserving exact raw hex bytes for containers/structs and strictly validating numeric values without silent zeroing."
+      "limitation": "Existing independently parsed ltk_meta PROP interoperability and strict numeric tests pass on Windows. Not a claim that every legacy type, unknown payload or PTCH edit is supported; unsupported edits must remain rejected. No new parser expansion in this directive.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-061": {
       "status": "PARTIAL",
@@ -757,10 +973,27 @@
         {
           "run": "complete-rust",
           "test": "customization::wad_tool::tests::test_wad_round_trip"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::wad_tool::tests::test_ltk_wad_interoperability_mount"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::wad_tool::tests::test_ltk_wad_interoperability_builder_and_extract"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::wad_tool::tests::test_ltk_wad_interoperability_mount"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::wad_tool::tests::test_ltk_wad_interoperability_builder_and_extract"
         }
       ],
       "dependencyClass": "native WAD v3 parser",
-      "limitation": "Inspects genuine League WAD v3 (272-byte header, 32-byte entries, xxHash64 path hashes), v2, and v1 archives with path-traversal-guarded extraction."
+      "limitation": "Existing ltk_wad independent v3.4 builder/read interoperability passes; this does not independently verify each legacy version. Generated archives have unsigned placeholder signature areas, never Riot signatures. Local extraction is bounded and refuses overwrite; real game installation untouched.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-062": {
       "status": "PARTIAL",
@@ -775,19 +1008,38 @@
         {
           "run": "complete-rust",
           "test": "customization::wad_tool::tests::test_wad_round_trip"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::wad_tool::tests::test_ltk_wad_interoperability_mount"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::wad_tool::tests::test_ltk_wad_interoperability_builder_and_extract"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::wad_tool::tests::test_ltk_wad_interoperability_mount"
+        },
+        {
+          "run": "complete-rust",
+          "test": "customization::wad_tool::tests::test_ltk_wad_interoperability_builder_and_extract"
         }
       ],
       "dependencyClass": "native WAD v3 packer",
-      "limitation": "Compiles folder assets into standard League WAD v3 container with RW header, 256-byte signature block, xxHash64 path and entry checksums, 32-byte entry table, and payload chunks."
+      "limitation": "Existing ltk_wad independent v3.4 builder/read interoperability passes; this does not independently verify each legacy version. Generated archives have unsigned placeholder signature areas, never Riot signatures. Local extraction is bounded and refuses overwrite; real game installation untouched.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-063": {
       "status": "PARTIAL",
       "implementation": [
         "apps/desktop/src-tauri/src/customization/themes.rs",
-        "apps/desktop/src/features/customization/themeRuntime.tsx"
+        "apps/desktop/src/features/customization/themeRuntime.tsx",
+        "apps/desktop/src/features/customization/ThemePreview.tsx"
       ],
       "registration": [
-        "apps/desktop/src-tauri/src/lib.rs"
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
@@ -797,19 +1049,26 @@
         {
           "run": "browser-studio",
           "test": "theme contract restores active colors after navigation and restart; fonts and reduced motion render"
+        },
+        {
+          "run": "native-appearance",
+          "test": "Actual native process restart restores theme, bundled font and active palette"
         }
       ],
-      "dependencyClass": "native format checks; browser IPC fixture for palette restoration",
-      "limitation": "LAAP theme runtime, native palette/media validation and browser restoration exercised. No League-client theming. Eight included themes, not 15; custom fonts/audio themes and full media decoding/duration controls incomplete."
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Actual LAAP theme with original media, allowed bundled font, palette and native process restart restoration pass. Fifteen original palettes exist and validate; reset restores Velvet. No League-client modification. Arbitrary fonts/audio themes, every media codec/duration and exhaustive undo/recovery paths are not accepted.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-064": {
       "status": "PARTIAL",
       "implementation": [
         "apps/desktop/src-tauri/src/customization/themes.rs",
-        "apps/desktop/src/features/customization/themeRuntime.tsx"
+        "apps/desktop/src/features/customization/themeRuntime.tsx",
+        "apps/desktop/src/features/customization/ThemePreview.tsx"
       ],
       "registration": [
-        "apps/desktop/src-tauri/src/lib.rs"
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
@@ -819,19 +1078,26 @@
         {
           "run": "browser-studio",
           "test": "theme contract restores active colors after navigation and restart; fonts and reduced motion render"
+        },
+        {
+          "run": "native-appearance",
+          "test": "Actual native process restart restores theme, bundled font and active palette"
         }
       ],
-      "dependencyClass": "native format checks; browser IPC fixture for palette restoration",
-      "limitation": "LAAP theme runtime, native palette/media validation and browser restoration exercised. No League-client theming. Eight included themes, not 15; custom fonts/audio themes and full media decoding/duration controls incomplete."
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Actual LAAP theme with original media, allowed bundled font, palette and native process restart restoration pass. Fifteen original palettes exist and validate; reset restores Velvet. No League-client modification. Arbitrary fonts/audio themes, every media codec/duration and exhaustive undo/recovery paths are not accepted.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-065": {
       "status": "PARTIAL",
       "implementation": [
         "apps/desktop/src-tauri/src/customization/themes.rs",
-        "apps/desktop/src/features/customization/themeRuntime.tsx"
+        "apps/desktop/src/features/customization/themeRuntime.tsx",
+        "apps/desktop/src/features/customization/ThemePreview.tsx"
       ],
       "registration": [
-        "apps/desktop/src-tauri/src/lib.rs"
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
@@ -841,19 +1107,26 @@
         {
           "run": "browser-studio",
           "test": "theme contract restores active colors after navigation and restart; fonts and reduced motion render"
+        },
+        {
+          "run": "native-appearance",
+          "test": "Actual native process restart restores theme, bundled font and active palette"
         }
       ],
-      "dependencyClass": "native format checks; browser IPC fixture for palette restoration",
-      "limitation": "LAAP theme runtime, native palette/media validation and browser restoration exercised. No League-client theming. Eight included themes, not 15; custom fonts/audio themes and full media decoding/duration controls incomplete."
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Actual LAAP theme with original media, allowed bundled font, palette and native process restart restoration pass. Fifteen original palettes exist and validate; reset restores Velvet. No League-client modification. Arbitrary fonts/audio themes, every media codec/duration and exhaustive undo/recovery paths are not accepted.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-066": {
       "status": "PARTIAL",
       "implementation": [
         "apps/desktop/src-tauri/src/customization/themes.rs",
-        "apps/desktop/src/features/customization/themeRuntime.tsx"
+        "apps/desktop/src/features/customization/themeRuntime.tsx",
+        "apps/desktop/src/features/customization/ThemePreview.tsx"
       ],
       "registration": [
-        "apps/desktop/src-tauri/src/lib.rs"
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
@@ -863,10 +1136,15 @@
         {
           "run": "browser-studio",
           "test": "theme contract restores active colors after navigation and restart; fonts and reduced motion render"
+        },
+        {
+          "run": "native-appearance",
+          "test": "Actual native process restart restores theme, bundled font and active palette"
         }
       ],
-      "dependencyClass": "native format checks; browser IPC fixture for palette restoration",
-      "limitation": "LAAP theme runtime, native palette/media validation and browser restoration exercised. No League-client theming. Eight included themes, not 15; custom fonts/audio themes and full media decoding/duration controls incomplete."
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Actual LAAP theme with original media, allowed bundled font, palette and native process restart restoration pass. Fifteen original palettes exist and validate; reset restores Velvet. No League-client modification. Arbitrary fonts/audio themes, every media codec/duration and exhaustive undo/recovery paths are not accepted.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-067": {
       "status": "NOT_TESTED",
@@ -888,10 +1166,12 @@
       "status": "PARTIAL",
       "implementation": [
         "apps/desktop/src-tauri/src/customization/themes.rs",
-        "apps/desktop/src/features/customization/themeRuntime.tsx"
+        "apps/desktop/src/features/customization/themeRuntime.tsx",
+        "apps/desktop/src/features/customization/ThemePreview.tsx"
       ],
       "registration": [
-        "apps/desktop/src-tauri/src/lib.rs"
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
@@ -901,10 +1181,15 @@
         {
           "run": "browser-studio",
           "test": "theme contract restores active colors after navigation and restart; fonts and reduced motion render"
+        },
+        {
+          "run": "native-appearance",
+          "test": "Actual native process restart restores theme, bundled font and active palette"
         }
       ],
-      "dependencyClass": "native format checks; browser IPC fixture for palette restoration",
-      "limitation": "LAAP theme runtime, native palette/media validation and browser restoration exercised. No League-client theming. Eight included themes, not 15; custom fonts/audio themes and full media decoding/duration controls incomplete."
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Actual LAAP theme with original media, allowed bundled font, palette and native process restart restoration pass. Fifteen original palettes exist and validate; reset restores Velvet. No League-client modification. Arbitrary fonts/audio themes, every media codec/duration and exhaustive undo/recovery paths are not accepted.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-070": {
       "status": "NOT_TESTED",
@@ -918,10 +1203,12 @@
       "status": "PARTIAL",
       "implementation": [
         "apps/desktop/src-tauri/src/customization/themes.rs",
-        "apps/desktop/src/features/customization/themeRuntime.tsx"
+        "apps/desktop/src/features/customization/themeRuntime.tsx",
+        "apps/desktop/src/features/customization/ThemePreview.tsx"
       ],
       "registration": [
-        "apps/desktop/src-tauri/src/lib.rs"
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
@@ -931,10 +1218,15 @@
         {
           "run": "browser-studio",
           "test": "theme contract restores active colors after navigation and restart; fonts and reduced motion render"
+        },
+        {
+          "run": "native-appearance",
+          "test": "Actual native process restart restores theme, bundled font and active palette"
         }
       ],
-      "dependencyClass": "native format checks; browser IPC fixture for palette restoration",
-      "limitation": "LAAP theme runtime, native palette/media validation and browser restoration exercised. No League-client theming. Eight included themes, not 15; custom fonts/audio themes and full media decoding/duration controls incomplete."
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Actual LAAP theme with original media, allowed bundled font, palette and native process restart restoration pass. Fifteen original palettes exist and validate; reset restores Velvet. No League-client modification. Arbitrary fonts/audio themes, every media codec/duration and exhaustive undo/recovery paths are not accepted.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-072": {
       "status": "NOT_TESTED",
@@ -1056,7 +1348,8 @@
         }
       ],
       "dependencyClass": "actual async IPC framing through Tokio duplex fixture; no live Discord",
-      "limitation": "Presence-only IPC with READY/nonce acknowledgement and deadline. Legacy JSON tokens scrubbed on config load. No OAuth social login or live Discord visibility/revocation verification."
+      "limitation": "Presence-only IPC with READY/nonce acknowledgement and deadline. Legacy JSON tokens scrubbed on config load. No OAuth social login or live Discord visibility/revocation verification.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-086": {
       "status": "PARTIAL",
@@ -1073,7 +1366,8 @@
         }
       ],
       "dependencyClass": "actual async IPC framing through Tokio duplex fixture; no live Discord",
-      "limitation": "Presence-only IPC with READY/nonce acknowledgement and deadline. Legacy JSON tokens scrubbed on config load. No OAuth social login or live Discord visibility/revocation verification."
+      "limitation": "Presence-only IPC with READY/nonce acknowledgement and deadline. Legacy JSON tokens scrubbed on config load. No OAuth social login or live Discord visibility/revocation verification.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-087": {
       "status": "PARTIAL",
@@ -1090,7 +1384,8 @@
         }
       ],
       "dependencyClass": "actual async IPC framing through Tokio duplex fixture; no live Discord",
-      "limitation": "Presence-only IPC with READY/nonce acknowledgement and deadline. Legacy JSON tokens scrubbed on config load. No OAuth social login or live Discord visibility/revocation verification."
+      "limitation": "Presence-only IPC with READY/nonce acknowledgement and deadline. Legacy JSON tokens scrubbed on config load. No OAuth social login or live Discord visibility/revocation verification.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-088": {
       "status": "PARTIAL",
@@ -1107,7 +1402,8 @@
         }
       ],
       "dependencyClass": "actual async IPC framing through Tokio duplex fixture; no live Discord",
-      "limitation": "Presence-only IPC with READY/nonce acknowledgement and deadline. Legacy JSON tokens scrubbed on config load. No OAuth social login or live Discord visibility/revocation verification."
+      "limitation": "Presence-only IPC with READY/nonce acknowledgement and deadline. Legacy JSON tokens scrubbed on config load. No OAuth social login or live Discord visibility/revocation verification.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-089": {
       "status": "PARTIAL",
@@ -1126,7 +1422,8 @@
         }
       ],
       "dependencyClass": "real loopback HTTP contracts; generated response/audio-header fixtures, not real provider output",
-      "limitation": "Explicit provider selection/consent, OS-keychain keys, bounded HTTP, cancellation and TTS playback UI. Local HTTP fixtures only; live credentials/model access/answer accuracy/speech quality and full MP3 decoding are NOT verified."
+      "limitation": "Explicit provider selection/consent, OS-keychain keys, bounded HTTP, cancellation and TTS playback UI. Local HTTP fixtures only; live credentials/model access/answer accuracy/speech quality and full MP3 decoding are NOT verified.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-090": {
       "status": "PARTIAL",
@@ -1145,15 +1442,16 @@
         }
       ],
       "dependencyClass": "real loopback HTTP contracts; generated response/audio-header fixtures, not real provider output",
-      "limitation": "Explicit provider consent, OS-keychain key, bounded HTTP, cancellation and TTS playback UI; MP3 decoded with Symphonia and empty/silent/invalid output rejected. Live speech and positive provider audio quality remain unverified."
+      "limitation": "Explicit provider consent, OS-keychain key, bounded HTTP, cancellation and TTS playback UI; MP3 decoded with Symphonia and empty/silent/invalid output rejected. Live speech and positive provider audio quality remain unverified.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-091": {
-      "status": "NOT_IMPLEMENTED",
+      "status": "EXTERNAL_BLOCKER",
       "implementation": [],
       "registration": [],
       "executions": [],
       "dependencyClass": "not tested",
-      "limitation": "StreamElements operation explicitly unavailable because no supported authorized API contract is configured."
+      "limitation": "No authorized supported StreamElements TTS API contract supplied. No undocumented endpoint integration or invented speech result; supported separate provider contracts remain independently testable."
     },
     "WF-092": {
       "status": "PARTIAL",
@@ -1170,7 +1468,8 @@
         }
       ],
       "dependencyClass": "real HTTP fixture implementing documented Riot endpoints",
-      "limitation": "Official Riot API adapter, encoded Riot IDs, explicit platform mapping, TTL, no rank on error. Local HTTP contract only; no live authorized key. This is not an OP.GG API implementation."
+      "limitation": "Official Riot API adapter, encoded Riot IDs, explicit platform mapping, TTL, no rank on error. Local HTTP contract only; no live authorized key. This is not an OP.GG API implementation.",
+      "platformTested": "Windows; macOS not available"
     },
     "WF-093": {
       "status": "NOT_TESTED",
@@ -1197,20 +1496,46 @@
       "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
     },
     "EX-096": {
-      "status": "NOT_TESTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src/features/customization/PresetLibrary.tsx",
+        "apps/desktop/src-tauri/src/customization/presets.rs",
+        "apps/desktop/src/features/customization/CatalogPage.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
+      ],
+      "executions": [
+        {
+          "run": "native-catalog",
+          "test": "Real cached/public catalog → champion → cosmetic reference → native global preset"
+        }
+      ],
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Native real cached/public catalog selection creates persisted global metadata presets; edit/reopen, duplication/delete/restore and JSON import pass. Structured chroma/form selectors use available catalog data. Not cosmetic equipping, unlocking or proof of every queue/variant.",
+      "platformTested": "Windows; macOS not available"
     },
     "EX-097": {
-      "status": "NOT_TESTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src/features/customization/PresetLibrary.tsx",
+        "apps/desktop/src-tauri/src/customization/presets.rs",
+        "apps/desktop/src/features/customization/CatalogPage.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
+      ],
+      "executions": [
+        {
+          "run": "native-catalog",
+          "test": "Real cached/public catalog → champion → cosmetic reference → native global preset"
+        }
+      ],
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Native real cached/public catalog selection creates persisted global metadata presets; edit/reopen, duplication/delete/restore and JSON import pass. Structured chroma/form selectors use available catalog data. Not cosmetic equipping, unlocking or proof of every queue/variant.",
+      "platformTested": "Windows; macOS not available"
     },
     "EX-098": {
       "status": "NOT_TESTED",
@@ -1221,12 +1546,25 @@
       "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
     },
     "EX-099": {
-      "status": "NOT_TESTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src/features/customization/PresetLibrary.tsx",
+        "apps/desktop/src-tauri/src/customization/presets.rs",
+        "apps/desktop/src/features/customization/CatalogPage.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
+      ],
+      "executions": [
+        {
+          "run": "native-catalog",
+          "test": "Real cached/public catalog → champion → cosmetic reference → native global preset"
+        }
+      ],
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Native real cached/public catalog selection creates persisted global metadata presets; edit/reopen, duplication/delete/restore and JSON import pass. Structured chroma/form selectors use available catalog data. Not cosmetic equipping, unlocking or proof of every queue/variant.",
+      "platformTested": "Windows; macOS not available"
     },
     "EX-100": {
       "status": "NOT_TESTED",
@@ -1250,22 +1588,40 @@
       "executions": [
         {
           "run": "frontend-units",
-          "test": "i18n 22 League client locales comprehensive coverage"
+          "test": "i18n locale registry and existing 26-key dictionary coverage"
+        },
+        {
+          "run": "native-appearance",
+          "test": "Arabic direction and translated navigation render without horizontal overflow at three native sizes; full translation is not claimed"
         }
       ],
-      "dependencyClass": "application i18n provider",
-      "limitation": "Provides typed multilingual dictionaries for all 22 official League client locales with native translations, complete UI strings coverage, and RTL layout mirroring for Arabic.",
+      "dependencyClass": "Frontend dictionary unit tests + actual Windows WebView2 RTL screenshots",
+      "limitation": "Only 26 existing dictionary keys across 22 locales. English is source; all other 21 locales explicitly partial/unreviewed. Most visible feature labels/errors still need key extraction and translation. Arabic direction/navigation checked at 960/1160/1440 widths; not full localization or professional linguistic review.",
       "buildEvidence": [
         "edition-bundles"
-      ]
+      ],
+      "platformTested": "Windows; macOS not available"
     },
     "EX-102": {
-      "status": "NOT_TESTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src/features/customization/PresetLibrary.tsx",
+        "apps/desktop/src-tauri/src/customization/presets.rs",
+        "apps/desktop/src/features/customization/CatalogPage.tsx"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
+      ],
+      "executions": [
+        {
+          "run": "native-catalog",
+          "test": "Real cached/public catalog → champion → cosmetic reference → native global preset"
+        }
+      ],
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Native real cached/public catalog selection creates persisted global metadata presets; edit/reopen, duplication/delete/restore and JSON import pass. Structured chroma/form selectors use available catalog data. Not cosmetic equipping, unlocking or proof of every queue/variant.",
+      "platformTested": "Windows; macOS not available"
     },
     "EX-103": {
       "status": "NOT_TESTED",
@@ -1290,7 +1646,8 @@
         }
       ],
       "dependencyClass": "real localhost WebSocket peers",
-      "limitation": "Real seven-peer relay and consented ephemeral chat pass. Not direct P2P; full multi-device/native client stress and reconnect storms not verified."
+      "limitation": "Real seven-peer relay and consented ephemeral chat pass. Not direct P2P; full multi-device/native client stress and reconnect storms not verified.",
+      "platformTested": "Windows; macOS not available"
     },
     "EX-105": {
       "status": "PARTIAL",
@@ -1308,7 +1665,8 @@
         }
       ],
       "dependencyClass": "real loopback WebSocket + original generated ZIP; separate Rust import test",
-      "limitation": "Real WebSocket relay transfers a generated original archive with sender consent, ID binding, bounds and server validation. Native import is tested separately. Interrupted transfers cancel, without byte-level resume. Full two-installed-client transfer/import journey not verified."
+      "limitation": "Real local relay transfers original archive bytes with consent, forged-ID/corruption/bounds/cancellation tests. Two browser clients use real relay but mocked native APIs. Two independent native clients not accepted: second isolated Complete launch was rejected by automatic approval review. No direct P2P or byte-resume claim.",
+      "platformTested": "Windows; macOS not available"
     },
     "EX-106": {
       "status": "NOT_TESTED",
@@ -1354,36 +1712,62 @@
       "status": "PARTIAL",
       "implementation": [
         "apps/desktop/src-tauri/src/customization/library.rs",
-        "apps/desktop/src-tauri/src/customization/sandbox.rs"
+        "apps/desktop/src-tauri/src/customization/sandbox.rs",
+        "apps/desktop/src/features/customization/LibraryImportDialog.tsx",
+        "apps/desktop/src/features/customization/ModLibrary.tsx",
+        "apps/desktop/src/features/customization/batchOperations.ts"
       ],
       "registration": [
-        "apps/desktop/src-tauri/src/lib.rs"
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
           "run": "complete-rust",
           "test": "customization::library::tests::nested_fantome_and_modpkg_import_export_stage_rollback_roundtrip"
+        },
+        {
+          "run": "native-studio",
+          "test": "Explicit permissions → native library import → refreshed library"
+        },
+        {
+          "run": "native-library",
+          "test": "100-package UI batch reports 99 successes and the concurrent-removal failure; only failed package stays selected"
         }
       ],
-      "dependencyClass": "native Windows filesystem / local fixtures",
-      "limitation": "Nested original Fantome/Modpkg bytes import/export/reimport and app-owned stage/rollback pass on Windows. No approved game adapter, dependency solver, complete rights-scanner or installed WebView journey verified."
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Native original-content import and exact library refresh pass with explicit author, local-use permission and no default redistribution. Native 100-package partial failures/cancellation/retry pass. Rights are declarations, not an automated IP ownership or malware verdict. No game activation adapter.",
+      "platformTested": "Windows; macOS not available"
     },
     "EX-112": {
-      "status": "NOT_TESTED",
-      "implementation": [],
-      "registration": [],
-      "executions": [],
-      "dependencyClass": "not tested",
-      "limitation": "No complete current end-to-end proof mapped to this parity requirement. Earlier VERIFIED claims are withdrawn; file existence is insufficient."
+      "status": "PARTIAL",
+      "implementation": [
+        "apps/desktop/src-tauri/src/customization/catalog.rs"
+      ],
+      "registration": [
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
+      ],
+      "executions": [
+        {
+          "run": "catalog-live-public",
+          "test": "customization::catalog::tests::live_studio_catalog_contract"
+        }
+      ],
+      "dependencyClass": "Live public HTTPS + native Rust / generated offline seed validation",
+      "limitation": "Actual public catalog contract and explicit offline generated-resource validation pass. Native Ahri navigation/preset journey passes. No fixed advertised cosmetic counts asserted and no installer bundle tested.",
+      "platformTested": "Windows; macOS not available"
     },
     "EX-113": {
       "status": "PARTIAL",
       "implementation": [
         "apps/desktop/src-tauri/src/customization/themes.rs",
-        "apps/desktop/src/features/customization/themeRuntime.tsx"
+        "apps/desktop/src/features/customization/themeRuntime.tsx",
+        "apps/desktop/src/features/customization/ThemePreview.tsx"
       ],
       "registration": [
-        "apps/desktop/src-tauri/src/lib.rs"
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
@@ -1393,28 +1777,40 @@
         {
           "run": "browser-studio",
           "test": "theme contract restores active colors after navigation and restart; fonts and reduced motion render"
+        },
+        {
+          "run": "native-appearance",
+          "test": "Actual native process restart restores theme, bundled font and active palette"
         }
       ],
-      "dependencyClass": "native format checks; browser IPC fixture for palette restoration",
-      "limitation": "LAAP theme runtime, native palette/media validation and browser restoration exercised. No League-client theming. Eight included themes, not 15; custom fonts/audio themes and full media decoding/duration controls incomplete."
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Actual LAAP theme with original media, allowed bundled font, palette and native process restart restoration pass. Fifteen original palettes exist and validate; reset restores Velvet. No League-client modification. Arbitrary fonts/audio themes, every media codec/duration and exhaustive undo/recovery paths are not accepted.",
+      "platformTested": "Windows; macOS not available"
     },
     "EX-114": {
       "status": "PARTIAL",
       "implementation": [
         "apps/desktop/src-tauri/src/customization/client_surfaces.rs",
-        "apps/desktop/src/features/customization/api.ts"
+        "apps/desktop/src/features/customization/api.ts",
+        "apps/desktop/src/features/customization/ClientSurfaces.tsx"
       ],
       "registration": [
-        "apps/desktop/src-tauri/src/lib.rs"
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
           "run": "complete-rust",
           "test": "customization::client_surfaces::tests::test_default_16_surfaces"
+        },
+        {
+          "run": "native-appearance",
+          "test": "16 definitions persist through UI save while real adapter availability remains false"
         }
       ],
-      "dependencyClass": "native customization store / overlay adapter",
-      "limitation": "16 customizable League client surfaces defined, persisted, and exportable as CSS/JS snippets for overlay/client injectors without violating Vanguard protections. Direct in-process client DOM injection requires external loader adapter (e.g. Pengu Loader)."
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Sixteen validated configuration definitions save/import/export/reset independently of League. Native UI save and unavailable adapter status pass. No approved client adapter exists; no actual League surface modification or anti-cheat safety guarantee.",
+      "platformTested": "Windows; macOS not available"
     },
     "EX-115": {
       "status": "NOT_TESTED",
@@ -1439,7 +1835,8 @@
         }
       ],
       "dependencyClass": "real localhost WebSocket peers",
-      "limitation": "Real seven-peer relay and consented ephemeral chat pass. Not direct P2P; full multi-device/native client stress and reconnect storms not verified."
+      "limitation": "Real seven-peer relay and consented ephemeral chat pass. Not direct P2P; full multi-device/native client stress and reconnect storms not verified.",
+      "platformTested": "Windows; macOS not available"
     },
     "EX-117": {
       "status": "POLICY_EXCLUDED",
@@ -1487,10 +1884,12 @@
       "status": "PARTIAL",
       "implementation": [
         "apps/desktop/src-tauri/src/customization/themes.rs",
-        "apps/desktop/src/features/customization/themeRuntime.tsx"
+        "apps/desktop/src/features/customization/themeRuntime.tsx",
+        "apps/desktop/src/features/customization/ThemePreview.tsx"
       ],
       "registration": [
-        "apps/desktop/src-tauri/src/lib.rs"
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
@@ -1500,10 +1899,15 @@
         {
           "run": "browser-studio",
           "test": "theme contract restores active colors after navigation and restart; fonts and reduced motion render"
+        },
+        {
+          "run": "native-appearance",
+          "test": "Actual native process restart restores theme, bundled font and active palette"
         }
       ],
-      "dependencyClass": "native format checks; browser IPC fixture for palette restoration",
-      "limitation": "LAAP theme runtime, native palette/media validation and browser restoration exercised. No League-client theming. Eight included themes, not 15; custom fonts/audio themes and full media decoding/duration controls incomplete."
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Actual LAAP theme with original media, allowed bundled font, palette and native process restart restoration pass. Fifteen original palettes exist and validate; reset restores Velvet. No League-client modification. Arbitrary fonts/audio themes, every media codec/duration and exhaustive undo/recovery paths are not accepted.",
+      "platformTested": "Windows; macOS not available"
     },
     "EX-123": {
       "status": "NOT_TESTED",
@@ -1533,34 +1937,50 @@
         }
       ],
       "dependencyClass": "native Windows filesystem / local fixtures",
-      "limitation": "General Studio clears stale context; successful switches and renamed/deleted profiles update a persisted opaque-ID reference, validated against current profiles. Three-account unlink/rename unit coverage passes. Full installed-app account lifecycle and restart journey are not verified."
+      "limitation": "General Studio clears stale context; successful switches and renamed/deleted profiles update a persisted opaque-ID reference, validated against current profiles. Three-account unlink/rename unit coverage passes. Full installed-app account lifecycle and restart journey are not verified.",
+      "platformTested": "Windows; macOS not available"
     },
     "EX-125": {
       "status": "PARTIAL",
       "implementation": [
         "apps/desktop/src-tauri/src/customization/library.rs",
-        "apps/desktop/src-tauri/src/customization/sandbox.rs"
+        "apps/desktop/src-tauri/src/customization/sandbox.rs",
+        "apps/desktop/src/features/customization/LibraryImportDialog.tsx",
+        "apps/desktop/src/features/customization/ModLibrary.tsx",
+        "apps/desktop/src/features/customization/batchOperations.ts"
       ],
       "registration": [
-        "apps/desktop/src-tauri/src/lib.rs"
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
           "run": "complete-rust",
           "test": "customization::library::tests::nested_fantome_and_modpkg_import_export_stage_rollback_roundtrip"
+        },
+        {
+          "run": "native-studio",
+          "test": "Explicit permissions → native library import → refreshed library"
+        },
+        {
+          "run": "native-library",
+          "test": "100-package UI batch reports 99 successes and the concurrent-removal failure; only failed package stays selected"
         }
       ],
-      "dependencyClass": "native Windows filesystem / local fixtures",
-      "limitation": "Nested original Fantome/Modpkg bytes import/export/reimport and app-owned stage/rollback pass on Windows. No approved game adapter, dependency solver, complete rights-scanner or installed WebView journey verified."
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "Native original-content import and exact library refresh pass with explicit author, local-use permission and no default redistribution. Native 100-package partial failures/cancellation/retry pass. Rights are declarations, not an automated IP ownership or malware verdict. No game activation adapter.",
+      "platformTested": "Windows; macOS not available"
     },
     "EX-126": {
       "status": "PARTIAL",
       "implementation": [
         "apps/desktop/src-tauri/src/product.rs",
-        "apps/desktop/src-tauri/src/lib.rs"
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src-tauri/src/customization/../product.rs"
       ],
       "registration": [
-        "apps/desktop/src-tauri/src/lib.rs"
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
@@ -1574,22 +1994,29 @@
         {
           "run": "studio-rust",
           "test": "product::tests::permission_boundaries_enforced"
+        },
+        {
+          "run": "native-studio",
+          "test": "Studio exposes customization IPC and rejects account-vault IPC"
         }
       ],
-      "dependencyClass": "native Windows filesystem / local fixtures",
-      "limitation": "Three native feature sets compile/test; three frontend bundle isolation checks pass. No signed installers, installed upgrade, co-install or user vault compatibility journey executed in this mission.",
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "All three Rust suites and frontend bundle boundaries pass. Actual Studio native app rejects account-vault IPC. Basic/Complete native account UI/restart not tested after isolated Complete launch was blocked by automatic approval review. No release/install/upgrade claim.",
       "buildEvidence": [
         "edition-bundles"
-      ]
+      ],
+      "platformTested": "Windows; macOS not available"
     },
     "EX-127": {
       "status": "PARTIAL",
       "implementation": [
         "apps/desktop/src-tauri/src/product.rs",
-        "apps/desktop/src-tauri/src/lib.rs"
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src-tauri/src/customization/../product.rs"
       ],
       "registration": [
-        "apps/desktop/src-tauri/src/lib.rs"
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
@@ -1603,22 +2030,29 @@
         {
           "run": "studio-rust",
           "test": "product::tests::permission_boundaries_enforced"
+        },
+        {
+          "run": "native-studio",
+          "test": "Studio exposes customization IPC and rejects account-vault IPC"
         }
       ],
-      "dependencyClass": "native Windows filesystem / local fixtures",
-      "limitation": "Three native feature sets compile/test; three frontend bundle isolation checks pass. No signed installers, installed upgrade, co-install or user vault compatibility journey executed in this mission.",
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "All three Rust suites and frontend bundle boundaries pass. Actual Studio native app rejects account-vault IPC. Basic/Complete native account UI/restart not tested after isolated Complete launch was blocked by automatic approval review. No release/install/upgrade claim.",
       "buildEvidence": [
         "edition-bundles"
-      ]
+      ],
+      "platformTested": "Windows; macOS not available"
     },
     "EX-128": {
       "status": "PARTIAL",
       "implementation": [
         "apps/desktop/src-tauri/src/product.rs",
-        "apps/desktop/src-tauri/src/lib.rs"
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src-tauri/src/customization/../product.rs"
       ],
       "registration": [
-        "apps/desktop/src-tauri/src/lib.rs"
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src/features/customization/StudioWorkspace.tsx"
       ],
       "executions": [
         {
@@ -1632,13 +2066,18 @@
         {
           "run": "studio-rust",
           "test": "product::tests::permission_boundaries_enforced"
+        },
+        {
+          "run": "native-studio",
+          "test": "Studio exposes customization IPC and rejects account-vault IPC"
         }
       ],
-      "dependencyClass": "native Windows filesystem / local fixtures",
-      "limitation": "Three native feature sets compile/test; three frontend bundle isolation checks pass. No signed installers, installed upgrade, co-install or user vault compatibility journey executed in this mission.",
+      "dependencyClass": "Windows native WebView2 UI + real Rust IPC / disposable original content",
+      "limitation": "All three Rust suites and frontend bundle boundaries pass. Actual Studio native app rejects account-vault IPC. Basic/Complete native account UI/restart not tested after isolated Complete launch was blocked by automatic approval review. No release/install/upgrade claim.",
       "buildEvidence": [
         "edition-bundles"
-      ]
+      ],
+      "platformTested": "Windows; macOS not available"
     },
     "EX-129": {
       "status": "POLICY_EXCLUDED",
@@ -1664,5 +2103,6 @@
       "dependencyClass": "not tested",
       "limitation": "Excluded as described by the authoritative blueprint. No game hooks, paid-skin unlocking or protection bypass are implemented."
     }
-  }
+  },
+  "testedSource": "36835037b9aef82fbdbe798c7040bdc62eb47ffb"
 }

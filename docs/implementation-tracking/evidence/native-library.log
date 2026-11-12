@@ -1,0 +1,3 @@
+PASS native: 100-package UI batch reports 99 successes and the concurrent-removal failure; only failed package stays selected
+PASS native: retry changes only the retained failed selection and restores persisted native state
+PASS native: cancellation stops unstarted packages while honestly retaining completed native writes

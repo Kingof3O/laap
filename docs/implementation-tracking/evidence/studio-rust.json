@@ -8,13 +8,16 @@
     "test",
     "--no-default-features",
     "--features",
-    "studio"
+    "studio",
+    "--lib",
+    "--",
+    "--test-threads=1"
   ],
-  "startedAt": "2026-11-11T07:09:22.073Z",
-  "finishedAt": "2026-11-11T07:09:53.008Z",
-  "head": "afaea7543ae92e79560d6cc12c9d6f7e5c2bd6ea",
+  "startedAt": "2026-11-12T06:43:31.982Z",
+  "finishedAt": "2026-11-12T06:44:17.395Z",
+  "head": "36835037b9aef82fbdbe798c7040bdc62eb47ffb",
   "source": {
-    "sha256": "dc10f22bd94da233a16f4c3f0e92b147d9c2f34ba054558e702c9d35c9229518",
+    "sha256": "6a8268a1f226b81038e08d602828ea8393f9b90b2a51a3a7921b743d1a910145",
     "files": [
       [
         "apps/desktop/src-tauri/Cargo.lock",
@@ -86,7 +89,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/customization/client_surfaces.rs",
-        "18784319932b67bb7ceb3b1b6ef9c7dd53a2b35fb78ab1c2b6344f7819727bde"
+        "8ee6fa557031b25be93a7b63b1602d8b532556835749f4cbd110063f16fcc646"
       ],
       [
         "apps/desktop/src-tauri/src/customization/client_themes.rs",
@@ -94,15 +97,15 @@
       ],
       [
         "apps/desktop/src-tauri/src/customization/community_credentials.rs",
-        "81338807221a85215a81d3c78ad2003214d5b0103594a21de449a6656e8accf3"
+        "ee8eb3d4e17e0563406f3603cc07468f4d1b97aa8a2f5e3eb9e7f995ab75dc0a"
       ],
       [
         "apps/desktop/src-tauri/src/customization/creator.rs",
-        "578dbae11678a5f1955abc587bad8d5d08f275612b97ab905edaae9ca82efb43"
+        "9634c6e4f92b11ca50f2b6f9b505c189b5c193b9efa78d3c8d2657db3eadf016"
       ],
       [
         "apps/desktop/src-tauri/src/customization/discord.rs",
-        "e973bd57cddeb2a8b1c85f9377106e66260b5d6ec0195aa32108473cbca53b00"
+        "2102f4f3821c4b26316fd6b128c54428237a914057e2c4474344a849337dbfc2"
       ],
       [
         "apps/desktop/src-tauri/src/customization/doctor.rs",
@@ -114,7 +117,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/customization/fantome.rs",
-        "9c5d2fb54dc71d828ee1e96df6d731527e3851d0e4758b7cc8cb86b76283e8f9"
+        "1ed81828e496fd3654b831d119ffd88757eeb78ede766badd94bce1b1795d71a"
       ],
       [
         "apps/desktop/src-tauri/src/customization/game_path.rs",
@@ -126,7 +129,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/customization/library.rs",
-        "a23e705ff62e9cc77d6db48ad1500c8b7512863790ab111164feda4fe131049e"
+        "d2e2378d64b9dc275546c00faf5fdbfab601c4570a1c0302eb41b9264ab622fc"
       ],
       [
         "apps/desktop/src-tauri/src/customization/mod.rs",
@@ -142,7 +145,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/customization/sandbox.rs",
-        "d0c5d00cc9f17bc133d894165aa45a6ba5943c3eeaf9aecc73dc3d32ab5163c5"
+        "9fb91615b5805aa27de97b2a4baf574d86b25cd7cf95ac7958f6a612f70ecea2"
       ],
       [
         "apps/desktop/src-tauri/src/customization/stats_provider.rs",
@@ -150,15 +153,15 @@
       ],
       [
         "apps/desktop/src-tauri/src/customization/storage.rs",
-        "4c5e0722b009c99b6d12b2849a39c7cecc949e33a707117f053debe821bba81e"
+        "dbf375302784273da9ac9dc3bb86ff5bc0cf051b3a729d85373812fa164bf534"
       ],
       [
         "apps/desktop/src-tauri/src/customization/themes.rs",
-        "f1452f0dd64560802cfebe5f49fc0bd524f1bbdf142044adbb5133a8a6b0ad2b"
+        "49ee838e0598e297c934a6c0bf033d4d47664bbe4114e17ea7d9a7c882bc1b6a"
       ],
       [
         "apps/desktop/src-tauri/src/customization/wad_tool.rs",
-        "1656f6e499da0db2fdbf5ce5102a35732ec76ed7cacd54e86d3e530dd3c482e9"
+        "69e928b9f340e43bc5cd2dfe210531ab6f016e8a97a36bf9fc07866f54b0cb6d"
       ],
       [
         "apps/desktop/src-tauri/src/device.rs",
@@ -174,7 +177,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/lib.rs",
-        "288c78db675acc798e685887c9d39c608d206a6e7e85f9bb29ba88488860188d"
+        "3a9b08f0c36e46c4b7df574c58b1a489fab58af4b1286c9a9f6828d601f5f90d"
       ],
       [
         "apps/desktop/src-tauri/src/local_store/crypto.rs",
@@ -270,5 +273,5 @@
   "exitCode": 0,
   "error": null,
   "log": "studio-rust.log",
-  "logSha256": "e20bdce5e76613242df90f22d6c7915d22629633df4ccf01bc0c062a581ebbd1"
+  "logSha256": "f7bb53f013fde231a3ca8ce24886f9aeb4f1ed3a2f5f88934704570e4ce84ac9"
 }

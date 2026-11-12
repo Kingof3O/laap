@@ -1,8 +1,16 @@
 
-Running 3 tests using 1 worker
+Running 7 tests using 1 worker
 
-  ok 1 tests\remediation\studio.spec.ts:223:1 › browser UI + real HTTP: creator registration, verified local bytes submission, human approval, download import acknowledgement (1.6s)
-  ok 2 tests\remediation\studio.spec.ts:329:1 › theme contract restores active colors after navigation and restart; fonts and reduced motion render (2.3s)
-  ok 3 tests\remediation\studio.spec.ts:416:1 › native-shaped preset conflict reports render without a contract crash (1.1s)
+  ok 1 tests\remediation\creator-workflows.spec.ts:5:3 › Creator project import requires explicit local use and redistribution review (2.9s)
+  ok 2 tests\remediation\creator-workflows.spec.ts:5:3 › Creator quick import requires explicit local use and redistribution review (2.2s)
+  ok 3 tests\remediation\creator-workflows.spec.ts:5:3 › Creator repair import requires explicit local use and redistribution review (1.6s)
+  ok 4 tests\remediation\creator-workflows.spec.ts:74:1 › Creator save failure is visible and retry plus project exit preserve the latest draft (2.1s)
+  ok 5 tests\remediation\studio.spec.ts:224:1 › browser UI + real HTTP: creator registration, verified local bytes submission, human approval, download import acknowledgement (1.9s)
+  ok 6 tests\remediation\studio.spec.ts:339:1 › theme contract restores active colors after navigation and restart; fonts and reduced motion render (2.0s)
+  ok 7 tests\remediation\studio.spec.ts:426:1 › native-shaped preset conflict reports render without a contract crash (1.2s)
 
-  3 passed (7.1s)
+  7 passed (20.1s)
+[WebServer] (node:29096) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+(node:32800) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)

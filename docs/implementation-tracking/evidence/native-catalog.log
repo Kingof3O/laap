@@ -1,0 +1,4 @@
+PASS native: Real cached/public catalog → champion → cosmetic reference → native global preset
+PASS native: Edit → leave → reopen preserves preset identity, priority and notes
+PASS native: Native duplication → confirmed deletion → trash restoration preserves the copied preset
+PASS native: Native JSON export → GUI preview → confirmed import creates independent global copies

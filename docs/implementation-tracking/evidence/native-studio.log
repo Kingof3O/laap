@@ -1,0 +1,6 @@
+PASS native: Studio exposes customization IPC and rejects account-vault IPC
+PASS native: Create → edit → autosave → close → reopen uses native project files
+PASS native: Native asset import persists original image bytes and displays preview
+PASS native: WebView interruption → versioned recovery → native persistence
+PASS native: Explicit permissions → native library import → refreshed library
+PASS native: Bundled fonts load and native viewport has no horizontal overflow

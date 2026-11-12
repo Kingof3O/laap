@@ -1,0 +1,5 @@
+PASS native: Portable theme including original media imports through UI, applies and persists native bytes
+PASS native: Actual native process restart restores theme, bundled font and active palette
+PASS native: 16 definitions persist through UI save while real adapter availability remains false
+PASS native: Arabic direction and translated navigation render without horizontal overflow at three native sizes; full translation is not claimed
+PASS native: Default reset restores Velvet Amethyst without deleting custom themes

@@ -9,11 +9,11 @@
     "test",
     "--reporter=list"
   ],
-  "startedAt": "2026-11-11T07:06:43.421Z",
-  "finishedAt": "2026-11-11T07:07:38.601Z",
-  "head": "afaea7543ae92e79560d6cc12c9d6f7e5c2bd6ea",
+  "startedAt": "2026-11-12T06:43:38.269Z",
+  "finishedAt": "2026-11-12T06:44:47.087Z",
+  "head": "36835037b9aef82fbdbe798c7040bdc62eb47ffb",
   "source": {
-    "sha256": "d0d0301e05b36635ba7fb5f48ace27e7d8f750c8777b814000db7a39cc1adadc",
+    "sha256": "a93a7d5d9d1d1d9816030d0eb558578392d5cdbd4b60be7292e40605aeb5ed3d",
     "files": [
       [
         "apps/community-api/src/catalog.ts",
@@ -21,11 +21,11 @@
       ],
       [
         "apps/community-api/src/marketplace.ts",
-        "171147be133eaeee6b8588f1cdc8126876b2221970c7e5d0913806bde3711337"
+        "3eec9ae0b6cbdd0bd451c9ceabe558136ba8d3368238265d781d5acb0858c2e5"
       ],
       [
         "apps/community-api/src/moderation.ts",
-        "4568d408f8b6df6b6ffd51165b9b561e1a6aef40ad372c9e22e4031627efb2d3"
+        "6b3468d603415ae3c7c7b84ed7fff63e7d3c09ca93738c7dd218fd18507cd8bc"
       ],
       [
         "apps/community-api/src/packageValidation.ts",
@@ -49,7 +49,7 @@
       ],
       [
         "apps/community-api/tests/marketplace.test.ts",
-        "9e8eb53d117901be9ff2660b5ae9d4e674c2071104218d64c16626c0c25b889a"
+        "c0eccb4e6824e893c56f4b35c0cd5540f9281ce3468ae5c0dca53d12a9151df8"
       ],
       [
         "apps/community-api/tests/moderation.test.ts",
@@ -109,7 +109,7 @@
       ],
       [
         "apps/desktop/src/context/I18nContext.tsx",
-        "b72508c3319db7a6580c572c8d599e3eccbebf0a9c5fc64e84346ef0054b01b8"
+        "5a5df094a34b880ef04cfbd1d3694e1c7684f58d31882c66f57abfabb5a39ecf"
       ],
       [
         "apps/desktop/src/context/RiotOperations.tsx",
@@ -121,7 +121,7 @@
       ],
       [
         "apps/desktop/src/context/i18nData.ts",
-        "96a926ed53b860fec0f9a7852513f9f533fd5c4875f1ea424f7c7b359d194a4f"
+        "5b9e04ed8aa66d038ffe3f454d30cb49d820258c341fb04854bf22dabc69bb01"
       ],
       [
         "apps/desktop/src/features/auth/LoginView.tsx",
@@ -145,7 +145,7 @@
       ],
       [
         "apps/desktop/src/features/customization/ClientSurfaces.tsx",
-        "18ebd1c9ce5e048f90ba1c816fed5db5b59a86cb3a5bede6452da6ea251b01dc"
+        "550babcfcda8c4b5e6dc1e0b14d073c6993af0a95c65f3116b9564b678dce62e"
       ],
       [
         "apps/desktop/src/features/customization/CompleteApp.tsx",
@@ -153,31 +153,43 @@
       ],
       [
         "apps/desktop/src/features/customization/CreatorIdentity.tsx",
-        "0ff71ab3e2deac8d56ea415fbe36a616b9239a344f7e1525e526838f35e8caa5"
+        "c885b4f5ca7f4af01c0ecd98b557693049069e173e39a141438572e399a6a75e"
       ],
       [
         "apps/desktop/src/features/customization/CreatorWorkshop.tsx",
-        "46b2ce6229d7c4745a07ab09f93ac16e9f0198c9994b79651574cf5b01a3ae8f"
+        "ebf90ae78f38eadfb33c389d3bce63103ce6324a221f667ddc008f2bc28420fe"
       ],
       [
         "apps/desktop/src/features/customization/DoctorPage.tsx",
         "888d6f1ccfd0780b1fde43c9444de744b7aa66b82ae438aa6e768de2157e0ba5"
       ],
       [
+        "apps/desktop/src/features/customization/LibraryImportDialog.tsx",
+        "35644e91b89385beb874de80567ff4025708bba555a650c03dcedc1a62634d9b"
+      ],
+      [
         "apps/desktop/src/features/customization/Marketplace.tsx",
-        "681c279555bc85481560bd7a561d360e55ed290b1e590ba1de9cceb9202f3c17"
+        "4d6e53c0b018822fa2bbb6e745824abc1fad23d4424a3384284019e009d5cb62"
+      ],
+      [
+        "apps/desktop/src/features/customization/MarketplacePreview.tsx",
+        "78c05f4e080fc1629055b05d5815c011f8180002badf5e0635fc7436c2268fff"
       ],
       [
         "apps/desktop/src/features/customization/ModLibrary.tsx",
-        "716b43be83b5bbe8cab066f99623eae2f1a0c9bcdcc54987db7fce3d88589e22"
+        "c2bc2625a3ae5d4958e69bf1680f15c0a9656b57bfe74282604f90a6297390e4"
+      ],
+      [
+        "apps/desktop/src/features/customization/ModeratorPanel.tsx",
+        "8ddbabffb1cd7674453c33c7de6cf9c63432255b33a51f615b152d856cb91dff"
       ],
       [
         "apps/desktop/src/features/customization/PartyPage.tsx",
-        "7a5a8fb359efb861f0aa300af3fa8931e9fa1317bfe096ddb1eddbac4aa04c7c"
+        "3b18c4de24a86c6f9f3936fcf84c60a7c6cab91772a36af6cecde5d9ba33aa13"
       ],
       [
         "apps/desktop/src/features/customization/PresetLibrary.tsx",
-        "500997902bb3a83abd13671b1451561c2e0d2c85722e81577b0c55bcb1f3fc11"
+        "58c86a12133e208311c7f1c41cab278396049542dde86f3b5b0c337f35119668"
       ],
       [
         "apps/desktop/src/features/customization/ProviderSettings.tsx",
@@ -189,23 +201,27 @@
       ],
       [
         "apps/desktop/src/features/customization/StudioSettings.tsx",
-        "e6b0b8d59503ac7784b75d3882628de8624579a2c5f61c8d2378f4460be87997"
+        "0e1dfcec8d4787fa8b142fbc8b1e34418fe7c8e5312361106e2ab688829ba14d"
       ],
       [
         "apps/desktop/src/features/customization/StudioWorkspace.tsx",
-        "4c2f8d73f34f1f7f4531c64d9431ccb275292f62c48bfb8debdeabb6f5b01f98"
+        "ca0e84de348e179178c99651dac3c0397f2ced7c35b4847a5daedf17bfc4efd1"
       ],
       [
         "apps/desktop/src/features/customization/ThemePreview.tsx",
-        "95fc23c3c81c0da9d7ad490413050f6c6e445ce181f8cb9810daf680dc82d0bd"
+        "e5e9bcfd3fe1ec4438d3bb937da1ebb7af4900fcc2f4076838a1675a1f7a71a7"
       ],
       [
         "apps/desktop/src/features/customization/WorkspaceHome.tsx",
-        "031bfe2e497a94db1d151973270c0a888324bb384ef30ac498d83f8f530a2ffc"
+        "bf45a62747cadef66a44c08f27ed916140470895fb3b81cf3af560fd1cd7b6ca"
       ],
       [
         "apps/desktop/src/features/customization/api.ts",
-        "255de63aa3d60d03de591c70acf0fd70862349f3c6740005a53e013098706410"
+        "f22cdf03ef8ee437d4eae7d6cf6b86665316d7cba866b7169caac439d804c4bc"
+      ],
+      [
+        "apps/desktop/src/features/customization/batchOperations.ts",
+        "9f3644bc3175b983dc46cb6c9d9d2ac68bf424fb7a97cb271236bcf1e170a5d4"
       ],
       [
         "apps/desktop/src/features/customization/communityEndpoint.ts",
@@ -217,11 +233,15 @@
       ],
       [
         "apps/desktop/src/features/customization/packageFiles.ts",
-        "c1d29a8f57b89d64f0401a98c7de45a00eb0b9b0b44bbf1143fe8e7f9a3c21df"
+        "c63885bd5041f9402b29208901126812a97c60167d9e8a7bfc1047f86a7a1c09"
+      ],
+      [
+        "apps/desktop/src/features/customization/projectPersistence.ts",
+        "073e58132b134aacdcbba3c1979f519dcecc4b051f2ed0b9f55f5a71e1a17faf"
       ],
       [
         "apps/desktop/src/features/customization/themeRuntime.tsx",
-        "b3abe9fffd14a77dcbcc7256faa0859635bcd12b93f6af56d60e9922063c3e81"
+        "24000e1a820daaea493e231d5d905e987f129b7c7859b7904ca518567a864334"
       ],
       [
         "apps/desktop/src/features/customization/useParty.ts",
@@ -449,7 +469,7 @@
       ],
       [
         "apps/desktop/src/shared/ui/settings/AppearanceSettings.tsx",
-        "94a8b810d529b27059dc12921c8bfa5868afa87aa0c7525d33bf6741d7f50c6b"
+        "03f2b34d5b360c5e99f97151f2af33de9e50d651a5b562a96a006fe86c65ba6c"
       ],
       [
         "apps/desktop/src/shared/ui/settings/SecuritySettings.tsx",
@@ -473,7 +493,7 @@
       ],
       [
         "apps/desktop/src/styles/customization.css",
-        "4e648fcc625e079bb0333d9d27102499782da6ed40029a412cc028d86b774466"
+        "bc663641540da26fb6b95d086da22c4d3d115b00e4b1db5920f3369c873d86a4"
       ],
       [
         "apps/desktop/src/styles/header.css",
@@ -585,7 +605,7 @@
       ],
       [
         "apps/desktop/tests/i18n.test.ts",
-        "3b7718e84afcec6e102680357ac3e328a6d93044e92f08384025f6a3ba940820"
+        "9bf6178984415a79c8c062cab955357d1d39098e8e117ff7fb1ee223b06ec464"
       ],
       [
         "apps/desktop/tests/lease-exit.test.ts",
@@ -600,8 +620,12 @@
         "020667bd49a91e633f84aa8770a3a2982a629ed3568a2a69a9f02745d6b43fcb"
       ],
       [
+        "apps/desktop/tests/remediation/creator-workflows.spec.ts",
+        "0b92f64fa709bae38ec2d60a844325b8b6a5126c95cde98442ea7249ecf6f96d"
+      ],
+      [
         "apps/desktop/tests/remediation/studio.spec.ts",
-        "c4bb74c0bd9c863e64b51a52b169a3aadff183fa438afc61d89f340a3d361526"
+        "f5d7d0f506e7b9bcf7db36f37dc5e3180db96f989ce71b7af11bb4c94334d41b"
       ],
       [
         "apps/desktop/tests/sorting.test.ts",
@@ -628,6 +652,10 @@
         "fc3d39cca378660d7664b1a9f09193403f3f3e939ffca5f96dafd5d94bbd7cbe"
       ],
       [
+        "apps/desktop/tests/workflow-reliability.test.ts",
+        "967f7d1e099a67c37dd8eecbf0fd2a96fc4255db61fd2f4da8e69eafbf5815b3"
+      ],
+      [
         "package-lock.json",
         "3c4b4fd7cedf8ffe1803219bfaec89bfc546699e8025140704c1aeab3861b487"
       ],
@@ -641,5 +669,5 @@
   "exitCode": 0,
   "error": null,
   "log": "browser-basic.log",
-  "logSha256": "910cc1bdcb650eb02a9ccc904d5d0a72784cf0f7c6e6dcff06b087eb54c13774"
+  "logSha256": "8667bfb580ad127e043318fec0f5df3da2f422dd89dde8d627dddebf2a892b86"
 }

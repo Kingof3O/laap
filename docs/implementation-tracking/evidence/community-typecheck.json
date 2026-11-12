@@ -6,13 +6,13 @@
   "command": [
     "node",
     "../../node_modules/typescript/bin/tsc",
-    "-b"
+    "--noEmit"
   ],
-  "startedAt": "2026-11-11T07:07:47.670Z",
-  "finishedAt": "2026-11-11T07:07:48.210Z",
-  "head": "afaea7543ae92e79560d6cc12c9d6f7e5c2bd6ea",
+  "startedAt": "2026-11-12T06:42:44.232Z",
+  "finishedAt": "2026-11-12T06:42:45.495Z",
+  "head": "36835037b9aef82fbdbe798c7040bdc62eb47ffb",
   "source": {
-    "sha256": "3608dcf46c84b8dc9a60a22f3f83824b777dba637c4928c2e7ab9fe0f88cfdf2",
+    "sha256": "71a4f22b5c3d0bf464daadc9c0b64f1f77a684294bfdf088915e0f741c6b2685",
     "files": [
       [
         "apps/community-api/package.json",
@@ -24,11 +24,11 @@
       ],
       [
         "apps/community-api/src/marketplace.ts",
-        "171147be133eaeee6b8588f1cdc8126876b2221970c7e5d0913806bde3711337"
+        "3eec9ae0b6cbdd0bd451c9ceabe558136ba8d3368238265d781d5acb0858c2e5"
       ],
       [
         "apps/community-api/src/moderation.ts",
-        "4568d408f8b6df6b6ffd51165b9b561e1a6aef40ad372c9e22e4031627efb2d3"
+        "6b3468d603415ae3c7c7b84ed7fff63e7d3c09ca93738c7dd218fd18507cd8bc"
       ],
       [
         "apps/community-api/src/packageValidation.ts",
@@ -52,7 +52,7 @@
       ],
       [
         "apps/community-api/tests/marketplace.test.ts",
-        "9e8eb53d117901be9ff2660b5ae9d4e674c2071104218d64c16626c0c25b889a"
+        "c0eccb4e6824e893c56f4b35c0cd5540f9281ce3468ae5c0dca53d12a9151df8"
       ],
       [
         "apps/community-api/tests/moderation.test.ts",

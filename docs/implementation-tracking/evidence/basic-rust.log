@@ -1,34 +1,45 @@
 
 running 60 tests
+test commands::system_utils::tests::test_auto_launch_settings_load ... ok
+test commands::system_utils::tests::test_file_info_on_temp_file ... ok
+test commands::system_utils::tests::test_minimize_to_tray_settings_round_trip ... ok
+test commands::tests::launch_arguments_are_normal_league_arguments_without_secrets ... ok
 test commands::updater::tests::studio_installer_cannot_cross_legacy_channels ... ok
 test commands::updater::tests::test_default_updater_pubkey_parsing ... ok
-test commands::tests::launch_arguments_are_normal_league_arguments_without_secrets ... ok
 test commands::updater::tests::test_edition_mismatch_detection ... ok
+test commands::updater::tests::test_live_tauri_cli_signing_integration ... ok
 test commands::updater::tests::test_payload_validation_empty_and_tampered ... ok
 test commands::updater::tests::test_platform_architecture_detection ... ok
 test commands::updater::tests::test_semver_comparison ... ok
+test commands::updater::tests::test_signature_verification_valid_and_invalid ... ok
 test commands::updater::tests::test_simultaneous_launch_transition_lock ... ok
-test commands::system_utils::tests::test_file_info_on_temp_file ... ok
+test commands::updater::tests::test_tauri_cli_real_signature_verification_and_tamper_detection ... ok
 test launcher_settings::tests::offline_startup_choice_survives_settings_round_trip ... ok
 test launcher_settings::tests::old_session_mode_does_not_become_the_startup_default ... ok
-test commands::updater::tests::test_live_tauri_cli_signing_integration ... ok
 test launcher_settings::tests::old_settings_default_to_normal_online_launches ... ok
-test local_store::models::tests::profiles_saved_before_rank_labels_still_load ... ok
-test commands::updater::tests::test_tauri_cli_real_signature_verification_and_tamper_detection ... ok
 test launcher_settings::tests::preferences_replace_atomically_on_the_host_platform ... ok
+test local_store::customization_tests::sync_requires_matching_identity_and_rechecks_each_opt_in ... ok
+test local_store::independent_sync_tests::rank_sync_does_not_replace_a_manual_avatar ... ok
+test local_store::models::tests::profiles_saved_before_rank_labels_still_load ... ok
+test local_store::safety_tests::completely_damaged_vault_is_preserved_and_reported ... ok
+test local_store::safety_tests::concurrent_additions_do_not_overwrite_each_other ... ok
+test local_store::safety_tests::isolates_corrupt_records_and_preserves_quarantine ... ok
+test local_store::safety_tests::refresh_preserves_profile_metadata_and_rejects_wrong_identity ... ok
+test local_store::storage::tests::legacy_unencrypted_session_is_migrated_and_encrypted_on_load ... ok
+test local_store::tests::test_local_store_crud ... ok
 test presence::contract_tests::presence_public_certificate_contract ... ignored, Explicit public presence certificate and loopback TLS check; no Riot login or user files are accessed
 test presence_protocol::tests::directed_lobby_chat_and_authentication_are_preserved ... ok
 test presence_protocol::tests::malformed_and_oversized_stanzas_are_not_forwarded ... ok
-test commands::system_utils::tests::test_minimize_to_tray_settings_round_trip ... ok
+test presence_protocol::tests::split_stanzas_never_escape_unfiltered_and_online_restores_the_original ... ok
 test presence_proxy::tests::configuration_without_chat_is_not_rerouted ... ok
 test presence_proxy::tests::host_certificate_import_contract ... ignored, Explicit local public-certificate fixture handshake; no user settings accessed
-test commands::system_utils::tests::test_auto_launch_settings_load ... ok
+test presence_proxy::tests::live_mode_changes_replay_presence_without_restarting_the_stream ... ok
 test presence_proxy::tests::routing_preserves_the_selected_riot_region_and_blocks_other_hosts ... ok
 test product::tests::native_capabilities_match_identity_and_update_channel ... ok
 test product::tests::permission_boundaries_enforced ... ok
 test profile_assets::cache_tests::damaged_cached_images_report_a_repairable_error ... ok
-test commands::updater::tests::test_signature_verification_valid_and_invalid ... ok
-test presence_protocol::tests::split_stanzas_never_escape_unfiltered_and_online_restores_the_original ... ok
+test profile_assets::cache_tests::selected_images_are_read_from_disk_without_network_after_memory_is_discarded ... ok
+test profile_assets::image_tests::uploaded_images_become_small_pngs_without_original_metadata ... ok
 test profile_assets::live_contract_tests::riot_data_dragon_contract_is_usable ... ignored, Explicit public Data Dragon network smoke check; no vault or credentials accessed
 test profile_assets::tests::asset_keys_cannot_escape_cache ... ok
 test profile_assets::tests::reads_only_solo_queue_and_normalizes_divisions ... ok
@@ -36,45 +47,22 @@ test profile_assets::tests::rejects_non_images ... ok
 test riot::cancellation_tests::cancellation_restores_original_and_never_captures_later_logins ... ok
 test riot::cancellation_tests::cleanup_without_managed_session_never_deletes_personal_login ... ok
 test riot::install::tests::finds_a_custom_drive_location_from_riot_records ... ok
-test presence_proxy::tests::live_mode_changes_replay_presence_without_restarting_the_stream ... ok
+test riot::install::tests::stale_candidates_do_not_hide_a_valid_custom_location ... ok
 test riot::process::tests::exited_child_does_not_abort_stopping_the_remaining_parent ... ok
 test riot::process::tests::failed_termination_reports_permissions_only_if_that_process_remains ... ok
-test riot::install::tests::stale_candidates_do_not_hide_a_valid_custom_location ... ok
 test riot::process::tests::recognizes_match_executables_and_guards_them ... ok
+test riot::process::tests::waits_for_delayed_exit_after_a_failed_termination_call ... ok
 test riot::session_format::metadata_tests::detects_actual_metadata_without_inventing_missing_fields ... ok
 test riot::session_format::tests::detects_current_riot_authorization_without_legacy_markers ... ok
 test riot::session_format::tests::detects_legacy_sessions ... ok
 test riot::session_format::tests::rejects_signed_out_empty_and_invalid_settings ... ok
-test profile_assets::image_tests::uploaded_images_become_small_pngs_without_original_metadata ... ok
 test riot::tests::current_session_is_detected_by_import_and_provisioning ... ok
-test profile_assets::cache_tests::selected_images_are_read_from_disk_without_network_after_memory_is_discarded ... ok
 test riot::tests::test_provisioner_flow ... ok
-test riot::tests::test_session_injection_and_cleanup ... ok
 test riot::tests::test_recover_orphaned_session_restores_original_settings ... ok
-test riot::process::tests::waits_for_delayed_exit_after_a_failed_termination_call ... ok
-test local_store::independent_sync_tests::rank_sync_does_not_replace_a_manual_avatar ... ok
-test local_store::safety_tests::completely_damaged_vault_is_preserved_and_reported ... ok
-test local_store::customization_tests::sync_requires_matching_identity_and_rechecks_each_opt_in ... ok
-test local_store::safety_tests::concurrent_additions_do_not_overwrite_each_other ... ok
-test local_store::safety_tests::refresh_preserves_profile_metadata_and_rejects_wrong_identity ... ok
-test local_store::storage::tests::legacy_unencrypted_session_is_migrated_and_encrypted_on_load ... ok
-test local_store::safety_tests::isolates_corrupt_records_and_preserves_quarantine ... ok
-test local_store::tests::test_local_store_crud ... ok
+test riot::tests::test_session_injection_and_cleanup ... ok
 
-test result: ok. 57 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.27s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 57 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 1.06s
 
    Compiling laap-desktop-core v1.0.0 (C:\pw\laap\apps\desktop\src-tauri)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 25.25s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 41.95s
      Running unittests src\lib.rs (target\debug\deps\laap_desktop_core-f31e243f26437a49.exe)
-     Running unittests src\main.rs (target\debug\deps\laap_desktop_core-7d1a5a585c1d5357.exe)
-   Doc-tests laap_desktop_core

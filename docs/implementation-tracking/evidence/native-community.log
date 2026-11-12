@@ -1,0 +1,6 @@
+PASS native: Real HTTP creator registration → native OS credential persistence → disconnect → token recovery
+PASS native: Native local package selection → real upload → tracked pending submission → original preview upload
+PASS native: Authenticated operator queue → server hash validation → native archive inspection → approval
+PASS native: Real HTTP manifest + byte download → native validation → new local library import; exact source bytes preserved
+PASS native: Independent reviewer → persisted review and favorite → actual CSP-safe preview rendering
+PASS native: Real report → authenticated reports queue → takedown → restore to review → reinspection and approval

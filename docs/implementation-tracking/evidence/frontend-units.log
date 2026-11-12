@@ -2,56 +2,80 @@ TAP version 13
 # Subtest: Complete context resolves three opaque IDs, follows rename, clears general Studio and drops deleted identity
 ok 1 - Complete context resolves three opaque IDs, follows rename, clears general Studio and drops deleted identity
   ---
-  duration_ms: 1.0522
+  duration_ms: 3.3892
   type: 'test'
   ...
 # Subtest: download streams are bounded, truncation is rejected and successful bytes are preserved
 ok 2 - download streams are bounded, truncation is rejected and successful bytes are preserved
   ---
-  duration_ms: 47.9692
+  duration_ms: 129.6221
   type: 'test'
   ...
-# Subtest: i18n 22 League client locales comprehensive coverage
+# Subtest: i18n locale registry and existing 26-key dictionary coverage
     # Subtest: declares all 22 official League client locales
     ok 1 - declares all 22 official League client locales
       ---
-      duration_ms: 1.0703
+      duration_ms: 1.3448
+      type: 'test'
+      ...
+    # Subtest: dictionary coverage does not claim full application translation
+    ok 2 - dictionary coverage does not claim full application translation
+      ---
+      duration_ms: 0.2725
       type: 'test'
       ...
     # Subtest: Arabic locale has isRtl flag enabled
-    ok 2 - Arabic locale has isRtl flag enabled
+    ok 3 - Arabic locale has isRtl flag enabled
       ---
-      duration_ms: 0.2729
+      duration_ms: 0.3383
       type: 'test'
       ...
     # Subtest: every one of the 22 locales has non-empty translations for all 26 keys
-    ok 3 - every one of the 22 locales has non-empty translations for all 26 keys
+    ok 4 - every one of the 22 locales has non-empty translations for all 26 keys
       ---
-      duration_ms: 1.4888
+      duration_ms: 1.0191
       type: 'test'
       ...
-    1..3
-ok 3 - i18n 22 League client locales comprehensive coverage
+    1..4
+ok 3 - i18n locale registry and existing 26-key dictionary coverage
   ---
-  duration_ms: 4.8005
+  duration_ms: 12.8509
+  type: 'test'
+  ...
+# Subtest: tray quit releases a persisted cloud lease even when its view unmounted
+ok 4 - tray quit releases a persisted cloud lease even when its view unmounted
+  ---
+  duration_ms: 9.228
+  type: 'test'
+  ...
+# Subtest: retain the persisted lease when the server release fails
+ok 5 - retain the persisted lease when the server release fails
+  ---
+  duration_ms: 0.7626
+  type: 'test'
+  ...
+# Subtest: switching from a cloud profile releases its lease and restores Riot before local launch
+ok 6 - switching from a cloud profile releases its lease and restores Riot before local launch
+  ---
+  duration_ms: 0.815
   type: 'test'
   ...
 # Subtest: competitive rank hierarchy with unknown ranks always last
-ok 4 - competitive rank hierarchy with unknown ranks always last
+ok 7 - competitive rank hierarchy with unknown ranks always last
   ---
-  duration_ms: 16.2173
+  duration_ms: 44.5645
   type: 'test'
   ...
 # Subtest: name, last-played, and date-added orders are stable
-ok 5 - name, last-played, and date-added orders are stable
+ok 8 - name, last-played, and date-added orders are stable
   ---
-  duration_ms: 0.5116
+  duration_ms: 1.7073
   type: 'test'
   ...
 # Subtest: every sorting option orders by its declared field
-ok 6 - every sorting option orders by its declared field
+ok 9 - every sorting option orders by its declared field
   ---
-  duration_ms: 0.5972
+  duration_ms: 0.4321
   type: 'test'
   ...
 # Subtest: LAAP V2 Update Engine Deterministic Tests
@@ -59,319 +83,343 @@ ok 6 - every sorting option orders by its declared field
         # Subtest: semver parsing handles standard and prefixed tags
         ok 1 - semver parsing handles standard and prefixed tags
           ---
-          duration_ms: 1.3516
+          duration_ms: 2.4286
           type: 'test'
           ...
         # Subtest: isNewerVersion accurately detects version mismatches
         ok 2 - isNewerVersion accurately detects version mismatches
           ---
-          duration_ms: 0.2321
+          duration_ms: 0.8674
           type: 'test'
           ...
         1..2
     ok 1 - Semver parsing and version mismatch detection
       ---
-      duration_ms: 2.3431
+      duration_ms: 5.032
       type: 'suite'
       ...
     # Subtest: Edition mismatch enforcement (Team vs. Offline)
         # Subtest: accepts matching team edition update
         ok 1 - accepts matching team edition update
           ---
-          duration_ms: 0.3331
+          duration_ms: 0.6951
           type: 'test'
           ...
         # Subtest: rejects offline edition manifest when running team edition
         ok 2 - rejects offline edition manifest when running team edition
           ---
-          duration_ms: 0.2247
+          duration_ms: 0.6253
           type: 'test'
           ...
         # Subtest: rejects team edition manifest when running offline edition
         ok 3 - rejects team edition manifest when running offline edition
           ---
-          duration_ms: 0.1183
+          duration_ms: 0.2588
           type: 'test'
           ...
         1..3
     ok 2 - Edition mismatch enforcement (Team vs. Offline)
       ---
-      duration_ms: 0.9143
+      duration_ms: 2.395
       type: 'suite'
       ...
     # Subtest: Platform & Architecture enforcement
         # Subtest: rejects update when target architecture does not match
         ok 1 - rejects update when target architecture does not match
           ---
-          duration_ms: 0.2441
+          duration_ms: 0.3217
           type: 'test'
           ...
         # Subtest: rejects insecure HTTP download URLs
         ok 2 - rejects insecure HTTP download URLs
           ---
-          duration_ms: 0.1298
+          duration_ms: 0.5873
           type: 'test'
           ...
         # Subtest: rejects missing or empty signature
         ok 3 - rejects missing or empty signature
           ---
-          duration_ms: 0.1325
+          duration_ms: 0.3202
           type: 'test'
           ...
         1..3
     ok 3 - Platform & Architecture enforcement
       ---
-      duration_ms: 0.7548
+      duration_ms: 1.8995
       type: 'suite'
       ...
     # Subtest: Cryptographic Signature Verification (Ed25519)
         # Subtest: successfully verifies genuine payload signed by genuine key
         ok 1 - successfully verifies genuine payload signed by genuine key
           ---
-          duration_ms: 3.1745
+          duration_ms: 7.4259
           type: 'test'
           ...
         # Subtest: fails closed when payload is tampered with (1 byte modified)
         ok 2 - fails closed when payload is tampered with (1 byte modified)
           ---
-          duration_ms: 1.4236
+          duration_ms: 2.9408
           type: 'test'
           ...
         # Subtest: fails closed when signed by unauthorized key (MITM attack simulation)
         ok 3 - fails closed when signed by unauthorized key (MITM attack simulation)
           ---
-          duration_ms: 1.4914
+          duration_ms: 2.1429
           type: 'test'
           ...
         # Subtest: fails closed when signature is corrupted / malformed base64
         ok 4 - fails closed when signature is corrupted / malformed base64
           ---
-          duration_ms: 1.4421
+          duration_ms: 2.1769
           type: 'test'
           ...
         1..4
     ok 4 - Cryptographic Signature Verification (Ed25519)
       ---
-      duration_ms: 8.5562
+      duration_ms: 17.4332
       type: 'suite'
       ...
     # Subtest: Offline edition zero-network & update isolation
         # Subtest: offline mode check blocks unauthorized external network calls
         ok 1 - offline mode check blocks unauthorized external network calls
           ---
-          duration_ms: 0.4711
+          duration_ms: 1.2062
           type: 'test'
           ...
         1..1
     ok 5 - Offline edition zero-network & update isolation
       ---
-      duration_ms: 0.5922
+      duration_ms: 1.4084
       type: 'suite'
       ...
     # Subtest: Preflight safety checks before update installation
         # Subtest: blocks update installation when an active match is in progress
         ok 1 - blocks update installation when an active match is in progress
           ---
-          duration_ms: 0.1701
+          duration_ms: 0.3215
           type: 'test'
           ...
         # Subtest: blocks update installation when provisioning session is active
         ok 2 - blocks update installation when provisioning session is active
           ---
-          duration_ms: 0.0922
+          duration_ms: 0.1662
           type: 'test'
           ...
         # Subtest: allows update installation when no match or provisioning is active
         ok 3 - allows update installation when no match or provisioning is active
           ---
-          duration_ms: 0.0657
+          duration_ms: 0.1286
           type: 'test'
           ...
         # Subtest: timing gap elimination: defers installation if match becomes active post-download
         ok 4 - timing gap elimination: defers installation if match becomes active post-download
           ---
-          duration_ms: 0.0748
+          duration_ms: 0.1378
           type: 'test'
           ...
         1..4
     ok 6 - Preflight safety checks before update installation
       ---
-      duration_ms: 0.5461
+      duration_ms: 1.0163
       type: 'suite'
       ...
     # Subtest: Update manifest generator and validator
         # Subtest: validates correctly structured manifest with Ed25519 signatures
         ok 1 - validates correctly structured manifest with Ed25519 signatures
           ---
-          duration_ms: 0.8942
+          duration_ms: 1.3804
           type: 'test'
           ...
         # Subtest: rejects manifests attempting downgrade to older version
         ok 2 - rejects manifests attempting downgrade to older version
           ---
-          duration_ms: 0.1345
+          duration_ms: 0.2125
           type: 'test'
           ...
         # Subtest: strict edition filtering: never admits macOS team build into offline manifest
         ok 3 - strict edition filtering: never admits macOS team build into offline manifest
           ---
-          duration_ms: 5.5522
+          duration_ms: 17.2432
           type: 'test'
           ...
         # Subtest: cryptographic artifact verification: verifies genuine signature and fails closed on tampered bytes
         ok 4 - cryptographic artifact verification: verifies genuine signature and fails closed on tampered bytes
           ---
-          duration_ms: 15.478
+          duration_ms: 34.7298
           type: 'test'
           ...
         1..4
     ok 7 - Update manifest generator and validator
       ---
-      duration_ms: 22.2981
+      duration_ms: 53.9388
       type: 'suite'
       ...
     # Subtest: Mandatory edition metadata and artifact identity enforcement
         # Subtest: fails closed when manifest omits edition metadata completely
         ok 1 - fails closed when manifest omits edition metadata completely
           ---
-          duration_ms: 0.1883
+          duration_ms: 0.6469
           type: 'test'
           ...
         # Subtest: fails closed when manifest contains empty or whitespace edition
         ok 2 - fails closed when manifest contains empty or whitespace edition
           ---
-          duration_ms: 0.0884
+          duration_ms: 0.2431
           type: 'test'
           ...
         # Subtest: fails closed when artifact filename lacks required edition marker
         ok 3 - fails closed when artifact filename lacks required edition marker
           ---
-          duration_ms: 0.1069
+          duration_ms: 0.2906
           type: 'test'
           ...
         # Subtest: fails closed when artifact download URL has untrusted file extension
         ok 4 - fails closed when artifact download URL has untrusted file extension
           ---
-          duration_ms: 0.093
+          duration_ms: 0.8867
           type: 'test'
           ...
         1..4
     ok 8 - Mandatory edition metadata and artifact identity enforcement
       ---
-      duration_ms: 0.6241
+      duration_ms: 3.1661
       type: 'suite'
       ...
     # Subtest: Mandatory safety cleanup failures and install transition concurrency
         # Subtest: fails closed when presence proxy termination fails
         ok 1 - fails closed when presence proxy termination fails
           ---
-          duration_ms: 0.1647
+          duration_ms: 0.3791
           type: 'test'
           ...
         # Subtest: fails closed when tray quit preparation fails
         ok 2 - fails closed when tray quit preparation fails
           ---
-          duration_ms: 0.0665
+          duration_ms: 0.142
           type: 'test'
           ...
         # Subtest: fails closed when Riot process termination fails during forced cleanup
         ok 3 - fails closed when Riot process termination fails during forced cleanup
           ---
-          duration_ms: 0.0633
+          duration_ms: 1.2514
           type: 'test'
           ...
         # Subtest: defers installation if a live match starts right before final installer execution
         ok 4 - defers installation if a live match starts right before final installer execution
           ---
-          duration_ms: 0.1264
+          duration_ms: 0.493
           type: 'test'
           ...
         # Subtest: defers installation if account provisioning starts right before final installer execution
         ok 5 - defers installation if account provisioning starts right before final installer execution
           ---
-          duration_ms: 0.1019
+          duration_ms: 0.1379
           type: 'test'
           ...
         # Subtest: blocks simultaneous installer launches when installation transition is active
         ok 6 - blocks simultaneous installer launches when installation transition is active
           ---
-          duration_ms: 0.0742
+          duration_ms: 0.0864
           type: 'test'
           ...
         1..6
     ok 9 - Mandatory safety cleanup failures and install transition concurrency
       ---
-      duration_ms: 1.3279
+      duration_ms: 2.9002
       type: 'suite'
       ...
     # Subtest: Distinguishing release notifications from verified installable updates
         # Subtest: ordinary GitHub release fallback yields isInstallable: false and signature: null
         ok 1 - ordinary GitHub release fallback yields isInstallable: false and signature: null
           ---
-          duration_ms: 0.2693
+          duration_ms: 0.1785
           type: 'test'
           ...
         # Subtest: verified in-app updater yields isInstallable: true and signature string
         ok 2 - verified in-app updater yields isInstallable: true and signature string
           ---
-          duration_ms: 0.1109
+          duration_ms: 0.0726
           type: 'test'
           ...
         # Subtest: UI modal CTA logic presents manual download link and suppresses automatic install CTA when isInstallable is false
         ok 3 - UI modal CTA logic presents manual download link and suppresses automatic install CTA when isInstallable is false
           ---
-          duration_ms: 0.191
+          duration_ms: 0.1682
           type: 'test'
           ...
         1..3
     ok 10 - Distinguishing release notifications from verified installable updates
       ---
-      duration_ms: 0.7736
+      duration_ms: 0.6437
       type: 'suite'
       ...
     # Subtest: Complete dual-edition release publication flow and advertised platform coverage
         # Subtest: validateReleasePublication passes when both editions have complete manifests for all advertised platforms
         ok 1 - validateReleasePublication passes when both editions have complete manifests for all advertised platforms
           ---
-          duration_ms: 16.4232
+          duration_ms: 35.1568
           type: 'test'
           ...
         # Subtest: validateReleasePublication passes for three editions when studio is included
         ok 2 - validateReleasePublication passes for three editions when studio is included
           ---
-          duration_ms: 23.4472
+          duration_ms: 44.0733
           type: 'test'
           ...
         # Subtest: validateReleasePublication fails closed if Windows target is missing from Offline edition
         ok 3 - validateReleasePublication fails closed if Windows target is missing from Offline edition
           ---
-          duration_ms: 12.3793
+          duration_ms: 25.5654
           type: 'test'
           ...
         # Subtest: validateReleasePublication fails closed if an artifact is unsigned and no private key is supplied
         ok 4 - validateReleasePublication fails closed if an artifact is unsigned and no private key is supplied
           ---
-          duration_ms: 1.5953
+          duration_ms: 2.8891
           type: 'test'
           ...
         1..4
     ok 11 - Complete dual-edition release publication flow and advertised platform coverage
       ---
-      duration_ms: 54.0776
+      duration_ms: 108.0375
       type: 'suite'
       ...
     1..11
-ok 7 - LAAP V2 Update Engine Deterministic Tests
+ok 10 - LAAP V2 Update Engine Deterministic Tests
   ---
-  duration_ms: 94.0018
+  duration_ms: 199.9389
   type: 'suite'
   ...
-1..7
-# tests 47
+# Subtest: 100-package batch keeps precise successes, errors and retry selection
+ok 11 - 100-package batch keeps precise successes, errors and retry selection
+  ---
+  duration_ms: 7.2436
+  type: 'test'
+  ...
+# Subtest: cancellation retains committed operation and does not start the rest
+ok 12 - cancellation retains committed operation and does not start the rest
+  ---
+  duration_ms: 0.8479
+  type: 'test'
+  ...
+# Subtest: save queue serializes rapid edits and remains usable after a failed save
+ok 13 - save queue serializes rapid edits and remains usable after a failed save
+  ---
+  duration_ms: 20.1392
+  type: 'test'
+  ...
+# Subtest: recovery rejects cross-project, malformed and oversized snapshots
+ok 14 - recovery rejects cross-project, malformed and oversized snapshots
+  ---
+  duration_ms: 33.3906
+  type: 'test'
+  ...
+1..14
+# tests 55
 # suites 12
-# pass 47
+# pass 55
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 346.0695
+# duration_ms 1091.6357
