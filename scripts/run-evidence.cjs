@@ -5,11 +5,11 @@ const { root, hash, fingerprint } = require("./evidence-support.cjs");
 const [id, scope, cwd, ...command] = process.argv.slice(2);
 if (
   !/^[a-z0-9-]+$/.test(id) ||
-  !["native", "browser", "community"].includes(scope) ||
+  !["native", "browser", "community", "desktop"].includes(scope) ||
   !command.length
 )
   throw Error(
-    "Usage: run-evidence ID native|browser|community CWD EXEC ARGS...",
+    "Usage: run-evidence ID native|browser|community|desktop CWD EXEC ARGS...",
   );
 const directory = path.join(root, "docs/implementation-tracking/evidence");
 fs.mkdirSync(directory, { recursive: true });

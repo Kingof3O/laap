@@ -28,6 +28,8 @@ test("execution evidence rejects failed, altered and stale source/log artifacts"
   assert.throws(() => validateExecution(record, "other", log, "current"));
 });
 test("only actual passing test result records count; ignored or name-only text does not", () => {
+  assert(testPassed('PASS native: actual desktop assertion\n', 'actual desktop assertion'));
+  assert(!testPassed('FAIL native: actual desktop assertion\n', 'actual desktop assertion'));
   assert(testPassed("test domain::roundtrip ... ok\n", "domain::roundtrip"));
   assert(
     testPassed(

@@ -32,6 +32,7 @@ const scopes = {
     "scripts/check-edition-isolation.mjs",
   ],
 };
+scopes.desktop = [...scopes.native, ...scopes.browser, 'apps/desktop/src-tauri/tauri', 'scripts/native-'];
 
 function fingerprint(scope) {
   const paths = cp
@@ -109,6 +110,7 @@ function testPassed(log, test) {
   return (
     new RegExp("^test " + escaped + " \\.\\.\\. ok$", "m").test(log) ||
     new RegExp("^ok \\d+ - " + escaped + "$", "m").test(log) ||
+    new RegExp("^PASS native: " + escaped + "$", "m").test(log) ||
     new RegExp("^\\s*ok \\d+ [^\\n]*\\u203a " + escaped + " \\(", "m").test(log)
   );
 }
