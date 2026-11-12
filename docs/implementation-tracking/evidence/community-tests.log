@@ -2,61 +2,61 @@ TAP version 13
 # Subtest: catalog serves only reviewed hashes, refuses unknown fields, and detects changed bytes
 ok 1 - catalog serves only reviewed hashes, refuses unknown fields, and detects changed bytes
   ---
-  duration_ms: 407.0108
+  duration_ms: 143.7285
   type: 'test'
   ...
 # Subtest: marketplace authenticated upload → moderation → verified bytes, ownership, reviews and persistent takedown
 ok 2 - marketplace authenticated upload → moderation → verified bytes, ownership, reviews and persistent takedown
   ---
-  duration_ms: 498.7269
+  duration_ms: 230.1446
   type: 'test'
   ...
 # Subtest: marketplace admin fails closed when missing or weak; request quotas apply
 ok 3 - marketplace admin fails closed when missing or weak; request quotas apply
   ---
-  duration_ms: 255.982
+  duration_ms: 195.9159
   type: 'test'
   ...
 # Subtest: archive parser rejects truncation, traversal, duplicate, disguised executable and corrupt entry hashes
 ok 4 - archive parser rejects truncation, traversal, duplicate, disguised executable and corrupt entry hashes
   ---
-  duration_ms: 9.3708
+  duration_ms: 5.3967
   type: 'test'
   ...
 # Subtest: legacy reviews remain intact; new authenticated review index is separate
 ok 5 - legacy reviews remain intact; new authenticated review index is separate
   ---
-  duration_ms: 1.3821
+  duration_ms: 1.5188
   type: 'test'
   ...
 # Subtest: marketplace favorites and preview attachments with magic byte validation
 ok 6 - marketplace favorites and preview attachments with magic byte validation
   ---
-  duration_ms: 90.0459
+  duration_ms: 50.7227
   type: 'test'
   ...
 # Subtest: reports use separate storage, enforce admin authorization and immediately block packages
 ok 7 - reports use separate storage, enforce admin authorization and immediately block packages
   ---
-  duration_ms: 254.9247
+  duration_ms: 148.2838
   type: 'test'
   ...
 # Subtest: real WebSockets sync a room, reject unknown payload fields, and restore membership
 ok 8 - real WebSockets sync a room, reject unknown payload fields, and restore membership
   ---
-  duration_ms: 304.1939
+  duration_ms: 170.0492
   type: 'test'
   ...
 # Subtest: seven peers share bounded metadata and chat requires separate consent
 ok 9 - seven peers share bounded metadata and chat requires separate consent
   ---
-  duration_ms: 155.6661
+  duration_ms: 132.4287
   type: 'test'
   ...
 # Subtest: real relay transfers a valid archive with consent, rejects forged IDs, duplicates, corruption and cancellation
 ok 10 - real relay transfers a valid archive with consent, rejects forged IDs, duplicates, corruption and cancellation
   ---
-  duration_ms: 332.767
+  duration_ms: 200.0961
   type: 'test'
   ...
 1..10
@@ -67,4 +67,4 @@ ok 10 - real relay transfers a valid archive with consent, rejects forged IDs, d
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 1674.1885
+# duration_ms 858.3115

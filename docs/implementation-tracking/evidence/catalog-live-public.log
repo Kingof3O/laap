@@ -2,7 +2,7 @@
 running 1 test
 test customization::catalog::tests::live_studio_catalog_contract ... ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 70 filtered out; finished in 0.29s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 74 filtered out; finished in 0.26s
 
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.81s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.70s
      Running unittests src\lib.rs (target\debug\deps\laap_desktop_core-cd728fde075bce69.exe)

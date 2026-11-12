@@ -1,5 +1,5 @@
 
-running 121 tests
+running 122 tests
 test commands::system_utils::tests::test_auto_launch_settings_load ... ok
 test commands::system_utils::tests::test_file_info_on_temp_file ... ok
 test commands::system_utils::tests::test_minimize_to_tray_settings_round_trip ... ok
@@ -45,6 +45,7 @@ test customization::game_path::tests::test_game_path_config_serialization ... ok
 test customization::gameflow::tests::test_match_notice_flow ... ok
 test customization::in_game_runner::tests::test_champion_name_mapping ... ok
 test customization::in_game_runner::tests::test_config_defaults ... ok
+test customization::in_game_runner::tests::test_consent_and_unavailable_adapter ... ok
 test customization::in_game_runner::tests::test_runner_state_event_capping ... ok
 test customization::library::tests::archive_names_exclude_platform_escape_and_ambiguity ... ok
 test customization::library::tests::duplicate_import_is_idempotent_but_never_silently_relicenses_existing_bytes ... ok
@@ -122,7 +123,9 @@ test riot::tests::test_provisioner_flow ... ok
 test riot::tests::test_recover_orphaned_session_restores_original_settings ... ok
 test riot::tests::test_session_injection_and_cleanup ... ok
 
-test result: ok. 116 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 1.11s
+test result: ok. 117 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 0.99s
 
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.17s
+    Blocking waiting for file lock on build directory
+   Compiling laap-desktop-core v1.0.0 (C:\pw\laap\apps\desktop\src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 24.33s
      Running unittests src\lib.rs (target\debug\deps\laap_desktop_core-4c5bc9048447fe69.exe)

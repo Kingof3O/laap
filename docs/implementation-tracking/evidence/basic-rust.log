@@ -63,6 +63,5 @@ test riot::tests::test_session_injection_and_cleanup ... ok
 
 test result: ok. 57 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.72s
 
-   Compiling laap-desktop-core v1.0.0 (C:\pw\laap\apps\desktop\src-tauri)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.98s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.89s
      Running unittests src\lib.rs (target\debug\deps\laap_desktop_core-f31e243f26437a49.exe)

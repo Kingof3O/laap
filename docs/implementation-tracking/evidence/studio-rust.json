@@ -13,11 +13,11 @@
     "--",
     "--test-threads=1"
   ],
-  "startedAt": "2026-11-12T21:12:23.292Z",
-  "finishedAt": "2026-11-12T21:12:55.949Z",
-  "head": "bc6a9acd3d67d8a8b4df7944824b7abc31dc31c4",
+  "startedAt": "2026-11-12T22:53:10.570Z",
+  "finishedAt": "2026-11-12T22:53:34.764Z",
+  "head": "7fe3ea2107e4bd75634b3394dfe184f17fd3ea87",
   "source": {
-    "sha256": "e0f1847b4f0940489e93048b6044c4a3205ad5e074db8b720a84b0e59f5a5398",
+    "sha256": "b52bc86227c7de308f204d48f80de5e28ff7cb6a6a32d8499483da079bcb2fd4",
     "files": [
       [
         "apps/desktop/src-tauri/Cargo.lock",
@@ -129,7 +129,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/customization/in_game_runner.rs",
-        "4039bb9e7ae28d805268ddae20d1927c1bd33b94099b9f41b4a2fba60da02dc9"
+        "eee085ae696ded92f265525f48e0ea6ddbbe0aac87d38cf0b948dfd4cfb6b893"
       ],
       [
         "apps/desktop/src-tauri/src/customization/library.rs",
@@ -277,5 +277,5 @@
   "exitCode": 0,
   "error": null,
   "log": "studio-rust.log",
-  "logSha256": "a2e3e4e497e125e5e8404e86b981132f3873f66d553bd3403038d1187d5b4b4d"
+  "logSha256": "e0ec56491c3e8b9f359f5809e35f09bca429d30c4cfa63568bff42d16fc92e11"
 }

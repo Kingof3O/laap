@@ -9,9 +9,9 @@
     "--test-reporter=tap",
     "tests/*.test.ts"
   ],
-  "startedAt": "2026-11-12T06:43:38.073Z",
-  "finishedAt": "2026-11-12T06:43:40.367Z",
-  "head": "36835037b9aef82fbdbe798c7040bdc62eb47ffb",
+  "startedAt": "2026-11-12T22:52:58.210Z",
+  "finishedAt": "2026-11-12T22:52:59.244Z",
+  "head": "7fe3ea2107e4bd75634b3394dfe184f17fd3ea87",
   "source": {
     "sha256": "71a4f22b5c3d0bf464daadc9c0b64f1f77a684294bfdf088915e0f741c6b2685",
     "files": [
@@ -81,5 +81,5 @@
   "exitCode": 0,
   "error": null,
   "log": "community-tests.log",
-  "logSha256": "7af90bdeefe8e5298bca673417efb11c493062389c05dd5d0f19116eb621093d"
+  "logSha256": "eca60a45a2b0599976009f8195c32b773cea665be2f9a4c02db51ac015f5792e"
 }

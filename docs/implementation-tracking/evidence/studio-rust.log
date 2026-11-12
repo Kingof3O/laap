@@ -1,5 +1,5 @@
 
-running 74 tests
+running 75 tests
 test commands::system_utils::tests::test_file_info_on_temp_file ... ok
 test commands::updater::tests::studio_installer_cannot_cross_legacy_channels ... ok
 test commands::updater::tests::test_default_updater_pubkey_parsing ... ok
@@ -42,6 +42,7 @@ test customization::game_path::tests::test_game_path_config_serialization ... ok
 test customization::gameflow::tests::test_match_notice_flow ... ok
 test customization::in_game_runner::tests::test_champion_name_mapping ... ok
 test customization::in_game_runner::tests::test_config_defaults ... ok
+test customization::in_game_runner::tests::test_consent_and_unavailable_adapter ... ok
 test customization::in_game_runner::tests::test_runner_state_event_capping ... ok
 test customization::library::tests::archive_names_exclude_platform_escape_and_ambiguity ... ok
 test customization::library::tests::duplicate_import_is_idempotent_but_never_silently_relicenses_existing_bytes ... ok
@@ -75,8 +76,8 @@ test customization::wad_tool::tests::test_xxhash64_basic ... ok
 test product::tests::native_capabilities_match_identity_and_update_channel ... ok
 test product::tests::permission_boundaries_enforced ... ok
 
-test result: ok. 72 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.30s
+test result: ok. 73 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.43s
 
    Compiling laap-desktop-core v1.0.0 (C:\pw\laap\apps\desktop\src-tauri)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 20.22s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.30s
      Running unittests src\lib.rs (target\debug\deps\laap_desktop_core-cd728fde075bce69.exe)

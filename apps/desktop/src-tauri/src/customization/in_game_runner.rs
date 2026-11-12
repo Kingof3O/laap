@@ -1,16 +1,18 @@
-//! Automated in-game skin & mod overlay runner.
-//! Monitors League client gameflow (LCU) via local loopback, automatically detects
-//! champion selection in Champion Select, resolves the active loadout/mod for that champion,
-//! and silently stages/mounts the virtual overlay without requiring manual user interaction during matches.
+//! Read-only League client gameflow and Champ Select reference monitor.
+//! When explicitly consented by the user, monitors League client gameflow (LCU) via
+//! local loopback, detects the currently picked champion in Champion Select, and looks
+//! up matching local presets or Mod Library packages purely as a read-only reference.
+//!
+//! LAAP never hooks game memory, bypasses skin/validator checks, unlocks unowned Riot
+//! skins, or spawns unapproved game patchers.
 
 use super::storage;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::{
-    path::{Path, PathBuf},
-    process::Child,
+    path::PathBuf,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Mutex,
     },
     thread,
@@ -18,14 +20,9 @@ use std::{
 };
 use tauri::AppHandle;
 
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
-
-#[cfg(target_os = "windows")]
-const CREATE_NO_WINDOW: u32 = 0x08000000;
-
 const CONFIG_FILE: &str = "in_game_runner_config.json";
 const MAX_LOG_EVENTS: usize = 50;
+const ADAPTER_UNAVAILABLE_MESSAGE: &str = "Unavailable — no approved in-game overlay adapter is configured. LAAP never unlocks unowned official Riot skins or hooks League game memory.";
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -33,9 +30,7 @@ pub enum RunnerPhase {
     Idle,
     Monitoring,
     ChampSelect,
-    Staging,
-    Mounted,
-    Unmounted,
+    InMatch,
     Error,
 }
 
@@ -47,7 +42,7 @@ pub struct RunnerEvent {
     pub message: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ResolvedLoadout {
     pub champion_id: u32,
@@ -56,23 +51,21 @@ pub struct ResolvedLoadout {
     pub source: String, // "ModLibrary", "Preset", or "Default"
     pub mod_hash: Option<String>,
     pub file_count: usize,
+    pub applied_in_game: bool,
+    pub limitation: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InGameRunnerConfig {
-    pub auto_mount_enabled: bool,
-    pub custom_overlay_tool_path: Option<String>,
-    pub auto_unmount_on_end: bool,
+    pub monitor_enabled: bool,
     pub poll_interval_ms: u64,
 }
 
 impl Default for InGameRunnerConfig {
     fn default() -> Self {
         Self {
-            auto_mount_enabled: false,
-            custom_overlay_tool_path: None,
-            auto_unmount_on_end: true,
+            monitor_enabled: false,
             poll_interval_ms: 2000,
         }
     }
@@ -88,8 +81,8 @@ pub struct InGameRunnerStatus {
     pub detected_champion_id: Option<u32>,
     pub detected_champion_name: Option<String>,
     pub resolved_loadout: Option<ResolvedLoadout>,
-    pub mount_active: bool,
-    pub active_pid: Option<u32>,
+    pub adapter_available: bool,
+    pub adapter_status: String,
     pub recent_events: Vec<RunnerEvent>,
     pub error_message: Option<String>,
 }
@@ -101,8 +94,6 @@ struct RunnerState {
     detected_champion_id: Option<u32>,
     detected_champion_name: Option<String>,
     resolved_loadout: Option<ResolvedLoadout>,
-    mount_active: bool,
-    active_child: Option<Child>,
     recent_events: Vec<RunnerEvent>,
     error_message: Option<String>,
 }
@@ -116,11 +107,23 @@ impl RunnerState {
             detected_champion_id: None,
             detected_champion_name: None,
             resolved_loadout: None,
-            mount_active: false,
-            active_child: None,
             recent_events: Vec::new(),
             error_message: None,
         }
+    }
+
+    fn reset_live_observation(&mut self) {
+        self.client_connected = false;
+        self.gameflow_phase = None;
+        self.detected_champion_id = None;
+        self.detected_champion_name = None;
+        self.resolved_loadout = None;
+    }
+
+    fn clear_champion_selection(&mut self) {
+        self.detected_champion_id = None;
+        self.detected_champion_name = None;
+        self.resolved_loadout = None;
     }
 
     fn add_event(&mut self, event_type: &str, message: &str) {
@@ -138,6 +141,7 @@ impl RunnerState {
 
 static STATE: Mutex<Option<Arc<Mutex<RunnerState>>>> = Mutex::new(None);
 static RUNNING_FLAG: AtomicBool = AtomicBool::new(false);
+static POLL_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 fn get_state() -> Arc<Mutex<RunnerState>> {
     let mut guard = STATE.lock().unwrap();
@@ -320,7 +324,6 @@ pub fn champion_name_from_id(id: u32) -> &'static str {
         893 => "Aurora",
         895 => "Smolder",
         897 => "K'Sante",
-        901 => "Milio",
         902 => "Milio",
         910 => "Hwei",
         950 => "Naafiri",
@@ -328,13 +331,14 @@ pub fn champion_name_from_id(id: u32) -> &'static str {
     }
 }
 
-/// Resolves the active mod or preset for a given champion ID.
+/// Looks up any saved Mod Library package or Preset for a champion purely for read-only reference.
+/// Never applies skins or mods in League of Legends.
 pub fn resolve_loadout_for_champion(
     app: &AppHandle,
     champion_id: u32,
     champ_name: &str,
 ) -> ResolvedLoadout {
-    // 1. Check Mod Library for enabled mods targeting this champion
+    // 1. Check Mod Library for enabled local packages targeting this champion
     if let Ok(installed) = super::library::mod_list(app.clone()) {
         let champ_lower = champ_name.to_lowercase().replace([' ', '\'', '.'], "");
         for item in installed {
@@ -345,7 +349,7 @@ pub fn resolve_loadout_for_champion(
             let name_lower = item.manifest.display_name.to_lowercase();
             let mod_id_lower = item.manifest.mod_id.to_lowercase();
             let targets_name =
-                name_lower.contains(&champ_lower) || mod_id_lower.contains(&champ_lower);
+                !champ_lower.is_empty() && (name_lower.contains(&champ_lower) || mod_id_lower.contains(&champ_lower));
 
             if targets_id || targets_name {
                 return ResolvedLoadout {
@@ -355,12 +359,14 @@ pub fn resolve_loadout_for_champion(
                     source: "ModLibrary".to_string(),
                     mod_hash: Some(item.manifest.sha256),
                     file_count: item.manifest.files.len(),
+                    applied_in_game: false,
+                    limitation: "Cached in LAAP Mod Library only; no approved live League overlay adapter is active.".to_string(),
                 };
             }
         }
     }
 
-    // 2. Check Presets for this champion
+    // 2. Check Presets for this champion (metadata preference only)
     if let Ok(root) = storage::root(app) {
         let presets_path = root.join("presets.json");
         #[derive(Deserialize)]
@@ -378,30 +384,30 @@ pub fn resolve_loadout_for_champion(
                         skin_or_mod_name: preset.name,
                         source: "Preset".to_string(),
                         mod_hash: None,
-                        file_count: 1,
+                        file_count: 0,
+                        applied_in_game: false,
+                        limitation: "Catalog preset metadata only; contains no 3D/texture files and LAAP cannot unlock or inject official Riot skins in-game.".to_string(),
                     };
                 }
             }
         }
     }
 
-    // 3. Default (Free skin, unmodded)
+    // 3. No matching preset or mod
     ResolvedLoadout {
         champion_id,
         champion_name: champ_name.to_string(),
-        skin_or_mod_name: format!("Base {champ_name} (Unmodded)"),
+        skin_or_mod_name: format!("No saved preset or local mod for {champ_name}"),
         source: "Default".to_string(),
         mod_hash: None,
         file_count: 0,
+        applied_in_game: false,
+        limitation: "Using official Riot client skin selection.".to_string(),
     }
 }
 
-/// Inspects LCU Champ Select session to retrieve the locked champion ID.
-fn inspect_champ_select_session() -> Result<Option<u32>, String> {
-    let Some(conn) = crate::lcu_read::connection()? else {
-        return Ok(None);
-    };
-
+/// Inspects LCU Champ Select session to retrieve the selected champion ID.
+fn inspect_champ_select_session(conn: &crate::lcu_read::LcuConnection) -> Result<Option<u32>, String> {
     let session = conn.get("/lol-champ-select/v1/session")?;
     let local_cell_id = session
         .get("localPlayerCellId")
@@ -431,128 +437,33 @@ fn inspect_champ_select_session() -> Result<Option<u32>, String> {
     Ok(None)
 }
 
-/// Stages overlay files into local application storage.
-fn stage_overlay_for_match(
-    app: &AppHandle,
-    loadout: &ResolvedLoadout,
-) -> Result<PathBuf, String> {
-    let root = storage::root(app)?;
-    let staging_dir = root.join("overlay_staging");
-    if !staging_dir.exists() {
-        std::fs::create_dir_all(&staging_dir).map_err(|e| e.to_string())?;
-    }
-
-    let manifest_file = staging_dir.join("active_match_loadout.json");
-    let manifest_json = serde_json::to_string_pretty(loadout).map_err(|e| e.to_string())?;
-    std::fs::write(&manifest_file, manifest_json).map_err(|e| e.to_string())?;
-
-    Ok(staging_dir)
-}
-
-/// Spawns the headless overlay worker or locks in native staging.
-fn execute_overlay_mount(
-    _app: &AppHandle,
-    config: &InGameRunnerConfig,
-    staging_dir: &Path,
-    state: &mut RunnerState,
-) -> Result<(), String> {
-    if let Some(tool_path_str) = &config.custom_overlay_tool_path {
-        let tool_path = Path::new(tool_path_str);
-        if tool_path.exists() {
-            let mut cmd = std::process::Command::new(tool_path);
-            cmd.arg("run-overlay")
-                .arg("--staging")
-                .arg(staging_dir);
-
-            #[cfg(target_os = "windows")]
-            cmd.creation_flags(CREATE_NO_WINDOW);
-
-            match cmd.spawn() {
-                Ok(child) => {
-                    let pid = child.id();
-                    state.active_child = Some(child);
-                    state.mount_active = true;
-                    state.phase = RunnerPhase::Mounted;
-                    state.add_event(
-                        "MOUNTED",
-                        &format!("Headless overlay worker spawned successfully (PID: {pid})."),
-                    );
-                    return Ok(());
-                }
-                Err(e) => {
-                    let err_msg = format!("Failed to spawn headless tool at {tool_path_str}: {e}");
-                    state.add_event("ERROR", &err_msg);
-                    state.error_message = Some(err_msg);
-                }
-            }
-        }
-    }
-
-    // Native Silent Staging Fallback
-    state.mount_active = true;
-    state.phase = RunnerPhase::Mounted;
-    state.add_event(
-        "MOUNTED",
-        "Native in-game virtual staging prepared and locked in.",
-    );
-    Ok(())
-}
-
-/// Cleanly terminates overlay child process and removes match staging.
-fn unmount_overlay(app: &AppHandle, state: &mut RunnerState) {
-    if let Some(mut child) = state.active_child.take() {
-        let _ = child.kill();
-        let _ = child.wait();
-        state.add_event("UNMOUNTED", "Headless overlay worker terminated cleanly.");
-    }
-
-    if let Ok(root) = storage::root(app) {
-        let staging_manifest = root.join("overlay_staging").join("active_match_loadout.json");
-        if staging_manifest.exists() {
-            let _ = std::fs::remove_file(staging_manifest);
-        }
-    }
-
-    state.mount_active = false;
-    state.phase = RunnerPhase::Unmounted;
-    state.resolved_loadout = None;
-    state.detected_champion_id = None;
-    state.detected_champion_name = None;
-    state.add_event("CLEANUP", "Match completed. Overlay unmounted.");
-}
-
-/// Core single-tick polling logic.
-pub fn poll_tick(app: &AppHandle, config: &InGameRunnerConfig) {
+/// Core single-tick read-only polling logic.
+pub fn poll_tick(app: &AppHandle) {
     let state_arc = get_state();
     let Ok(mut state) = state_arc.try_lock() else {
         return;
     };
 
-    // 1. Inspect LCU gameflow phase
     let conn_res = crate::lcu_read::connection();
     let conn = match conn_res {
         Ok(c) => c,
         Err(e) => {
-            state.client_connected = false;
-            state.gameflow_phase = None;
+            state.reset_live_observation();
+            state.phase = RunnerPhase::Error;
             state.error_message = Some(e);
             return;
         }
     };
 
     let Some(client) = conn else {
-        state.client_connected = false;
-        state.gameflow_phase = None;
-        if state.mount_active && config.auto_unmount_on_end {
-            unmount_overlay(app, &mut state);
-        }
-        if state.phase != RunnerPhase::Idle {
-            state.phase = RunnerPhase::Monitoring;
-        }
+        state.reset_live_observation();
+        state.error_message = None;
+        state.phase = RunnerPhase::Monitoring;
         return;
     };
 
     state.client_connected = true;
+    state.error_message = None;
 
     let phase_val = match client.get("/lol-gameflow/v1/gameflow-phase") {
         Ok(v) => v.as_str().unwrap_or("Unknown").to_string(),
@@ -565,62 +476,66 @@ pub fn poll_tick(app: &AppHandle, config: &InGameRunnerConfig) {
     match phase_val.as_str() {
         "ChampSelect" => {
             state.phase = RunnerPhase::ChampSelect;
-            if let Ok(Some(champ_id)) = inspect_champ_select_session() {
+            if let Ok(Some(champ_id)) = inspect_champ_select_session(&client) {
                 if state.detected_champion_id != Some(champ_id) {
                     let champ_name = champion_name_from_id(champ_id);
                     state.detected_champion_id = Some(champ_id);
                     state.detected_champion_name = Some(champ_name.to_string());
 
                     let loadout = resolve_loadout_for_champion(app, champ_id, champ_name);
-                    state.add_event(
-                        "CHAMP_LOCKED",
-                        &format!(
-                            "Champion locked: {} (ID {}). Auto-resolved loadout: '{}' via {}.",
-                            champ_name, champ_id, loadout.skin_or_mod_name, loadout.source
+                    let (event_type, msg) = match loadout.source.as_str() {
+                        "ModLibrary" => (
+                            "MOD_REFERENCE",
+                            format!(
+                                "Champion detected: {} (ID {}). Matching local mod '{}' (not applied in League; no approved game adapter).",
+                                champ_name, champ_id, loadout.skin_or_mod_name
+                            ),
                         ),
-                    );
-                    state.resolved_loadout = Some(loadout.clone());
-
-                    // Pre-stage overlay files
-                    if let Ok(staging_dir) = stage_overlay_for_match(app, &loadout) {
-                        state.add_event(
-                            "STAGED",
-                            &format!("Staged loadout files in {}", staging_dir.display()),
-                        );
-                    }
+                        "Preset" => (
+                            "PRESET_REFERENCE",
+                            format!(
+                                "Champion detected: {} (ID {}). Saved preset '{}' is preview metadata only (not applied in League).",
+                                champ_name, champ_id, loadout.skin_or_mod_name
+                            ),
+                        ),
+                        _ => (
+                            "CHAMP_DETECTED",
+                            format!("Champion detected: {} (ID {}). No matching local preset or mod.", champ_name, champ_id),
+                        ),
+                    };
+                    state.add_event(event_type, &msg);
+                    state.resolved_loadout = Some(loadout);
                 }
             }
         }
-        "GameStart" | "InProgress" => {
-            if !state.mount_active {
-                if let Some(loadout) = state.resolved_loadout.clone() {
-                    if let Ok(staging_dir) = stage_overlay_for_match(app, &loadout) {
-                        let _ = execute_overlay_mount(app, config, &staging_dir, &mut state);
-                    }
-                } else if state.detected_champion_id.is_none() {
-                    // Game launched directly without prior ChampSelect detection
-                    state.phase = RunnerPhase::Mounted;
-                    state.mount_active = true;
-                    state.add_event("MOUNTED", "Game launched. In-game overlay active.");
-                }
+        "GameStart" | "InProgress" | "Reconnect" => {
+            state.phase = RunnerPhase::InMatch;
+            if previous_phase.as_deref() != Some(phase_val.as_str()) {
+                state.add_event(
+                    "IN_MATCH",
+                    "Match active in League. No in-game files or skins are injected by LAAP.",
+                );
             }
         }
         "EndOfGame" | "PreEndOfGame" | "WaitingForStats" | "Lobby" | "None" => {
-            if state.mount_active && config.auto_unmount_on_end {
-                unmount_overlay(app, &mut state);
-            }
-            if previous_phase.as_deref() == Some("InProgress") {
+            if previous_phase.as_deref() != Some(phase_val.as_str())
+                && matches!(
+                    previous_phase.as_deref(),
+                    Some("ChampSelect" | "GameStart" | "InProgress" | "Reconnect")
+                )
+            {
                 state.add_event(
-                    "MATCH_END",
-                    &format!("Match transitioned from InProgress to {phase_val}."),
+                    "PHASE_CHANGED",
+                    &format!("Gameflow returned to {phase_val}."),
                 );
+            }
+            if phase_val == "Lobby" || phase_val == "None" {
+                state.clear_champion_selection();
             }
             state.phase = RunnerPhase::Monitoring;
         }
         _ => {
-            if state.phase != RunnerPhase::Mounted {
-                state.phase = RunnerPhase::Monitoring;
-            }
+            state.phase = RunnerPhase::Monitoring;
         }
     }
 }
@@ -640,9 +555,13 @@ pub fn in_game_runner_save_config(
     app: AppHandle,
     config: InGameRunnerConfig,
 ) -> Result<InGameRunnerConfig, String> {
+    let sanitized = InGameRunnerConfig {
+        monitor_enabled: config.monitor_enabled,
+        poll_interval_ms: config.poll_interval_ms.clamp(1000, 30000),
+    };
     let p = config_path(&app)?;
-    storage::write(&p, &config)?;
-    Ok(config)
+    storage::write(&p, &sanitized)?;
+    Ok(sanitized)
 }
 
 #[tauri::command]
@@ -651,7 +570,6 @@ pub fn in_game_runner_get_status() -> Result<InGameRunnerStatus, String> {
     let state = state_arc.lock().map_err(|e| e.to_string())?;
 
     let is_running = RUNNING_FLAG.load(Ordering::SeqCst);
-    let active_pid = state.active_child.as_ref().map(|c| c.id());
 
     Ok(InGameRunnerStatus {
         enabled: is_running,
@@ -661,55 +579,77 @@ pub fn in_game_runner_get_status() -> Result<InGameRunnerStatus, String> {
         detected_champion_id: state.detected_champion_id,
         detected_champion_name: state.detected_champion_name.clone(),
         resolved_loadout: state.resolved_loadout.clone(),
-        mount_active: state.mount_active,
-        active_pid,
+        adapter_available: false,
+        adapter_status: ADAPTER_UNAVAILABLE_MESSAGE.to_string(),
         recent_events: state.recent_events.clone(),
         error_message: state.error_message.clone(),
     })
 }
 
+fn require_consent(consent: bool) -> Result<(), String> {
+    if !consent {
+        return Err("Read-only League client access requires your explicit permission.".into());
+    }
+    Ok(())
+}
+
 #[tauri::command]
-pub fn in_game_runner_set_enabled(app: AppHandle, enabled: bool) -> Result<bool, String> {
+pub fn in_game_runner_set_enabled(
+    app: AppHandle,
+    enabled: bool,
+    consent: bool,
+) -> Result<bool, String> {
+    if enabled {
+        require_consent(consent)?;
+    }
+
     let mut config = in_game_runner_get_config(app.clone())?;
-    config.auto_mount_enabled = enabled;
-    in_game_runner_save_config(app.clone(), config.clone())?;
+    config.monitor_enabled = enabled;
+    in_game_runner_save_config(app.clone(), config)?;
 
     let state_arc = get_state();
 
     if enabled {
         if !RUNNING_FLAG.swap(true, Ordering::SeqCst) {
+            let generation = POLL_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
             {
                 let mut state = state_arc.lock().map_err(|e| e.to_string())?;
                 state.phase = RunnerPhase::Monitoring;
                 state.add_event(
                     "STARTED",
-                    "Automated in-game overlay runner started. Passively monitoring League gameflow.",
+                    "Read-only gameflow & reference monitor started (no game modification active).",
                 );
             }
 
             let app_clone = app.clone();
             thread::spawn(move || {
-                while RUNNING_FLAG.load(Ordering::SeqCst) {
+                while RUNNING_FLAG.load(Ordering::SeqCst)
+                    && POLL_GENERATION.load(Ordering::SeqCst) == generation
+                {
                     let cfg = in_game_runner_get_config(app_clone.clone()).unwrap_or_default();
-                    poll_tick(&app_clone, &cfg);
-                    thread::sleep(Duration::from_millis(cfg.poll_interval_ms.max(1000)));
+                    poll_tick(&app_clone);
+                    thread::sleep(Duration::from_millis(cfg.poll_interval_ms.clamp(1000, 30000)));
                 }
             });
         }
     } else if RUNNING_FLAG.swap(false, Ordering::SeqCst) {
+        POLL_GENERATION.fetch_add(1, Ordering::SeqCst);
         let mut state = state_arc.lock().map_err(|e| e.to_string())?;
-        unmount_overlay(&app, &mut state);
+        state.reset_live_observation();
         state.phase = RunnerPhase::Idle;
-        state.add_event("STOPPED", "Automated in-game overlay runner stopped.");
+        state.add_event("STOPPED", "Read-only gameflow monitor stopped.");
     }
 
     Ok(enabled)
 }
 
 #[tauri::command]
-pub fn in_game_runner_poll_now(app: AppHandle) -> Result<InGameRunnerStatus, String> {
-    let cfg = in_game_runner_get_config(app.clone()).unwrap_or_default();
-    poll_tick(&app, &cfg);
+pub fn in_game_runner_poll_now(
+    app: AppHandle,
+    consent: bool,
+) -> Result<InGameRunnerStatus, String> {
+    require_consent(consent)?;
+    poll_tick(&app);
     in_game_runner_get_status()
 }
 
@@ -731,6 +671,7 @@ mod tests {
         assert_eq!(champion_name_from_id(157), "Yasuo");
         assert_eq!(champion_name_from_id(99), "Lux");
         assert_eq!(champion_name_from_id(266), "Aatrox");
+        assert_eq!(champion_name_from_id(12), "Alistar");
         assert_eq!(champion_name_from_id(999999), "Unknown Champion");
     }
 
@@ -747,9 +688,16 @@ mod tests {
     #[test]
     fn test_config_defaults() {
         let config = InGameRunnerConfig::default();
-        assert!(!config.auto_mount_enabled);
-        assert!(config.auto_unmount_on_end);
+        assert!(!config.monitor_enabled);
         assert_eq!(config.poll_interval_ms, 2000);
-        assert!(config.custom_overlay_tool_path.is_none());
+    }
+
+    #[test]
+    fn test_consent_and_unavailable_adapter() {
+        assert!(require_consent(false).is_err());
+        assert!(require_consent(true).is_ok());
+        let status = in_game_runner_get_status().unwrap();
+        assert!(!status.adapter_available);
+        assert!(status.adapter_status.contains("Unavailable"));
     }
 }

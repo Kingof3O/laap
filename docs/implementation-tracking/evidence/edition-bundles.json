@@ -7,11 +7,11 @@
     "node",
     "scripts/check-edition-isolation.mjs"
   ],
-  "startedAt": "2026-11-12T21:36:27.459Z",
-  "finishedAt": "2026-11-12T21:36:29.831Z",
-  "head": "bc6a9acd3d67d8a8b4df7944824b7abc31dc31c4",
+  "startedAt": "2026-11-12T22:50:38.543Z",
+  "finishedAt": "2026-11-12T22:50:40.644Z",
+  "head": "7fe3ea2107e4bd75634b3394dfe184f17fd3ea87",
   "source": {
-    "sha256": "3834a59b6bda6570a6b48e5fd073ff7f77c87a51240e90dfb987173d065b0bfa",
+    "sha256": "b44558a7a643910379158573c2db212460a960a1ad878f9fbb10885b5bbd8451",
     "files": [
       [
         "apps/community-api/src/catalog.ts",
@@ -139,7 +139,7 @@
       ],
       [
         "apps/desktop/src/features/customization/ClientStatusPage.tsx",
-        "48e6369daf4102d28cfbe5baf02a742407d7a3d38661b857ba349799ad0cc7da"
+        "956ed4b061fc7da58e2be77de465577a457a2656b27bbab12d68c71749543ca9"
       ],
       [
         "apps/desktop/src/features/customization/ClientSurfaces.tsx",
@@ -215,7 +215,7 @@
       ],
       [
         "apps/desktop/src/features/customization/api.ts",
-        "621baf7ef60b0d7ad521ce3d5ab451da2b7f7b1368e7d8cb7c10171d6de6e921"
+        "cc72b993dd6dc70e9c1e43e62533cd3327ee50b17271498e466b080b4bdf9cac"
       ],
       [
         "apps/desktop/src/features/customization/batchOperations.ts",
@@ -667,5 +667,5 @@
   "exitCode": 0,
   "error": null,
   "log": "edition-bundles.log",
-  "logSha256": "f74f43b0e93bdf0ce7ef5e80687cfba25082d0ac71226a4b20891a3867d198b1"
+  "logSha256": "1c28e0c6a0a8849d7fe87a176dad99698f979a022111eaaa209b9f6e46bb3e7c"
 }

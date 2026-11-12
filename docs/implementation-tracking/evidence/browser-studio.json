@@ -11,11 +11,11 @@
     "playwright.studio.config.ts",
     "--reporter=list"
   ],
-  "startedAt": "2026-11-12T06:43:38.269Z",
-  "finishedAt": "2026-11-12T06:44:00.341Z",
-  "head": "36835037b9aef82fbdbe798c7040bdc62eb47ffb",
+  "startedAt": "2026-11-12T22:50:41.580Z",
+  "finishedAt": "2026-11-12T22:50:56.133Z",
+  "head": "7fe3ea2107e4bd75634b3394dfe184f17fd3ea87",
   "source": {
-    "sha256": "3834a59b6bda6570a6b48e5fd073ff7f77c87a51240e90dfb987173d065b0bfa",
+    "sha256": "b44558a7a643910379158573c2db212460a960a1ad878f9fbb10885b5bbd8451",
     "files": [
       [
         "apps/community-api/src/catalog.ts",
@@ -143,7 +143,7 @@
       ],
       [
         "apps/desktop/src/features/customization/ClientStatusPage.tsx",
-        "48e6369daf4102d28cfbe5baf02a742407d7a3d38661b857ba349799ad0cc7da"
+        "956ed4b061fc7da58e2be77de465577a457a2656b27bbab12d68c71749543ca9"
       ],
       [
         "apps/desktop/src/features/customization/ClientSurfaces.tsx",
@@ -219,7 +219,7 @@
       ],
       [
         "apps/desktop/src/features/customization/api.ts",
-        "621baf7ef60b0d7ad521ce3d5ab451da2b7f7b1368e7d8cb7c10171d6de6e921"
+        "cc72b993dd6dc70e9c1e43e62533cd3327ee50b17271498e466b080b4bdf9cac"
       ],
       [
         "apps/desktop/src/features/customization/batchOperations.ts",
@@ -671,5 +671,5 @@
   "exitCode": 0,
   "error": null,
   "log": "browser-studio.log",
-  "logSha256": "c831ed8ae034645f8aad364d381e102b9a9bbf2e5f8ab5346bc827d38cde4e55"
+  "logSha256": "5efed53dae08a47f1cde2e29553b3db5db57b22fc6350d4e45b56547558a3ce4"
 }
