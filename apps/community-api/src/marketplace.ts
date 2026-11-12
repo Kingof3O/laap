@@ -387,6 +387,18 @@ export class MarketplaceStore {
       });
       return json({ id, packageHash: hash, status: "pending_review" });
     }
+    const inspection = /^\/v1\/marketplace\/admin\/package\/([a-f0-9]{64})$/.exec(path);
+    if (inspection && req.method === "GET") {
+      this.admin(req);
+      this.submission(inspection[1]);
+      const pkg = this.database.prepare("SELECT manifest,archive FROM marketplace_packages WHERE hash=?")
+        .get(inspection[1]) as { manifest: string; archive: Uint8Array } | undefined;
+      if (!pkg) return fail(404, "Submission bytes unavailable");
+      const bytes = Buffer.from(pkg.archive);
+      if (createHash("sha256").update(bytes).digest("hex") !== inspection[1]) fail(503, "Stored package corrupted");
+      const manifest = await validatePackage(bytes, JSON.parse(pkg.manifest));
+      return json({ manifest, archiveBase64: bytes.toString("base64") });
+    }
     const admin = /^\/v1\/marketplace\/admin\/review\/([a-f0-9]{64})$/.exec(
       path,
     );

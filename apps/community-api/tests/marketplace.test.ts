@@ -85,6 +85,12 @@ test("marketplace authenticated upload → moderation → verified bytes, owners
       (await request("/submit", data, creator.authToken)).status,
       200,
     );
+    assert.equal((await request(`/admin/package/${hash}`)).status, 401);
+    const inspection = await request(`/admin/package/${hash}`, undefined, undefined, adminKey);
+    assert.equal(inspection.status, 200);
+    const inspected = await inspection.json() as { archiveBase64: string; manifest: { sha256: string } };
+    assert.deepEqual(Buffer.from(inspected.archiveBase64, "base64"), fixture.archive);
+    assert.equal(inspected.manifest.sha256, hash);
     assert.deepEqual(await (await request("/mods")).json(), []);
     assert.equal((await request("/mods?status=pending_review")).status, 401);
     assert.equal(

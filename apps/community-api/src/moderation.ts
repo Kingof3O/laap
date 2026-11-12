@@ -75,6 +75,12 @@ export class ModerationStore {
         res.writeHead(204).end()
         return true
       }
+      if (admin && req.method === 'OPTIONS') {
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        res.writeHead(204).end()
+        return true
+      }
       if (admin) {
         const received = req.headers.authorization?.replace(/^Bearer /, '') ?? ''
         const receivedBytes = Buffer.from(received)
