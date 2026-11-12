@@ -452,4 +452,49 @@ export const discord = {
   }),
 }
 
+export interface InGameRunnerConfig {
+  autoMountEnabled: boolean
+  customOverlayToolPath: string | null
+  autoUnmountOnEnd: boolean
+  pollIntervalMs: number
+}
+
+export interface RunnerEvent {
+  timestamp: string
+  eventType: string
+  message: string
+}
+
+export interface ResolvedLoadout {
+  championId: number
+  championName: string
+  skinOrModName: string
+  source: string
+  modHash: string | null
+  fileCount: number
+}
+
+export interface InGameRunnerStatus {
+  enabled: boolean
+  phase: 'idle' | 'monitoring' | 'champSelect' | 'staging' | 'mounted' | 'unmounted' | 'error'
+  clientConnected: boolean
+  gameflowPhase: string | null
+  detectedChampionId: number | null
+  detectedChampionName: string | null
+  resolvedLoadout: ResolvedLoadout | null
+  mountActive: boolean
+  activePid: number | null
+  recentEvents: RunnerEvent[]
+  errorMessage: string | null
+}
+
+export const inGameRunner = {
+  getConfig: () => invokeTauri<InGameRunnerConfig>('in_game_runner_get_config'),
+  saveConfig: (config: InGameRunnerConfig) => invokeTauri<InGameRunnerConfig>('in_game_runner_save_config', { config }),
+  getStatus: () => invokeTauri<InGameRunnerStatus>('in_game_runner_get_status'),
+  setEnabled: (enabled: boolean) => invokeTauri<boolean>('in_game_runner_set_enabled', { enabled }),
+  pollNow: () => invokeTauri<InGameRunnerStatus>('in_game_runner_poll_now'),
+  clearLogs: () => invokeTauri<boolean>('in_game_runner_clear_logs'),
+}
+
 export const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error)

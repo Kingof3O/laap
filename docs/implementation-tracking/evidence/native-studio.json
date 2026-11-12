@@ -11,7 +11,7 @@
   "finishedAt": "2026-11-12T06:55:13.804Z",
   "head": "36835037b9aef82fbdbe798c7040bdc62eb47ffb",
   "source": {
-    "sha256": "4b533c3283cccc435bc834e0f938e6d0be86717859052061d1182a4da706c7d6",
+    "sha256": "eabb137d42ac45e6fb2370146c81986911bd8c62669f6e137fc263361958cc06",
     "files": [
       [
         "apps/community-api/src/catalog.ts",
@@ -83,7 +83,7 @@
       ],
       [
         "apps/desktop/src-tauri/Cargo.toml",
-        "0b5ea44df5d0e1337cdbb74887f59c6ffe2035600dc4b7f7a55fcf2ae4bffd17"
+        "50dad0dec3b1c2bec34ef4d9d57b878dd301243ae2b1c3e3bbafb0f126f5e237"
       ],
       [
         "apps/desktop/src-tauri/build.rs",
@@ -186,12 +186,16 @@
         "b6a14e5a501b3e7e7418c1bb23b7edcdfb28e628a7d4092651545fd7d6ff926d"
       ],
       [
+        "apps/desktop/src-tauri/src/customization/in_game_runner.rs",
+        "4039bb9e7ae28d805268ddae20d1927c1bd33b94099b9f41b4a2fba60da02dc9"
+      ],
+      [
         "apps/desktop/src-tauri/src/customization/library.rs",
         "d2e2378d64b9dc275546c00faf5fdbfab601c4570a1c0302eb41b9264ab622fc"
       ],
       [
         "apps/desktop/src-tauri/src/customization/mod.rs",
-        "7b148a5ee7b7ffdb1d78213aa5acd9ece684993738221d167a275898a6176f52"
+        "a6aa8dfac0fd28b419da4aae15ebb1371fb3b6652aef9044130e0cf5ed378004"
       ],
       [
         "apps/desktop/src-tauri/src/customization/presets.rs",
@@ -235,7 +239,7 @@
       ],
       [
         "apps/desktop/src-tauri/src/lib.rs",
-        "3a9b08f0c36e46c4b7df574c58b1a489fab58af4b1286c9a9f6828d601f5f90d"
+        "0422ca4f96a75eb3b4089c9e6b9598b41eed792c294a38553ad9e7b8b8752d4a"
       ],
       [
         "apps/desktop/src-tauri/src/local_store/crypto.rs",
@@ -399,7 +403,7 @@
       ],
       [
         "apps/desktop/src/features/customization/ClientStatusPage.tsx",
-        "4d2e1e9b6b7f2266a0b361f1fad9a6cda11faa28b49de77361cea3f1cab054ab"
+        "48e6369daf4102d28cfbe5baf02a742407d7a3d38661b857ba349799ad0cc7da"
       ],
       [
         "apps/desktop/src/features/customization/ClientSurfaces.tsx",
@@ -475,7 +479,7 @@
       ],
       [
         "apps/desktop/src/features/customization/api.ts",
-        "f22cdf03ef8ee437d4eae7d6cf6b86665316d7cba866b7169caac439d804c4bc"
+        "621baf7ef60b0d7ad521ce3d5ab451da2b7f7b1368e7d8cb7c10171d6de6e921"
       ],
       [
         "apps/desktop/src/features/customization/batchOperations.ts",

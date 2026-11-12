@@ -396,6 +396,18 @@ pub fn run() {
             customization::client_surfaces::client_surfaces_export_snippet,
             #[cfg(not(feature = "basic"))]
             customization::client_surfaces::client_surfaces_get_adapter_status,
+            #[cfg(not(feature = "basic"))]
+            customization::in_game_runner::in_game_runner_get_config,
+            #[cfg(not(feature = "basic"))]
+            customization::in_game_runner::in_game_runner_save_config,
+            #[cfg(not(feature = "basic"))]
+            customization::in_game_runner::in_game_runner_get_status,
+            #[cfg(not(feature = "basic"))]
+            customization::in_game_runner::in_game_runner_set_enabled,
+            #[cfg(not(feature = "basic"))]
+            customization::in_game_runner::in_game_runner_poll_now,
+            #[cfg(not(feature = "basic"))]
+            customization::in_game_runner::in_game_runner_clear_logs,
             commands::system_utils::write_error_report,
             commands::system_utils::set_auto_launch,
             commands::system_utils::get_auto_launch,
