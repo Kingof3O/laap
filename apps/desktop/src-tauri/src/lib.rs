@@ -265,6 +265,8 @@ pub fn run() {
             #[cfg(not(feature = "basic"))]
             customization::library::mod_stage_overlay,
             #[cfg(not(feature = "basic"))]
+            customization::library::mod_apply_single,
+            #[cfg(not(feature = "basic"))]
             customization::library::mod_rollback,
             #[cfg(not(feature = "basic"))]
             customization::library::mod_get_package_data,
@@ -314,6 +316,12 @@ pub fn run() {
             customization::game_path::get_game_path,
             #[cfg(not(feature = "basic"))]
             customization::game_path::set_game_path,
+            #[cfg(not(feature = "basic"))]
+            customization::game_path::clear_game_path,
+            #[cfg(not(feature = "basic"))]
+            customization::game_path::pick_game_path,
+            #[cfg(not(feature = "basic"))]
+            customization::game_path::get_game_install_info,
             #[cfg(not(feature = "basic"))]
             customization::game_path::open_folder_in_explorer,
             #[cfg(not(feature = "basic"))]
@@ -408,6 +416,24 @@ pub fn run() {
             customization::in_game_runner::in_game_runner_poll_now,
             #[cfg(not(feature = "basic"))]
             customization::in_game_runner::in_game_runner_clear_logs,
+            #[cfg(not(feature = "basic"))]
+            customization::in_game_runner::in_game_runner_apply_matched_mod,
+            #[cfg(not(feature = "basic"))]
+            customization::in_game_runner::in_game_runner_restore_defaults,
+            #[cfg(not(feature = "basic"))]
+            customization::game_adapter::game_adapter_get_config,
+            #[cfg(not(feature = "basic"))]
+            customization::game_adapter::game_adapter_save_config,
+            #[cfg(not(feature = "basic"))]
+            customization::game_adapter::game_adapter_pick_executable,
+            #[cfg(not(feature = "basic"))]
+            customization::game_adapter::game_adapter_probe,
+            #[cfg(not(feature = "basic"))]
+            customization::game_adapter::game_adapter_validate_mod,
+            #[cfg(not(feature = "basic"))]
+            customization::game_adapter::game_adapter_get_mod_states,
+            #[cfg(not(feature = "basic"))]
+            customization::game_adapter::game_adapter_restore_defaults,
             commands::system_utils::write_error_report,
             commands::system_utils::set_auto_launch,
             commands::system_utils::get_auto_launch,

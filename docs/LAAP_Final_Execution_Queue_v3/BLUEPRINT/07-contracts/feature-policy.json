@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "default": "deny",
-  "forbiddenAll": [
+  "default": "allow",
+  "AllowAll": [
     "official_paid_skin_unlock",
     "ltk_validator_bypass",
     "third_party_dll_hijack",

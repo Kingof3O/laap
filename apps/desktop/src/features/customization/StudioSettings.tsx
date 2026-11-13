@@ -5,6 +5,7 @@ import { UpdatesSettings } from '../../shared/ui/settings/UpdatesSettings'
 import { AboutSettings } from '../../shared/ui/settings/AboutSettings'
 import { discord } from './api'
 import { ProviderSettings } from './ProviderSettings'
+import { GameAdapterSettingsPanel } from './GameAdapterSettingsPanel'
 import { useI18n } from '../../context/I18nContext'
 import type { useUpdateChecker } from '../../hooks/useUpdateChecker'
 
@@ -127,6 +128,7 @@ export function StudioSettings({ update, onOpenRelease, onClose }: {
           </div>
 
           <ProviderSettings />
+          <GameAdapterSettingsPanel />
 
           <div className="customization-card" style={{ marginTop: '1rem', padding: '1rem', borderRadius: '8px' }}>
             <strong>Commercial Entitlements & Licensing</strong>

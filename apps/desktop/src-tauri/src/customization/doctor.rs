@@ -87,10 +87,14 @@ pub async fn doctor_collect(app: AppHandle) -> Result<Report, String> {
         });
         let root = storage::root(&app)?;
         let (media_bytes, media_files) = usage(&root.join("catalog/media"), 0)?;
+        let (healthy, detail) = super::game_adapter::doctor_check_summary(
+            &root,
+            &super::game_adapter::ProbeOptions::default(),
+        );
         checks.push(Check {
             name: "Client integration",
-            healthy: false,
-            detail: "An approved, version-compatible game adapter has not been configured.".into(),
+            healthy,
+            detail,
         });
         Ok(Report {
             checks,

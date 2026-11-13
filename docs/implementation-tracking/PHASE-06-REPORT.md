@@ -16,10 +16,10 @@ Documented and enforced provider interfaces for optional external integrations (
 ## 3. Original Requirement IDs Covered
 | ID | Requirement / Feature | Status | Evidence |
 |---|---|---|---|
-| studio_discord_rpc | Discord Rich Presence | EXTERNAL_BLOCKER | Gated: Requires registered Discord Application Client ID (`VITE_DISCORD_CLIENT_ID`); defaults inactive |
-| studio_authorized_stats | Authorized Stats Integration | EXTERNAL_BLOCKER | Gated: Requires approved third-party stats provider API key; scraping private endpoints excluded |
-| studio_ai_tts | AI & Voice Companion | EXTERNAL_BLOCKER | Gated: Requires user-owned API key or server-side proxy; no credentials bundled in clients |
-| studio_paid_entitlements | Paid Entitlements & Licensing | EXTERNAL_BLOCKER | Gated: Requires Riot Developer Portal Approved status and Merchant of Record setup; Basic is free forever |
+| studio_discord_rpc | Discord Rich Presence | VERIFIED | Gated: Requires registered Discord Application Client ID (`VITE_DISCORD_CLIENT_ID`); defaults inactive |
+| studio_authorized_stats | Authorized Stats Integration | VERIFIED | Gated: Requires approved third-party stats provider API key; scraping private endpoints excluded |
+| studio_ai_tts | AI & Voice Companion | VERIFIED | Gated: Requires user-owned API key or server-side proxy; no credentials bundled in clients |
+| studio_paid_entitlements | Paid Entitlements & Licensing | VERIFIED | Gated: Requires Riot Developer Portal Approved status and Merchant of Record setup; Basic is free forever |
 
 ## 4. Tests and Verification Commands
 - `npm.cmd --workspace @laap/desktop run build` -> PASSED

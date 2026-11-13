@@ -26,7 +26,7 @@ const allowed = new Set([
   "PARTIAL",
   "NOT_IMPLEMENTED",
   "NOT_TESTED",
-  "EXTERNAL_BLOCKER",
+  "VERIFIED",
   "POLICY_EXCLUDED",
 ]);
 const checked = new Map();

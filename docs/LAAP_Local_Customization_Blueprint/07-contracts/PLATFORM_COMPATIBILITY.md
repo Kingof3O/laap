@@ -28,3 +28,10 @@ Adapter must expose (or LAAP reports unavailable): `get_version`, `get_supported
 - Only launch with strict argument array (not shell) and bounded process timeout. Never send generic arbitrary `invoke` or request URL to external tool.
 - No silent auto download of patcher; official manager user installation and EULA/license shown.
 - On game update incompatible: disable apply, retain existing saved mods and cached previews, report reason with version.
+
+### Optional App-Bundled Sidecar Delivery (Gate-Controlled)
+
+If a compliant adapter CLI receives Riot/Vanguard clearance (`EXT-02`), third-party license/attribution clearance (`EXT-03`), and code-signing approval (`EXT-04`):
+
+- Bundle only in **Studio** (`tauri.studio.conf.json`) and **Complete** (`tauri.conf.json`) Windows builds via Tauri `bundle.externalBin` (`league-mod-adapter-x86_64-pc-windows-msvc.exe` installed beside `laap-desktop-core.exe`), scoped to Windows builds so macOS targets remain intact and strictly omitted from **Basic** (`tauri.offline.conf.json`).
+- Discover the bundled sidecar adjacent to `current_exe()` with a build-time pinned SHA-256 digest instead of requiring manual path browsing or hash input, while retaining explicit user opt-in consent and zero in-match mutation. See `docs/EXTERNAL_MOD_ADAPTER.md`.

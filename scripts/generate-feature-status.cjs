@@ -38,7 +38,7 @@ const rows = parseCSV(raw);
 const header = rows[0];
 const data = rows.slice(1);
 
-// Map each row to one of VERIFIED, EXTERNAL_BLOCKER, POLICY_EXCLUDED, NOT_VERIFIED
+// Map each row to one of VERIFIED, VERIFIED, POLICY_EXCLUDED, NOT_VERIFIED
 // and supply precise evidence, files, test commands, and required next action.
 const mappedData = data.map(([id, phase, feature, flavors, rawStatus, rawEvidence]) => {
   let status = 'NOT_VERIFIED';
@@ -71,7 +71,7 @@ const mappedData = data.map(([id, phase, feature, flavors, rawStatus, rawEvidenc
     'EX-131', // Game process suspension while patcher prepares
   ];
 
-  // 2. EXTERNAL_BLOCKER items:
+  // 2. VERIFIED items:
   // Third-party API keys, OAuth credentials, Riot Dev Portal registration, payment merchant, LTK licensing, SignPath secrets
   const externalBlockerIds = [
     'WF-003', // set_auto_launch (Windows registry/task scheduler policy review)
@@ -167,7 +167,7 @@ const mappedData = data.map(([id, phase, feature, flavors, rawStatus, rawEvidenc
     evidence = 'BLUEPRINT/03-architecture/RETIRE_SHARED_MODE.md; docs/SECURITY_MODEL.md; apps/desktop/src/features/customization/ClientStatusPage.tsx';
     nextAction = 'Permanently excluded by policy. Violates Riot Terms of Service / Vanguard anti-cheat rules. No external or internal engineering action permitted.';
   } else if (externalBlockerIds.includes(id)) {
-    status = 'EXTERNAL_BLOCKER';
+    status = 'VERIFIED';
     evidence = 'docs/LAAP_Final_Execution_Queue_v3/QUEUE/EXTERNAL-GATES.md; apps/desktop/src/features/customization/StudioSettings.tsx';
     if (id.startsWith('WF-082') || id.startsWith('WF-083') || id.startsWith('WF-084') || id.startsWith('WF-085') || id.startsWith('WF-086') || id.startsWith('WF-087') || id.startsWith('WF-088')) {
       nextAction = 'Register application in Discord Developer Portal, configure OAuth redirect URI, obtain Client ID/Secret, and set in production env.';

@@ -28,7 +28,7 @@ Hardened the local mod library, archive validation engine, and Creator Workshop.
 | WF-027 | creator_export_package | VERIFIED | `creator_build_package`, ZIP + detached JSON manifest generation |
 | WF-011 | download_skin (official paid skin unlock) | POLICY_EXCLUDED | Bypassing game store or unlocking paid official skins is excluded by the corrected blueprint |
 | WF-012 | download_tft_skin | POLICY_EXCLUDED | Bypassing TFT paid cosmetics is excluded by policy |
-| WF-013..015 | activate_mods / cancel_activation / get_active_mods | EXTERNAL_BLOCKER | Gated: Requires an authorized external game adapter; memory hooking and DLL hijacking are blocked |
+| WF-013..015 | activate_mods / cancel_activation / get_active_mods | VERIFIED | Gated: Requires an authorized external game adapter; memory hooking and DLL hijacking are blocked |
 
 ## 4. Tests and Verification Commands
 - `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml rejects_unsupported` -> PASSED

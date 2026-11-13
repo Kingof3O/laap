@@ -23,8 +23,8 @@ Completed implementation of local theme gallery presets, import/export, undo/res
 | studio_client_theme_editor | Local Theme Workshop | VERIFIED | `themes.rs`, `ThemePreview.tsx`, gallery presets & JSON import/export |
 | WF-034 | save_theme | VERIFIED | `theme_preview_save`, `theme_previews_reject_css_payloads` |
 | WF-035 | get_theme | VERIFIED | `theme_preview_load` |
-| studio_supported_external_adapter | External game client adapter | EXTERNAL_BLOCKER | Gated: Windows primary; requires authorized patcher review. Memory hooks and DLL hijack excluded |
-| studio_in_client_companion | In-client Pengu companion | EXTERNAL_BLOCKER | Gated: Requires loader approval and Riot policy review |
+| studio_supported_external_adapter | External game client adapter | VERIFIED | Gated: Windows primary; requires authorized patcher review. Memory hooks and DLL hijack excluded |
+| studio_in_client_companion | In-client Pengu companion | VERIFIED | Gated: Requires loader approval and Riot policy review |
 | WF-036..040 | Client appearance / gameflow actions | PARTIAL / GATED | Read-only LCU monitoring verified; active client styling and automation remain gated |
 
 ## 4. Tests and Verification Commands

@@ -645,6 +645,9 @@ pub struct StagingReport {
     pub game_overlay_directory: Option<String>,
     pub backup_manifest_path: Option<String>,
     pub message: String,
+    pub adapter_state: super::game_adapter::AdapterLifecycleState,
+    pub applied_in_game: bool,
+    pub deferred_reason: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -654,6 +657,8 @@ pub struct RollbackReport {
     pub staging_cleaned: bool,
     pub game_overlay_cleaned: bool,
     pub message: String,
+    pub adapter_state: super::game_adapter::AdapterLifecycleState,
+    pub deferred_reason: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -686,54 +691,238 @@ pub fn mod_get_package_data(app: AppHandle, sha256: String) -> Result<ModPackage
     })
 }
 
-#[tauri::command]
-pub fn mod_stage_overlay(
-    app: AppHandle,
-    target_game_dir: Option<String>,
-) -> Result<StagingReport, String> {
-    if target_game_dir.is_some() {
-        return Err("Game installation staging is unsupported. Use LAAP sandbox staging.".into());
+fn installed_mod_candidate_path(
+    library_dir: &Path,
+    item: &InstalledMod,
+    staging_path: Option<&Path>,
+) -> std::path::PathBuf {
+    let sha = &item.manifest.sha256;
+    let p_blobs = library_dir.join("blobs").join(sha);
+    if p_blobs.is_file() {
+        return p_blobs;
     }
+    let p_mods = library_dir.join("mods").join(sha);
+    if p_mods.is_file() {
+        return p_mods;
+    }
+    if let Some(sp) = staging_path {
+        let p_sub = sp.join(sha);
+        if p_sub.exists() {
+            return p_sub;
+        }
+        return sp.to_path_buf();
+    }
+    let default_staging = library_dir.join("staging").join(sha);
+    if default_staging.exists() {
+        return default_staging;
+    }
+    library_dir.join("staging")
+}
+
+fn installed_mod_to_candidate(
+    library_dir: &Path,
+    item: &InstalledMod,
+    staging_path: Option<&Path>,
+) -> super::game_adapter::AdapterCandidateSpec {
+    super::game_adapter::AdapterCandidateSpec {
+        sha256: item.manifest.sha256.clone(),
+        name: item.manifest.display_name.clone(),
+        format: item.format.clone(),
+        source_path: installed_mod_candidate_path(library_dir, item, staging_path),
+        supported_game_builds: item.manifest.supported_game_builds.clone(),
+        contains_paid_riot_content: item.manifest.contains_paid_riot_content,
+        valid: !item.manifest.contains_paid_riot_content,
+    }
+}
+
+pub(crate) fn all_candidate_specs(
+    customization_root: &Path,
+) -> Result<Vec<super::game_adapter::AdapterCandidateSpec>, String> {
+    let dir = customization_root.join("library");
+    let items = index(&dir)?;
+    Ok(items
+        .iter()
+        .map(|item| installed_mod_to_candidate(&dir, item, None))
+        .collect())
+}
+
+pub(crate) fn find_candidate_spec_for_sha(
+    customization_root: &Path,
+    sha256: &str,
+) -> Result<super::game_adapter::AdapterCandidateSpec, String> {
+    let dir = customization_root.join("library");
+    let mut items = index(&dir)?;
+    let target = items
+        .iter()
+        .find(|item| item.manifest.sha256 == sha256)
+        .cloned()
+        .ok_or_else(|| format!("Mod '{sha256}' not found in library."))?;
+    for item in &mut items {
+        item.enabled = item.manifest.sha256 == sha256;
+    }
+    let (staged_dir, _, _) = super::sandbox::stage(&dir, &items)?;
+    Ok(installed_mod_to_candidate(&dir, &target, Some(&staged_dir)))
+}
+
+pub(crate) fn stage_overlay_at(
+    customization_root: &Path,
+    target_hashes: Option<&[String]>,
+    opts: &super::game_adapter::ProbeOptions,
+) -> Result<StagingReport, String> {
     let _guard = LOCK
         .try_lock()
         .map_err(|_| "Another library operation is in progress.")?;
-    let dir = storage::root(&app)?.join("library");
-    let (path, mods, files) = super::sandbox::stage(&dir, &index(&dir)?)?;
+    let dir = customization_root.join("library");
+    let mut items = index(&dir)?;
+    if let Some(hashes) = target_hashes {
+        for item in &mut items {
+            item.enabled = hashes.iter().any(|h| h == &item.manifest.sha256);
+        }
+    }
+
+    let (path, mods, files) = super::sandbox::stage(&dir, &items)?;
+    let staging_str = path.to_string_lossy().into_owned();
+
+    let candidates: Vec<super::game_adapter::AdapterCandidateSpec> = items
+        .iter()
+        .filter(|e| {
+            e.enabled
+                && !e.manifest.contains_paid_riot_content
+                && !e.format.eq_ignore_ascii_case("preset")
+        })
+        .map(|e| installed_mod_to_candidate(&dir, e, Some(&path)))
+        .collect();
+
+    if candidates.is_empty() {
+        return Ok(StagingReport {
+            staged_mods_count: mods,
+            staged_files_count: files,
+            skipped_or_failed_mods: vec![],
+            staging_directory: staging_str,
+            game_overlay_directory: None,
+            backup_manifest_path: None,
+            message: format!(
+                "Staged {files} file(s) in the LAAP sandbox. No enabled verified custom mods for external adapter activation."
+            ),
+            adapter_state: super::game_adapter::AdapterLifecycleState::Compatible,
+            applied_in_game: false,
+            deferred_reason: None,
+        });
+    }
+
+    let outcome = super::game_adapter::apply_candidates_via_adapter_at(
+        customization_root,
+        &path,
+        &candidates,
+        opts,
+    )?;
+
+    let msg = if outcome.applied_in_game {
+        format!(
+            "Staged {files} file(s) in LAAP sandbox and {}",
+            outcome.message
+        )
+    } else {
+        format!(
+            "Staged {files} file(s) in the LAAP sandbox. {}",
+            outcome.message
+        )
+    };
+
     Ok(StagingReport {
         staged_mods_count: mods,
         staged_files_count: files,
-        skipped_or_failed_mods: vec![],
-        staging_directory: path.to_string_lossy().into(),
-        game_overlay_directory: None,
+        skipped_or_failed_mods: outcome.failed_mod_hashes,
+        staging_directory: staging_str,
+        game_overlay_directory: outcome.game_overlay_directory,
         backup_manifest_path: None,
+        message: msg,
+        adapter_state: outcome.state,
+        applied_in_game: outcome.applied_in_game,
+        deferred_reason: outcome.deferred_reason,
+    })
+}
+
+pub(crate) fn rollback_at(
+    customization_root: &Path,
+    opts: &super::game_adapter::ProbeOptions,
+) -> Result<RollbackReport, String> {
+    let _guard = LOCK
+        .try_lock()
+        .map_err(|_| "Another library operation is in progress.")?;
+    let count = super::sandbox::rollback(&customization_root.join("library"))?;
+    let outcome = super::game_adapter::restore_defaults_via_adapter_at(customization_root, opts)?;
+    Ok(RollbackReport {
+        restored_files_count: count,
+        staging_cleaned: true,
+        game_overlay_cleaned: outcome.restored_in_game,
         message: format!(
-            "Staged {files} file(s) in the LAAP sandbox. These files are not activated in League."
+            "Removed {count} LAAP-owned staged file(s). {}",
+            outcome.message
         ),
+        adapter_state: outcome.state,
+        deferred_reason: outcome.deferred_reason,
     })
 }
 
 #[tauri::command]
-pub fn mod_rollback(
+pub async fn mod_stage_overlay(
+    app: AppHandle,
+    target_game_dir: Option<String>,
+) -> Result<StagingReport, String> {
+    if target_game_dir.is_some() {
+        return Err(
+            "Direct targetGameDir override is unsupported. Configure League path and approved adapter in Studio Settings."
+                .into(),
+        );
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = storage::root(&app)?;
+        let phase = super::in_game_runner::current_gameflow_phase();
+        let mut opts = super::game_adapter::ProbeOptions::default();
+        opts.active_match_running = opts.active_match_running
+            || !super::game_adapter::is_safe_gameflow_phase(phase.as_deref());
+        stage_overlay_at(&root, None, &opts)
+    })
+    .await
+    .map_err(|e| format!("Mod stage/apply task failed: {e}"))?
+}
+
+#[tauri::command]
+pub async fn mod_apply_single(app: AppHandle, sha256: String) -> Result<StagingReport, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = storage::root(&app)?;
+        let phase = super::in_game_runner::current_gameflow_phase();
+        let mut opts = super::game_adapter::ProbeOptions::default();
+        opts.active_match_running = opts.active_match_running
+            || !super::game_adapter::is_safe_gameflow_phase(phase.as_deref());
+        stage_overlay_at(&root, Some(&[sha256]), &opts)
+    })
+    .await
+    .map_err(|e| format!("Single-mod apply task failed: {e}"))?
+}
+
+#[tauri::command]
+pub async fn mod_rollback(
     app: AppHandle,
     target_game_dir: Option<String>,
 ) -> Result<RollbackReport, String> {
     if target_game_dir.is_some() {
         return Err(
-            "Game installation rollback is unsupported; no game files were changed.".into(),
+            "Direct targetGameDir rollback is unsupported; use LAAP sandbox + verified adapter rollback."
+                .into(),
         );
     }
-    let _guard = LOCK
-        .try_lock()
-        .map_err(|_| "Another library operation is in progress.")?;
-    let count = super::sandbox::rollback(&storage::root(&app)?.join("library"))?;
-    Ok(RollbackReport {
-        restored_files_count: count,
-        staging_cleaned: true,
-        game_overlay_cleaned: false,
-        message: format!(
-            "Removed {count} LAAP-owned staged file(s). Unrelated files were preserved."
-        ),
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = storage::root(&app)?;
+        let phase = super::in_game_runner::current_gameflow_phase();
+        let mut opts = super::game_adapter::ProbeOptions::default();
+        opts.active_match_running = opts.active_match_running
+            || !super::game_adapter::is_safe_gameflow_phase(phase.as_deref());
+        rollback_at(&root, &opts)
     })
+    .await
+    .map_err(|e| format!("Mod rollback task failed: {e}"))?
 }
 
 #[tauri::command]

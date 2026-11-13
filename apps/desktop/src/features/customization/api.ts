@@ -228,6 +228,33 @@ export const presets = {
   conflicts: () => invokeTauri<PresetConflict[]>('customization_preset_conflicts'),
 }
 
+export type AdapterLifecycleState =
+  | 'notInstalled'
+  | 'detected'
+  | 'inspected'
+  | 'compatible'
+  | 'unsupportedGameBuild'
+  | 'unsupportedPlatform'
+  | 'needsUpdate'
+  | 'blockedByPolicy'
+  | 'available'
+  | 'busy'
+  | 'applied'
+  | 'deferred'
+  | 'failed'
+  | 'stopping'
+  | 'unavailable'
+
+export type ModRuntimeState =
+  | 'unverified'
+  | 'safe-to-store'
+  | 'incompatible'
+  | 'adapter-ready'
+  | 'staged'
+  | 'applied'
+  | 'deferred'
+  | 'failed'
+
 export interface StagingReport {
   stagedModsCount: number
   stagedFilesCount: number
@@ -236,6 +263,9 @@ export interface StagingReport {
   gameOverlayDirectory?: string | null
   backupManifestPath?: string | null
   message: string
+  adapterState?: AdapterLifecycleState
+  appliedInGame?: boolean
+  deferredReason?: string | null
 }
 
 export interface RollbackReport {
@@ -243,6 +273,8 @@ export interface RollbackReport {
   stagingCleaned: boolean
   gameOverlayCleaned: boolean
   message: string
+  adapterState?: AdapterLifecycleState
+  deferredReason?: string | null
 }
 
 export interface PackageManifest {
@@ -266,6 +298,7 @@ export const mods = {
     return { hasConflicts: conflicts.length > 0, conflicts }
   },
   stageOverlay: () => invokeTauri<StagingReport>('mod_stage_overlay', { targetGameDir: null }),
+  applySingle: (sha256: string) => invokeTauri<StagingReport>('mod_apply_single', { sha256 }),
   rollback: () => invokeTauri<RollbackReport>('mod_rollback', { targetGameDir: null }),
   getPackageData: (sha256: string) => invokeTauri<ModPackageData>('mod_get_package_data', { sha256 }),
   detectFormat: (archiveBase64: string) => invokeTauri<string>('fantome_detect_format', { archiveBase64 }),
@@ -433,9 +466,22 @@ export const themes = {
   saveMedia: (dataBase64: string, name: string) => invokeTauri<string>('theme_save_media', { dataBase64, name }),
 }
 
+export interface GameInstallInfo {
+  leaguePath: string | null
+  gameDir: string | null
+  gameExePath: string | null
+  detectedBuild: string | null
+  isDetected: boolean
+  source: string | null
+  validationError: string | null
+}
+
 export const gamePath = {
   get: () => invokeTauri<string>('get_game_path'),
   set: (path: string) => invokeTauri<string>('set_game_path', { path }),
+  clear: () => invokeTauri<GameInstallInfo>('clear_game_path'),
+  pick: () => invokeTauri<string | null>('pick_game_path'),
+  getInstallInfo: () => invokeTauri<GameInstallInfo>('get_game_install_info'),
   openExplorer: (folderPath: string) => invokeTauri<boolean>('open_folder_in_explorer', { folderPath }),
 }
 export const gameflow = {
@@ -455,6 +501,54 @@ export const discord = {
 export interface InGameRunnerConfig {
   monitorEnabled: boolean
   pollIntervalMs: number
+  autoApplyMods?: boolean
+}
+
+export interface GameAdapterConfig {
+  adapterPath: string | null
+  expectedSha256: string | null
+  userConsentGranted: boolean
+  clearanceAcknowledged: boolean
+  autoApplyInChampSelect: boolean
+  lastVerifiedSha256?: string | null
+  lastVerifiedVersion?: string | null
+}
+
+export interface AdapterStatusReport {
+  state: AdapterLifecycleState
+  available: boolean
+  compatible: boolean
+  appliedInGame: boolean
+  busy: boolean
+  discoverySource: string | null
+  binaryPath: string | null
+  binarySha256: string | null
+  version: string | null
+  supportedGameBuilds: string[]
+  supportedFormats: string[]
+  leagueInstall: GameInstallInfo
+  activeMods: string[]
+  activeMatchRunning: boolean
+  consentGranted: boolean
+  clearanceAcknowledged: boolean
+  autoApplyInChampSelect: boolean
+  detail: string
+  documentedSubcommands: string[]
+  checkedAt: number
+}
+
+export interface ModRuntimeEntry {
+  sha256: string
+  state: ModRuntimeState
+  detail: string
+  updatedAt: number | null
+}
+
+export interface AdapterRestoreOutcome {
+  state: AdapterLifecycleState
+  restoredInGame: boolean
+  deferredReason: string | null
+  message: string
 }
 
 export interface RunnerEvent {
@@ -484,6 +578,13 @@ export interface InGameRunnerStatus {
   resolvedLoadout: ResolvedLoadout | null
   adapterAvailable: boolean
   adapterStatus: string
+  adapterState?: AdapterLifecycleState
+  adapterVersion?: string | null
+  detectedGameBuild?: string | null
+  matchApplyStatus?: string
+  activeAppliedModHash?: string | null
+  autoApplyMods?: boolean
+  consentGranted?: boolean
   recentEvents: RunnerEvent[]
   errorMessage: string | null
 }
@@ -495,6 +596,19 @@ export const inGameRunner = {
   setEnabled: (enabled: boolean, consent: boolean) => invokeTauri<boolean>('in_game_runner_set_enabled', { enabled, consent }),
   pollNow: (consent: boolean) => invokeTauri<InGameRunnerStatus>('in_game_runner_poll_now', { consent }),
   clearLogs: () => invokeTauri<boolean>('in_game_runner_clear_logs'),
+  applyMatchedMod: (consent: boolean) => invokeTauri<StagingReport>('in_game_runner_apply_matched_mod', { consent }),
+  restoreDefaults: () => invokeTauri<RollbackReport>('in_game_runner_restore_defaults'),
+}
+
+export const gameAdapter = {
+  getConfig: () => invokeTauri<GameAdapterConfig>('game_adapter_get_config'),
+  saveConfig: (config: GameAdapterConfig) => invokeTauri<GameAdapterConfig>('game_adapter_save_config', { config }),
+  pickExecutable: () => invokeTauri<string | null>('game_adapter_pick_executable'),
+  probe: (lcuBuildHint?: string | null) =>
+    invokeTauri<AdapterStatusReport>('game_adapter_probe', { lcuBuildHint: lcuBuildHint ?? null }),
+  validateMod: (sha256: string) => invokeTauri<ModRuntimeEntry>('game_adapter_validate_mod', { sha256 }),
+  getModStates: () => invokeTauri<ModRuntimeEntry[]>('game_adapter_get_mod_states'),
+  restoreDefaults: () => invokeTauri<AdapterRestoreOutcome>('game_adapter_restore_defaults'),
 }
 
 export const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error)

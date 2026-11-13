@@ -2,7 +2,19 @@ import { readFileBase64 } from './packageFiles'
 import { runBatch, type BatchResult } from './batchOperations'
 import { useEffect, useRef, useState, type FormEvent, type DragEvent } from 'react'
 import { invokeTauri, hasTauri } from '../../lib/api'
-import { errorMessage, mods, type ConflictReport, type FantomeEntry, type FantomeMeta } from './api'
+import {
+  errorMessage,
+  gameAdapter,
+  mods,
+  type AdapterStatusReport,
+  type ConflictReport,
+  type FantomeEntry,
+  type FantomeMeta,
+  type GameAdapterConfig,
+  type ModRuntimeEntry,
+  type ModRuntimeState,
+} from './api'
+import { adapterStateBadgeColor, formatAdapterStateLabel } from './GameAdapterSettingsPanel'
 
 interface AssetEntry {
   relativePath: string
@@ -48,6 +60,27 @@ function downloadBase64(base64: string, mimeType: string, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 15_000)
 }
 
+function runtimeBadgeMeta(state: ModRuntimeState): { label: string; background: string } {
+  switch (state) {
+    case 'applied':
+      return { label: 'Applied', background: '#16a34a' }
+    case 'adapter-ready':
+      return { label: 'Adapter Ready', background: '#2563eb' }
+    case 'staged':
+      return { label: 'Staged (Sandbox)', background: '#0891b2' }
+    case 'deferred':
+      return { label: 'Deferred', background: '#d97706' }
+    case 'failed':
+      return { label: 'Failed', background: '#dc2626' }
+    case 'incompatible':
+      return { label: 'Incompatible', background: '#991b1b' }
+    case 'safe-to-store':
+      return { label: 'Safe to Store', background: '#475569' }
+    default:
+      return { label: 'Unverified', background: '#6b7280' }
+  }
+}
+
 export function ModLibrary() {
   const [packages, setPackages] = useState<InstalledModRecord[] | null>(null)
   const [archive, setArchive] = useState<File>()
@@ -82,6 +115,30 @@ export function ModLibrary() {
   const [assetLicense, setAssetLicense] = useState('')
   const [redistributable, setRedistributable] = useState(false)
   const [stagingReport, setStagingReport] = useState<string>('')
+  const [adapterStatus, setAdapterStatus] = useState<AdapterStatusReport | null>(null)
+  const [adapterConfig, setAdapterConfig] = useState<GameAdapterConfig | null>(null)
+  const [runtimeMap, setRuntimeMap] = useState<Record<string, ModRuntimeEntry>>({})
+
+  async function refreshAdapterStates() {
+    const [probeRes, cfgRes, statesRes] = await Promise.allSettled([
+      gameAdapter.probe(),
+      gameAdapter.getConfig(),
+      gameAdapter.getModStates(),
+    ])
+    if (probeRes.status === 'fulfilled' && probeRes.value) {
+      setAdapterStatus(probeRes.value)
+    }
+    if (cfgRes.status === 'fulfilled' && cfgRes.value) {
+      setAdapterConfig(cfgRes.value)
+    }
+    if (statesRes.status === 'fulfilled' && Array.isArray(statesRes.value)) {
+      const next: Record<string, ModRuntimeEntry> = {}
+      for (const entry of statesRes.value) {
+        next[entry.sha256] = entry
+      }
+      setRuntimeMap(next)
+    }
+  }
 
   async function load() {
     try {
@@ -90,6 +147,7 @@ export function ModLibrary() {
       list.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0) || a.manifest.displayName.localeCompare(b.manifest.displayName))
       setPackages(list)
       setConflicts(await mods.conflicts())
+      await refreshAdapterStates()
     } catch (cause) {
       setError(errorMessage(cause))
     }
@@ -342,9 +400,13 @@ export function ModLibrary() {
     try {
       const rep = await mods.stageOverlay()
       setStagingReport(rep.message)
-      if (rep.skippedOrFailedMods.length > 0) {
-        setError(`Some mods had extraction issues: ${rep.skippedOrFailedMods.join('; ')}`)
+      if (rep.deferredReason) {
+        setStagingReport(`${rep.message} (${rep.deferredReason})`)
       }
+      if (rep.skippedOrFailedMods.length > 0) {
+        setError(`Some mods could not be activated: ${rep.skippedOrFailedMods.join('; ')}`)
+      }
+      await refreshAdapterStates()
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -359,6 +421,40 @@ export function ModLibrary() {
     try {
       const rep = await mods.rollback()
       setStagingReport(rep.message)
+      await refreshAdapterStates()
+    } catch (e) {
+      setError(errorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function validateSingleMod(sha256: string) {
+    setBusy(true)
+    setError('')
+    setStagingReport('')
+    try {
+      const entry = await gameAdapter.validateMod(sha256)
+      setRuntimeMap((prev) => ({ ...prev, [entry.sha256]: entry }))
+      setStagingReport(entry.detail)
+    } catch (e) {
+      setError(errorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function applySingleMod(sha256: string) {
+    setBusy(true)
+    setError('')
+    setStagingReport('')
+    try {
+      const rep = await mods.applySingle(sha256)
+      setStagingReport(rep.message)
+      if (rep.skippedOrFailedMods.length > 0) {
+        setError(`Activation issue: ${rep.skippedOrFailedMods.join('; ')}`)
+      }
+      await refreshAdapterStates()
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -408,19 +504,44 @@ export function ModLibrary() {
       {/* Game Path & Overlay Staging */}
       <section className="customization-editor" style={{ marginBottom: '1.5rem', maxWidth: '100%' }}>
         <div className="customization-card" style={{ padding: '1rem 1.25rem', borderRadius: '8px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <strong style={{ fontSize: '1rem' }}>Local Sandbox Staging</strong>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 360px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <strong style={{ fontSize: '1rem' }}>Overlay Staging &amp; External Game Adapter</strong>
+                <span
+                  data-testid="modlib-adapter-badge"
+                  style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    color: '#fff',
+                    background: adapterStateBadgeColor(adapterStatus?.state),
+                  }}
+                >
+                  {formatAdapterStateLabel(adapterStatus?.state)}
+                </span>
+                {adapterStatus?.leagueInstall?.detectedBuild && (
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    Build {adapterStatus.leagueInstall.detectedBuild}
+                  </span>
+                )}
+              </div>
               <p style={{ margin: '0.25rem 0', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                Stage active verified mod files in LAAP's sandbox. No League installation files are modified. Staging does not activate mods in the game.
+                {adapterStatus?.detail ??
+                  'Stage verified custom mods (.fantome, .modpkg, .zip) in LAAP sandbox, and activate them via a verified external adapter configured in Studio Settings.'}
               </p>
             </div>
             <div className="customization-actions" style={{ margin: 0 }}>
               <button type="button" className="btn-primary" disabled={busy} onClick={() => void stageMods()}>
-                Stage in LAAP Sandbox
+                {adapterStatus?.compatible && adapterStatus?.consentGranted && adapterStatus?.clearanceAcknowledged
+                  ? 'Apply Enabled Mods'
+                  : 'Stage in LAAP Sandbox'}
               </button>
               <button type="button" className="btn-secondary" disabled={busy} onClick={() => void rollbackMods()}>
-                Clear Owned Staging
+                {adapterStatus?.appliedInGame || adapterStatus?.compatible
+                  ? 'Rollback & Restore Defaults'
+                  : 'Clear Owned Staging'}
               </button>
             </div>
           </div>
@@ -599,7 +720,34 @@ export function ModLibrary() {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  {(() => {
+                    const fallbackState: ModRuntimeState = item.manifest.containsPaidRiotContent
+                      ? 'incompatible'
+                      : adapterStatus?.compatible && adapterStatus?.consentGranted && adapterStatus?.clearanceAcknowledged
+                        ? 'adapter-ready'
+                        : 'safe-to-store'
+                    const entry = runtimeMap[item.manifest.sha256]
+                    const state = entry?.state ?? fallbackState
+                    const meta = runtimeBadgeMeta(state)
+                    return (
+                      <span
+                        data-testid={`mod-runtime-badge-${item.manifest.sha256}`}
+                        title={entry?.detail ?? meta.label}
+                        className="badge"
+                        style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          padding: '2px 8px',
+                          color: '#fff',
+                          background: meta.background,
+                          borderRadius: '4px',
+                        }}
+                      >
+                        {meta.label}
+                      </span>
+                    )
+                  })()}
                   <span
                     className="badge"
                     style={{
@@ -686,7 +834,41 @@ export function ModLibrary() {
                 </ul>
               </details>
 
+              {runtimeMap[item.manifest.sha256]?.detail && (
+                runtimeMap[item.manifest.sha256].state === 'failed' ||
+                runtimeMap[item.manifest.sha256].state === 'deferred' ||
+                runtimeMap[item.manifest.sha256].state === 'incompatible'
+              ) && (
+                <p style={{ margin: '0.35rem 0 0', fontSize: '0.8rem', color: '#f59e0b' }}>
+                  {runtimeMap[item.manifest.sha256].detail}
+                </p>
+              )}
+
               <div className="customization-actions" style={{ marginTop: '0.5rem', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={
+                    busy ||
+                    Boolean(item.manifest.containsPaidRiotContent) ||
+                    !(adapterStatus?.compatible)
+                  }
+                  onClick={() => void validateSingleMod(item.manifest.sha256)}
+                >
+                  Validate
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled={
+                    busy ||
+                    Boolean(item.manifest.containsPaidRiotContent) ||
+                    !(adapterStatus?.compatible && adapterStatus?.consentGranted && adapterStatus?.clearanceAcknowledged)
+                  }
+                  onClick={() => void applySingleMod(item.manifest.sha256)}
+                >
+                  Apply
+                </button>
                 <button
                   type="button"
                   className="btn-secondary"

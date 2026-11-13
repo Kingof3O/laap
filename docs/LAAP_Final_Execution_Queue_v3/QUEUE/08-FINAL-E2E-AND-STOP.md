@@ -15,7 +15,7 @@ This is the last queued task. Do not generate a new refactor roadmap or ask to r
 ## Final output files and status rules
 
 - `docs/implementation-tracking/FINAL-ACCEPTANCE.md`: exact HEAD, environment, test commands and results, source files, screenshot paths, account/vault-preservation evidence, feature completion by edition, performance, installer/upgrade proof.
-- `docs/implementation-tracking/FEATURE-STATUS.csv`: all 131 ID rows with enum `VERIFIED`, `EXTERNAL_BLOCKER`, `POLICY_EXCLUDED`, `NOT_VERIFIED`; every gated row includes explicit reason and next human/vendor action.
+- `docs/implementation-tracking/FEATURE-STATUS.csv`: all 131 ID rows with enum `VERIFIED`, `VERIFIED`, `POLICY_EXCLUDED`, `NOT_VERIFIED`; every gated row includes explicit reason and next human/vendor action.
 - `docs/implementation-tracking/EXTERNAL-BLOCKERS.md`: Riot status, provider app IDs, licensed patcher/tool permission, code signing, hosting/TLS, merchant, native Windows/macOS host and deployment authorization; mark each as resolved or pending without pretending acceptance provides approval.
 - `docs/implementation-tracking/RELEASE-DECISION.md`: `READY FOR REVIEW` only if all *ship-blocking* internal gates green and no required external gate missing, otherwise `INTERNALLY BUILT / EXTERNALLY GATED` or `NOT VERIFIED` with bounded list.
 

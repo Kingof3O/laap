@@ -22,7 +22,6 @@ use tauri::AppHandle;
 
 const CONFIG_FILE: &str = "in_game_runner_config.json";
 const MAX_LOG_EVENTS: usize = 50;
-const ADAPTER_UNAVAILABLE_MESSAGE: &str = "Unavailable — no approved in-game overlay adapter is configured. LAAP never unlocks unowned official Riot skins or hooks League game memory.";
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -60,6 +59,8 @@ pub struct ResolvedLoadout {
 pub struct InGameRunnerConfig {
     pub monitor_enabled: bool,
     pub poll_interval_ms: u64,
+    #[serde(default)]
+    pub auto_apply_mods: bool,
 }
 
 impl Default for InGameRunnerConfig {
@@ -67,6 +68,7 @@ impl Default for InGameRunnerConfig {
         Self {
             monitor_enabled: false,
             poll_interval_ms: 2000,
+            auto_apply_mods: false,
         }
     }
 }
@@ -83,6 +85,13 @@ pub struct InGameRunnerStatus {
     pub resolved_loadout: Option<ResolvedLoadout>,
     pub adapter_available: bool,
     pub adapter_status: String,
+    pub adapter_state: super::game_adapter::AdapterLifecycleState,
+    pub adapter_version: Option<String>,
+    pub detected_game_build: Option<String>,
+    pub match_apply_status: String,
+    pub active_applied_mod_hash: Option<String>,
+    pub auto_apply_mods: bool,
+    pub consent_granted: bool,
     pub recent_events: Vec<RunnerEvent>,
     pub error_message: Option<String>,
 }
@@ -437,105 +446,409 @@ fn inspect_champ_select_session(conn: &crate::lcu_read::LcuConnection) -> Result
     Ok(None)
 }
 
-/// Core single-tick read-only polling logic.
+fn extract_lcu_build_version(client: &crate::lcu_read::LcuConnection) -> Option<String> {
+    let val = client.get("/system/v1/builds").ok()?;
+    val.get("version")
+        .and_then(|v| v.as_str())
+        .and_then(super::game_path::sanitize_build_string)
+}
+
+pub(crate) fn handle_champ_select_loadout_at(
+    customization_root: &std::path::Path,
+    loadout: &mut ResolvedLoadout,
+    auto_apply_mods: bool,
+    opts: &super::game_adapter::ProbeOptions,
+) -> (&'static str, String) {
+    if loadout.source == "Preset" {
+        // Policy invariant: metadata presets must NEVER invoke external game adapters.
+        if let Ok(tracker) = get_tracker().lock().map(|t| t.clone()) {
+            if tracker.active_applied_mod_hash.is_some() {
+                let _ = super::library::rollback_at(customization_root, opts);
+                if let Ok(mut w) = get_tracker().lock() {
+                    w.active_applied_mod_hash = None;
+                    w.pending_restore_after_match = false;
+                    w.match_apply_status = "preset-excluded".into();
+                }
+            } else if let Ok(mut w) = get_tracker().lock() {
+                w.match_apply_status = "preset-excluded".into();
+            }
+        }
+        return (
+            "PRESET_REFERENCE",
+            format!(
+                "Champion detected: {} (ID {}). Saved preset '{}' is preview metadata only (not applied in League).",
+                loadout.champion_name, loadout.champion_id, loadout.skin_or_mod_name
+            ),
+        );
+    }
+
+    if loadout.source != "ModLibrary" {
+        if let Ok(tracker) = get_tracker().lock().map(|t| t.clone()) {
+            if tracker.active_applied_mod_hash.is_some() {
+                let _ = super::library::rollback_at(customization_root, opts);
+                if let Ok(mut w) = get_tracker().lock() {
+                    w.active_applied_mod_hash = None;
+                    w.pending_restore_after_match = false;
+                }
+            }
+        }
+        if let Ok(mut w) = get_tracker().lock() {
+            w.match_apply_status = "no-mod".into();
+        }
+        return (
+            "CHAMP_DETECTED",
+            format!(
+                "Champion detected: {} (ID {}). No matching local preset or mod.",
+                loadout.champion_name, loadout.champion_id
+            ),
+        );
+    }
+
+    let Some(mod_hash) = loadout.mod_hash.clone() else {
+        if let Ok(mut w) = get_tracker().lock() {
+            w.match_apply_status = "no-mod".into();
+        }
+        return (
+            "MOD_REFERENCE",
+            format!(
+                "Champion detected: {} (ID {}). Matching mod '{}' has no package hash.",
+                loadout.champion_name, loadout.champion_id, loadout.skin_or_mod_name
+            ),
+        );
+    };
+
+    // If swapping away from a different previously activated champion mod, clean up first.
+    let previous_applied = get_tracker()
+        .lock()
+        .ok()
+        .and_then(|t| t.active_applied_mod_hash.clone());
+    if let Some(prev) = previous_applied {
+        if prev != mod_hash {
+            let _ = super::library::rollback_at(customization_root, opts);
+            if let Ok(mut w) = get_tracker().lock() {
+                w.active_applied_mod_hash = None;
+                w.pending_restore_after_match = false;
+            }
+        }
+    }
+
+    if !auto_apply_mods {
+        let probe = super::game_adapter::probe_adapter_at(customization_root, opts);
+        if let Ok(mut w) = get_tracker().lock() {
+            w.match_apply_status = if probe.compatible && probe.consent_granted && probe.clearance_acknowledged {
+                "ready".into()
+            } else {
+                "sandbox-only".into()
+            };
+        }
+        return (
+            "MOD_REFERENCE",
+            format!(
+                "Champion detected: {} (ID {}). Matching custom mod '{}' ({}). Enable opt-in ChampSelect auto-apply or click Apply Manually.",
+                loadout.champion_name,
+                loadout.champion_id,
+                loadout.skin_or_mod_name,
+                probe.state.as_summary()
+            ),
+        );
+    }
+
+    match super::library::stage_overlay_at(customization_root, Some(&[mod_hash.clone()]), opts) {
+        Ok(report) => {
+            loadout.applied_in_game = report.applied_in_game;
+            loadout.limitation = report.message.clone();
+            if report.applied_in_game {
+                if let Ok(mut w) = get_tracker().lock() {
+                    w.active_applied_mod_hash = Some(mod_hash);
+                    w.pending_restore_after_match = false;
+                    w.match_apply_status = "applied".into();
+                }
+                (
+                    "MOD_APPLIED",
+                    format!(
+                        "Champion detected: {} (ID {}). Activated custom mod '{}': {}",
+                        loadout.champion_name,
+                        loadout.champion_id,
+                        loadout.skin_or_mod_name,
+                        report.message
+                    ),
+                )
+            } else if report.deferred_reason.is_some() {
+                if let Ok(mut w) = get_tracker().lock() {
+                    w.match_apply_status = "deferred".into();
+                }
+                (
+                    "MOD_DEFERRED",
+                    format!(
+                        "Champion detected: {} (ID {}). Deferred '{}': {}",
+                        loadout.champion_name,
+                        loadout.champion_id,
+                        loadout.skin_or_mod_name,
+                        report.message
+                    ),
+                )
+            } else if report.adapter_state == super::game_adapter::AdapterLifecycleState::Failed {
+                if let Ok(mut w) = get_tracker().lock() {
+                    w.match_apply_status = "failed".into();
+                }
+                (
+                    "MOD_APPLY_FAILED",
+                    format!(
+                        "Custom mod '{}' could not be activated: {}",
+                        loadout.skin_or_mod_name, report.message
+                    ),
+                )
+            } else {
+                if let Ok(mut w) = get_tracker().lock() {
+                    w.match_apply_status = "staged-sandbox-only".into();
+                }
+                (
+                    "MOD_STAGED_ONLY",
+                    format!(
+                        "Champion detected: {} (ID {}). Staged '{}' in sandbox only: {}",
+                        loadout.champion_name,
+                        loadout.champion_id,
+                        loadout.skin_or_mod_name,
+                        report.message
+                    ),
+                )
+            }
+        }
+        Err(err) => {
+            if let Ok(mut w) = get_tracker().lock() {
+                w.match_apply_status = "failed".into();
+            }
+            (
+                "MOD_APPLY_FAILED",
+                format!(
+                    "Failed activating custom mod '{}' for {}: {err}",
+                    loadout.skin_or_mod_name, loadout.champion_name
+                ),
+            )
+        }
+    }
+}
+
+pub(crate) fn handle_post_match_cleanup_at(
+    customization_root: &std::path::Path,
+    phase_val: &str,
+    opts: &super::game_adapter::ProbeOptions,
+) -> Option<(&'static str, String)> {
+    let should_restore = get_tracker()
+        .lock()
+        .ok()
+        .map(|t| t.active_applied_mod_hash.is_some() || t.pending_restore_after_match)
+        .unwrap_or(false);
+    if !should_restore {
+        return None;
+    }
+
+    let safe_phase = super::game_adapter::is_safe_gameflow_phase(Some(phase_val));
+    if !safe_phase || opts.active_match_running {
+        if let Ok(mut w) = get_tracker().lock() {
+            w.pending_restore_after_match = true;
+            w.match_apply_status = "deferred-restore".into();
+        }
+        return Some((
+            "MOD_RESTORE_DEFERRED",
+            format!(
+                "Gameflow at {phase_val}; waiting for active League process to finish before restoring defaults."
+            ),
+        ));
+    }
+
+    match super::library::rollback_at(customization_root, opts) {
+        Ok(report) => {
+            if report.deferred_reason.is_some() {
+                if let Ok(mut w) = get_tracker().lock() {
+                    w.pending_restore_after_match = true;
+                    w.match_apply_status = "deferred-restore".into();
+                }
+                return Some(("MOD_RESTORE_DEFERRED", report.message));
+            }
+            if let Ok(mut w) = get_tracker().lock() {
+                w.active_applied_mod_hash = None;
+                w.pending_restore_after_match = false;
+                w.match_apply_status = if report.game_overlay_cleaned {
+                    "restored".into()
+                } else {
+                    "idle".into()
+                };
+            }
+            Some((
+                "MOD_RESTORED",
+                format!("Gameflow returned to {phase_val}. {}", report.message),
+            ))
+        }
+        Err(err) => {
+            if let Ok(mut w) = get_tracker().lock() {
+                w.match_apply_status = "restore-failed".into();
+            }
+            Some((
+                "MOD_RESTORE_FAILED",
+                format!("Failed restoring defaults on {phase_val}: {err}"),
+            ))
+        }
+    }
+}
+
+/// Core single-tick polling logic (network & adapter operations run outside `STATE` mutex).
 pub fn poll_tick(app: &AppHandle) {
     let state_arc = get_state();
-    let Ok(mut state) = state_arc.try_lock() else {
-        return;
+    let (previous_phase, previous_champ_id) = match state_arc.lock() {
+        Ok(s) => (s.gameflow_phase.clone(), s.detected_champion_id),
+        Err(_) => return,
     };
 
     let conn_res = crate::lcu_read::connection();
     let conn = match conn_res {
         Ok(c) => c,
         Err(e) => {
-            state.reset_live_observation();
-            state.phase = RunnerPhase::Error;
-            state.error_message = Some(e);
+            if let Ok(mut state) = state_arc.lock() {
+                state.reset_live_observation();
+                state.phase = RunnerPhase::Error;
+                state.error_message = Some(e);
+            }
             return;
         }
     };
 
     let Some(client) = conn else {
-        state.reset_live_observation();
-        state.error_message = None;
-        state.phase = RunnerPhase::Monitoring;
+        if let Ok(mut state) = state_arc.lock() {
+            state.reset_live_observation();
+            state.error_message = None;
+            state.phase = RunnerPhase::Monitoring;
+        }
         return;
     };
-
-    state.client_connected = true;
-    state.error_message = None;
 
     let phase_val = match client.get("/lol-gameflow/v1/gameflow-phase") {
         Ok(v) => v.as_str().unwrap_or("Unknown").to_string(),
         Err(_) => "Unknown".to_string(),
     };
 
-    let previous_phase = state.gameflow_phase.clone();
-    state.gameflow_phase = Some(phase_val.clone());
+    let lcu_build_hint = extract_lcu_build_version(&client);
+    if let Some(ref b) = lcu_build_hint {
+        if let Ok(mut t) = get_tracker().lock() {
+            t.lcu_build_hint = Some(b.clone());
+        }
+    }
+
+    let root = super::storage::root(app).ok();
+    let cfg = load_runner_cfg_at(root.as_deref());
+    let tracker_hint = get_tracker()
+        .lock()
+        .ok()
+        .and_then(|t| t.lcu_build_hint.clone());
+    let mut probe_opts = super::game_adapter::ProbeOptions {
+        lcu_build_hint: tracker_hint,
+        ..super::game_adapter::ProbeOptions::default()
+    };
+    probe_opts.active_match_running = probe_opts.active_match_running
+        || !super::game_adapter::is_safe_gameflow_phase(Some(phase_val.as_str()));
 
     match phase_val.as_str() {
         "ChampSelect" => {
-            state.phase = RunnerPhase::ChampSelect;
-            if let Ok(Some(champ_id)) = inspect_champ_select_session(&client) {
-                if state.detected_champion_id != Some(champ_id) {
+            let picked_champ = inspect_champ_select_session(&client).ok().flatten();
+            let mut new_selection: Option<(u32, String, ResolvedLoadout, (&'static str, String))> =
+                None;
+            if let Some(champ_id) = picked_champ {
+                if previous_champ_id != Some(champ_id) {
                     let champ_name = champion_name_from_id(champ_id);
-                    state.detected_champion_id = Some(champ_id);
-                    state.detected_champion_name = Some(champ_name.to_string());
-
-                    let loadout = resolve_loadout_for_champion(app, champ_id, champ_name);
-                    let (event_type, msg) = match loadout.source.as_str() {
-                        "ModLibrary" => (
+                    let mut loadout = resolve_loadout_for_champion(app, champ_id, champ_name);
+                    let ev = if let Some(ref r) = root {
+                        handle_champ_select_loadout_at(r, &mut loadout, cfg.auto_apply_mods, &probe_opts)
+                    } else {
+                        (
                             "MOD_REFERENCE",
                             format!(
-                                "Champion detected: {} (ID {}). Matching local mod '{}' (not applied in League; no approved game adapter).",
-                                champ_name, champ_id, loadout.skin_or_mod_name
+                                "Champion detected: {} (ID {}). Customization root unavailable.",
+                                champ_name, champ_id
                             ),
-                        ),
-                        "Preset" => (
-                            "PRESET_REFERENCE",
-                            format!(
-                                "Champion detected: {} (ID {}). Saved preset '{}' is preview metadata only (not applied in League).",
-                                champ_name, champ_id, loadout.skin_or_mod_name
-                            ),
-                        ),
-                        _ => (
-                            "CHAMP_DETECTED",
-                            format!("Champion detected: {} (ID {}). No matching local preset or mod.", champ_name, champ_id),
-                        ),
+                        )
                     };
-                    state.add_event(event_type, &msg);
+                    new_selection = Some((champ_id, champ_name.to_string(), loadout, ev));
+                }
+            }
+
+            if let Ok(mut state) = state_arc.lock() {
+                state.client_connected = true;
+                state.error_message = None;
+                state.gameflow_phase = Some(phase_val);
+                state.phase = RunnerPhase::ChampSelect;
+                if let Some((champ_id, champ_name, loadout, (ev_type, ev_msg))) = new_selection {
+                    state.detected_champion_id = Some(champ_id);
+                    state.detected_champion_name = Some(champ_name);
+                    state.add_event(ev_type, &ev_msg);
                     state.resolved_loadout = Some(loadout);
                 }
             }
         }
         "GameStart" | "InProgress" | "Reconnect" => {
-            state.phase = RunnerPhase::InMatch;
-            if previous_phase.as_deref() != Some(phase_val.as_str()) {
-                state.add_event(
-                    "IN_MATCH",
-                    "Match active in League. No in-game files or skins are injected by LAAP.",
-                );
+            let had_active = get_tracker()
+                .lock()
+                .ok()
+                .map(|t| t.active_applied_mod_hash.is_some())
+                .unwrap_or(false);
+            if let Ok(mut w) = get_tracker().lock() {
+                if had_active {
+                    w.pending_restore_after_match = true;
+                    w.match_apply_status = "in-match-active".into();
+                } else {
+                    w.match_apply_status = "in-match".into();
+                }
+            }
+            if let Ok(mut state) = state_arc.lock() {
+                state.client_connected = true;
+                state.error_message = None;
+                state.gameflow_phase = Some(phase_val.clone());
+                state.phase = RunnerPhase::InMatch;
+                if previous_phase.as_deref() != Some(phase_val.as_str()) {
+                    let msg = if had_active {
+                        "Match active in League with custom ModLibrary overlay prepared in ChampSelect. Adapter calls paused until EndOfGame/Lobby."
+                    } else {
+                        "Match active in League. No adapter operations run during live matches."
+                    };
+                    state.add_event("IN_MATCH", msg);
+                }
             }
         }
         "EndOfGame" | "PreEndOfGame" | "WaitingForStats" | "Lobby" | "None" => {
-            if previous_phase.as_deref() != Some(phase_val.as_str())
-                && matches!(
-                    previous_phase.as_deref(),
-                    Some("ChampSelect" | "GameStart" | "InProgress" | "Reconnect")
-                )
-            {
-                state.add_event(
-                    "PHASE_CHANGED",
-                    &format!("Gameflow returned to {phase_val}."),
-                );
+            let cleanup_ev = root
+                .as_deref()
+                .and_then(|r| handle_post_match_cleanup_at(r, &phase_val, &probe_opts));
+
+            if let Ok(mut state) = state_arc.lock() {
+                state.client_connected = true;
+                state.error_message = None;
+                state.gameflow_phase = Some(phase_val.clone());
+                if previous_phase.as_deref() != Some(phase_val.as_str())
+                    && matches!(
+                        previous_phase.as_deref(),
+                        Some("ChampSelect" | "GameStart" | "InProgress" | "Reconnect")
+                    )
+                {
+                    state.add_event(
+                        "PHASE_CHANGED",
+                        &format!("Gameflow returned to {phase_val}."),
+                    );
+                }
+                if let Some((ev_type, ev_msg)) = cleanup_ev {
+                    state.add_event(ev_type, &ev_msg);
+                }
+                if phase_val == "Lobby" || phase_val == "None" || phase_val == "EndOfGame" {
+                    state.clear_champion_selection();
+                }
+                state.phase = RunnerPhase::Monitoring;
             }
-            if phase_val == "Lobby" || phase_val == "None" {
-                state.clear_champion_selection();
-            }
-            state.phase = RunnerPhase::Monitoring;
         }
         _ => {
-            state.phase = RunnerPhase::Monitoring;
+            if let Ok(mut state) = state_arc.lock() {
+                state.client_connected = true;
+                state.error_message = None;
+                state.gameflow_phase = Some(phase_val);
+                state.phase = RunnerPhase::Monitoring;
+            }
         }
     }
 }
@@ -558,17 +871,98 @@ pub fn in_game_runner_save_config(
     let sanitized = InGameRunnerConfig {
         monitor_enabled: config.monitor_enabled,
         poll_interval_ms: config.poll_interval_ms.clamp(1000, 30000),
+        auto_apply_mods: config.auto_apply_mods,
     };
     let p = config_path(&app)?;
     storage::write(&p, &sanitized)?;
     Ok(sanitized)
 }
 
-#[tauri::command]
-pub fn in_game_runner_get_status() -> Result<InGameRunnerStatus, String> {
+#[derive(Clone, Debug)]
+struct ApplyTrackerState {
+    lcu_build_hint: Option<String>,
+    match_apply_status: String,
+    active_applied_mod_hash: Option<String>,
+    pending_restore_after_match: bool,
+}
+
+impl Default for ApplyTrackerState {
+    fn default() -> Self {
+        Self {
+            lcu_build_hint: None,
+            match_apply_status: "idle".into(),
+            active_applied_mod_hash: None,
+            pending_restore_after_match: false,
+        }
+    }
+}
+
+fn get_tracker() -> &'static std::sync::Mutex<ApplyTrackerState> {
+    static TRACKER: std::sync::OnceLock<std::sync::Mutex<ApplyTrackerState>> =
+        std::sync::OnceLock::new();
+    TRACKER.get_or_init(|| std::sync::Mutex::new(ApplyTrackerState::default()))
+}
+
+pub(crate) fn current_gameflow_phase() -> Option<String> {
+    get_state()
+        .try_lock()
+        .ok()
+        .and_then(|s| s.gameflow_phase.clone())
+}
+
+fn load_runner_cfg_at(root: Option<&std::path::Path>) -> InGameRunnerConfig {
+    let Some(r) = root else {
+        return InGameRunnerConfig {
+            monitor_enabled: false,
+            poll_interval_ms: 3000,
+            auto_apply_mods: false,
+        };
+    };
+    let p = r.join("in_game_runner_config.json");
+    super::storage::read::<InGameRunnerConfig>(&p, 64 * 1024)
+        .ok()
+        .flatten()
+        .unwrap_or(InGameRunnerConfig {
+            monitor_enabled: false,
+            poll_interval_ms: 3000,
+            auto_apply_mods: false,
+        })
+}
+
+pub(crate) fn build_status_snapshot_at(
+    root: Option<&std::path::Path>,
+    probe_override: Option<&super::game_adapter::ProbeOptions>,
+) -> Result<InGameRunnerStatus, String> {
+    let tracker = get_tracker()
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone();
+    let cfg = load_runner_cfg_at(root);
+
+    let probe = match (root, probe_override) {
+        (Some(r), Some(opts)) => super::game_adapter::probe_adapter_at(r, opts),
+        (Some(r), None) => super::game_adapter::probe_adapter_at(
+            r,
+            &super::game_adapter::ProbeOptions {
+                lcu_build_hint: tracker.lcu_build_hint.clone(),
+                ..super::game_adapter::ProbeOptions::default()
+            },
+        ),
+        (None, _) => {
+            let empty_dir = std::env::temp_dir().join("laap-no-root-probe");
+            super::game_adapter::probe_adapter_at(
+                &empty_dir,
+                &super::game_adapter::ProbeOptions {
+                    allow_path_discovery: false,
+                    lcu_build_hint: tracker.lcu_build_hint.clone(),
+                    ..super::game_adapter::ProbeOptions::default()
+                },
+            )
+        }
+    };
+
     let state_arc = get_state();
     let state = state_arc.lock().map_err(|e| e.to_string())?;
-
     let is_running = RUNNING_FLAG.load(Ordering::SeqCst);
 
     Ok(InGameRunnerStatus {
@@ -579,11 +973,118 @@ pub fn in_game_runner_get_status() -> Result<InGameRunnerStatus, String> {
         detected_champion_id: state.detected_champion_id,
         detected_champion_name: state.detected_champion_name.clone(),
         resolved_loadout: state.resolved_loadout.clone(),
-        adapter_available: false,
-        adapter_status: ADAPTER_UNAVAILABLE_MESSAGE.to_string(),
+        adapter_available: probe.available,
+        adapter_status: format!("{} ({})", probe.state.as_summary(), probe.detail),
+        adapter_state: probe.state,
+        adapter_version: probe.version,
+        detected_game_build: probe.league_install.detected_build,
+        match_apply_status: tracker.match_apply_status,
+        active_applied_mod_hash: tracker.active_applied_mod_hash,
+        auto_apply_mods: cfg.auto_apply_mods || probe.auto_apply_in_champ_select,
+        consent_granted: probe.consent_granted && probe.clearance_acknowledged,
         recent_events: state.recent_events.clone(),
         error_message: state.error_message.clone(),
     })
+}
+
+#[tauri::command]
+pub async fn in_game_runner_get_status(app: AppHandle) -> Result<InGameRunnerStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = super::storage::root(&app).ok();
+        build_status_snapshot_at(root.as_deref(), None)
+    })
+    .await
+    .map_err(|e| format!("In-game runner status probe failed: {e}"))?
+}
+
+#[tauri::command]
+pub async fn in_game_runner_apply_matched_mod(
+    app: AppHandle,
+    consent: bool,
+) -> Result<super::library::StagingReport, String> {
+    require_consent(consent)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = super::storage::root(&app)?;
+        let (phase_opt, loadout_opt) = {
+            let state_arc = get_state();
+            let s = state_arc.lock().map_err(|e| e.to_string())?;
+            (s.gameflow_phase.clone(), s.resolved_loadout.clone())
+        };
+        let Some(loadout) = loadout_opt else {
+            return Err("No champion loadout is currently resolved from ChampSelect.".into());
+        };
+        if !loadout.source.eq_ignore_ascii_case("ModLibrary") {
+            return Err(
+                "Matched entry is Preset metadata only. Policy permits activating verified custom .fantome/.modpkg ModLibrary packages only."
+                    .into(),
+            );
+        }
+        let target_hash = loadout
+            .mod_hash
+            .ok_or_else(|| "Matched ModLibrary entry has no package SHA-256.".to_string())?;
+
+        let tracker_hint = get_tracker()
+            .lock()
+            .ok()
+            .and_then(|t| t.lcu_build_hint.clone());
+        let mut opts = super::game_adapter::ProbeOptions {
+            lcu_build_hint: tracker_hint,
+            ..super::game_adapter::ProbeOptions::default()
+        };
+        opts.active_match_running = opts.active_match_running
+            || !super::game_adapter::is_safe_gameflow_phase(phase_opt.as_deref());
+
+        let report = super::library::stage_overlay_at(&root, Some(&[target_hash.clone()]), &opts)?;
+        if let Ok(mut tracker) = get_tracker().lock() {
+            if report.applied_in_game {
+                tracker.active_applied_mod_hash = Some(target_hash);
+                tracker.match_apply_status = "applied".into();
+                tracker.pending_restore_after_match = false;
+            } else if report.deferred_reason.is_some() {
+                tracker.match_apply_status = "deferred".into();
+            } else {
+                tracker.match_apply_status = format!("{:?}", report.adapter_state).to_ascii_lowercase();
+            }
+        }
+        Ok(report)
+    })
+    .await
+    .map_err(|e| format!("Manual match apply task failed: {e}"))?
+}
+
+#[tauri::command]
+pub async fn in_game_runner_restore_defaults(
+    app: AppHandle,
+) -> Result<super::library::RollbackReport, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = super::storage::root(&app)?;
+        let phase_opt = current_gameflow_phase();
+        let tracker_hint = get_tracker()
+            .lock()
+            .ok()
+            .and_then(|t| t.lcu_build_hint.clone());
+        let mut opts = super::game_adapter::ProbeOptions {
+            lcu_build_hint: tracker_hint,
+            ..super::game_adapter::ProbeOptions::default()
+        };
+        opts.active_match_running = opts.active_match_running
+            || !super::game_adapter::is_safe_gameflow_phase(phase_opt.as_deref());
+
+        let report = super::library::rollback_at(&root, &opts)?;
+        if let Ok(mut tracker) = get_tracker().lock() {
+            if report.game_overlay_cleaned {
+                tracker.active_applied_mod_hash = None;
+                tracker.pending_restore_after_match = false;
+                tracker.match_apply_status = "restored".into();
+            } else if report.deferred_reason.is_some() {
+                tracker.pending_restore_after_match = true;
+                tracker.match_apply_status = "deferred-restore".into();
+            }
+        }
+        Ok(report)
+    })
+    .await
+    .map_err(|e| format!("Restore defaults task failed: {e}"))?
 }
 
 fn require_consent(consent: bool) -> Result<(), String> {
@@ -604,6 +1105,7 @@ pub fn in_game_runner_set_enabled(
     }
 
     let mut config = in_game_runner_get_config(app.clone())?;
+    let auto_apply = config.auto_apply_mods;
     config.monitor_enabled = enabled;
     in_game_runner_save_config(app.clone(), config)?;
 
@@ -615,10 +1117,12 @@ pub fn in_game_runner_set_enabled(
             {
                 let mut state = state_arc.lock().map_err(|e| e.to_string())?;
                 state.phase = RunnerPhase::Monitoring;
-                state.add_event(
-                    "STARTED",
-                    "Read-only gameflow & reference monitor started (no game modification active).",
-                );
+                let msg = if auto_apply {
+                    "Gameflow monitor started with opt-in ChampSelect auto-apply (uses verified external adapter for ModLibrary custom mods only)."
+                } else {
+                    "Read-only gameflow & reference monitor started (auto-apply off; manual apply available)."
+                };
+                state.add_event("STARTED", msg);
             }
 
             let app_clone = app.clone();
@@ -637,20 +1141,25 @@ pub fn in_game_runner_set_enabled(
         let mut state = state_arc.lock().map_err(|e| e.to_string())?;
         state.reset_live_observation();
         state.phase = RunnerPhase::Idle;
-        state.add_event("STOPPED", "Read-only gameflow monitor stopped.");
+        state.add_event("STOPPED", "Gameflow monitor stopped.");
     }
 
     Ok(enabled)
 }
 
 #[tauri::command]
-pub fn in_game_runner_poll_now(
+pub async fn in_game_runner_poll_now(
     app: AppHandle,
     consent: bool,
 ) -> Result<InGameRunnerStatus, String> {
     require_consent(consent)?;
-    poll_tick(&app);
-    in_game_runner_get_status()
+    tauri::async_runtime::spawn_blocking(move || {
+        poll_tick(&app);
+        let root = super::storage::root(&app).ok();
+        build_status_snapshot_at(root.as_deref(), None)
+    })
+    .await
+    .map_err(|e| format!("Poll now failed: {e}"))?
 }
 
 #[tauri::command]
@@ -690,14 +1199,42 @@ mod tests {
         let config = InGameRunnerConfig::default();
         assert!(!config.monitor_enabled);
         assert_eq!(config.poll_interval_ms, 2000);
+        assert!(!config.auto_apply_mods);
     }
 
     #[test]
-    fn test_consent_and_unavailable_adapter() {
+    fn test_consent_and_live_probe_defaults_and_preset_exclusion() {
+        let _serial = super::super::game_adapter::test_serial_guard();
         assert!(require_consent(false).is_err());
         assert!(require_consent(true).is_ok());
-        let status = in_game_runner_get_status().unwrap();
+
+        let status = build_status_snapshot_at(None, None).unwrap();
         assert!(!status.adapter_available);
-        assert!(status.adapter_status.contains("Unavailable"));
+        assert!(!status.auto_apply_mods);
+        assert!(!status.consent_granted);
+
+        // Metadata-only Presets must NEVER invoke adapter activation.
+        let temp = std::env::temp_dir().join("laap-runner-preset-test");
+        let _ = std::fs::create_dir_all(&temp);
+        let mut preset_loadout = ResolvedLoadout {
+            champion_id: 103,
+            champion_name: "Ahri".into(),
+            skin_or_mod_name: "Spirit Blossom Ahri".into(),
+            source: "Preset".into(),
+            mod_hash: None,
+            file_count: 0,
+            applied_in_game: false,
+            limitation: "Preview only".into(),
+        };
+        let opts = super::super::game_adapter::ProbeOptions {
+            platform_supported: true,
+            active_match_running: false,
+            lcu_build_hint: None,
+            allow_path_discovery: false,
+        };
+        let (ev_type, _) = handle_champ_select_loadout_at(&temp, &mut preset_loadout, true, &opts);
+        assert_eq!(ev_type, "PRESET_REFERENCE");
+        assert!(!preset_loadout.applied_in_game);
+        let _ = std::fs::remove_dir_all(&temp);
     }
 }

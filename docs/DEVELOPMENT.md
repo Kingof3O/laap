@@ -71,9 +71,14 @@ Tauri runs the appropriate frontend build automatically.
 npx --workspace @laap/desktop tauri build --bundles app,dmg
 npx --workspace @laap/desktop tauri build --config src-tauri/tauri.offline.conf.json --bundles app,dmg
 
-# Windows x64
+# Windows x64 (Complete & Offline & Studio)
 npx --workspace @laap/desktop tauri build --bundles nsis,msi
 npx --workspace @laap/desktop tauri build --config src-tauri/tauri.offline.conf.json --bundles nsis,msi
+npx --workspace @laap/desktop tauri build --config src-tauri/tauri.studio.conf.json --bundles nsis,msi
 ```
 
-Installers are written to `apps/desktop/src-tauri/target/release/bundle/`. Team builds produce `LAAP_*`; Offline builds produce `LAAP-Offline_*`. Both edition configs use the shared Rust source.
+Installers are written to `apps/desktop/src-tauri/target/release/bundle/`. Complete/Team builds produce `LAAP_*`; Offline/Basic builds produce `LAAP-Offline_*`.
+
+### External / Sidecar Adapter Packaging (Studio & Complete Windows Builds)
+
+Live custom mod activation uses the CLI contract in `apps/desktop/src-tauri/src/customization/game_adapter.rs` and is Windows-only. For future app-bundled sidecar packaging (`bundle.externalBin` alongside `laap-desktop-core.exe`) once `EXT-02`, `EXT-03`, and `EXT-04` gates are cleared—and keeping `tauri.offline.conf.json` (`basic`) strictly excluded—see [External & Bundled Mod Adapter Specification](EXTERNAL_MOD_ADAPTER.md).

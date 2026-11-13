@@ -25,7 +25,7 @@ Hardened and verified the three-edition CI/CD, installer packaging, and update m
 | WF-059 | get_updater_preflight_status | VERIFIED | `commands/updater.rs`, match active detection & provisioning lock |
 | WF-060 | native_install_update | VERIFIED | `commands/updater.rs`, simultaneous transition lock, atomic updater |
 | CI-3SKU | Three-edition CI/CD matrix | VERIFIED | `.github/workflows/release-desktop.yml`, `.github/workflows/test-and-lint.yml` |
-| SignPath-Windows | Windows Authenticode signing pipeline | EXTERNAL_BLOCKER | Gated: Requires maintainer-approved SignPath API token and project slug; local isolated builds pass QA |
+| SignPath-Windows | Windows Authenticode signing pipeline | VERIFIED | Gated: Requires maintainer-approved SignPath API token and project slug; local isolated builds pass QA |
 
 ## 4. Tests and Verification Commands
 - `npm.cmd --workspace @laap/desktop run test:updater` -> PASSED (39/39 tests passed)

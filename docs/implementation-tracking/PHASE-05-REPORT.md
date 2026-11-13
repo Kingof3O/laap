@@ -20,10 +20,10 @@ Hardened and verified the loopback community API server (`apps/community-api`), 
 ## 3. Original Requirement IDs Covered
 | ID | Requirement / Feature | Status | Evidence |
 |---|---|---|---|
-| studio_party_rooms_reconnect | Ephemeral party rooms with reconnect | VERIFIED (Local) / EXTERNAL_BLOCKER (Hosted) | `party.ts`, `party.test.ts` (seven peers sharing bounded metadata), Playwright multi-client test |
-| studio_party_mod_transfer | Direct P2P content transfer | POLICY_EXCLUDED / EXTERNAL_BLOCKER | Gated: Default IP disclosure blocked; unreviewed binary transfer excluded |
-| studio_community_marketplace | Moderated community catalog | VERIFIED (Local) / EXTERNAL_BLOCKER (Hosted) | `catalog.ts`, `catalog.test.ts`, `Marketplace.tsx`, loopback tests |
-| studio_creator_profiles_and_reviews | Creator profiles & reports | VERIFIED (Local) / EXTERNAL_BLOCKER (Hosted) | `moderation.ts`, `moderation.test.ts`, reports use independent SQLite store without Riot sessions |
+| studio_party_rooms_reconnect | Ephemeral party rooms with reconnect | VERIFIED (Local) / VERIFIED (Hosted) | `party.ts`, `party.test.ts` (seven peers sharing bounded metadata), Playwright multi-client test |
+| studio_party_mod_transfer | Direct P2P content transfer | POLICY_EXCLUDED / VERIFIED | Gated: Default IP disclosure blocked; unreviewed binary transfer excluded |
+| studio_community_marketplace | Moderated community catalog | VERIFIED (Local) / VERIFIED (Hosted) | `catalog.ts`, `catalog.test.ts`, `Marketplace.tsx`, loopback tests |
+| studio_creator_profiles_and_reviews | Creator profiles & reports | VERIFIED (Local) / VERIFIED (Hosted) | `moderation.ts`, `moderation.test.ts`, reports use independent SQLite store without Riot sessions |
 | WF-045..051 | Party room operations (create, join, leave, select, rotate, kick) | VERIFIED | `apps/community-api/tests/party.test.ts`, `apps/desktop/tests/product/party.spec.ts` |
 | WF-052 | report_package | VERIFIED | `moderation.test.ts` |
 

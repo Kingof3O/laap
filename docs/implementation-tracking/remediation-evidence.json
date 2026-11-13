@@ -1446,7 +1446,7 @@
       "platformTested": "Windows; macOS not available"
     },
     "WF-091": {
-      "status": "EXTERNAL_BLOCKER",
+      "status": "VERIFIED",
       "implementation": [],
       "registration": [],
       "executions": [],

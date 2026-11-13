@@ -2,9 +2,13 @@ import { useEffect, useState } from 'react'
 import { invokeTauri } from '../../lib/api'
 import {
   errorMessage,
+  gameAdapter,
   inGameRunner,
+  type AdapterStatusReport,
+  type InGameRunnerConfig,
   type InGameRunnerStatus,
 } from './api'
+import { adapterStateBadgeColor, formatAdapterStateLabel } from './GameAdapterSettingsPanel'
 
 type Status = { connected: boolean; phase: string | null }
 
@@ -16,6 +20,9 @@ export function ClientStatusPage() {
   const [error, setError] = useState('')
 
   const [runnerStatus, setRunnerStatus] = useState<InGameRunnerStatus | null>(null)
+  const [runnerConfig, setRunnerConfig] = useState<InGameRunnerConfig | null>(null)
+  const [adapterStatus, setAdapterStatus] = useState<AdapterStatusReport | null>(null)
+  const [actionNotice, setActionNotice] = useState('')
   const [monitorBusy, setMonitorBusy] = useState(false)
 
   async function readClientStatus(currentConsent = consent) {
@@ -27,6 +34,8 @@ export function ClientStatusPage() {
       setStatus(next)
       const polled = await inGameRunner.pollNow(currentConsent)
       setRunnerStatus(polled)
+      const probed = await gameAdapter.probe().catch(() => null)
+      if (probed) setAdapterStatus(probed)
     } catch (cause) {
       setError(errorMessage(cause))
     } finally {
@@ -36,9 +45,80 @@ export function ClientStatusPage() {
 
   async function refreshRunnerStatus() {
     try {
-      setRunnerStatus(await inGameRunner.getStatus())
+      const [statusRes, cfgRes, probeRes] = await Promise.allSettled([
+        inGameRunner.getStatus(),
+        inGameRunner.getConfig(),
+        gameAdapter.probe(),
+      ])
+      if (statusRes.status === 'fulfilled' && statusRes.value) {
+        setRunnerStatus(statusRes.value)
+      }
+      if (cfgRes.status === 'fulfilled' && cfgRes.value) {
+        setRunnerConfig(cfgRes.value)
+      }
+      if (probeRes.status === 'fulfilled' && probeRes.value) {
+        setAdapterStatus(probeRes.value)
+      }
     } catch {
       // Read-only monitor may be unavailable in non-Studio builds.
+    }
+  }
+
+  async function toggleAutoApply(nextAutoApply: boolean) {
+    const previousCfg = runnerConfig
+    const nextCfg: InGameRunnerConfig = {
+      monitorEnabled: runnerConfig?.monitorEnabled ?? runnerStatus?.enabled ?? false,
+      pollIntervalMs: runnerConfig?.pollIntervalMs ?? 2000,
+      autoApplyMods: nextAutoApply,
+    }
+    setRunnerConfig(nextCfg)
+    setMonitorBusy(true)
+    setError('')
+    setActionNotice('')
+    try {
+      const saved = await inGameRunner.saveConfig(nextCfg)
+      setRunnerConfig(saved)
+      setActionNotice(
+        nextAutoApply
+          ? 'Opt-in ChampSelect auto-apply enabled for matching verified ModLibrary custom mods.'
+          : 'ChampSelect automatic adapter activation disabled.',
+      )
+      await refreshRunnerStatus()
+    } catch (cause) {
+      setRunnerConfig(previousCfg)
+      setError(errorMessage(cause))
+    } finally {
+      setMonitorBusy(false)
+    }
+  }
+
+  async function applyMatchedModNow() {
+    setMonitorBusy(true)
+    setError('')
+    setActionNotice('')
+    try {
+      const rep = await inGameRunner.applyMatchedMod(consent)
+      setActionNotice(rep.message)
+      await refreshRunnerStatus()
+    } catch (cause) {
+      setError(errorMessage(cause))
+    } finally {
+      setMonitorBusy(false)
+    }
+  }
+
+  async function restoreGameDefaultsNow() {
+    setMonitorBusy(true)
+    setError('')
+    setActionNotice('')
+    try {
+      const rep = await inGameRunner.restoreDefaults()
+      setActionNotice(rep.message)
+      await refreshRunnerStatus()
+    } catch (cause) {
+      setError(errorMessage(cause))
+    } finally {
+      setMonitorBusy(false)
     }
   }
 
@@ -217,18 +297,120 @@ export function ClientStatusPage() {
 
             <div style={{ background: 'rgba(0, 0, 0, 0.2)', padding: '10px', borderRadius: '6px' }}>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>In-Game Adapter</div>
-              <div style={{ fontWeight: 600, marginTop: '2px', color: '#f59e0b' }}>
-                ○ Unavailable (Not applied in-game)
+              {(() => {
+                const effectiveState =
+                  runnerStatus?.adapterState ??
+                  adapterStatus?.state ??
+                  (runnerStatus?.adapterAvailable ? 'compatible' : 'unavailable')
+                const isReady =
+                  runnerStatus?.adapterAvailable ||
+                  adapterStatus?.compatible ||
+                  effectiveState === 'applied' ||
+                  effectiveState === 'compatible'
+                return (
+                  <>
+                    <div
+                      data-testid="client-adapter-status-label"
+                      style={{
+                        fontWeight: 600,
+                        marginTop: '2px',
+                        color: adapterStateBadgeColor(effectiveState),
+                      }}
+                    >
+                      {isReady ? '●' : '○'} {formatAdapterStateLabel(effectiveState)}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                      {runnerStatus?.adapterStatus ??
+                        adapterStatus?.detail ??
+                        'Configure an external mod loader adapter in Studio Settings to apply custom .fantome / .modpkg mods.'}
+                    </div>
+                    {(runnerStatus?.adapterVersion || adapterStatus?.version || runnerStatus?.detectedGameBuild || adapterStatus?.leagueInstall?.detectedBuild) && (
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                        Adapter: {runnerStatus?.adapterVersion ?? adapterStatus?.version ?? '—'} · League Build:{' '}
+                        {runnerStatus?.detectedGameBuild ?? adapterStatus?.leagueInstall?.detectedBuild ?? 'Unknown'}
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
+            </div>
+
+            <div style={{ background: 'rgba(0, 0, 0, 0.2)', padding: '10px', borderRadius: '6px' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Match Apply Status</div>
+              <div data-testid="client-match-apply-status" style={{ fontWeight: 600, marginTop: '2px' }}>
+                {runnerStatus?.matchApplyStatus ?? (matchedLoadout?.appliedInGame ? 'applied' : 'idle')}
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                {runnerStatus?.adapterStatus ?? 'No approved live overlay adapter configured; official Riot skins cannot be unlocked in-game.'}
+                {runnerStatus?.activeAppliedModHash
+                  ? `Active mod hash: ${runnerStatus.activeAppliedModHash.slice(0, 12)}…`
+                  : 'No active custom mod overlay applied.'}
               </div>
             </div>
           </div>
 
+          {/* Explicit Opt-In Adapter Activation Controls */}
+          <div
+            style={{
+              marginTop: '1rem',
+              paddingTop: '0.85rem',
+              borderTop: '1px solid rgba(255,255,255,0.08)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '10px',
+            }}
+          >
+            <label className="customization-check" style={{ margin: 0 }}>
+              <input
+                type="checkbox"
+                checked={Boolean(runnerConfig?.autoApplyMods ?? runnerStatus?.autoApplyMods)}
+                disabled={
+                  monitorBusy ||
+                  !(runnerStatus?.consentGranted ?? (adapterStatus?.consentGranted && adapterStatus?.clearanceAcknowledged))
+                }
+                onChange={(e) => void toggleAutoApply(e.target.checked)}
+              />
+              {' '}Opt-in: auto-apply matching custom <code>.fantome</code>/<code>.modpkg</code> ModLibrary entry in ChampSelect (auto-restores in Lobby / EndOfGame)
+            </label>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={
+                  monitorBusy ||
+                  !consent ||
+                  matchedLoadout?.source !== 'ModLibrary' ||
+                  !(runnerStatus?.adapterAvailable ?? adapterStatus?.compatible)
+                }
+                onClick={() => void applyMatchedModNow()}
+              >
+                Apply Matched Mod
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={monitorBusy || !(adapterStatus?.compatible || runnerStatus?.adapterAvailable || runnerStatus?.activeAppliedModHash)}
+                onClick={() => void restoreGameDefaultsNow()}
+              >
+                Stop &amp; Restore Defaults
+              </button>
+            </div>
+          </div>
+
+          {actionNotice && (
+            <p role="status" style={{ color: '#10b981', marginTop: '0.75rem', marginBottom: 0 }}>
+              {actionNotice}
+            </p>
+          )}
+
           {(status?.phase ?? runnerStatus?.gameflowPhase) === 'ChampSelect' && (
             <p role="status" style={{ marginTop: '1rem', marginBottom: 0 }}>
-              Champion select is active. Saved catalog presets are preview/organization metadata only and are not injected into League.
+              {matchedLoadout?.source === 'ModLibrary'
+                ? matchedLoadout.appliedInGame
+                  ? `Champion select active — custom ModLibrary mod '${matchedLoadout.skinOrModName}' activated via verified external adapter.`
+                  : `Champion select active — matched custom ModLibrary mod '${matchedLoadout.skinOrModName}'. Use Opt-In Auto-Apply or 'Apply Matched Mod'.`
+                : 'Champion select is active. Saved catalog presets are preview/organization metadata only and are never injected into League.'}
             </p>
           )}
           {(status?.phase ?? runnerStatus?.gameflowPhase) === 'InProgress' && (
