@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Read, Write};
@@ -61,13 +61,18 @@ pub const DOCUMENTED_SUBCOMMANDS: [&str; 9] = [
     "restore_defaults",
 ];
 
-const DISCOVERABLE_BINARY_NAMES: [&str; 5] = [
+const DISCOVERABLE_BINARY_NAMES: [&str; 6] = [
+    "ltk_patcher_host.exe",
     "league-mod-adapter.exe",
     "ltk-mod-cli.exe",
     "cslol-cli.exe",
     "mod-tools.exe",
     "cslol-mod-tools.exe",
 ];
+
+/// Deprecated April 2026 cslol-dll.dll build whose hardcoded EOL timestamp rejects live League builds.
+const KNOWN_EOL_CSLOL_DLL_SHA256: &str =
+    "ae12fb633d88cf31a080ef24ec2c08dc398ddc22fd03e5addc45950dfb2f1c28";
 
 const REJECTED_SHELL_NAMES: [&str; 12] = [
     "cmd",
@@ -112,9 +117,24 @@ fn is_managed_modtools_binary(bin_path: &Path) -> bool {
         .and_then(|n| n.to_str())
         .map(|n| {
             let l = n.to_ascii_lowercase();
-            l == "mod-tools.exe" || l == "cslol-mod-tools.exe"
+            l == "mod-tools.exe" || l == "cslol-mod-tools.exe" || l == "mod-tools"
         })
         .unwrap_or(false)
+}
+
+fn is_managed_ltk_host_binary(bin_path: &Path) -> bool {
+    bin_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(|n| {
+            let l = n.to_ascii_lowercase();
+            l == "ltk_patcher_host.exe" || l == "ltk_patcher_host"
+        })
+        .unwrap_or(false)
+}
+
+fn is_managed_overlay_binary(bin_path: &Path) -> bool {
+    is_managed_modtools_binary(bin_path) || is_managed_ltk_host_binary(bin_path)
 }
 
 fn managed_modtools_sibling_ok(bin_path: &Path) -> bool {
@@ -132,7 +152,295 @@ fn managed_modtools_sibling_ok(bin_path: &Path) -> bool {
     }
 }
 
+fn managed_ltk_sibling_ok(bin_path: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        bin_path
+            .parent()
+            .map(|p| p.join("ltk_patcher_dll.dll").is_file())
+            .unwrap_or(false)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = bin_path;
+        true
+    }
+}
+
+fn is_known_eol_cslol_dll(bin_path: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        let Some(dll) = bin_path.parent().map(|p| p.join("cslol-dll.dll")) else {
+            return false;
+        };
+        if !dll.is_file() {
+            return false;
+        }
+        compute_sha256_file(&dll)
+            .map(|h| h.eq_ignore_ascii_case(KNOWN_EOL_CSLOL_DLL_SHA256))
+            .unwrap_or(false)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = bin_path;
+        false
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ManagedHostEventKind {
+    Ready,
+    Waiting,
+    Injecting,
+    Injected,
+    Redirected,
+    Exited,
+    Error,
+    Info,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ManagedHostEvent {
+    pub kind: ManagedHostEventKind,
+    pub state: Option<String>,
+    pub summary: String,
+    pub raw: String,
+}
+
+static MANAGED_HOST_EVENTS: OnceLock<Mutex<VecDeque<ManagedHostEvent>>> = OnceLock::new();
+static LATEST_HOST_STATE: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+
+fn managed_events_queue() -> &'static Mutex<VecDeque<ManagedHostEvent>> {
+    MANAGED_HOST_EVENTS.get_or_init(|| Mutex::new(VecDeque::new()))
+}
+
+fn latest_host_state_slot() -> &'static Mutex<Option<String>> {
+    LATEST_HOST_STATE.get_or_init(|| Mutex::new(None))
+}
+
+fn push_managed_host_event(ev: ManagedHostEvent) {
+    if let Some(ref st) = ev.state {
+        if let Ok(mut slot) = latest_host_state_slot().lock() {
+            *slot = Some(st.clone());
+        }
+    }
+    if let Ok(mut q) = managed_events_queue().lock() {
+        if q.len() >= 256 {
+            q.pop_front();
+        }
+        q.push_back(ev);
+    }
+}
+
+fn clear_managed_host_events() {
+    if let Ok(mut q) = managed_events_queue().lock() {
+        q.clear();
+    }
+    if let Ok(mut slot) = latest_host_state_slot().lock() {
+        *slot = None;
+    }
+}
+
+fn split_first_token(s: &str) -> (&str, &str) {
+    let trimmed = s.trim_start();
+    match trimmed.find(char::is_whitespace) {
+        Some(idx) => (&trimmed[..idx], trimmed[idx..].trim_start()),
+        None => (trimmed, ""),
+    }
+}
+
+pub(crate) fn parse_managed_host_line(
+    backend: &AdapterBackend,
+    _tag: &str,
+    line: &str,
+) -> Option<ManagedHostEvent> {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if *backend == AdapterBackend::Ltk {
+        let (kw, rest) = split_first_token(trimmed);
+        match kw {
+            "ok" => {
+                let (_ts, msg) = split_first_token(rest);
+                if msg.is_empty() {
+                    return None;
+                }
+                return Some(ManagedHostEvent {
+                    kind: ManagedHostEventKind::Ready,
+                    state: None,
+                    summary: format!("LTK host ready: {msg}"),
+                    raw: trimmed.to_string(),
+                });
+            }
+            "error" => {
+                let (_ts, msg) = split_first_token(rest);
+                return Some(ManagedHostEvent {
+                    kind: ManagedHostEventKind::Error,
+                    state: Some("failed".into()),
+                    summary: if msg.is_empty() {
+                        trimmed.to_string()
+                    } else {
+                        msg.to_string()
+                    },
+                    raw: trimmed.to_string(),
+                });
+            }
+            "status" => {
+                let (_ts, after_ts) = split_first_token(rest);
+                let (state_str, msg) = split_first_token(after_ts);
+                let (kind, state_val, summary) = match state_str {
+                    "waiting" => (
+                        ManagedHostEventKind::Waiting,
+                        Some("waiting".to_string()),
+                        if msg.is_empty() {
+                            "Waiting for League match window".to_string()
+                        } else {
+                            msg.to_string()
+                        },
+                    ),
+                    "injecting" => (
+                        ManagedHostEventKind::Injecting,
+                        Some("injecting".to_string()),
+                        if msg.is_empty() {
+                            "Injecting LTK patcher DLL into League".to_string()
+                        } else {
+                            msg.to_string()
+                        },
+                    ),
+                    "injected" => (
+                        ManagedHostEventKind::Injected,
+                        Some("injected".to_string()),
+                        if msg.is_empty() {
+                            "LTK patcher DLL injected into League".to_string()
+                        } else {
+                            msg.to_string()
+                        },
+                    ),
+                    "exited" => (
+                        ManagedHostEventKind::Exited,
+                        Some("exited".to_string()),
+                        if msg.is_empty() {
+                            "League game process exited".to_string()
+                        } else {
+                            msg.to_string()
+                        },
+                    ),
+                    "failed" => (
+                        ManagedHostEventKind::Error,
+                        Some("failed".to_string()),
+                        if msg.is_empty() {
+                            "LTK patcher injection failed".to_string()
+                        } else {
+                            msg.to_string()
+                        },
+                    ),
+                    _ => {
+                        return Some(ManagedHostEvent {
+                            kind: ManagedHostEventKind::Info,
+                            state: None,
+                            summary: trimmed.to_string(),
+                            raw: trimmed.to_string(),
+                        });
+                    }
+                };
+                return Some(ManagedHostEvent {
+                    kind,
+                    state: state_val,
+                    summary,
+                    raw: trimmed.to_string(),
+                });
+            }
+            "dll" => {
+                let (_ts, after_ts) = split_first_token(rest);
+                let (_pid, after_pid) = split_first_token(after_ts);
+                let (_tid, after_tid) = split_first_token(after_pid);
+                let (level, msg) = split_first_token(after_tid);
+                let lower = msg.to_ascii_lowercase();
+                if level.eq_ignore_ascii_case("ERROR")
+                    || lower.contains("end of life")
+                    || lower.contains("verification failed")
+                    || lower.contains("wad scan failed")
+                    || lower.contains("refusing overlay")
+                    || lower.contains("failed")
+                {
+                    return Some(ManagedHostEvent {
+                        kind: ManagedHostEventKind::Error,
+                        state: Some("failed".into()),
+                        summary: msg.to_string(),
+                        raw: trimmed.to_string(),
+                    });
+                }
+                if lower.contains("redirected wad") || lower.contains("redirecting") {
+                    return Some(ManagedHostEvent {
+                        kind: ManagedHostEventKind::Redirected,
+                        state: None,
+                        summary: msg.to_string(),
+                        raw: trimmed.to_string(),
+                    });
+                }
+                if lower.contains("init done") {
+                    return Some(ManagedHostEvent {
+                        kind: ManagedHostEventKind::Injected,
+                        state: Some("injected".into()),
+                        summary: msg.to_string(),
+                        raw: trimmed.to_string(),
+                    });
+                }
+                if level.eq_ignore_ascii_case("WARN") {
+                    return Some(ManagedHostEvent {
+                        kind: ManagedHostEventKind::Info,
+                        state: None,
+                        summary: msg.to_string(),
+                        raw: trimmed.to_string(),
+                    });
+                }
+                return None;
+            }
+            _ => {}
+        }
+    }
+
+    let lower = trimmed.to_ascii_lowercase();
+    if lower.contains("end of life")
+        || lower.starts_with("error:")
+        || lower.contains("failed")
+        || lower.contains("[err]")
+    {
+        return Some(ManagedHostEvent {
+            kind: ManagedHostEventKind::Error,
+            state: Some("failed".into()),
+            summary: trimmed.to_string(),
+            raw: trimmed.to_string(),
+        });
+    }
+    if lower.contains("redirect") {
+        return Some(ManagedHostEvent {
+            kind: ManagedHostEventKind::Redirected,
+            state: None,
+            summary: trimmed.to_string(),
+            raw: trimmed.to_string(),
+        });
+    }
+    None
+}
+
+pub(crate) fn format_ltk_host_commands(
+    overlay_prefix: &str,
+    log_level: u32,
+    flags: u32,
+) -> Vec<String> {
+    vec![
+        format!("config loglevel {log_level}"),
+        format!("config flags {flags}"),
+        format!("config prefix {overlay_prefix}"),
+        "start scan".to_string(),
+    ]
+}
+
 struct ManagedOverlayProcess {
+    backend: AdapterBackend,
     child: Child,
     stdin: Option<ChildStdin>,
     output_lines: Arc<Mutex<Vec<String>>>,
@@ -146,7 +454,7 @@ fn managed_proc_slot() -> &'static Mutex<Option<ManagedOverlayProcess>> {
 
 fn push_bounded_line(buf: &Arc<Mutex<Vec<String>>>, line: String) {
     let mut lines = buf.lock().unwrap_or_else(|e| e.into_inner());
-    if lines.len() >= 64 {
+    if lines.len() >= 128 {
         lines.remove(0);
     }
     lines.push(line);
@@ -155,6 +463,7 @@ fn push_bounded_line(buf: &Arc<Mutex<Vec<String>>>, line: String) {
 fn spawn_line_reader<R: Read + Send + 'static>(
     reader: R,
     buf: Arc<Mutex<Vec<String>>>,
+    backend: AdapterBackend,
     tag: &'static str,
 ) {
     std::thread::spawn(move || {
@@ -168,6 +477,9 @@ fn spawn_line_reader<R: Read + Send + 'static>(
                     let trimmed = line.trim().to_string();
                     if !trimmed.is_empty() {
                         push_bounded_line(&buf, format!("[{tag}] {trimmed}"));
+                        if let Some(ev) = parse_managed_host_line(&backend, tag, &trimmed) {
+                            push_managed_host_event(ev);
+                        }
                     }
                 }
             }
@@ -176,12 +488,15 @@ fn spawn_line_reader<R: Read + Send + 'static>(
 }
 
 fn shutdown_managed_overlay_process(mut proc_handle: ManagedOverlayProcess) {
-    // cslol mod-tools runoverlay exits cleanly on a newline to stdin (or stdin EOF).
     if let Some(mut stdin) = proc_handle.stdin.take() {
-        let _ = stdin.write_all(b"\n");
+        if proc_handle.backend == AdapterBackend::Ltk {
+            let _ = stdin.write_all(b"stop\n");
+        } else {
+            let _ = stdin.write_all(b"\n");
+        }
         let _ = stdin.flush();
     }
-    let deadline = Instant::now() + Duration::from_millis(800);
+    let deadline = Instant::now() + Duration::from_millis(1000);
     loop {
         match proc_handle.child.try_wait() {
             Ok(Some(_)) => return,
@@ -197,7 +512,7 @@ fn shutdown_managed_overlay_process(mut proc_handle: ManagedOverlayProcess) {
     }
 }
 
-/// Gracefully stop any active managed mod-tools overlay process tracked in memory.
+/// Gracefully stop any active managed overlay process tracked in memory.
 pub(crate) fn shutdown_managed_backend() {
     let existing = {
         let mut guard = managed_proc_slot()
@@ -210,7 +525,82 @@ pub(crate) fn shutdown_managed_backend() {
     }
 }
 
+pub(crate) fn drain_managed_host_events() -> Vec<ManagedHostEvent> {
+    // Also detect unexpected early termination of a tracked child so live UI sees it cleanly.
+    {
+        let mut guard = managed_proc_slot()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        if let Some(ref mut proc_handle) = *guard {
+            if let Ok(Some(exit_status)) = proc_handle.child.try_wait() {
+                let tail = proc_handle
+                    .output_lines
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .last()
+                    .cloned()
+                    .unwrap_or_default();
+                let summary = if exit_status.success() {
+                    "Managed patcher host process exited cleanly.".to_string()
+                } else if tail.is_empty() {
+                    format!("Managed patcher host exited unexpectedly ({exit_status}).")
+                } else {
+                    format!("Managed patcher host exited ({exit_status}): {tail}")
+                };
+                push_managed_host_event(ManagedHostEvent {
+                    kind: if exit_status.success() {
+                        ManagedHostEventKind::Exited
+                    } else {
+                        ManagedHostEventKind::Error
+                    },
+                    state: Some(if exit_status.success() {
+                        "exited".into()
+                    } else {
+                        "failed".into()
+                    }),
+                    summary,
+                    raw: tail,
+                });
+                *guard = None;
+            }
+        }
+    }
+
+    let mut out = Vec::new();
+    if let Ok(mut q) = managed_events_queue().lock() {
+        while let Some(ev) = q.pop_front() {
+            out.push(ev);
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+pub(crate) fn push_managed_host_event_for_test(ev: ManagedHostEvent) {
+    push_managed_host_event(ev);
+}
+
+pub(crate) fn is_managed_overlay_process_active() -> bool {
+    let mut guard = managed_proc_slot()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    if let Some(ref mut proc_handle) = *guard {
+        match proc_handle.child.try_wait() {
+            Ok(None) => return true,
+            Ok(Some(_)) | Err(_) => {
+                *guard = None;
+            }
+        }
+    }
+    false
+}
+
 fn latest_managed_output_status() -> Option<String> {
+    if let Ok(slot) = latest_host_state_slot().lock() {
+        if let Some(ref st) = *slot {
+            return Some(st.clone());
+        }
+    }
     let guard = managed_proc_slot()
         .lock()
         .unwrap_or_else(|e| e.into_inner());
@@ -229,7 +619,7 @@ fn is_pid_running_modtools(pid: u32) -> bool {
     sys.process(sys_pid)
         .map(|p| {
             let name = p.name().to_string_lossy().to_ascii_lowercase();
-            name.contains("mod-tools")
+            name.contains("mod-tools") || name.contains("ltk_patcher_host")
         })
         .unwrap_or(false)
 }
@@ -750,7 +1140,7 @@ pub fn validate_adapter_binary_path(path: &Path) -> Result<PathBuf, String> {
     Ok(path.to_path_buf())
 }
 
-fn compute_sha256_file(path: &Path) -> Result<String, String> {
+pub(crate) fn compute_sha256_file(path: &Path) -> Result<String, String> {
     let mut file = File::open(path)
         .map_err(|e| format!("Failed to open adapter binary for hashing: {e}"))?;
     let mut hasher = Sha256::new();
@@ -805,6 +1195,9 @@ fn find_adapter_in_dirs(dirs: &[PathBuf], source_label: &str) -> Option<(PathBuf
                 {
                     continue;
                 }
+                if is_managed_ltk_host_binary(&candidate) && !managed_ltk_sibling_ok(&candidate) {
+                    continue;
+                }
                 return Some((candidate, source_label.into()));
             }
         }
@@ -827,6 +1220,7 @@ fn effective_expected_sha256<'a>(
     None
 }
 
+#[cfg(test)]
 fn discover_adapter_binary_with_bundled(
     cfg: &GameAdapterConfig,
     allow_path_discovery: bool,
@@ -854,8 +1248,9 @@ fn discover_adapter_binary_with_roots(
     }
 
     if let Some(root) = customization_root {
-        let managed_dir = root.join("adapters").join("mod-tools");
-        if let Some(found) = find_adapter_in_dirs(&[managed_dir], "managed") {
+        let ltk_dir = root.join("adapters").join("ltk-patcher");
+        let modtools_dir = root.join("adapters").join("mod-tools");
+        if let Some(found) = find_adapter_in_dirs(&[ltk_dir, modtools_dir], "managed") {
             return Ok(Some(found));
         }
     }
@@ -887,13 +1282,6 @@ fn discover_adapter_binary_with_roots(
     }
 
     Ok(find_adapter_in_dirs(&search_dirs, "discovered"))
-}
-
-pub(crate) fn discover_adapter_binary(
-    cfg: &GameAdapterConfig,
-    allow_path_discovery: bool,
-) -> Result<Option<(PathBuf, String)>, String> {
-    discover_adapter_binary_with_bundled(cfg, allow_path_discovery, &bundled_adapter_dirs())
 }
 
 pub(crate) fn discover_adapter_binary_at(
@@ -1275,14 +1663,31 @@ pub(crate) fn probe_adapter_at(customization_root: &Path, opts: &ProbeOptions) -
     };
     report.binary_sha256 = Some(sha256.clone());
 
-    // Managed mod-tools backend (cslol-tools): uses native overlay CLI flow (mkoverlay + runoverlay).
-    if is_managed_modtools_binary(&bin_path) {
-        report.version = Some("mod-tools".into());
+    // Managed overlay backend (`ltk_patcher_host.exe` or legacy `mod-tools.exe`).
+    if is_managed_overlay_binary(&bin_path) {
+        let is_ltk = is_managed_ltk_host_binary(&bin_path);
+        let label = if is_ltk { "LTK patcher" } else { "mod-tools" };
+        report.version = Some(if is_ltk {
+            super::skin_bootstrap::managed_ltk_stage_meta(customization_root)
+                .and_then(|m| m.dll_version)
+                .unwrap_or_else(|| "ltk-patcher".into())
+        } else {
+            "mod-tools".into()
+        });
         report.supported_formats = vec!["fantome".into(), "modpkg".into(), "zip".into(), "wad".into()];
-        // Mod-tools overlay is compatible across builds; verified against local League Game/ dir.
         report.supported_game_builds = vec![];
 
-        if !managed_modtools_sibling_ok(&bin_path) {
+        if is_ltk && !managed_ltk_sibling_ok(&bin_path) {
+            report.state = AdapterLifecycleState::Failed;
+            report.available = false;
+            report.compatible = false;
+            report.detail = format!(
+                "Managed LTK patcher at '{}' is missing required sibling ltk_patcher_dll.dll.",
+                bin_path.display()
+            );
+            return report;
+        }
+        if !is_ltk && !managed_modtools_sibling_ok(&bin_path) {
             report.state = AdapterLifecycleState::Failed;
             report.available = false;
             report.compatible = false;
@@ -1293,9 +1698,38 @@ pub(crate) fn probe_adapter_at(customization_root: &Path, opts: &ProbeOptions) -
             return report;
         }
 
+        if is_ltk {
+            if let Some(meta) = super::skin_bootstrap::managed_ltk_stage_meta(customization_root) {
+                if meta.dll_eol.is_some_and(|eol| now_unix() > u64::from(eol)) {
+                    report.state = AdapterLifecycleState::NeedsUpdate;
+                    report.available = true;
+                    report.compatible = false;
+                    report.detail = "Staged ltk_patcher_dll.dll has expired for current League patches; open/sync LTK Manager to refresh.".into();
+                    return report;
+                }
+            }
+            if let Some(elev_err) =
+                super::skin_bootstrap::check_elevation_mismatch(league_install.league_path.as_deref())
+            {
+                report.state = AdapterLifecycleState::Failed;
+                report.available = false;
+                report.compatible = false;
+                report.detail = elev_err;
+                return report;
+            }
+        } else if is_known_eol_cslol_dll(&bin_path) {
+            report.state = AdapterLifecycleState::NeedsUpdate;
+            report.available = true;
+            report.compatible = false;
+            report.detail = "Legacy cslol-dll.dll (2026-04-15) reached end-of-life and cannot patch live League builds; install/sync LTK Patcher runtime.".into();
+            return report;
+        }
+
         let Some(ref league_path) = league_install.league_path.clone() else {
             report.state = AdapterLifecycleState::UnsupportedGameBuild;
-            report.detail = "Managed mod-tools backend found, but League of Legends installation directory could not be verified.".into();
+            report.detail = format!(
+                "Managed {label} backend found, but League of Legends installation directory could not be verified."
+            );
             return report;
         };
 
@@ -1336,19 +1770,23 @@ pub(crate) fn probe_adapter_at(customization_root: &Path, opts: &ProbeOptions) -
                 .map(|line| format!(" ({line})"))
                 .unwrap_or_default();
             report.detail = format!(
-                "Managed mod-tools backend ready and active for League build {}.{live_tail}",
+                "Managed {label} backend ready and active for League build {}.{live_tail}",
                 report.league_install.detected_build.as_deref().unwrap_or("unknown")
             );
         } else if opts.active_match_running {
             report.state = AdapterLifecycleState::Deferred;
-            report.detail = "Managed mod-tools backend ready, but an active League match is running; changes deferred.".into();
+            report.detail = format!(
+                "Managed {label} backend ready, but an active League match is running; changes deferred."
+            );
         } else if !cfg.user_consent_granted || !cfg.clearance_acknowledged {
             report.state = AdapterLifecycleState::BlockedByPolicy;
-            report.detail = "Managed mod-tools backend ready. Auto-consent/clearance will be applied on bootstrap; re-check status.".into();
+            report.detail = format!(
+                "Managed {label} backend ready. Auto-consent/clearance will be applied on bootstrap; re-check status."
+            );
         } else {
             report.state = AdapterLifecycleState::Compatible;
             report.detail = format!(
-                "Managed mod-tools backend ready for League build {}.",
+                "Managed {label} backend ready for League build {}.",
                 report.league_install.detected_build.as_deref().unwrap_or("unknown")
             );
         }
@@ -1707,18 +2145,177 @@ fn run_command_with_timeout(
     Ok((status.code().unwrap_or(-1), stdout, stderr))
 }
 
-fn apply_via_modtools(
+fn strip_windows_unc_prefix(path: &Path) -> String {
+    let raw = path.to_string_lossy();
+    #[cfg(windows)]
+    {
+        if let Some(stripped) = raw.strip_prefix(r"\\?\") {
+            return stripped.to_string();
+        }
+    }
+    raw.into_owned()
+}
+
+fn ensure_trailing_separator(mut s: String) -> String {
+    if !s.ends_with(['\\', '/']) {
+        s.push(std::path::MAIN_SEPARATOR);
+    }
+    s
+}
+
+fn find_modtools_overlay_builder(customization_root: &Path, bin_path: &Path) -> Option<PathBuf> {
+    let exe_name = super::skin_bootstrap::managed_modtools_exe_name();
+    let mut dirs = Vec::new();
+    dirs.push(customization_root.join("adapters").join("mod-tools"));
+    if let Some(p) = bin_path.parent() {
+        dirs.push(p.to_path_buf());
+    }
+    dirs.extend(bundled_adapter_dirs());
+    for dir in dirs {
+        for cand_name in [exe_name, "mod-tools.exe", "cslol-mod-tools.exe"] {
+            let candidate = dir.join(cand_name);
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+    }
+    None
+}
+
+fn collect_files_recursive(dir: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if p.is_dir() {
+            collect_files_recursive(&p, out);
+        } else if p.is_file() {
+            out.push(p);
+        }
+    }
+}
+
+fn find_relative_under_final(final_dir: &Path, file_name_lower: &str) -> Option<PathBuf> {
+    let mut stack = vec![final_dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        let Ok(entries) = fs::read_dir(&d) else { continue };
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                stack.push(p);
+            } else if p
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.to_ascii_lowercase() == file_name_lower)
+            {
+                if let Ok(rel) = p.strip_prefix(final_dir) {
+                    return Some(rel.to_path_buf());
+                }
+            }
+        }
+    }
+    None
+}
+
+fn build_fallback_wad_overlay(
+    mods_dir: &Path,
+    overlay_dir: &Path,
+    target_game_dir: &Path,
+) -> Result<usize, String> {
+    let game_final = target_game_dir.join("DATA").join("FINAL");
+    let out_final = overlay_dir.join("DATA").join("FINAL");
+    let mut copied = 0usize;
+    let Ok(mod_folders) = fs::read_dir(mods_dir) else {
+        return Ok(0);
+    };
+    for mod_entry in mod_folders.flatten() {
+        let wad_root = mod_entry.path().join("WAD");
+        if !wad_root.is_dir() {
+            continue;
+        }
+        let mut files = Vec::new();
+        collect_files_recursive(&wad_root, &mut files);
+        for src in files {
+            let Some(fname) = src.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            if !fname.to_ascii_lowercase().ends_with(".wad.client") {
+                continue;
+            }
+            let rel_target = find_relative_under_final(&game_final, &fname.to_ascii_lowercase())
+                .unwrap_or_else(|| PathBuf::from("Champions").join(fname));
+            let dest = out_final.join(rel_target);
+            if let Some(parent) = dest.parent() {
+                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            fs::copy(&src, &dest).map_err(|e| format!("Failed copying fallback WAD '{}': {e}", src.display()))?;
+            copied += 1;
+        }
+    }
+    Ok(copied)
+}
+
+fn overlay_has_wad_files(overlay_dir: &Path) -> bool {
+    let mut files = Vec::new();
+    collect_files_recursive(&overlay_dir.join("DATA").join("FINAL"), &mut files);
+    !files.is_empty()
+}
+
+fn first_queued_host_error() -> Option<String> {
+    let Ok(q) = managed_events_queue().lock() else {
+        return None;
+    };
+    q.iter()
+        .find(|ev| ev.kind == ManagedHostEventKind::Error)
+        .map(|ev| ev.summary.clone())
+}
+
+fn has_ready_or_waiting_host_event() -> bool {
+    let Ok(q) = managed_events_queue().lock() else {
+        return false;
+    };
+    q.iter().any(|ev| {
+        matches!(
+            ev.kind,
+            ManagedHostEventKind::Ready
+                | ManagedHostEventKind::Waiting
+                | ManagedHostEventKind::Injecting
+                | ManagedHostEventKind::Injected
+        )
+    })
+}
+
+fn apply_via_managed_backend(
     customization_root: &Path,
     bin_path: &Path,
     game_dir: &str,
     candidates: &[AdapterCandidateSpec],
     opts: &ProbeOptions,
 ) -> Result<AdapterApplyOutcome, String> {
-    if !managed_modtools_sibling_ok(bin_path) {
+    let is_ltk = is_managed_ltk_host_binary(bin_path);
+    let backend_tag = if is_ltk { "ltk-patcher" } else { "mod-tools" };
+    let backend_variant = if is_ltk {
+        AdapterBackend::Ltk
+    } else {
+        AdapterBackend::Cslol
+    };
+
+    if is_ltk && !managed_ltk_sibling_ok(bin_path) {
+        return Err(format!(
+            "Managed LTK patcher at '{}' is missing required sibling ltk_patcher_dll.dll.",
+            bin_path.display()
+        ));
+    }
+    if !is_ltk && !managed_modtools_sibling_ok(bin_path) {
         return Err(format!(
             "Managed mod-tools backend at '{}' is missing required sibling cslol-dll.dll.",
             bin_path.display()
         ));
+    }
+
+    if is_ltk {
+        if let Some(elev_err) = super::skin_bootstrap::check_elevation_mismatch(Some(game_dir)) {
+            return Err(elev_err);
+        }
     }
 
     let target_game_dir = resolve_modtools_game_dir(Path::new(game_dir))?;
@@ -1726,12 +2323,13 @@ fn apply_via_modtools(
         resolve_game_install_info_safe(customization_root, opts.lcu_build_hint.as_deref())
             .detected_build;
 
-    // Stop any prior managed runoverlay before replacing overlay workspace files.
+    // Stop any prior managed backend before replacing overlay workspace files.
     stop_managed_modtools(customization_root);
+    clear_managed_host_events();
 
     let work_dir = customization_root
         .join("adapters")
-        .join("mod-tools")
+        .join(if is_ltk { "ltk-patcher" } else { "mod-tools" })
         .join("workspace");
     let mods_dir = work_dir.join("mods");
     let overlay_dir = work_dir.join("overlay");
@@ -1757,7 +2355,7 @@ fn apply_via_modtools(
                     ModRuntimeState::Staged,
                     None,
                     None,
-                    Some("mod-tools".into()),
+                    Some(backend_tag.into()),
                     detected_build.clone(),
                 );
             }
@@ -1769,7 +2367,7 @@ fn apply_via_modtools(
                     ModRuntimeState::Failed,
                     Some(e.clone()),
                     None,
-                    Some("mod-tools".into()),
+                    Some(backend_tag.into()),
                     detected_build.clone(),
                 );
                 if first_error.is_none() {
@@ -1788,84 +2386,109 @@ fn apply_via_modtools(
             deferred_reason: None,
             game_overlay_directory: None,
             message: first_error
-                .unwrap_or_else(|| "No mods could be prepared for managed mod-tools backend.".into()),
+                .unwrap_or_else(|| format!("No mods could be prepared for managed {backend_tag} backend.")),
         });
     }
 
-    let mut mk_cmd = Command::new(bin_path);
-    mk_cmd
-        .arg("mkoverlay")
-        .arg(&mods_dir)
-        .arg(&overlay_dir)
-        .arg(format!("--game:{}", target_game_dir.display()))
-        .arg(format!("--mods:{}", mod_folder_names.join("/")))
-        .arg("--noTFT")
-        .arg("--ignoreConflict")
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        mk_cmd.creation_flags(CREATE_NO_WINDOW);
-    }
+    let mkoverlay_bin = if is_ltk {
+        find_modtools_overlay_builder(customization_root, bin_path)
+    } else {
+        Some(bin_path.to_path_buf())
+    };
 
-    let (mk_code, mk_stdout, mk_stderr) =
-        run_command_with_timeout(mk_cmd, Duration::from_secs(60), "mod-tools mkoverlay")?;
-    if mk_code != 0 {
-        let err_tail = if !mk_stderr.trim().is_empty() {
-            mk_stderr.trim().to_string()
-        } else if !mk_stdout.trim().is_empty() {
-            mk_stdout.trim().to_string()
-        } else {
-            format!("exit code {mk_code}")
-        };
-        for h in &applied_hashes {
-            record_mod_state_at(
-                customization_root,
-                h,
-                ModRuntimeState::Failed,
-                Some(err_tail.clone()),
-                None,
-                Some("mod-tools".into()),
-                detected_build.clone(),
-            );
+    if let Some(builder_exe) = mkoverlay_bin {
+        let mut mk_cmd = Command::new(&builder_exe);
+        mk_cmd
+            .arg("mkoverlay")
+            .arg(&mods_dir)
+            .arg(&overlay_dir)
+            .arg(format!("--game:{}", target_game_dir.display()))
+            .arg(format!("--mods:{}", mod_folder_names.join("/")))
+            .arg("--noTFT")
+            .arg("--ignoreConflict")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            mk_cmd.creation_flags(CREATE_NO_WINDOW);
         }
-        let mut all_failed = applied_hashes;
-        all_failed.extend(failed_hashes);
-        super::journal::record(
-            customization_root,
-            super::journal::JournalAction::Fail,
-            &all_failed,
-            Some("mod-tools"),
-            detected_build.as_deref(),
-            format!("Managed mod-tools mkoverlay failed: {err_tail}"),
-        );
-        return Ok(AdapterApplyOutcome {
-            state: AdapterLifecycleState::Failed,
-            applied_in_game: false,
-            applied_mod_hashes: vec![],
-            deferred_mod_hashes: vec![],
-            failed_mod_hashes: all_failed,
-            deferred_reason: None,
-            game_overlay_directory: Some(overlay_dir.to_string_lossy().into_owned()),
-            message: format!("Managed mod-tools mkoverlay failed: {err_tail}"),
-        });
+
+        let (mk_code, mk_stdout, mk_stderr) =
+            run_command_with_timeout(mk_cmd, Duration::from_secs(60), "mod-tools mkoverlay")?;
+        if mk_code != 0 {
+            let err_tail = if !mk_stderr.trim().is_empty() {
+                mk_stderr.trim().to_string()
+            } else if !mk_stdout.trim().is_empty() {
+                mk_stdout.trim().to_string()
+            } else {
+                format!("exit code {mk_code}")
+            };
+            for h in &applied_hashes {
+                record_mod_state_at(
+                    customization_root,
+                    h,
+                    ModRuntimeState::Failed,
+                    Some(err_tail.clone()),
+                    None,
+                    Some(backend_tag.into()),
+                    detected_build.clone(),
+                );
+            }
+            let mut all_failed = applied_hashes;
+            all_failed.extend(failed_hashes);
+            super::journal::record(
+                customization_root,
+                super::journal::JournalAction::Fail,
+                &all_failed,
+                Some(backend_tag),
+                detected_build.as_deref(),
+                format!("Managed overlay compilation (mkoverlay) failed: {err_tail}"),
+            );
+            return Ok(AdapterApplyOutcome {
+                state: AdapterLifecycleState::Failed,
+                applied_in_game: false,
+                applied_mod_hashes: vec![],
+                deferred_mod_hashes: vec![],
+                failed_mod_hashes: all_failed,
+                deferred_reason: None,
+                game_overlay_directory: Some(overlay_dir.to_string_lossy().into_owned()),
+                message: format!("Managed overlay compilation (mkoverlay) failed: {err_tail}"),
+            });
+        }
+    } else if is_ltk {
+        let copied = build_fallback_wad_overlay(&mods_dir, &overlay_dir, &target_game_dir)?;
+        if copied == 0 {
+            return Err("No .wad.client assets or mod-tools mkoverlay found to construct LTK overlay.".into());
+        }
+    } else {
+        return Err("mod-tools executable missing for mkoverlay.".into());
     }
 
-    let config_file = work_dir.join("runoverlay.config");
-    if !config_file.exists() {
-        let _ = fs::write(&config_file, "");
+    if is_ltk && !overlay_has_wad_files(&overlay_dir) {
+        return Err("Overlay compilation finished with zero DATA/FINAL files.".into());
     }
 
     let mut run_cmd = Command::new(bin_path);
+    if is_ltk {
+        if let Some(bin_dir) = bin_path.parent() {
+            run_cmd.current_dir(bin_dir);
+        }
+    } else {
+        let config_file = work_dir.join("runoverlay.config");
+        if !config_file.exists() {
+            let _ = fs::write(&config_file, "");
+        }
+        run_cmd
+            .arg("runoverlay")
+            .arg(&overlay_dir)
+            .arg(&config_file)
+            .arg(format!("--game:{}", target_game_dir.display()))
+            .arg("--opts:configless");
+    }
     run_cmd
-        .arg("runoverlay")
-        .arg(&overlay_dir)
-        .arg(&config_file)
-        .arg(format!("--game:{}", target_game_dir.display()))
-        .arg("--opts:configless")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -1878,59 +2501,67 @@ fn apply_via_modtools(
 
     let mut child = run_cmd
         .spawn()
-        .map_err(|e| format!("Failed to spawn managed mod-tools runoverlay: {e}"))?;
+        .map_err(|e| format!("Failed to spawn managed {backend_tag} host: {e}"))?;
     let pid = child.id();
-    let stdin = child.stdin.take();
+    let mut stdin = child.stdin.take();
     let output_lines = Arc::new(Mutex::new(Vec::new()));
     if let Some(stdout) = child.stdout.take() {
-        spawn_line_reader(stdout, output_lines.clone(), "out");
+        spawn_line_reader(stdout, output_lines.clone(), backend_variant.clone(), "out");
     }
     if let Some(stderr) = child.stderr.take() {
-        spawn_line_reader(stderr, output_lines.clone(), "err");
+        spawn_line_reader(stderr, output_lines.clone(), backend_variant.clone(), "err");
     }
 
-    // Wait briefly so immediate startup failures surface clearly while long-running watcher settles.
-    let settle_deadline = Instant::now() + Duration::from_millis(600);
+    if is_ltk {
+        let prefix = ensure_trailing_separator(strip_windows_unc_prefix(&overlay_dir));
+        let cmds = format_ltk_host_commands(&prefix, 32, 0);
+        if let Some(ref mut pipe) = stdin {
+            for line in &cmds {
+                if let Err(e) = writeln!(pipe, "{line}") {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(format!("Failed writing command to ltk_patcher_host: {e}"));
+                }
+            }
+            let _ = pipe.flush();
+        } else {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("Failed capturing stdin pipe for ltk_patcher_host.".into());
+        }
+    }
+
+    // Wait briefly so immediate startup failures surface clearly while long-running scanner settles.
+    let settle_deadline = Instant::now() + Duration::from_millis(if is_ltk { 900 } else { 600 });
+    let mut startup_err: Option<String> = None;
     loop {
         if let Some(exit_status) = child
             .try_wait()
-            .map_err(|e| format!("Failed polling managed mod-tools runoverlay: {e}"))?
+            .map_err(|e| format!("Failed polling managed {backend_tag}: {e}"))?
         {
-            std::thread::sleep(Duration::from_millis(40));
+            std::thread::sleep(Duration::from_millis(50));
             let captured = output_lines
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .join(" | ");
-            let detail = if captured.is_empty() {
-                format!("mod-tools runoverlay exited unexpectedly with {exit_status}.")
+            startup_err = Some(if captured.is_empty() {
+                format!("{backend_tag} exited unexpectedly with {exit_status}.")
             } else {
-                format!("mod-tools runoverlay exited early ({exit_status}): {captured}")
-            };
-            for h in &applied_hashes {
-                record_mod_state_at(
-                    customization_root,
-                    h,
-                    ModRuntimeState::Failed,
-                    Some(detail.clone()),
-                    None,
-                    Some("mod-tools".into()),
-                    detected_build.clone(),
-                );
-            }
-            let mut all_failed = applied_hashes;
-            all_failed.extend(failed_hashes);
-            return Ok(AdapterApplyOutcome {
-                state: AdapterLifecycleState::Failed,
-                applied_in_game: false,
-                applied_mod_hashes: vec![],
-                deferred_mod_hashes: vec![],
-                failed_mod_hashes: all_failed,
-                deferred_reason: None,
-                game_overlay_directory: Some(overlay_dir.to_string_lossy().into_owned()),
-                message: detail,
+                format!("{backend_tag} exited early ({exit_status}): {captured}")
             });
+            break;
         }
-        let saw_ready = {
+        if is_ltk {
+            if let Some(err) = first_queued_host_error() {
+                startup_err = Some(format!("LTK host rejected overlay: {err}"));
+                let _ = child.kill();
+                let _ = child.wait();
+                break;
+            }
+        }
+        let saw_ready = if is_ltk {
+            has_ready_or_waiting_host_event()
+        } else {
             let lines = output_lines.lock().unwrap_or_else(|e| e.into_inner());
             lines
                 .iter()
@@ -1942,6 +2573,40 @@ fn apply_via_modtools(
         std::thread::sleep(Duration::from_millis(40));
     }
 
+    if let Some(detail) = startup_err {
+        for h in &applied_hashes {
+            record_mod_state_at(
+                customization_root,
+                h,
+                ModRuntimeState::Failed,
+                Some(detail.clone()),
+                None,
+                Some(backend_tag.into()),
+                detected_build.clone(),
+            );
+        }
+        let mut all_failed = applied_hashes;
+        all_failed.extend(failed_hashes);
+        super::journal::record(
+            customization_root,
+            super::journal::JournalAction::Fail,
+            &all_failed,
+            Some(backend_tag),
+            detected_build.as_deref(),
+            detail.clone(),
+        );
+        return Ok(AdapterApplyOutcome {
+            state: AdapterLifecycleState::Failed,
+            applied_in_game: false,
+            applied_mod_hashes: vec![],
+            deferred_mod_hashes: vec![],
+            failed_mod_hashes: all_failed,
+            deferred_reason: None,
+            game_overlay_directory: Some(overlay_dir.to_string_lossy().into_owned()),
+            message: detail,
+        });
+    }
+
     {
         let mut guard = managed_proc_slot()
             .lock()
@@ -1950,6 +2615,7 @@ fn apply_via_modtools(
             shutdown_managed_overlay_process(prev);
         }
         *guard = Some(ManagedOverlayProcess {
+            backend: backend_variant,
             child,
             stdin,
             output_lines,
@@ -1963,7 +2629,7 @@ fn apply_via_modtools(
             ModRuntimeState::Applied,
             None,
             None,
-            Some("mod-tools".into()),
+            Some(backend_tag.into()),
             detected_build.clone(),
         );
     }
@@ -1971,9 +2637,9 @@ fn apply_via_modtools(
         customization_root,
         super::journal::JournalAction::Activate,
         &applied_hashes,
-        Some("mod-tools"),
+        Some(backend_tag),
         detected_build.as_deref(),
-        "Managed mod-tools overlay running",
+        format!("Managed {backend_tag} overlay scanning"),
     );
 
     let mut store = load_runtime_at(customization_root);
@@ -1982,7 +2648,7 @@ fn apply_via_modtools(
     store.managed_pid = Some(pid);
     store.last_action = Some("activate_staged".into());
     let summary = format!(
-        "Activated {} mod(s) via managed mod-tools overlay (pid {}).",
+        "Activated {} mod(s) via managed {backend_tag} overlay (pid {}).",
         applied_hashes.len(),
         pid
     );
@@ -1992,7 +2658,7 @@ fn apply_via_modtools(
 
     let mut updated_cfg = load_config_at(customization_root).unwrap_or_default();
     updated_cfg.last_verified_sha256 = compute_sha256_file(bin_path).ok();
-    updated_cfg.last_verified_version = Some("mod-tools".into());
+    updated_cfg.last_verified_version = Some(backend_tag.into());
     let _ = storage::write(&config_file_for_root(customization_root), &updated_cfg);
 
     Ok(AdapterApplyOutcome {
@@ -2147,9 +2813,15 @@ pub(crate) fn apply_candidates_via_adapter_at(
         .ok_or_else(|| "Verified League installation path unavailable.".to_string())?;
     let detected_build = probe.league_install.detected_build.clone();
 
-    // Managed mod-tools backend: native overlay flow (no LAAP JSON CLI protocol).
-    if is_managed_modtools_binary(&bin_path) {
-        return apply_via_modtools(customization_root, &bin_path, &game_dir, candidates, opts);
+    // Managed overlay backend (`ltk_patcher_host.exe` or `mod-tools.exe`): native overlay flow.
+    if is_managed_overlay_binary(&bin_path) {
+        return apply_via_managed_backend(
+            customization_root,
+            &bin_path,
+            &game_dir,
+            candidates,
+            opts,
+        );
     }
 
     let mut validated_candidates = Vec::new();
@@ -2533,14 +3205,19 @@ pub(crate) fn restore_defaults_via_adapter_at(
 
     let _guard = acquire_adapter_lock(Duration::from_millis(500))?;
 
-    if is_managed_modtools_binary(&bin_path) {
+    if is_managed_overlay_binary(&bin_path) {
+        let is_ltk = is_managed_ltk_host_binary(&bin_path);
+        let backend_tag = if is_ltk { "ltk-patcher" } else { "mod-tools" };
         stop_managed_modtools(customization_root);
-        let work_dir = customization_root
-            .join("adapters")
-            .join("mod-tools")
-            .join("workspace");
-        let _ = fs::remove_dir_all(work_dir.join("overlay"));
-        let _ = fs::remove_dir_all(work_dir.join("mods"));
+        clear_managed_host_events();
+        for dir_name in ["mod-tools", "ltk-patcher"] {
+            let work_dir = customization_root
+                .join("adapters")
+                .join(dir_name)
+                .join("workspace");
+            let _ = fs::remove_dir_all(work_dir.join("overlay"));
+            let _ = fs::remove_dir_all(work_dir.join("mods"));
+        }
 
         let mut reset_store = load_runtime_at(customization_root);
         for rec in reset_store.mods.values_mut() {
@@ -2558,7 +3235,7 @@ pub(crate) fn restore_defaults_via_adapter_at(
         reset_store.active_game_dir = None;
         reset_store.managed_pid = None;
         reset_store.last_action = Some("restore_defaults".into());
-        let detail = "Stopped managed mod-tools overlay and restored defaults.".to_string();
+        let detail = format!("Stopped managed {backend_tag} overlay and restored defaults.");
         reset_store.last_action_message = Some(detail.clone());
         reset_store.updated_at = Some(now_unix());
         let _ = save_runtime_at(customization_root, &reset_store);
@@ -2566,7 +3243,7 @@ pub(crate) fn restore_defaults_via_adapter_at(
             customization_root,
             super::journal::JournalAction::Restore,
             &[],
-            Some("mod-tools"),
+            Some(backend_tag),
             opts.lcu_build_hint.as_deref(),
             detail.clone(),
         );
@@ -2730,12 +3407,17 @@ pub fn validate_single_candidate_at(
     let _guard = acquire_adapter_lock(Duration::from_millis(500))?;
 
     ensure_safe_candidate_entry(&cand.source_path)?;
-    if is_managed_modtools_binary(&bin_path) {
+    if is_managed_overlay_binary(&bin_path) {
+        let backend_label = if is_managed_ltk_host_binary(&bin_path) {
+            "LTK patcher"
+        } else {
+            "mod-tools"
+        };
         let fmt = cand.format.to_ascii_lowercase();
         let supported = matches!(fmt.as_str(), "fantome" | "zip" | "modpkg" | "wad");
         if !supported {
             let msg = format!(
-                "Managed mod-tools backend does not support format '{}' for '{}'.",
+                "Managed {backend_label} backend does not support format '{}' for '{}'.",
                 cand.format, cand.name
             );
             record_mod_state_at(
@@ -2759,7 +3441,7 @@ pub fn validate_single_candidate_at(
             zip::ZipArchive::new(file).map_err(|e| format!("Invalid mod zip archive: {e}"))?;
         }
         let detail = format!(
-            "Validated for managed mod-tools backend (League build {}).",
+            "Validated for managed {backend_label} backend (League build {}).",
             detected_build.as_deref().unwrap_or("unknown")
         );
         record_mod_state_at(
@@ -3735,6 +4417,176 @@ fn main() {{
         assert!(logged.contains("--opts:configless"));
 
         shutdown_managed_backend();
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn ltk_protocol_command_formatting_and_event_parsing() {
+        let cmds = format_ltk_host_commands("C:\\Riot Games\\overlay\\", 32, 0);
+        assert_eq!(
+            cmds,
+            vec![
+                "config loglevel 32",
+                "config flags 0",
+                "config prefix C:\\Riot Games\\overlay\\",
+                "start scan",
+            ]
+        );
+
+        let waiting = parse_managed_host_line(
+            &AdapterBackend::Ltk,
+            "out",
+            "status 1.000 waiting waiting for League",
+        )
+        .unwrap();
+        assert_eq!(waiting.kind, ManagedHostEventKind::Waiting);
+        assert_eq!(waiting.state.as_deref(), Some("waiting"));
+
+        let injected = parse_managed_host_line(
+            &AdapterBackend::Ltk,
+            "out",
+            "status 2.500 injected attached to League",
+        )
+        .unwrap();
+        assert_eq!(injected.kind, ManagedHostEventKind::Injected);
+        assert_eq!(injected.state.as_deref(), Some("injected"));
+
+        let dll_err = parse_managed_host_line(
+            &AdapterBackend::Ltk,
+            "out",
+            "dll 64.605 11776 24292 ERROR ltk_patcher_dll::verify: WAD scan failed status with c0000229 for briar.wad.client",
+        )
+        .unwrap();
+        assert_eq!(dll_err.kind, ManagedHostEventKind::Error);
+        assert!(dll_err.summary.contains("WAD scan failed"));
+
+        let redirected = parse_managed_host_line(
+            &AdapterBackend::Ltk,
+            "out",
+            "dll 12.1 100 200 INFO ltk_patcher_dll: redirected wad: DATA/FINAL/Champions/Alistar.wad.client",
+        )
+        .unwrap();
+        assert_eq!(redirected.kind, ManagedHostEventKind::Redirected);
+    }
+
+    #[test]
+    fn managed_ltk_host_requires_sibling_dll_and_speaks_protocol() {
+        let _serial = test_serial_guard();
+        shutdown_managed_backend();
+        clear_managed_host_events();
+
+        let root = temp_root("managed-ltk-host");
+        let league = setup_fake_league(&root, "16.22.834.8910");
+        fs::create_dir_all(league.join("Game").join("DATA").join("FINAL").join("Champions")).unwrap();
+
+        let ltk_dir = root.join("adapters").join("ltk-patcher");
+        fs::create_dir_all(&ltk_dir).unwrap();
+        let stdin_log = root.join("ltk_stdin.log");
+        let stdin_log_escaped = stdin_log.to_string_lossy().replace('\\', "\\\\");
+        let body = format!(
+            r#"
+    use std::io::{{BufRead, Write}};
+    let log_path = std::path::Path::new("{stdin_log_escaped}");
+    let stdin = std::io::stdin();
+    for line in stdin.lock().lines().flatten() {{
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(log_path) {{
+            let _ = writeln!(f, "{{line}}");
+        }}
+        if line == "start scan" {{
+            println!("ok 0.01 configured");
+            println!("status 0.02 waiting scanning");
+            println!("status 0.05 injected attached");
+            let _ = std::io::stdout().flush();
+        }} else if line == "stop" {{
+            println!("ok 0.10 stopped");
+            let _ = std::io::stdout().flush();
+            break;
+        }}
+    }}
+"#
+        );
+        let bin = compile_mock_adapter(&ltk_dir, "ltk_patcher_host", &body);
+
+        let opts = ProbeOptions {
+            allow_path_discovery: false,
+            lcu_build_hint: Some("16.22.834.8910".into()),
+            active_match_running: false,
+            ..ProbeOptions::default()
+        };
+        save_config_at(
+            &root,
+            GameAdapterConfig {
+                adapter_path: Some(bin.to_string_lossy().into_owned()),
+                expected_sha256: None,
+                user_consent_granted: true,
+                clearance_acknowledged: true,
+                auto_apply_in_champ_select: true,
+                last_verified_sha256: None,
+                last_verified_version: None,
+            },
+        )
+        .unwrap();
+
+        #[cfg(windows)]
+        {
+            let missing = probe_adapter_at(&root, &opts);
+            assert_eq!(missing.state, AdapterLifecycleState::Failed);
+            assert!(missing.detail.contains("ltk_patcher_dll.dll"));
+        }
+
+        fs::write(ltk_dir.join("ltk_patcher_dll.dll"), b"stub").unwrap();
+        let ok_probe = probe_adapter_at(&root, &opts);
+        assert_eq!(ok_probe.state, AdapterLifecycleState::Compatible);
+        assert_eq!(ok_probe.backend, AdapterBackend::Ltk);
+
+        let staging_dir = root.join("staging");
+        fs::create_dir_all(&staging_dir).unwrap();
+        let mod_zip = staging_dir.join("skin.fantome");
+        {
+            let f = fs::File::create(&mod_zip).unwrap();
+            let mut z = zip::ZipWriter::new(f);
+            let wopts = zip::write::SimpleFileOptions::default();
+            z.start_file("WAD/Alistar.wad.client", wopts).unwrap();
+            std::io::Write::write_all(&mut z, b"WADTEST").unwrap();
+            z.finish().unwrap();
+        }
+        let cand = AdapterCandidateSpec {
+            sha256: "fedcba0123456789abcdef0123456789abcdef0123456789abcdef0123456789".into(),
+            name: "Alistar Black".into(),
+            format: "fantome".into(),
+            source_path: mod_zip,
+            supported_game_builds: vec![],
+            contains_paid_riot_content: true,
+            valid: true,
+        };
+
+        let outcome =
+            apply_candidates_via_adapter_at(&root, &staging_dir, &[cand], &opts).unwrap();
+        assert_eq!(outcome.state, AdapterLifecycleState::Applied);
+        assert!(outcome.applied_in_game);
+        assert!(outcome
+            .game_overlay_directory
+            .as_deref()
+            .is_some_and(|d| Path::new(d).join("DATA/FINAL/Champions/Alistar.wad.client").is_file()));
+
+        std::thread::sleep(Duration::from_millis(100));
+        let drained = drain_managed_host_events();
+        assert!(
+            drained.iter().any(|e| e.kind == ManagedHostEventKind::Injected),
+            "expected Injected event in {drained:?}"
+        );
+
+        let restored = restore_defaults_via_adapter_at(&root, &opts).unwrap();
+        assert!(restored.restored_in_game);
+        let cmd_log = fs::read_to_string(&stdin_log).unwrap();
+        assert!(cmd_log.contains("config loglevel 32"));
+        assert!(cmd_log.contains("config flags 0"));
+        assert!(cmd_log.contains("config prefix "));
+        assert!(cmd_log.contains("start scan"));
+        assert!(cmd_log.contains("stop"));
+
+        shutdown_managed_backend();
+        clear_managed_host_events();
         let _ = fs::remove_dir_all(&root);
     }
 }

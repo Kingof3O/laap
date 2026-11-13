@@ -27,7 +27,7 @@
 .customization-editor { display: grid; gap: .75rem; margin-top: .75rem; max-width: 26rem; }
 .customization-list { display: grid; gap: .75rem; padding: 0; list-style: none; }
 .customization-list li { display: grid; gap: .5rem; }
-.customization-workspace .customization-check { display: flex; align-items: start; }
+.customization-workspace .customization-check { display: flex; align-items: flex-start; gap: 0.5rem; }
 .customization-list code { overflow-wrap: anywhere; }
 
 .theme-preview { padding: 2rem; border-radius: .75rem; min-height: 15rem; display: grid; place-items: center; }

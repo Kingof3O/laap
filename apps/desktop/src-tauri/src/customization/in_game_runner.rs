@@ -157,6 +157,105 @@ static STATE: Mutex<Option<Arc<Mutex<RunnerState>>>> = Mutex::new(None);
 static RUNNING_FLAG: AtomicBool = AtomicBool::new(false);
 static POLL_GENERATION: AtomicU64 = AtomicU64::new(0);
 
+fn acquire_apply_lock() -> std::sync::MutexGuard<'static, ()> {
+    static APPLY_LOCK: std::sync::OnceLock<Mutex<()>> = std::sync::OnceLock::new();
+    APPLY_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner())
+}
+
+fn drain_and_record_host_events() -> bool {
+    use super::game_adapter::ManagedHostEventKind;
+    let events = super::game_adapter::drain_managed_host_events();
+    if events.is_empty() {
+        return false;
+    }
+    let mut changed = false;
+    for ev in events {
+        let trimmed = ev.summary.trim();
+        let msg = if trimmed.is_empty() {
+            ev.raw.trim()
+        } else {
+            trimmed
+        };
+        if msg.is_empty() {
+            continue;
+        }
+        match ev.kind {
+            ManagedHostEventKind::Waiting => {
+                if let Ok(mut w) = get_tracker().lock() {
+                    if !matches!(w.match_apply_status.as_str(), "injected" | "injecting") {
+                        w.match_apply_status = "waiting-for-game".into();
+                        changed = true;
+                    }
+                }
+                if let Ok(mut s) = get_state().lock() {
+                    s.add_event("PATCHER_STATUS", msg);
+                    changed = true;
+                }
+            }
+            ManagedHostEventKind::Injecting => {
+                if let Ok(mut w) = get_tracker().lock() {
+                    w.match_apply_status = "injecting".into();
+                    changed = true;
+                }
+                if let Ok(mut s) = get_state().lock() {
+                    s.add_event("PATCHER_STATUS", msg);
+                    changed = true;
+                }
+            }
+            ManagedHostEventKind::Injected => {
+                if let Ok(mut w) = get_tracker().lock() {
+                    w.match_apply_status = "injected".into();
+                    changed = true;
+                }
+                if let Ok(mut s) = get_state().lock() {
+                    s.add_event("PATCHER_INJECTED", msg);
+                    changed = true;
+                }
+            }
+            ManagedHostEventKind::Redirected => {
+                if let Ok(mut s) = get_state().lock() {
+                    s.add_event("PATCHER_REDIRECTED", msg);
+                    changed = true;
+                }
+            }
+            ManagedHostEventKind::Error => {
+                let short: String = msg.chars().take(120).collect();
+                if let Ok(mut w) = get_tracker().lock() {
+                    w.match_apply_status = format!("failed: {short}");
+                    changed = true;
+                }
+                if let Ok(mut s) = get_state().lock() {
+                    s.add_event("PATCHER_ERROR", msg);
+                    changed = true;
+                }
+            }
+            ManagedHostEventKind::Exited => {
+                let in_match = get_tracker().lock().ok().is_some_and(|w| {
+                    matches!(
+                        w.match_apply_status.as_str(),
+                        "in-match" | "in-match-active" | "injected" | "injecting"
+                    )
+                });
+                if let Ok(mut w) = get_tracker().lock() {
+                    if w.active_applied_mod_hash.is_some() && !in_match {
+                        w.match_apply_status = "exited".into();
+                    }
+                    w.active_applied_mod_hash = None;
+                }
+                if let Ok(mut s) = get_state().lock() {
+                    s.add_event("PATCHER_EXITED", msg);
+                    changed = true;
+                }
+            }
+            ManagedHostEventKind::Ready | ManagedHostEventKind::Info => {}
+        }
+    }
+    changed
+}
+
 fn get_state() -> Arc<Mutex<RunnerState>> {
     let mut guard = STATE.lock().unwrap();
     if let Some(state) = &*guard {
@@ -589,68 +688,73 @@ pub(crate) fn apply_selected_skin_at(
         .map(str::to_string)
         .unwrap_or_else(|| resolve_display_champion_name(Some(root), eff_champ_id));
 
-    if eff_champ_id > 0 {
-        super::skin_catalog::save_skin_selection_at(
-            root,
-            eff_champ_id,
-            skin_id,
-            Some(&champ_display),
-        )?;
-    }
-
-    let (lcu_ok, lcu_detail) = ensure_lcu_skin_slot_for_mod(Some(skin_id), eff_champ_id);
-
-    let mut loadout = resolve_loadout_for_champion_at(root, eff_champ_id, &champ_display);
-    let gf_phase = current_gameflow_phase();
-    let tracker_hint = get_tracker()
-        .lock()
-        .ok()
-        .and_then(|t| t.lcu_build_hint.clone());
-    let mut opts = super::game_adapter::ProbeOptions {
-        lcu_build_hint: tracker_hint,
-        ..super::game_adapter::ProbeOptions::default()
-    };
-    opts.active_match_running = opts.active_match_running
-        || !super::game_adapter::is_safe_gameflow_phase(gf_phase.as_deref());
-
-    let (ev_type, ev_msg) = handle_champ_select_loadout_at(root, &mut loadout, true, &opts);
-
-    let selection_updated_at = if eff_champ_id > 0 {
-        super::skin_catalog::read_skin_selection_at(root, eff_champ_id).map(|s| s.updated_at)
-    } else {
-        None
-    };
-
-    if let Ok(mut tracker) = get_tracker().lock() {
-        tracker.last_champion_id = (eff_champ_id > 0).then_some(eff_champ_id);
-        tracker.last_champion_name = Some(champ_display.clone());
-        tracker.last_skin_selection_updated_at = selection_updated_at;
-    }
-
-    if let Ok(mut state) = get_state().lock() {
-        if eff_champ_id > 0 && state.detected_champion_id.is_none() {
-            state.detected_champion_id = Some(eff_champ_id);
-            state.detected_champion_name = Some(champ_display.clone());
+    {
+        let _apply_guard = acquire_apply_lock();
+        if eff_champ_id > 0 {
+            super::skin_catalog::save_skin_selection_at(
+                root,
+                eff_champ_id,
+                skin_id,
+                Some(&champ_display),
+            )?;
         }
-        state.resolved_loadout = Some(loadout.clone());
-        state.add_event(ev_type, &ev_msg);
+
+        let (lcu_ok, lcu_detail) = ensure_lcu_skin_slot_for_mod(Some(skin_id), eff_champ_id);
+
+        let mut loadout = resolve_loadout_for_champion_at(root, eff_champ_id, &champ_display);
+        let gf_phase = current_gameflow_phase();
+        let tracker_hint = get_tracker()
+            .lock()
+            .ok()
+            .and_then(|t| t.lcu_build_hint.clone());
+        let mut opts = super::game_adapter::ProbeOptions {
+            lcu_build_hint: tracker_hint,
+            ..super::game_adapter::ProbeOptions::default()
+        };
+        opts.active_match_running = opts.active_match_running
+            || !super::game_adapter::is_safe_gameflow_phase(gf_phase.as_deref());
+
+        let (ev_type, ev_msg) = handle_champ_select_loadout_at(root, &mut loadout, true, &opts);
+
+        let selection_updated_at = if eff_champ_id > 0 {
+            super::skin_catalog::read_skin_selection_at(root, eff_champ_id).map(|s| s.updated_at)
+        } else {
+            None
+        };
+
+        if let Ok(mut tracker) = get_tracker().lock() {
+            tracker.last_champion_id = (eff_champ_id > 0).then_some(eff_champ_id);
+            tracker.last_champion_name = Some(champ_display.clone());
+            tracker.last_skin_selection_updated_at = selection_updated_at;
+        }
+
+        if let Ok(mut state) = get_state().lock() {
+            if eff_champ_id > 0 && state.detected_champion_id.is_none() {
+                state.detected_champion_id = Some(eff_champ_id);
+                state.detected_champion_name = Some(champ_display.clone());
+            }
+            state.resolved_loadout = Some(loadout.clone());
+            state.add_event(ev_type, &ev_msg);
+        }
+
+        drop(_apply_guard);
+        let _ = drain_and_record_host_events();
+        super::client_bridge::notify_state_changed();
+
+        let deferred = ev_type == "MOD_DEFERRED";
+        return Ok(serde_json::json!({
+            "ok": true,
+            "championId": eff_champ_id,
+            "skinId": skin_id,
+            "lcuSelection": lcu_ok,
+            "lcuDetail": lcu_detail,
+            "appliedInGame": loadout.applied_in_game,
+            "deferred": deferred,
+            "modHash": loadout.mod_hash,
+            "applyMessage": ev_msg,
+            "loadout": loadout,
+        }));
     }
-
-    super::client_bridge::notify_state_changed();
-
-    let deferred = ev_type == "MOD_DEFERRED";
-    Ok(serde_json::json!({
-        "ok": true,
-        "championId": eff_champ_id,
-        "skinId": skin_id,
-        "lcuSelection": lcu_ok,
-        "lcuDetail": lcu_detail,
-        "appliedInGame": loadout.applied_in_game,
-        "deferred": deferred,
-        "modHash": loadout.mod_hash,
-        "applyMessage": ev_msg,
-        "loadout": loadout,
-    }))
 }
 
 /// Inspects LCU Champ Select session to retrieve the selected champion ID.
@@ -811,6 +915,26 @@ pub(crate) fn handle_champ_select_loadout_at(
                 w.active_applied_mod_hash = None;
                 w.pending_restore_after_match = false;
             }
+        } else if auto_apply_mods
+            && !opts.active_match_running
+            && super::game_adapter::is_managed_overlay_process_active()
+        {
+            loadout.applied_in_game = true;
+            if let Ok(mut w) = get_tracker().lock() {
+                if !matches!(
+                    w.match_apply_status.as_str(),
+                    "waiting-for-game" | "injecting" | "injected"
+                ) {
+                    w.match_apply_status = "applied".into();
+                }
+            }
+            return (
+                "MOD_APPLIED",
+                format!(
+                    "Champion detected: {} (ID {}). Overlay '{}' is already active in managed overlay host.",
+                    loadout.champion_name, loadout.champion_id, loadout.skin_or_mod_name
+                ),
+            );
         }
     }
 
@@ -981,10 +1105,16 @@ pub(crate) fn handle_post_match_cleanup_at(
 
 /// Core single-tick polling logic (network & adapter operations run outside `STATE` mutex).
 pub fn poll_tick(app: &AppHandle) {
+    let drained_early = drain_and_record_host_events();
     let state_arc = get_state();
-    let (previous_phase, previous_champ_id) = match state_arc.lock() {
+    let (previous_phase, _previous_champ_id) = match state_arc.lock() {
         Ok(s) => (s.gameflow_phase.clone(), s.detected_champion_id),
-        Err(_) => return,
+        Err(_) => {
+            if drained_early {
+                super::client_bridge::notify_state_changed();
+            }
+            return;
+        }
     };
 
     let conn_res = crate::lcu_read::connection();
@@ -996,6 +1126,9 @@ pub fn poll_tick(app: &AppHandle) {
                 state.phase = RunnerPhase::Error;
                 state.error_message = Some(e);
             }
+            if drained_early {
+                super::client_bridge::notify_state_changed();
+            }
             return;
         }
     };
@@ -1005,6 +1138,9 @@ pub fn poll_tick(app: &AppHandle) {
             state.reset_live_observation();
             state.error_message = None;
             state.phase = RunnerPhase::Monitoring;
+        }
+        if drained_early {
+            super::client_bridge::notify_state_changed();
         }
         return;
     };
@@ -1062,8 +1198,7 @@ pub fn poll_tick(app: &AppHandle) {
     match phase_val.as_str() {
         "ChampSelect" => {
             let picked_champ = inspect_champ_select_session(&client).ok().flatten();
-            let mut new_selection: Option<(u32, String, ResolvedLoadout, (&'static str, String), Option<u64>)> =
-                None;
+            let mut applied_selection = false;
             if let Some(champ_id) = picked_champ {
                 // Auto-fetch DDragon skins in the background when not yet cached so Pengu & UI populate automatically.
                 let need_catalog_fetch = root.as_deref().is_some_and(|r| {
@@ -1095,6 +1230,13 @@ pub fn poll_tick(app: &AppHandle) {
                     }
                 }
 
+                // Serialize with apply_selected_skin_at / manual apply so concurrent selection + poll_tick
+                // never contend on library::op_lock(), and re-read latest state under the lock.
+                let _apply_guard = acquire_apply_lock();
+                let current_detected = state_arc
+                    .lock()
+                    .ok()
+                    .and_then(|s| s.detected_champion_id);
                 let selection_obj = root
                     .as_deref()
                     .and_then(|r| super::skin_catalog::read_skin_selection_at(r, champ_id));
@@ -1104,7 +1246,7 @@ pub fn poll_tick(app: &AppHandle) {
                     .ok()
                     .and_then(|t| t.last_skin_selection_updated_at);
 
-                if previous_champ_id != Some(champ_id) || selection_ts != prev_selection_ts {
+                if current_detected != Some(champ_id) || selection_ts != prev_selection_ts {
                     let champ_name = resolve_display_champion_name(root.as_deref(), champ_id);
                     let mut loadout = resolve_loadout_for_champion(app, champ_id, &champ_name);
 
@@ -1113,7 +1255,7 @@ pub fn poll_tick(app: &AppHandle) {
                         let _ = ensure_lcu_skin_slot_for_mod(preferred, champ_id);
                     }
 
-                    let ev = if let Some(ref r) = root {
+                    let (ev_type, ev_msg) = if let Some(ref r) = root {
                         handle_champ_select_loadout_at(r, &mut loadout, cfg.auto_apply_mods, &probe_opts)
                     } else {
                         (
@@ -1124,28 +1266,38 @@ pub fn poll_tick(app: &AppHandle) {
                             ),
                         )
                     };
-                    new_selection = Some((champ_id, champ_name, loadout, ev, selection_ts));
+                    if let Ok(mut tracker) = get_tracker().lock() {
+                        tracker.last_champion_id = Some(champ_id);
+                        tracker.last_champion_name = Some(champ_name.clone());
+                        tracker.last_skin_selection_updated_at = selection_ts;
+                    }
+                    if let Ok(mut state) = state_arc.lock() {
+                        state.client_connected = true;
+                        state.error_message = None;
+                        state.gameflow_phase = Some(phase_val.clone());
+                        state.phase = RunnerPhase::ChampSelect;
+                        state.detected_champion_id = Some(champ_id);
+                        state.detected_champion_name = Some(champ_name);
+                        state.add_event(ev_type, &ev_msg);
+                        state.resolved_loadout = Some(loadout);
+                    }
+                    applied_selection = true;
                 }
             }
 
-            let notify_needed = new_selection.is_some() || previous_phase.as_deref() != Some("ChampSelect");
-            if let Ok(mut state) = state_arc.lock() {
-                state.client_connected = true;
-                state.error_message = None;
-                state.gameflow_phase = Some(phase_val);
-                state.phase = RunnerPhase::ChampSelect;
-                if let Some((champ_id, champ_name, loadout, (ev_type, ev_msg), sel_ts)) = new_selection {
-                    state.detected_champion_id = Some(champ_id);
-                    state.detected_champion_name = Some(champ_name.clone());
-                    state.add_event(ev_type, &ev_msg);
-                    state.resolved_loadout = Some(loadout);
-                    if let Ok(mut tracker) = get_tracker().lock() {
-                        tracker.last_champion_id = Some(champ_id);
-                        tracker.last_champion_name = Some(champ_name);
-                        tracker.last_skin_selection_updated_at = sel_ts;
-                    }
+            if !applied_selection {
+                if let Ok(mut state) = state_arc.lock() {
+                    state.client_connected = true;
+                    state.error_message = None;
+                    state.gameflow_phase = Some(phase_val);
+                    state.phase = RunnerPhase::ChampSelect;
                 }
             }
+            let drained_late = drain_and_record_host_events();
+            let notify_needed = applied_selection
+                || drained_early
+                || drained_late
+                || previous_phase.as_deref() != Some("ChampSelect");
             if notify_needed {
                 super::client_bridge::notify_state_changed();
             }
@@ -1159,8 +1311,12 @@ pub fn poll_tick(app: &AppHandle) {
             if let Ok(mut w) = get_tracker().lock() {
                 if had_active {
                     w.pending_restore_after_match = true;
-                    w.match_apply_status = "in-match-active".into();
-                } else {
+                    if !matches!(w.match_apply_status.as_str(), "injected" | "injecting")
+                        && !w.match_apply_status.starts_with("failed")
+                    {
+                        w.match_apply_status = "in-match-active".into();
+                    }
+                } else if !w.match_apply_status.starts_with("failed") {
                     w.match_apply_status = "in-match".into();
                 }
             }
@@ -1179,16 +1335,20 @@ pub fn poll_tick(app: &AppHandle) {
                     state.add_event("IN_MATCH", msg);
                 }
             }
-            if phase_changed {
+            let drained_late = drain_and_record_host_events();
+            if phase_changed || drained_early || drained_late {
                 super::client_bridge::notify_state_changed();
             }
         }
         "EndOfGame" | "PreEndOfGame" | "WaitingForStats" | "Lobby" | "None" => {
-            let cleanup_ev = root
-                .as_deref()
-                .and_then(|r| handle_post_match_cleanup_at(r, &phase_val, &probe_opts));
+            let cleanup_ev = root.as_deref().and_then(|r| {
+                let _apply_guard = acquire_apply_lock();
+                handle_post_match_cleanup_at(r, &phase_val, &probe_opts)
+            });
             let phase_changed = previous_phase.as_deref() != Some(phase_val.as_str());
-            let should_notify = phase_changed || cleanup_ev.is_some();
+            let drained_late = drain_and_record_host_events();
+            let should_notify =
+                phase_changed || cleanup_ev.is_some() || drained_early || drained_late;
 
             if let Ok(mut state) = state_arc.lock() {
                 state.client_connected = true;
@@ -1223,6 +1383,10 @@ pub fn poll_tick(app: &AppHandle) {
                 state.error_message = None;
                 state.gameflow_phase = Some(phase_val);
                 state.phase = RunnerPhase::Monitoring;
+            }
+            let drained_late = drain_and_record_host_events();
+            if drained_early || drained_late {
+                super::client_bridge::notify_state_changed();
             }
         }
     }
@@ -1481,6 +1645,7 @@ pub async fn in_game_runner_apply_matched_mod(
         opts.active_match_running = opts.active_match_running
             || !super::game_adapter::is_safe_gameflow_phase(phase_opt.as_deref());
 
+        let _apply_guard = acquire_apply_lock();
         let report = super::library::stage_overlay_at(&root, Some(&[target_hash.clone()]), &opts)?;
         if let Ok(mut tracker) = get_tracker().lock() {
             if report.applied_in_game {
@@ -1493,6 +1658,8 @@ pub async fn in_game_runner_apply_matched_mod(
                 tracker.match_apply_status = format!("{:?}", report.adapter_state).to_ascii_lowercase();
             }
         }
+        drop(_apply_guard);
+        let _ = drain_and_record_host_events();
         Ok(report)
     })
     .await
@@ -1517,6 +1684,7 @@ pub async fn in_game_runner_restore_defaults(
         opts.active_match_running = opts.active_match_running
             || !super::game_adapter::is_safe_gameflow_phase(phase_opt.as_deref());
 
+        let _apply_guard = acquire_apply_lock();
         let report = super::library::rollback_at(&root, &opts)?;
         if let Ok(mut tracker) = get_tracker().lock() {
             if report.game_overlay_cleaned {
@@ -1528,6 +1696,8 @@ pub async fn in_game_runner_restore_defaults(
                 tracker.match_apply_status = "deferred-restore".into();
             }
         }
+        drop(_apply_guard);
+        let _ = drain_and_record_host_events();
         Ok(report)
     })
     .await
@@ -1755,5 +1925,114 @@ mod tests {
         assert!(default_loadout.mod_hash.is_none());
 
         let _ = std::fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn host_event_draining_updates_match_status_and_events() {
+        let _serial = super::super::game_adapter::test_serial_guard();
+        let _ = super::super::game_adapter::drain_managed_host_events();
+        let state_arc = get_state();
+        {
+            let mut s = state_arc.lock().unwrap();
+            s.recent_events.clear();
+        }
+        {
+            let mut w = get_tracker().lock().unwrap();
+            w.active_applied_mod_hash = Some("abc".into());
+            w.match_apply_status = "applied".into();
+        }
+
+        super::super::game_adapter::push_managed_host_event_for_test(
+            super::super::game_adapter::ManagedHostEvent {
+                kind: super::super::game_adapter::ManagedHostEventKind::Waiting,
+                state: Some("waiting".into()),
+                summary: "Scanning for League of Legends".into(),
+                raw: "status 1.0 waiting scanning".into(),
+            },
+        );
+        assert!(drain_and_record_host_events());
+        assert_eq!(
+            get_tracker().lock().unwrap().match_apply_status,
+            "waiting-for-game"
+        );
+
+        super::super::game_adapter::push_managed_host_event_for_test(
+            super::super::game_adapter::ManagedHostEvent {
+                kind: super::super::game_adapter::ManagedHostEventKind::Injected,
+                state: Some("injected".into()),
+                summary: "Patcher injected into League".into(),
+                raw: "status 2.0 injected".into(),
+            },
+        );
+        super::super::game_adapter::push_managed_host_event_for_test(
+            super::super::game_adapter::ManagedHostEvent {
+                kind: super::super::game_adapter::ManagedHostEventKind::Redirected,
+                state: None,
+                summary: "redirected wad: DATA/FINAL/Champions/Ahri.wad.client".into(),
+                raw: "dll 2.1 INFO redirected wad".into(),
+            },
+        );
+        assert!(drain_and_record_host_events());
+        assert_eq!(get_tracker().lock().unwrap().match_apply_status, "injected");
+        {
+            let s = state_arc.lock().unwrap();
+            assert_eq!(s.recent_events[0].event_type, "PATCHER_REDIRECTED");
+            assert_eq!(s.recent_events[1].event_type, "PATCHER_INJECTED");
+        }
+
+        super::super::game_adapter::push_managed_host_event_for_test(
+            super::super::game_adapter::ManagedHostEvent {
+                kind: super::super::game_adapter::ManagedHostEventKind::Error,
+                state: Some("failed".into()),
+                summary: "WAD scan failed".into(),
+                raw: "dll ERROR WAD scan failed".into(),
+            },
+        );
+        assert!(drain_and_record_host_events());
+        assert_eq!(
+            get_tracker().lock().unwrap().match_apply_status,
+            "failed: WAD scan failed"
+        );
+        assert_eq!(
+            state_arc.lock().unwrap().recent_events[0].event_type,
+            "PATCHER_ERROR"
+        );
+
+        // Cleanup tracker/state for subsequent tests
+        let mut w = get_tracker().lock().unwrap();
+        w.active_applied_mod_hash = None;
+        w.match_apply_status = "idle".into();
+        state_arc.lock().unwrap().recent_events.clear();
+    }
+
+    #[test]
+    fn apply_lock_serializes_selection_without_contention() {
+        let _serial = super::super::game_adapter::test_serial_guard();
+        let started = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let overlap = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let busy = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+        let g = acquire_apply_lock();
+        busy.store(true, std::sync::atomic::Ordering::SeqCst);
+
+        let started_t = started.clone();
+        let overlap_t = overlap.clone();
+        let busy_t = busy.clone();
+        let handle = std::thread::spawn(move || {
+            started_t.store(true, std::sync::atomic::Ordering::SeqCst);
+            let _g2 = acquire_apply_lock();
+            if busy_t.load(std::sync::atomic::Ordering::SeqCst) {
+                overlap_t.store(true, std::sync::atomic::Ordering::SeqCst);
+            }
+        });
+
+        while !started.load(std::sync::atomic::Ordering::SeqCst) {
+            std::thread::yield_now();
+        }
+        std::thread::sleep(std::time::Duration::from_millis(25));
+        busy.store(false, std::sync::atomic::Ordering::SeqCst);
+        drop(g);
+        handle.join().unwrap();
+        assert!(!overlap.load(std::sync::atomic::Ordering::SeqCst));
     }
 }

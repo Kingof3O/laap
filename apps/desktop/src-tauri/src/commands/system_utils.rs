@@ -266,6 +266,34 @@ pub fn get_minimize_to_tray() -> Result<bool, String> {
     Ok(false)
 }
 
+#[cfg(target_os = "windows")]
+pub fn graceful_close_pid(pid: u32) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetWindowThreadProcessId, PostMessageW, WM_CLOSE,
+    };
+    unsafe extern "system" fn visit(
+        window: windows_sys::Win32::Foundation::HWND,
+        target: isize,
+    ) -> i32 {
+        let mut owner = 0;
+        unsafe {
+            GetWindowThreadProcessId(window, &mut owner);
+        }
+        if owner == target as u32 {
+            unsafe {
+                PostMessageW(window, WM_CLOSE, 0, 0);
+            }
+        }
+        1
+    }
+    unsafe {
+        EnumWindows(Some(visit), pid as isize);
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn graceful_close_pid(_pid: u32) {}
+
 #[cfg(test)]
 mod tests {
     use super::*;

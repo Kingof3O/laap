@@ -71,6 +71,7 @@ pub fn run() {
                         if status.setup_needed || !status.managed_backend_ready {
                             let _ = customization::skin_bootstrap::customization_bootstrap_provision(
                                 handle,
+                                None,
                             )
                             .await;
                         }

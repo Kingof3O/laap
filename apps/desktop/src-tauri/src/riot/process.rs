@@ -52,32 +52,6 @@ pub fn guard_match(snapshot: &RuntimeSnapshot, confirmed: bool) -> Result<(), St
         Ok(())
     }
 }
-#[cfg(target_os = "windows")]
-fn graceful_close(pid: Pid) {
-    use windows_sys::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, GetWindowThreadProcessId, PostMessageW, WM_CLOSE,
-    };
-    unsafe extern "system" fn visit(
-        window: windows_sys::Win32::Foundation::HWND,
-        target: isize,
-    ) -> i32 {
-        let mut owner = 0;
-        unsafe {
-            GetWindowThreadProcessId(window, &mut owner);
-        }
-        if owner == target as u32 {
-            unsafe {
-                PostMessageW(window, WM_CLOSE, 0, 0);
-            }
-        }
-        1
-    }
-    unsafe {
-        EnumWindows(Some(visit), pid.as_u32() as isize);
-    }
-}
-#[cfg(not(target_os = "windows"))]
-fn graceful_close(_pid: Pid) {}
 
 pub fn terminate_riot_processes() -> Result<(), String> {
     stop_riot(false)
@@ -99,7 +73,7 @@ pub fn stop_riot(confirmed: bool) -> Result<(), String> {
         })
         .collect();
     for (pid, _) in &targets {
-        graceful_close(*pid);
+        crate::commands::system_utils::graceful_close_pid(pid.as_u32());
         #[cfg(not(target_os = "windows"))]
         if let Some(process) = system.process(*pid) {
             process.kill_with(Signal::Term);

@@ -5,11 +5,18 @@
 //! managed patcher backend is best-effort and reported with live progress.
 
 use super::{client_bridge, game_adapter, game_path, in_game_runner, storage};
+use base64::Engine as _;
 use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashSet};
 use std::fs::{self, File};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Component, Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Mutex, OnceLock,
+};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use sysinfo::System;
 use tauri::AppHandle;
 
 const SEVENZ_MAGIC: [u8; 6] = [0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C];
@@ -17,6 +24,17 @@ const MAX_DOWNLOAD_BYTES: u64 = 160 * 1024 * 1024;
 const MAX_EXTRACT_ENTRY_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_EXTRACT_TOTAL_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_EXTRACT_ENTRIES: usize = 4096;
+
+pub(crate) const LTK_PATCHER_DIR_NAME: &str = "ltk-patcher";
+pub(crate) const LTK_HOST_EXE_NAME: &str = "ltk_patcher_host.exe";
+pub(crate) const LTK_HOOK_DLL_NAME: &str = "ltk_patcher_dll.dll";
+pub(crate) const LTK_STAGE_META_FILE: &str = "ltk_patcher_stage.json";
+const LTK_SETUP_DOWNLOAD_URL: &str =
+    "https://github.com/LeagueToolkit/ltk-manager/releases/latest/download/LTK.Manager_x64-setup.exe";
+
+/// Prevents background auto-provisioning from repeatedly re-triggering UAC prompts
+/// in the same process after one automatic attempt or user cancellation.
+static UAC_AUTO_ATTEMPTED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -78,11 +96,113 @@ pub struct BootstrapStatus {
     pub pengu_plugin_installed: bool,
     pub adapter_path: Option<String>,
     pub league_path: Option<String>,
+    pub backend_kind: String,
+    pub ltk_patcher_ready: bool,
+    pub action_required: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LtkStageMeta {
+    pub host_sha256: String,
+    pub dll_sha256: String,
+    pub dll_version: Option<String>,
+    pub dll_eol: Option<u32>,
+    pub source_host_path: Option<String>,
+    pub source_dll_path: Option<String>,
+    pub updated_at_unix: u64,
+}
+
+#[derive(Clone, Debug)]
+struct LtkInstallPaths {
+    host_exe: PathBuf,
+    manager_exe: Option<PathBuf>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct DeliveredLtkDll {
+    path: PathBuf,
+    sha256: String,
+    version: Option<String>,
+    eol: Option<u32>,
+    is_expired: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct LtkDeliveryStateFile {
+    #[serde(default)]
+    channels: BTreeMap<String, LtkDeliveryCachedChannel>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LtkDeliveryCachedChannel {
+    envelope: LtkDeliveryEnvelope,
+}
+
+#[derive(Debug, Deserialize)]
+struct LtkDeliveryEnvelope {
+    manifest: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct LtkDeliveryManifest {
+    schema: u32,
+    release: LtkDeliveryRelease,
+    #[serde(default)]
+    revoked: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LtkDeliveryRelease {
+    version: String,
+    digest: String,
+    size: u64,
+    eol: u32,
+}
+
+enum LtkStageDiscovery {
+    Ready,
+    NeedsDllSync {
+        manager_exe: PathBuf,
+        expired: bool,
+    },
+    NeedsInstall {
+        hint: String,
+    },
+}
+
+fn now_unix_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
 }
 
 fn is_managed_adapter_path(path: &str) -> bool {
     let lower = path.to_ascii_lowercase();
-    lower.contains("adapters") && (lower.contains("mod-tools") || lower.contains("laap-adapter"))
+    lower.contains("adapters")
+        && (lower.contains("mod-tools")
+            || lower.contains("ltk-patcher")
+            || lower.contains("laap-adapter"))
+}
+
+fn is_legacy_managed_modtools_path(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    lower.contains("adapters")
+        && (lower.ends_with("mod-tools.exe") || lower.ends_with("mod-tools"))
+}
+
+pub(crate) fn managed_ltk_dir(root: &Path) -> PathBuf {
+    root.join("adapters").join(LTK_PATCHER_DIR_NAME)
+}
+
+pub(crate) fn managed_ltk_host_path(root: &Path) -> PathBuf {
+    managed_ltk_dir(root).join(LTK_HOST_EXE_NAME)
+}
+
+pub(crate) fn managed_ltk_stage_meta(root: &Path) -> Option<LtkStageMeta> {
+    storage::read::<LtkStageMeta>(&managed_ltk_dir(root).join(LTK_STAGE_META_FILE), 64 * 1024)
+        .ok()
+        .flatten()
 }
 
 pub(crate) fn managed_modtools_exe_name() -> &'static str {
@@ -107,6 +227,437 @@ pub(crate) fn managed_modtools_ready(dir: &Path) -> bool {
     true
 }
 
+fn copy_file_atomic_if_changed(src: &Path, dst: &Path) -> Result<String, String> {
+    let src_hash = game_adapter::compute_sha256_file(src)?;
+    if dst.is_file() {
+        if let Ok(dst_hash) = game_adapter::compute_sha256_file(dst) {
+            if dst_hash.eq_ignore_ascii_case(&src_hash) {
+                return Ok(src_hash);
+            }
+        }
+    }
+    if let Some(parent) = dst.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("Cannot create '{}': {e}", parent.display()))?;
+    }
+    let fname = dst
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("file");
+    let tmp = dst.with_file_name(format!(".tmp_{fname}"));
+    fs::copy(src, &tmp).map_err(|e| format!("Failed copying '{}': {e}", src.display()))?;
+    if dst.exists() {
+        let _ = fs::remove_file(dst);
+    }
+    fs::rename(&tmp, dst).map_err(|e| {
+        let _ = fs::remove_file(&tmp);
+        format!("Failed staging '{}': {e}", dst.display())
+    })?;
+    Ok(src_hash)
+}
+
+#[cfg(windows)]
+fn discover_ltk_install_in_dirs(extra_dirs: &[PathBuf]) -> Option<LtkInstallPaths> {
+    let mut dirs: Vec<PathBuf> = extra_dirs.to_vec();
+    if let Some(pf) = std::env::var_os("ProgramFiles") {
+        dirs.push(PathBuf::from(pf).join("LTK Manager"));
+    }
+    dirs.push(PathBuf::from(r"C:\Program Files\LTK Manager"));
+    if let Some(pf86) = std::env::var_os("ProgramFiles(x86)") {
+        dirs.push(PathBuf::from(pf86).join("LTK Manager"));
+    }
+    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+        let base = PathBuf::from(local);
+        dirs.push(base.join("Programs").join("LTK Manager"));
+        dirs.push(base.join("LTK Manager"));
+    }
+
+    use winreg::enums::*;
+    use winreg::RegKey;
+    for (hive, sub) in [
+        (HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+        (HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
+        (HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+    ] {
+        let root_key = RegKey::predef(hive);
+        if let Ok(uninstall) = root_key.open_subkey(sub) {
+            for name in uninstall.enum_keys().flatten() {
+                if let Ok(item) = uninstall.open_subkey(&name) {
+                    let display_name: String = item.get_value("DisplayName").unwrap_or_default();
+                    let loc: String = item.get_value("InstallLocation").unwrap_or_default();
+                    if !loc.trim().is_empty()
+                        && (display_name.to_ascii_lowercase().contains("ltk manager")
+                            || name.to_ascii_lowercase().contains("ltk"))
+                    {
+                        dirs.push(PathBuf::from(loc.trim().trim_matches('"')));
+                    }
+                }
+            }
+        }
+    }
+
+    for dir in dirs {
+        let host = dir.join(LTK_HOST_EXE_NAME);
+        if host.is_file() {
+            let mgr = dir.join("LTK Manager.exe");
+            return Some(LtkInstallPaths {
+                host_exe: host,
+                manager_exe: mgr.is_file().then_some(mgr),
+            });
+        }
+    }
+    None
+}
+
+#[cfg(not(windows))]
+fn discover_ltk_install_in_dirs(extra_dirs: &[PathBuf]) -> Option<LtkInstallPaths> {
+    for dir in extra_dirs {
+        let host = dir.join(LTK_HOST_EXE_NAME);
+        if host.is_file() {
+            let mgr = dir.join("LTK Manager.exe");
+            return Some(LtkInstallPaths {
+                host_exe: host,
+                manager_exe: mgr.is_file().then_some(mgr),
+            });
+        }
+    }
+    None
+}
+
+fn collect_ltk_patcher_dirs(extra_dirs: &[PathBuf]) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = extra_dirs.to_vec();
+    #[cfg(windows)]
+    {
+        if let Some(appdata) = std::env::var_os("APPDATA") {
+            let app_base = PathBuf::from(appdata).join("dev.leaguetoolkit.manager");
+            if let Ok(settings_raw) = fs::read_to_string(app_base.join("settings.json")) {
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&settings_raw) {
+                    for key in ["modStoragePath", "mod_storage_path"] {
+                        if let Some(custom) = val
+                            .pointer(&format!("/config/{key}"))
+                            .or_else(|| val.get(key))
+                            .and_then(|v| v.as_str())
+                        {
+                            let trimmed = custom.trim();
+                            if !trimmed.is_empty() {
+                                dirs.push(PathBuf::from(trimmed).join("patcher"));
+                            }
+                        }
+                    }
+                }
+            }
+            dirs.push(app_base.join("patcher"));
+        }
+        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+            dirs.push(
+                PathBuf::from(local)
+                    .join("dev.leaguetoolkit.manager")
+                    .join("patcher"),
+            );
+        }
+    }
+    dirs
+}
+
+fn is_hex64(name: &str) -> bool {
+    name.len() == 64
+        && name
+            .bytes()
+            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F'))
+}
+
+fn parse_delivery_json_and_pick_dll(
+    patcher_dir: &Path,
+    now_secs: u64,
+) -> Option<DeliveredLtkDll> {
+    let delivery_path = patcher_dir.join("delivery.json");
+    if delivery_path.is_file() {
+        if let Ok(text) = fs::read_to_string(&delivery_path) {
+            if let Ok(state) = serde_json::from_str::<LtkDeliveryStateFile>(&text) {
+                let mut decoded: BTreeMap<String, LtkDeliveryManifest> = BTreeMap::new();
+                let mut revoked: HashSet<String> = HashSet::new();
+                for (ch, entry) in &state.channels {
+                    let Ok(bytes) =
+                        base64::engine::general_purpose::STANDARD.decode(entry.envelope.manifest.trim())
+                    else {
+                        continue;
+                    };
+                    let Ok(manifest) = serde_json::from_slice::<LtkDeliveryManifest>(&bytes) else {
+                        continue;
+                    };
+                    if manifest.schema != 1 {
+                        continue;
+                    }
+                    for r in &manifest.revoked {
+                        revoked.insert(r.to_ascii_lowercase());
+                    }
+                    decoded.insert(ch.to_ascii_lowercase(), manifest);
+                }
+
+                let mut channel_order: Vec<String> = vec!["stable".into(), "beta".into()];
+                for key in decoded.keys() {
+                    if !channel_order.contains(key) {
+                        channel_order.push(key.clone());
+                    }
+                }
+
+                let mut expired_fallback: Option<DeliveredLtkDll> = None;
+                for ch in channel_order {
+                    let Some(m) = decoded.get(&ch) else { continue };
+                    let digest = m.release.digest.to_ascii_lowercase();
+                    if !is_hex64(&digest) || revoked.contains(&digest) {
+                        continue;
+                    }
+                    let dll_path = patcher_dir.join(&digest).join(LTK_HOOK_DLL_NAME);
+                    if !dll_path.is_file() {
+                        continue;
+                    }
+                    let meta_len = fs::metadata(&dll_path).map(|md| md.len()).unwrap_or(0);
+                    if m.release.size > 0 && meta_len != m.release.size {
+                        continue;
+                    }
+                    let Ok(actual_sha) = game_adapter::compute_sha256_file(&dll_path) else {
+                        continue;
+                    };
+                    if !actual_sha.eq_ignore_ascii_case(&digest) {
+                        continue;
+                    }
+                    let is_expired = now_secs > u64::from(m.release.eol);
+                    let candidate = DeliveredLtkDll {
+                        path: dll_path,
+                        sha256: actual_sha,
+                        version: Some(m.release.version.clone()),
+                        eol: Some(m.release.eol),
+                        is_expired,
+                    };
+                    if !is_expired {
+                        return Some(candidate);
+                    }
+                    if expired_fallback.is_none() {
+                        expired_fallback = Some(candidate);
+                    }
+                }
+                if let Some(exp) = expired_fallback {
+                    return Some(exp);
+                }
+            }
+        }
+    }
+
+    // Fallback: inspect <64-hex>/ltk_patcher_dll.dll sorted by newest mtime.
+    let entries = fs::read_dir(patcher_dir).ok()?;
+    let mut best: Option<(SystemTime, PathBuf)> = None;
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if !p.is_dir() {
+            continue;
+        }
+        let Some(fname) = p.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if !is_hex64(fname) {
+            continue;
+        }
+        let dll = p.join(LTK_HOOK_DLL_NAME);
+        if dll.is_file() {
+            let mtime = fs::metadata(&dll)
+                .and_then(|m| m.modified())
+                .unwrap_or(UNIX_EPOCH);
+            if best.as_ref().is_none_or(|(t, _)| mtime > *t) {
+                best = Some((mtime, dll));
+            }
+        }
+    }
+    if let Some((_, dll)) = best {
+        if let Ok(sha256) = game_adapter::compute_sha256_file(&dll) {
+            return Some(DeliveredLtkDll {
+                path: dll,
+                sha256,
+                version: None,
+                eol: None,
+                is_expired: false,
+            });
+        }
+    }
+    None
+}
+
+fn find_best_delivered_dll_in_dirs(
+    dirs: &[PathBuf],
+    now_secs: u64,
+) -> Option<DeliveredLtkDll> {
+    let mut expired_fallback: Option<DeliveredLtkDll> = None;
+    for dir in dirs {
+        if !dir.is_dir() {
+            continue;
+        }
+        if let Some(cand) = parse_delivery_json_and_pick_dll(dir, now_secs) {
+            if !cand.is_expired {
+                return Some(cand);
+            }
+            if expired_fallback.is_none() {
+                expired_fallback = Some(cand);
+            }
+        }
+    }
+    expired_fallback
+}
+
+fn stage_ltk_pair_at(
+    root: &Path,
+    host_src: &Path,
+    dll: &DeliveredLtkDll,
+) -> Result<LtkStageMeta, String> {
+    let ltk_dir = managed_ltk_dir(root);
+    fs::create_dir_all(&ltk_dir).map_err(|e| format!("Cannot create ltk-patcher dir: {e}"))?;
+    let host_dst = ltk_dir.join(LTK_HOST_EXE_NAME);
+    let dll_dst = ltk_dir.join(LTK_HOOK_DLL_NAME);
+
+    let host_sha256 = copy_file_atomic_if_changed(host_src, &host_dst)?;
+    let dll_sha256 = copy_file_atomic_if_changed(&dll.path, &dll_dst)?;
+    let meta = LtkStageMeta {
+        host_sha256,
+        dll_sha256,
+        dll_version: dll.version.clone(),
+        dll_eol: dll.eol,
+        source_host_path: Some(host_src.to_string_lossy().into_owned()),
+        source_dll_path: Some(dll.path.to_string_lossy().into_owned()),
+        updated_at_unix: now_unix_secs(),
+    };
+    let _ = storage::write(&ltk_dir.join(LTK_STAGE_META_FILE), &meta);
+    Ok(meta)
+}
+
+fn try_stage_installed_ltk_patcher(
+    root: &Path,
+    extra_install_dirs: &[PathBuf],
+    extra_patcher_dirs: &[PathBuf],
+    now_secs: u64,
+) -> LtkStageDiscovery {
+    let staged_host = managed_ltk_host_path(root);
+    let staged_dll = managed_ltk_dir(root).join(LTK_HOOK_DLL_NAME);
+    let install = discover_ltk_install_in_dirs(extra_install_dirs);
+    let patcher_dirs = collect_ltk_patcher_dirs(extra_patcher_dirs);
+    let delivered = find_best_delivered_dll_in_dirs(&patcher_dirs, now_secs);
+
+    let host_source = install
+        .as_ref()
+        .map(|i| i.host_exe.clone())
+        .or_else(|| staged_host.is_file().then(|| staged_host.clone()));
+
+    if let (Some(host_src), Some(dll)) = (host_source.as_ref(), delivered.as_ref()) {
+        if !dll.is_expired {
+            if stage_ltk_pair_at(root, host_src, dll).is_ok() {
+                return LtkStageDiscovery::Ready;
+            }
+        }
+    }
+
+    // Check already-staged copy in case system delivery dir wasn't visible in sandboxed/custom setups.
+    if staged_host.is_file() && staged_dll.is_file() {
+        let meta = managed_ltk_stage_meta(root).unwrap_or_default();
+        let stage_expired = meta
+            .dll_eol
+            .is_some_and(|eol| now_secs > u64::from(eol));
+        if !stage_expired && delivered.as_ref().is_none_or(|d| !d.is_expired) {
+            return LtkStageDiscovery::Ready;
+        }
+    }
+
+    if let Some(inst) = install {
+        if let Some(manager_exe) = inst.manager_exe {
+            let expired = delivered.is_some_and(|d| d.is_expired)
+                || managed_ltk_stage_meta(root)
+                    .and_then(|m| m.dll_eol)
+                    .is_some_and(|eol| now_secs > u64::from(eol));
+            return LtkStageDiscovery::NeedsDllSync {
+                manager_exe,
+                expired,
+            };
+        }
+    }
+
+    LtkStageDiscovery::NeedsInstall {
+        hint: "Official LTK Manager is not installed yet; install it once so LAAP can stage signed ltk_patcher_host.exe + ltk_patcher_dll.dll.".into(),
+    }
+}
+
+#[cfg(windows)]
+pub(crate) fn is_current_process_elevated() -> bool {
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::Security::{
+        GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
+    };
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+    unsafe {
+        let mut token: HANDLE = std::ptr::null_mut();
+        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) == 0 || token.is_null() {
+            return false;
+        }
+        let mut elev = TOKEN_ELEVATION { TokenIsElevated: 0 };
+        let mut ret_len: u32 = 0;
+        let ok = GetTokenInformation(
+            token,
+            TokenElevation,
+            (&mut elev as *mut TOKEN_ELEVATION).cast(),
+            std::mem::size_of::<TOKEN_ELEVATION>() as u32,
+            &mut ret_len,
+        );
+        let _ = CloseHandle(token);
+        ok != 0 && elev.TokenIsElevated != 0
+    }
+}
+
+#[cfg(not(windows))]
+pub(crate) fn is_current_process_elevated() -> bool {
+    false
+}
+
+#[cfg(windows)]
+pub(crate) fn check_elevation_mismatch(league_path: Option<&str>) -> Option<String> {
+    if is_current_process_elevated() {
+        return Some(
+            "LAAP is running as Administrator; LTK Patcher requires running unelevated (matching League of Legends)."
+                .into(),
+        );
+    }
+    let league_lower = league_path.map(|p| p.to_ascii_lowercase());
+    use winreg::enums::*;
+    use winreg::RegKey;
+    for hive in [HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE] {
+        let root = RegKey::predef(hive);
+        if let Ok(layers) =
+            root.open_subkey(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers")
+        {
+            for (val_name, val) in layers.enum_values().flatten() {
+                let exe_lower = val_name.to_ascii_lowercase();
+                let matches_league_exe = exe_lower.ends_with("league of legends.exe")
+                    || exe_lower.ends_with("leagueclient.exe");
+                if !matches_league_exe {
+                    continue;
+                }
+                if let Some(ref lp) = league_lower {
+                    if !exe_lower.contains(lp.trim_end_matches(['\\', '/'])) {
+                        continue;
+                    }
+                }
+                let data_str = val.to_string().to_ascii_uppercase();
+                if data_str.contains("RUNASADMIN") {
+                    return Some(format!(
+                        "Windows compatibility flag RUNASADMIN is set on '{val_name}'. Disable 'Run this program as an administrator' in its Properties -> Compatibility tab so LTK Patcher can attach unelevated."
+                    ));
+                }
+            }
+        }
+    }
+    None
+}
+
+#[cfg(not(windows))]
+pub(crate) fn check_elevation_mismatch(_league_path: Option<&str>) -> Option<String> {
+    None
+}
+
 fn sync_hashes_dictionary_from_managed(root: &Path, adapters_dir: &Path) {
     let src = adapters_dir.join("hashes.game.txt");
     if !src.is_file() {
@@ -125,9 +676,13 @@ fn sync_hashes_dictionary_from_managed(root: &Path, adapters_dir: &Path) {
     }
 }
 
-/// Idempotent, no-UI bootstrap. Safe to call on startup.
-pub fn ensure_bootstrapped_at(root: &Path) -> BootstrapStatus {
+fn build_bootstrap_status_with_discovery(
+    root: &Path,
+    extra_install_dirs: &[PathBuf],
+    extra_patcher_dirs: &[PathBuf],
+) -> BootstrapStatus {
     let mut detail_parts: Vec<String> = Vec::new();
+    let now_secs = now_unix_secs();
 
     // 1) League install detection (best-effort).
     let install = game_path::resolve_game_install_info_at(&root.join("game_path.json"), None);
@@ -139,18 +694,20 @@ pub fn ensure_bootstrapped_at(root: &Path) -> BootstrapStatus {
     }
 
     // 2) Adapter config: auto-consent + auto-apply for zero-interaction flow.
-    //    Prefer managed backend if present; otherwise accept any discovered backend.
     let mut cfg = game_adapter::load_config_at(root).unwrap_or_default();
     cfg.user_consent_granted = true;
     cfg.clearance_acknowledged = true;
     cfg.auto_apply_in_champ_select = true;
 
-    let managed_dir = root.join("adapters").join("mod-tools");
-    let managed_candidate = managed_dir.join(managed_modtools_exe_name());
-    let managed_ready = managed_modtools_ready(&managed_dir);
-    if managed_ready {
-        sync_hashes_dictionary_from_managed(root, &managed_dir);
+    let modtools_dir = root.join("adapters").join("mod-tools");
+    let modtools_present = managed_modtools_ready(&modtools_dir);
+    if modtools_present || modtools_dir.join("hashes.game.txt").is_file() {
+        sync_hashes_dictionary_from_managed(root, &modtools_dir);
     }
+
+    let ltk_discovery =
+        try_stage_installed_ltk_patcher(root, extra_install_dirs, extra_patcher_dirs, now_secs);
+    let ltk_patcher_ready = matches!(ltk_discovery, LtkStageDiscovery::Ready);
 
     let configured_missing = cfg
         .adapter_path
@@ -162,27 +719,67 @@ pub fn ensure_bootstrapped_at(root: &Path) -> BootstrapStatus {
         cfg.adapter_path = None;
     }
 
-    if cfg.adapter_path.is_none() && managed_ready {
-        cfg.adapter_path = Some(managed_candidate.to_string_lossy().into_owned());
-        detail_parts.push("Managed patcher backend configured".into());
+    // Migrate legacy cslol adapters/mod-tools/mod-tools.exe automatically once LTK Patcher is ready.
+    if ltk_patcher_ready
+        && (cfg.adapter_path.is_none()
+            || cfg
+                .adapter_path
+                .as_deref()
+                .is_some_and(is_legacy_managed_modtools_path))
+    {
+        cfg.adapter_path = Some(managed_ltk_host_path(root).to_string_lossy().into_owned());
+        detail_parts.push("LTK patcher backend ready".into());
     } else if cfg.adapter_path.is_none() {
-        if let Ok(Some((found, _src))) = game_adapter::discover_adapter_binary(&cfg, true) {
+        if let Ok(Some((found, _src))) = game_adapter::discover_adapter_binary_at(root, &cfg, true)
+        {
             cfg.adapter_path = Some(found.to_string_lossy().into_owned());
             detail_parts.push("Discovered external patcher backend".into());
         } else {
-            detail_parts.push("Managed patcher backend not provisioned yet".into());
+            detail_parts.push("Managed LTK patcher runtime setup needed".into());
         }
-    } else if cfg.adapter_path.as_deref().is_some_and(is_managed_adapter_path) && !managed_ready {
-        detail_parts.push("Managed patcher backend incomplete; re-provisioning needed".into());
     }
 
-    let adapter_configured = cfg
-        .adapter_path
+    let adapter_path = cfg.adapter_path.clone();
+    let adapter_configured = adapter_path
         .as_deref()
         .map(str::trim)
         .is_some_and(|p| !p.is_empty() && Path::new(p).is_file());
-    let adapter_path = cfg.adapter_path.clone();
     let _ = game_adapter::save_config_at(root, cfg);
+
+    let using_legacy_modtools = adapter_path
+        .as_deref()
+        .is_some_and(is_legacy_managed_modtools_path);
+    let elevation_issue = check_elevation_mismatch(install.league_path.as_deref());
+
+    let backend_kind = if ltk_patcher_ready
+        && adapter_path
+            .as_deref()
+            .is_some_and(|p| p.to_ascii_lowercase().contains("ltk_patcher_host"))
+    {
+        "ltk-patcher".to_string()
+    } else if adapter_configured && !is_managed_adapter_path(adapter_path.as_deref().unwrap_or_default()) {
+        "external".to_string()
+    } else if using_legacy_modtools {
+        "mod-tools-legacy".to_string()
+    } else {
+        "none".to_string()
+    };
+
+    let managed_backend_ready = if cfg!(windows) {
+        (ltk_patcher_ready || backend_kind == "external")
+            && adapter_configured
+            && elevation_issue.is_none()
+    } else {
+        adapter_configured
+    };
+
+    if using_legacy_modtools && !ltk_patcher_ready {
+        detail_parts.push(
+            "Legacy cslol-tools (Apr 2026) cannot inject into live League; LTK Patcher setup needed".into(),
+        );
+    } else if let Some(ref elev) = elevation_issue {
+        detail_parts.push(elev.clone());
+    }
 
     // 3) Runner config: enable monitor & auto-apply by default.
     let runner_cfg_path = root.join(in_game_runner::CONFIG_FILE);
@@ -235,24 +832,62 @@ pub fn ensure_bootstrapped_at(root: &Path) -> BootstrapStatus {
     }
 
     let mut progress = current_provision_progress();
-    if managed_ready {
+    let mut action_required = None;
+
+    if let Some(ref elev) = elevation_issue {
+        action_required = Some("elevation_mismatch".into());
+        progress.state = "action_required".into();
+        progress.detail = Some(elev.clone());
+    } else if managed_backend_ready {
         progress.state = "ready".into();
         progress.progress_pct = Some(100);
-        if progress.detail.is_none() {
-            progress.detail = Some("Managed mod-tools backend ready.".into());
+        if progress.detail.is_none() || progress.state == "ready" {
+            let ver = managed_ltk_stage_meta(root)
+                .and_then(|m| m.dll_version)
+                .unwrap_or_else(|| "staged".into());
+            progress.detail = Some(if backend_kind == "ltk-patcher" {
+                format!("Managed LTK patcher ready ({ver}).")
+            } else {
+                "External patcher backend ready.".into()
+            });
         }
-    } else if adapter_configured {
-        progress.state = "ready".into();
-        progress.progress_pct = Some(100);
+    } else {
+        match ltk_discovery {
+            LtkStageDiscovery::NeedsDllSync { expired, .. } => {
+                action_required = Some("sync_ltk_dll".into());
+                if progress.state == "ready" || progress.state == "idle" {
+                    progress.state = "setup_needed".into();
+                    progress.progress_pct = None;
+                    progress.detail = Some(if expired {
+                        "LTK Manager is installed, but its patcher DLL expired; syncing via LTK Manager is needed.".into()
+                    } else {
+                        "LTK Manager is installed; syncing signed ltk_patcher_dll.dll is needed.".into()
+                    });
+                }
+            }
+            LtkStageDiscovery::NeedsInstall { hint } => {
+                action_required = Some(if progress.state == "action_required" {
+                    "confirm_uac".into()
+                } else {
+                    "install_ltk_manager".into()
+                });
+                if progress.state == "ready" || progress.state == "idle" {
+                    progress.state = "setup_needed".into();
+                    progress.progress_pct = None;
+                    progress.detail = Some(hint);
+                }
+            }
+            LtkStageDiscovery::Ready => {}
+        }
     }
 
-    let setup_needed = !managed_ready && !adapter_configured;
+    let setup_needed = !managed_backend_ready;
 
     BootstrapStatus {
-        ok: league_detected || adapter_configured,
+        ok: league_detected || managed_backend_ready,
         league_detected,
         adapter_configured,
-        managed_backend_ready: (managed_ready || adapter_configured) && adapter_configured,
+        managed_backend_ready,
         runner_auto_apply_enabled: runner_cfg.auto_apply_mods,
         setup_needed,
         detail: detail_parts.join("; "),
@@ -263,7 +898,15 @@ pub fn ensure_bootstrapped_at(root: &Path) -> BootstrapStatus {
         pengu_plugin_installed,
         adapter_path,
         league_path: install.league_path,
+        backend_kind,
+        ltk_patcher_ready,
+        action_required,
     }
+}
+
+/// Idempotent, no-UI bootstrap. Safe to call on startup.
+pub fn ensure_bootstrapped_at(root: &Path) -> BootstrapStatus {
+    build_bootstrap_status_with_discovery(root, &[], &[])
 }
 
 #[tauri::command]
@@ -609,22 +1252,85 @@ pub(crate) fn promote_modtools_from_extracted(
     Ok(promoted)
 }
 
-/// Best-effort: download and extract a managed mod-tools backend into app data.
-/// Safe to call repeatedly; concurrent calls serialize cleanly.
-pub fn provision_managed_backend_at(root: &Path) -> Result<BootstrapStatus, String> {
-    let lock = PROVISION_LOCK.get_or_init(|| Mutex::new(()));
-    let _guard = lock
-        .lock()
-        .map_err(|_| "Provisioning lock poisoned.".to_string())?;
+fn download_with_progress(
+    client: &reqwest::blocking::Client,
+    url: &str,
+    dest_path: &Path,
+    label_prefix: &str,
+    progress_floor: u8,
+    progress_ceil: u8,
+) -> Result<u64, String> {
+    let mut resp = client
+        .get(url)
+        .send()
+        .map_err(|e| format!("{label_prefix} download request failed: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("{label_prefix} download unavailable (HTTP {})", resp.status()));
+    }
+    let total_len = resp.content_length();
+    if total_len.is_some_and(|len| len > MAX_DOWNLOAD_BYTES) {
+        return Err(format!("{label_prefix} download exceeds size limit."));
+    }
+    if let Some(parent) = dest_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("Cannot create staging dir: {e}"))?;
+    }
+    let mut out_file =
+        File::create(dest_path).map_err(|e| format!("Cannot create staging file: {e}"))?;
+    let mut downloaded: u64 = 0;
+    let mut buf = [0u8; 64 * 1024];
+    let mut last_reported_pct: Option<u8> = None;
 
+    loop {
+        match resp.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => {
+                downloaded = downloaded.saturating_add(n as u64);
+                if downloaded > MAX_DOWNLOAD_BYTES {
+                    return Err(format!("{label_prefix} download exceeded size limit."));
+                }
+                out_file
+                    .write_all(&buf[..n])
+                    .map_err(|e| format!("Failed writing download: {e}"))?;
+                let span = u64::from(progress_ceil.saturating_sub(progress_floor).max(1));
+                let pct = total_len.and_then(|tot| {
+                    if tot > 0 {
+                        let scaled = progress_floor as u64 + (downloaded.saturating_mul(span) / tot);
+                        Some(scaled.min(progress_ceil as u64) as u8)
+                    } else {
+                        None
+                    }
+                });
+                if pct != last_reported_pct || pct.is_none() {
+                    last_reported_pct = pct;
+                    let mb = downloaded as f64 / (1024.0 * 1024.0);
+                    let label = match total_len {
+                        Some(tot) if tot > 0 => format!(
+                            "Downloading {label_prefix} ({mb:.1} / {:.1} MB)...",
+                            tot as f64 / (1024.0 * 1024.0)
+                        ),
+                        _ => format!("Downloading {label_prefix} ({mb:.1} MB)..."),
+                    };
+                    set_provision_progress("downloading", pct, label);
+                }
+            }
+            Err(e) => {
+                return Err(format!("{label_prefix} download interrupted: {e}"));
+            }
+        }
+    }
+    out_file.flush().map_err(|e| e.to_string())?;
+    Ok(downloaded)
+}
+
+fn ensure_modtools_overlay_builder(
+    client: &reqwest::blocking::Client,
+    root: &Path,
+) -> Result<PathBuf, String> {
     let adapters_dir = root.join("adapters").join("mod-tools");
     fs::create_dir_all(&adapters_dir).map_err(|e| format!("Cannot create adapters dir: {e}"))?;
-
     if managed_modtools_ready(&adapters_dir) {
-        set_provision_progress("ready", Some(100), "Managed mod-tools backend ready.");
-        let mut status = ensure_bootstrapped_at(root);
-        status.detail = format!("{}; Managed patcher backend already present", status.detail);
-        return Ok(status);
+        sync_hashes_dictionary_from_managed(root, &adapters_dir);
+        return Ok(adapters_dir.join(managed_modtools_exe_name()));
     }
 
     #[cfg(windows)]
@@ -636,12 +1342,203 @@ pub fn provision_managed_backend_at(root: &Path) -> Result<BootstrapStatus, Stri
     let candidates: [&str; 0] = [];
 
     if candidates.is_empty() {
-        let msg = "Managed auto-provisioning is currently supported on Windows; configure an external adapter CLI in Settings.".to_string();
-        set_provision_progress("error", None, msg.clone());
-        return Err(msg);
+        return Err("Managed auto-provisioning is supported on Windows only; configure an external adapter CLI in Settings.".into());
     }
 
     set_provision_progress("downloading", Some(0), "Connecting to cslol-tools release...");
+    let tmp_download = adapters_dir.join(".download.tmp");
+    let pkg_dir = adapters_dir.join(".pkg_tmp");
+    let mut last_err = "No overlay builder source available".to_string();
+
+    for url in candidates {
+        let _ = fs::remove_file(&tmp_download);
+        let _ = fs::remove_dir_all(&pkg_dir);
+
+        if let Err(err) = download_with_progress(client, url, &tmp_download, "cslol-tools", 0, 48) {
+            last_err = err;
+            continue;
+        }
+        set_provision_progress("extracting", Some(49), "Extracting mkoverlay & WAD hashes...");
+        if let Err(e) = fs::create_dir_all(&pkg_dir) {
+            last_err = format!("Cannot create extraction dir: {e}");
+            continue;
+        }
+        if let Err(e) = extract_backend_package(&tmp_download, &pkg_dir) {
+            last_err = e;
+            continue;
+        }
+        match promote_modtools_from_extracted(&pkg_dir, &adapters_dir) {
+            Ok(promoted) => {
+                let _ = fs::remove_file(&tmp_download);
+                let _ = fs::remove_dir_all(&pkg_dir);
+                sync_hashes_dictionary_from_managed(root, &adapters_dir);
+                return Ok(promoted);
+            }
+            Err(e) => last_err = e,
+        }
+    }
+
+    let _ = fs::remove_file(&tmp_download);
+    let _ = fs::remove_dir_all(&pkg_dir);
+    Err(last_err)
+}
+
+#[cfg(windows)]
+fn run_silent_ltk_installer_elevated(installer_path: &Path) -> Result<bool, String> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Foundation::{CloseHandle, ERROR_CANCELLED};
+    use windows_sys::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject};
+    use windows_sys::Win32::UI::Shell::{
+        ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
+    fn wide(s: &std::ffi::OsStr) -> Vec<u16> {
+        s.encode_wide().chain(std::iter::once(0)).collect()
+    }
+
+    let verb = wide(std::ffi::OsStr::new("runas"));
+    let file = wide(installer_path.as_os_str());
+    let params = wide(std::ffi::OsStr::new("/S"));
+
+    let mut sei: SHELLEXECUTEINFOW = unsafe { std::mem::zeroed() };
+    sei.cbSize = std::mem::size_of::<SHELLEXECUTEINFOW>() as u32;
+    sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+    sei.lpVerb = verb.as_ptr();
+    sei.lpFile = file.as_ptr();
+    sei.lpParameters = params.as_ptr();
+    sei.nShow = SW_SHOWNORMAL;
+
+    let ok = unsafe { ShellExecuteExW(&mut sei) };
+    if ok == 0 {
+        let code = std::io::Error::last_os_error().raw_os_error().unwrap_or_default() as u32;
+        if code == ERROR_CANCELLED {
+            return Ok(false);
+        }
+        return Err(format!("Failed launching LTK Manager installer (Win32 error {code})."));
+    }
+
+    if !sei.hProcess.is_null() {
+        let wait_res = unsafe { WaitForSingleObject(sei.hProcess, 120_000) };
+        let mut exit_code: u32 = 0;
+        let _ = unsafe { GetExitCodeProcess(sei.hProcess, &mut exit_code) };
+        let _ = unsafe { CloseHandle(sei.hProcess) };
+        if wait_res != 0 {
+            return Err("Timed out waiting for LTK Manager installer.".into());
+        }
+        if exit_code != 0 {
+            return Err(format!("LTK Manager installer exited with code {exit_code}."));
+        }
+    }
+    Ok(true)
+}
+
+#[cfg(not(windows))]
+fn run_silent_ltk_installer_elevated(_installer_path: &Path) -> Result<bool, String> {
+    Err("LTK Manager installer is only supported on Windows.".into())
+}
+
+fn is_ltk_manager_running() -> bool {
+    let mut sys = System::new();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+    sys.processes().values().any(|p| {
+        let n = p.name().to_string_lossy().to_ascii_lowercase();
+        n == "ltk manager.exe" || n == "ltk manager"
+    })
+}
+
+fn sync_ltk_dll_via_manager(root: &Path, manager_exe: &Path) -> Result<(), String> {
+    if !manager_exe.is_file() {
+        return Err("LTK Manager executable not found for patcher DLL sync.".into());
+    }
+    let already_running = is_ltk_manager_running();
+    let mut spawned = if already_running {
+        None
+    } else {
+        set_provision_progress(
+            "extracting",
+            Some(85),
+            "Starting LTK Manager briefly to sync signed ltk_patcher_dll.dll...",
+        );
+        let child = std::process::Command::new(manager_exe)
+            .spawn()
+            .map_err(|e| format!("Failed starting LTK Manager for patcher DLL sync: {e}"))?;
+        Some(child)
+    };
+
+    let deadline = Instant::now() + Duration::from_secs(35);
+    let mut synced = false;
+    let started = Instant::now();
+
+    while Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(300));
+        let secs = started.elapsed().as_secs();
+        set_provision_progress(
+            "extracting",
+            Some((85 + (secs.min(13) as u8)).min(98)),
+            format!("Waiting for LTK Manager to sync ltk_patcher_dll.dll ({secs}s)..."),
+        );
+        if matches!(
+            try_stage_installed_ltk_patcher(root, &[], &[], now_unix_secs()),
+            LtkStageDiscovery::Ready
+        ) {
+            std::thread::sleep(Duration::from_millis(350));
+            let _ = try_stage_installed_ltk_patcher(root, &[], &[], now_unix_secs());
+            synced = true;
+            break;
+        }
+    }
+
+    if let Some(mut child) = spawned.take() {
+        crate::commands::system_utils::graceful_close_pid(child.id());
+        let close_deadline = Instant::now() + Duration::from_millis(2000);
+        loop {
+            match child.try_wait() {
+                Ok(Some(_)) => break,
+                Ok(None) if Instant::now() < close_deadline => {
+                    std::thread::sleep(Duration::from_millis(100));
+                }
+                _ => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    break;
+                }
+            }
+        }
+    }
+
+    if synced {
+        Ok(())
+    } else {
+        Err(
+            "Timed out waiting for LTK Manager to download ltk_patcher_dll.dll. Open LTK Manager once manually to finish first-run setup, then retry."
+                .into(),
+        )
+    }
+}
+
+/// Best-effort: provision `mod-tools` (`mkoverlay` + `hashes.game.txt`) and stage
+/// official `ltk_patcher_host.exe` + `ltk_patcher_dll.dll` into app data.
+/// Safe to call repeatedly; concurrent calls serialize cleanly.
+#[allow(dead_code)]
+pub fn provision_managed_backend_at(root: &Path) -> Result<BootstrapStatus, String> {
+    provision_managed_backend_with_options_at(root, false)
+}
+
+pub fn provision_managed_backend_with_options_at(
+    root: &Path,
+    force_install_prompt: bool,
+) -> Result<BootstrapStatus, String> {
+    let lock = PROVISION_LOCK.get_or_init(|| Mutex::new(()));
+    let _guard = lock
+        .lock()
+        .map_err(|_| "Provisioning lock poisoned.".to_string())?;
+
+    if let Some(elev_err) = check_elevation_mismatch(None) {
+        set_provision_progress("action_required", None, elev_err.clone());
+        return Ok(ensure_bootstrapped_at(root));
+    }
+
     let client = reqwest::blocking::Client::builder()
         .user_agent("LAAP/1.0 (managed-backend-provisioning)")
         .timeout(std::time::Duration::from_secs(180))
@@ -652,140 +1549,137 @@ pub fn provision_managed_backend_at(root: &Path) -> Result<BootstrapStatus, Stri
             msg
         })?;
 
-    let tmp_download = adapters_dir.join(".download.tmp");
-    let pkg_dir = adapters_dir.join(".pkg_tmp");
-    let mut last_err = "No backend source available".to_string();
+    if let Err(err) = ensure_modtools_overlay_builder(&client, root) {
+        set_provision_progress("error", None, err.clone());
+        return Err(err);
+    }
 
-    for url in candidates {
-        let _ = fs::remove_file(&tmp_download);
-        let _ = fs::remove_dir_all(&pkg_dir);
-
-        match client.get(url).send() {
-            Ok(mut resp) if resp.status().is_success() => {
-                let total_len = resp.content_length();
-                if total_len.is_some_and(|len| len > MAX_DOWNLOAD_BYTES) {
-                    last_err = "Backend download exceeds size limit.".into();
-                    continue;
+    let now_secs = now_unix_secs();
+    match try_stage_installed_ltk_patcher(root, &[], &[], now_secs) {
+        LtkStageDiscovery::Ready => {
+            let mut status = ensure_bootstrapped_at(root);
+            status.detail = format!("{}; Managed LTK patcher backend ready", status.detail);
+            return Ok(status);
+        }
+        LtkStageDiscovery::NeedsInstall { hint } => {
+            if !cfg!(windows) {
+                set_provision_progress("error", None, hint.clone());
+                return Err(hint);
+            }
+            if !force_install_prompt && UAC_AUTO_ATTEMPTED.swap(true, Ordering::SeqCst) {
+                set_provision_progress(
+                    "action_required",
+                    None,
+                    "Click 'Install LTK Patcher' and approve Windows setup once to enable in-game skin patching.",
+                );
+                return Ok(ensure_bootstrapped_at(root));
+            }
+            let installer_dir = managed_ltk_dir(root).join(".installer");
+            let installer_exe = installer_dir.join("LTK.Manager_x64-setup.exe");
+            set_provision_progress(
+                "downloading",
+                Some(50),
+                "Downloading official LTK Manager installer...",
+            );
+            let bytes = match download_with_progress(
+                &client,
+                LTK_SETUP_DOWNLOAD_URL,
+                &installer_exe,
+                "LTK Manager setup",
+                50,
+                78,
+            ) {
+                Ok(n) => n,
+                Err(err) => {
+                    let _ = fs::remove_file(&installer_exe);
+                    set_provision_progress("error", None, err.clone());
+                    return Err(err);
                 }
-                let mut out_file = match File::create(&tmp_download) {
-                    Ok(f) => f,
-                    Err(e) => {
-                        last_err = format!("Cannot create staging file: {e}");
-                        continue;
-                    }
-                };
-                let mut downloaded: u64 = 0;
-                let mut buf = [0u8; 64 * 1024];
-                let mut last_reported_pct: Option<u8> = None;
-                let mut read_err: Option<String> = None;
+            };
+            let valid_pe = File::open(&installer_exe)
+                .ok()
+                .and_then(|mut f| {
+                    let mut magic = [0u8; 2];
+                    f.read_exact(&mut magic).ok()?;
+                    Some(magic == *b"MZ")
+                })
+                .unwrap_or(false);
+            if bytes < 1_000_000 || !valid_pe {
+                let _ = fs::remove_file(&installer_exe);
+                let msg = "Downloaded LTK Manager installer is invalid or truncated.".to_string();
+                set_provision_progress("error", None, msg.clone());
+                return Err(msg);
+            }
 
-                loop {
-                    match resp.read(&mut buf) {
-                        Ok(0) => break,
-                        Ok(n) => {
-                            downloaded = downloaded.saturating_add(n as u64);
-                            if downloaded > MAX_DOWNLOAD_BYTES {
-                                read_err = Some("Backend download exceeded size limit.".into());
-                                break;
-                            }
-                            if let Err(e) = out_file.write_all(&buf[..n]) {
-                                read_err = Some(format!("Failed writing download: {e}"));
-                                break;
-                            }
-                            let pct = total_len.and_then(|tot| {
-                                if tot > 0 {
-                                    Some(((downloaded.saturating_mul(100)) / tot).min(99) as u8)
-                                } else {
-                                    None
-                                }
-                            });
-                            if pct != last_reported_pct || pct.is_none() {
-                                last_reported_pct = pct;
-                                let mb = downloaded as f64 / (1024.0 * 1024.0);
-                                let label = match total_len {
-                                    Some(tot) if tot > 0 => format!(
-                                        "Downloading cslol-tools ({mb:.1} / {:.1} MB)...",
-                                        tot as f64 / (1024.0 * 1024.0)
-                                    ),
-                                    _ => format!("Downloading cslol-tools ({mb:.1} MB)..."),
-                                };
-                                set_provision_progress("downloading", pct, label);
-                            }
-                        }
-                        Err(e) => {
-                            read_err = Some(format!("Download interrupted: {e}"));
-                            break;
-                        }
-                    }
+            set_provision_progress(
+                "extracting",
+                Some(80),
+                "Waiting for Windows installer confirmation for official LTK Manager...",
+            );
+            match run_silent_ltk_installer_elevated(&installer_exe) {
+                Ok(true) => {
+                    let _ = fs::remove_dir_all(&installer_dir);
                 }
-                let _ = out_file.flush();
-                drop(out_file);
-
-                if let Some(err) = read_err {
-                    last_err = err;
-                    continue;
+                Ok(false) => {
+                    let _ = fs::remove_dir_all(&installer_dir);
+                    set_provision_progress(
+                        "action_required",
+                        None,
+                        "Windows UAC prompt was cancelled. Click 'Install LTK Patcher' and approve once to finish setup.",
+                    );
+                    return Ok(ensure_bootstrapped_at(root));
                 }
-
-                set_provision_progress("extracting", Some(99), "Extracting mod-tools & runtime DLLs...");
-                if let Err(e) = fs::create_dir_all(&pkg_dir) {
-                    last_err = format!("Cannot create extraction dir: {e}");
-                    continue;
-                }
-                if let Err(e) = extract_backend_package(&tmp_download, &pkg_dir) {
-                    last_err = e;
-                    continue;
-                }
-                match promote_modtools_from_extracted(&pkg_dir, &adapters_dir) {
-                    Ok(promoted) => {
-                        let _ = fs::remove_file(&tmp_download);
-                        let _ = fs::remove_dir_all(&pkg_dir);
-                        sync_hashes_dictionary_from_managed(root, &adapters_dir);
-
-                        let mut cfg = game_adapter::load_config_at(root).unwrap_or_default();
-                        cfg.adapter_path = Some(promoted.to_string_lossy().into_owned());
-                        cfg.user_consent_granted = true;
-                        cfg.clearance_acknowledged = true;
-                        cfg.auto_apply_in_champ_select = true;
-                        let _ = game_adapter::save_config_at(root, cfg);
-
-                        set_provision_progress("ready", Some(100), "Managed mod-tools backend ready.");
-                        let mut status = ensure_bootstrapped_at(root);
-                        status.detail = format!("{}; Managed patcher backend provisioned", status.detail);
-                        status.setup_needed = false;
-                        status.managed_backend_ready = true;
-                        return Ok(status);
-                    }
-                    Err(e) => {
-                        last_err = e;
-                    }
+                Err(err) => {
+                    let _ = fs::remove_dir_all(&installer_dir);
+                    set_provision_progress("error", None, err.clone());
+                    return Err(err);
                 }
             }
-            Ok(resp) => {
-                last_err = format!("Backend download unavailable (HTTP {})", resp.status());
-            }
-            Err(e) => {
-                last_err = format!("Backend download failed: {e}");
-            }
+        }
+        LtkStageDiscovery::NeedsDllSync { .. } => {}
+    }
+
+    if let LtkStageDiscovery::NeedsDllSync { manager_exe, .. } =
+        try_stage_installed_ltk_patcher(root, &[], &[], now_unix_secs())
+    {
+        if let Err(err) = sync_ltk_dll_via_manager(root, &manager_exe) {
+            set_provision_progress("error", None, err.clone());
+            return Err(err);
         }
     }
 
-    let _ = fs::remove_file(&tmp_download);
-    let _ = fs::remove_dir_all(&pkg_dir);
-    set_provision_progress("error", None, last_err.clone());
-    Err(last_err)
+    let status = ensure_bootstrapped_at(root);
+    if status.managed_backend_ready {
+        set_provision_progress("ready", Some(100), "Managed LTK patcher backend ready.");
+        Ok(ensure_bootstrapped_at(root))
+    } else {
+        let msg = status
+            .provision_detail
+            .clone()
+            .unwrap_or_else(|| "LTK patcher backend did not complete staging.".into());
+        set_provision_progress("error", None, msg.clone());
+        Err(msg)
+    }
 }
 
 #[tauri::command]
-pub async fn customization_bootstrap_provision(app: AppHandle) -> Result<BootstrapStatus, String> {
+pub async fn customization_bootstrap_provision(
+    app: AppHandle,
+    force_install_prompt: Option<bool>,
+) -> Result<BootstrapStatus, String> {
     let root = storage::root(&app)?;
-    tauri::async_runtime::spawn_blocking(move || provision_managed_backend_at(&root))
-        .await
-        .map_err(|e| e.to_string())?
+    let force = force_install_prompt.unwrap_or(false);
+    tauri::async_runtime::spawn_blocking(move || {
+        provision_managed_backend_with_options_at(&root, force)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sha2::{Digest, Sha256};
 
     fn temp_root(tag: &str) -> PathBuf {
         let root = std::env::temp_dir().join(format!(
@@ -816,6 +1710,110 @@ mod tests {
                 .unwrap();
         assert!(runner_cfg.monitor_enabled);
         assert!(runner_cfg.auto_apply_mods);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn delivery_manifest_parser_skips_revoked_and_prefers_unexpired_stable() {
+        let root = temp_root("delivery");
+        let patcher_dir = root.join("patcher");
+        fs::create_dir_all(&patcher_dir).unwrap();
+
+        let stable_bytes = b"MZ-stable-dll-payload";
+        let stable_sha = format!("{:x}", Sha256::digest(stable_bytes));
+        let stable_dir = patcher_dir.join(&stable_sha);
+        fs::create_dir_all(&stable_dir).unwrap();
+        fs::write(stable_dir.join(LTK_HOOK_DLL_NAME), stable_bytes).unwrap();
+
+        let beta_bytes = b"MZ-beta-dll-payload";
+        let beta_sha = format!("{:x}", Sha256::digest(beta_bytes));
+        let beta_dir = patcher_dir.join(&beta_sha);
+        fs::create_dir_all(&beta_dir).unwrap();
+        fs::write(beta_dir.join(LTK_HOOK_DLL_NAME), beta_bytes).unwrap();
+
+        let make_env = |ch: &str, ver: &str, sha: &str, size: usize, eol: u32, revoked: Vec<&str>| {
+            let m = serde_json::json!({
+                "schema": 1,
+                "channel": ch,
+                "sequence": 42,
+                "release": {
+                    "version": ver,
+                    "digest": sha,
+                    "size": size,
+                    "protocol": 1,
+                    "managers": ">=1.0.0",
+                    "eol": eol
+                },
+                "revoked": revoked,
+            });
+            serde_json::json!({
+                "etag": null,
+                "envelope": {
+                    "manifest": base64::engine::general_purpose::STANDARD.encode(m.to_string().as_bytes()),
+                    "signature": "unused"
+                }
+            })
+        };
+
+        let delivery = serde_json::json!({
+            "channels": {
+                "stable": make_env("stable", "ltk_patcher-10", &stable_sha, stable_bytes.len(), 2000, vec![&stable_sha]),
+                "beta": make_env("beta", "ltk_patcher-11", &beta_sha, beta_bytes.len(), 3000, vec![])
+            }
+        });
+        fs::write(patcher_dir.join("delivery.json"), delivery.to_string()).unwrap();
+
+        // Stable digest is revoked in its own list -> falls back cleanly to unexpired Beta.
+        let picked = parse_delivery_json_and_pick_dll(&patcher_dir, 2500).expect("pick beta");
+        assert_eq!(picked.sha256, beta_sha);
+        assert_eq!(picked.version.as_deref(), Some("ltk_patcher-11"));
+        assert!(!picked.is_expired);
+
+        // Past beta EOL -> still returns candidate flagged `is_expired = true`.
+        let expired = parse_delivery_json_and_pick_dll(&patcher_dir, 3500).expect("expired beta");
+        assert!(expired.is_expired);
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn stage_ltk_migrates_legacy_modtools_adapter_automatically() {
+        let root = temp_root("ltk-migrate");
+        let legacy_dir = root.join("adapters").join("mod-tools");
+        fs::create_dir_all(&legacy_dir).unwrap();
+        let legacy_exe = legacy_dir.join(managed_modtools_exe_name());
+        fs::write(&legacy_exe, b"MZ-old-modtools").unwrap();
+
+        let mut cfg = game_adapter::GameAdapterConfig::default();
+        cfg.adapter_path = Some(legacy_exe.to_string_lossy().into_owned());
+        game_adapter::save_config_at(&root, cfg).unwrap();
+
+        let fake_install = root.join("fake_ltk_install");
+        fs::create_dir_all(&fake_install).unwrap();
+        fs::write(fake_install.join(LTK_HOST_EXE_NAME), b"MZ-ltk-host").unwrap();
+
+        let patcher_dir = root.join("fake_appdata_patcher");
+        let dll_bytes = b"MZ-ltk-hook-dll";
+        let dll_sha = format!("{:x}", Sha256::digest(dll_bytes));
+        fs::create_dir_all(patcher_dir.join(&dll_sha)).unwrap();
+        fs::write(patcher_dir.join(&dll_sha).join(LTK_HOOK_DLL_NAME), dll_bytes).unwrap();
+
+        let status = build_bootstrap_status_with_discovery(
+            &root,
+            std::slice::from_ref(&fake_install),
+            std::slice::from_ref(&patcher_dir),
+        );
+        assert!(status.ltk_patcher_ready);
+        assert_eq!(status.backend_kind, "ltk-patcher");
+        let updated_cfg = game_adapter::load_config_at(&root).unwrap();
+        assert!(updated_cfg
+            .adapter_path
+            .as_deref()
+            .unwrap_or_default()
+            .contains(LTK_HOST_EXE_NAME));
+        assert!(managed_ltk_dir(&root).join(LTK_HOOK_DLL_NAME).is_file());
+        assert!(managed_ltk_stage_meta(&root).is_some());
+
         let _ = fs::remove_dir_all(root);
     }
 

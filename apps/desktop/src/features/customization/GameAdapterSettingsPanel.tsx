@@ -277,7 +277,7 @@ export function GameAdapterSettingsPanel() {
     setError(null)
     setNotice(null)
     try {
-      const next = await customizationBootstrap.provision()
+      const next = await customizationBootstrap.provision(true)
       setBootstrapStatus(next)
       setNotice(next.provisionDetail || next.detail)
       await refreshAll(true)
@@ -423,19 +423,43 @@ export function GameAdapterSettingsPanel() {
         }}
       >
         <div>
-          <strong>Managed Patcher (<code>mod-tools</code>):</strong>{' '}
+          <strong>
+            Managed Patcher (
+            <code>
+              {bootstrapStatus?.backendKind === 'ltk-patcher'
+                ? 'ltk-patcher'
+                : 'LTK Patcher / mod-tools'}
+            </code>
+            ):
+          </strong>{' '}
           {bootstrapStatus ? (
             <>
-              <span style={{ color: bootstrapStatus.managedBackendReady ? '#22c55e' : '#f59e0b', fontWeight: 600 }}>
+              <span
+                style={{
+                  color: bootstrapStatus.managedBackendReady
+                    ? '#22c55e'
+                    : bootstrapStatus.provisionState === 'failed'
+                      ? '#ef4444'
+                      : '#f59e0b',
+                  fontWeight: 600,
+                }}
+              >
                 {bootstrapStatus.managedBackendReady
                   ? 'Ready'
                   : bootstrapStatus.provisionState === 'downloading'
                     ? `Downloading${bootstrapStatus.provisionProgressPct != null ? ` (${bootstrapStatus.provisionProgressPct}%)` : '…'}`
                     : bootstrapStatus.provisionState === 'extracting'
                       ? 'Extracting…'
-                      : bootstrapStatus.provisionState === 'failed'
-                        ? 'Provisioning Failed'
-                        : 'Setup Needed'}
+                      : bootstrapStatus.actionRequired === 'elevation_mismatch'
+                        ? 'Admin Mismatch Detected'
+                        : bootstrapStatus.actionRequired === 'sync_ltk_dll'
+                          ? 'LTK Sync Needed'
+                          : bootstrapStatus.actionRequired === 'install_ltk_manager' ||
+                              bootstrapStatus.actionRequired === 'confirm_uac'
+                            ? 'LTK Setup Required'
+                            : bootstrapStatus.provisionState === 'failed'
+                              ? 'Provisioning Failed'
+                              : 'Setup Needed'}
               </span>
               <div className="customization-source" style={{ marginTop: '3px' }}>
                 {bootstrapStatus.provisionDetail || bootstrapStatus.detail}
@@ -455,7 +479,16 @@ export function GameAdapterSettingsPanel() {
           }
           onClick={handleProvisionManaged}
         >
-          {provisionBusy ? 'Provisioning...' : 'Provision Managed mod-tools'}
+          {provisionBusy
+            ? 'Working…'
+            : bootstrapStatus?.actionRequired === 'install_ltk_manager' ||
+                bootstrapStatus?.actionRequired === 'confirm_uac'
+              ? 'Install LTK Patcher'
+              : bootstrapStatus?.actionRequired === 'sync_ltk_dll'
+                ? 'Sync LTK Patcher'
+                : bootstrapStatus?.actionRequired === 'elevation_mismatch'
+                  ? 'Re-check Elevation'
+                  : 'Provision Managed Backend'}
         </button>
       </div>
 

@@ -149,6 +149,9 @@ export interface BootstrapStatus {
   provisionDetail?: string | null
   penguDetected?: boolean
   penguPluginInstalled?: boolean
+  backendKind?: string
+  ltkPatcherReady?: boolean
+  actionRequired?: string | null
   adapterPath?: string | null
   leaguePath?: string | null
 }
@@ -764,7 +767,10 @@ export const errorMessage = (error: unknown) => error instanceof Error ? error.m
 export const customizationBootstrap = {
   status: () => invokeTauri<BootstrapStatus>('customization_bootstrap_status'),
   ensure: () => invokeTauri<BootstrapStatus>('customization_bootstrap_ensure'),
-  provision: () => invokeTauri<BootstrapStatus>('customization_bootstrap_provision'),
+  provision: (forceInstallPrompt?: boolean) =>
+    invokeTauri<BootstrapStatus>('customization_bootstrap_provision', {
+      forceInstallPrompt: forceInstallPrompt ?? null,
+    }),
 }
 
 export const skinCatalog = {

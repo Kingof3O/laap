@@ -202,7 +202,7 @@ export function ClientStatusPage() {
     setProvisionBusy(true)
     setError('')
     try {
-      const next = await customizationBootstrap.provision()
+      const next = await customizationBootstrap.provision(true)
       setBootstrapStatus(next)
       await readClientStatus(consent)
     } catch (cause) {
@@ -369,17 +369,33 @@ export function ClientStatusPage() {
         >
           <div>
             <div>
-              <strong>Managed Patcher:</strong>{' '}
-              <span style={{ color: bootstrapStatus.managedBackendReady ? '#10b981' : '#f59e0b', fontWeight: 600 }}>
+              <strong>Managed Patcher{bootstrapStatus.backendKind === 'ltk-patcher' ? ' (LTK)' : ''}:</strong>{' '}
+              <span
+                style={{
+                  color: bootstrapStatus.managedBackendReady
+                    ? '#10b981'
+                    : bootstrapStatus.provisionState === 'failed'
+                      ? '#ef4444'
+                      : '#f59e0b',
+                  fontWeight: 600,
+                }}
+              >
                 {bootstrapStatus.managedBackendReady
                   ? 'Ready'
                   : bootstrapStatus.provisionState === 'downloading'
                     ? `Downloading${bootstrapStatus.provisionProgressPct != null ? ` (${bootstrapStatus.provisionProgressPct}%)` : '…'}`
                     : bootstrapStatus.provisionState === 'extracting'
                       ? 'Extracting…'
-                      : bootstrapStatus.provisionState === 'failed'
-                        ? 'Provisioning Failed'
-                        : 'Setup Needed'}
+                      : bootstrapStatus.actionRequired === 'elevation_mismatch'
+                        ? 'Admin Mismatch Detected'
+                        : bootstrapStatus.actionRequired === 'sync_ltk_dll'
+                          ? 'LTK Sync Needed'
+                          : bootstrapStatus.actionRequired === 'install_ltk_manager' ||
+                              bootstrapStatus.actionRequired === 'confirm_uac'
+                            ? 'LTK Setup Required'
+                            : bootstrapStatus.provisionState === 'failed'
+                              ? 'Provisioning Failed'
+                              : 'Setup Needed'}
               </span>
               {' | '}
               <strong>Pengu Companion:</strong>{' '}
@@ -395,7 +411,9 @@ export function ClientStatusPage() {
               {bootstrapStatus.provisionDetail || bootstrapStatus.detail}
             </div>
           </div>
-          {(!bootstrapStatus.managedBackendReady || bootstrapStatus.provisionState === 'failed') && (
+          {(!bootstrapStatus.managedBackendReady ||
+            bootstrapStatus.provisionState === 'failed' ||
+            Boolean(bootstrapStatus.actionRequired)) && (
             <button
               type="button"
               className="btn-secondary"
@@ -406,7 +424,16 @@ export function ClientStatusPage() {
               }
               onClick={() => void triggerProvisioning()}
             >
-              {provisionBusy ? 'Provisioning…' : 'Provision Managed Backend'}
+              {provisionBusy
+                ? 'Working…'
+                : bootstrapStatus.actionRequired === 'install_ltk_manager' ||
+                    bootstrapStatus.actionRequired === 'confirm_uac'
+                  ? 'Install LTK Patcher'
+                  : bootstrapStatus.actionRequired === 'sync_ltk_dll'
+                    ? 'Sync LTK Patcher'
+                    : bootstrapStatus.actionRequired === 'elevation_mismatch'
+                      ? 'Re-check Elevation'
+                      : 'Provision Managed Backend'}
             </button>
           )}
         </div>
@@ -514,7 +541,23 @@ export function ClientStatusPage() {
 
             <div style={{ background: 'rgba(0, 0, 0, 0.2)', padding: '10px', borderRadius: '6px' }}>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Match Apply Status</div>
-              <div data-testid="client-match-apply-status" style={{ fontWeight: 600, marginTop: '2px' }}>
+              <div
+                data-testid="client-match-apply-status"
+                style={{
+                  fontWeight: 600,
+                  marginTop: '2px',
+                  overflowWrap: 'anywhere',
+                  color: runnerStatus?.matchApplyStatus?.startsWith('failed')
+                    ? '#ef4444'
+                    : runnerStatus?.matchApplyStatus === 'injected' ||
+                        runnerStatus?.matchApplyStatus === 'applied'
+                      ? '#10b981'
+                      : runnerStatus?.matchApplyStatus === 'waiting-for-game' ||
+                          runnerStatus?.matchApplyStatus === 'injecting'
+                        ? '#38bdf8'
+                        : undefined,
+                }}
+              >
                 {runnerStatus?.matchApplyStatus ?? (matchedLoadout?.appliedInGame ? 'applied' : 'idle')}
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
@@ -637,7 +680,9 @@ export function ClientStatusPage() {
                 }
                 onChange={(e) => void toggleAutoApply(e.target.checked)}
               />
-              {' '}Opt-in: auto-apply matching custom <code>.fantome</code>/<code>.modpkg</code> ModLibrary entry in ChampSelect (auto-restores in Lobby / EndOfGame)
+              <span>
+                Opt-in: auto-apply matching custom <code>.fantome</code> / <code>.modpkg</code> ModLibrary entry in ChampSelect (auto-restores in Lobby / EndOfGame)
+              </span>
             </label>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <button
@@ -735,14 +780,30 @@ export function ClientStatusPage() {
             }}
           >
             {runnerStatus.recentEvents.map((evt, idx) => (
-              <div key={idx} style={{ display: 'flex', gap: '8px' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>
+              <div key={idx} style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap', flexShrink: 0 }}>
                   [{new Date(evt.timestamp).toLocaleTimeString()}]
                 </span>
-                <span style={{ color: '#38bdf8', fontWeight: 600 }}>
+                <span
+                  style={{
+                    color:
+                      evt.eventType.includes('FAILED') || evt.eventType.includes('ERROR')
+                        ? '#ef4444'
+                        : evt.eventType.includes('INJECTED') ||
+                            evt.eventType.includes('REDIRECTED') ||
+                            evt.eventType.includes('APPLIED')
+                          ? '#10b981'
+                          : '#38bdf8',
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                  }}
+                >
                   {evt.eventType}:
                 </span>
-                <span style={{ color: 'var(--text-primary)' }}>{evt.message}</span>
+                <span style={{ color: 'var(--text-primary)', minWidth: 0, overflowWrap: 'anywhere' }}>
+                  {evt.message}
+                </span>
               </div>
             ))}
           </div>

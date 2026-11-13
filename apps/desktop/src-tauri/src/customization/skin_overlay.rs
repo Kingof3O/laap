@@ -29,6 +29,9 @@ const STATIC_MATERIAL_DEF_CLASS: u32 = 0xFF9D_3409;
 const STATIC_MATERIAL_DEF_NAME: u32 = 0x8D39_BDE6;
 const MESH_PADDING_BYTES: usize = 16;
 const MAX_SUBCHARACTER_SKIN_NUM: u32 = 200;
+const RESOURCE_RESOLVER_CLASS_HASH: u32 = fnv1a_lower("ResourceResolver");
+const PROP_M_RESOURCE_RESOLVER: u32 = fnv1a_lower("mResourceResolver");
+const PROP_SKIN_PARENT: u32 = fnv1a_lower("skinParent");
 
 /// Compute League `.bin` 32-bit FNV-1a hash (ASCII lowercased).
 pub const fn fnv1a_lower(text: &str) -> u32 {
@@ -524,13 +527,40 @@ impl<'a> PropFile<'a> {
         )))
     }
 
+    fn read_entry_path_hash(&self, idx: usize) -> Option<u32> {
+        let (start, end) = *self.spans.get(idx)?;
+        if end < start + 8 {
+            return None;
+        }
+        let b = &self.raw[start + 4..start + 8];
+        Some(u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+    }
+
+    #[cfg(test)]
     fn rewrite_entry(&self, target_idx: usize, entry: &PropEntry) -> Vec<u8> {
+        self.rewrite_skin_and_resolver(target_idx, entry, None)
+    }
+
+    fn rewrite_skin_and_resolver(
+        &self,
+        skin_idx: usize,
+        skin_entry: &PropEntry,
+        resolver_retarget: Option<(usize, u32)>,
+    ) -> Vec<u8> {
         let head_end = self.spans.first().map(|s| s.0).unwrap_or(self.raw.len());
         let mut out = Vec::with_capacity(self.raw.len() + 256);
         out.extend_from_slice(&self.raw[..head_end]);
         for (i, &(start, end)) in self.spans.iter().enumerate() {
-            if i == target_idx {
-                out.extend_from_slice(&serialize_prop_entry(entry));
+            if i == skin_idx {
+                out.extend_from_slice(&serialize_prop_entry(skin_entry));
+            } else if let Some((res_idx, new_path_hash)) = resolver_retarget {
+                if i == res_idx && end >= start + 8 {
+                    out.extend_from_slice(&self.raw[start..start + 4]);
+                    out.extend_from_slice(&new_path_hash.to_le_bytes());
+                    out.extend_from_slice(&self.raw[start + 8..end]);
+                } else {
+                    out.extend_from_slice(&self.raw[start..end]);
+                }
             } else {
                 out.extend_from_slice(&self.raw[start..end]);
             }
@@ -542,6 +572,41 @@ impl<'a> PropFile<'a> {
         }
         out
     }
+}
+
+fn find_field_link(fields: &[PropField], hash: u32) -> Option<(u8, u32)> {
+    fields.iter().find(|f| f.name_hash == hash).and_then(|f| match &f.value {
+        PropVal::Fixed(ty @ (0x84 | 0x11), bytes) if bytes.len() == 4 => Some((
+            *ty,
+            u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
+        )),
+        _ => None,
+    })
+}
+
+fn set_field_link(fields: &mut Vec<PropField>, hash: u32, default_ty: u8, target_hash: u32) {
+    let bytes = target_hash.to_le_bytes().to_vec();
+    if let Some(f) = fields.iter_mut().find(|f| f.name_hash == hash) {
+        let ty = match f.value {
+            PropVal::Fixed(existing_ty @ (0x84 | 0x11), _) => existing_ty,
+            _ => default_ty,
+        };
+        f.value = PropVal::Fixed(ty, bytes);
+    } else {
+        fields.push(PropField {
+            name_hash: hash,
+            value: PropVal::Fixed(default_ty, bytes),
+        });
+    }
+}
+
+fn find_field_i32(fields: &[PropField], hash: u32) -> Option<i32> {
+    fields.iter().find(|f| f.name_hash == hash).and_then(|f| match &f.value {
+        PropVal::Fixed(0x06 | 0x07, bytes) if bytes.len() == 4 => {
+            Some(i32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
+        }
+        _ => None,
+    })
 }
 
 fn find_field_str<'a>(fields: &'a [PropField], hash: u32) -> Option<&'a str> {
@@ -589,6 +654,16 @@ fn set_mesh_path(entry: &mut PropEntry, field_hash: u32, new_path: String) {
 /// Generate and cache a local mod package for an official champion skin by
 /// extracting and rebasing the target skin `.bin` (plus sub-characters and padded
 /// mesh/skeleton assets) from the local League champion WAD onto the `skin0` slot.
+fn synthetic_official_mod_id(champion_id: &str, skin_num: u32, full_skin_id: u32) -> String {
+    format!(
+        "official_{champion_id}_{skin_num}_{}",
+        &format!(
+            "{:x}",
+            Sha256::digest(format!("v3:{champion_id}:{skin_num}:{full_skin_id}").as_bytes())
+        )[..16]
+    )
+}
+
 #[allow(dead_code)]
 pub fn ensure_official_skin_mod(
     app: &AppHandle,
@@ -599,13 +674,7 @@ pub fn ensure_official_skin_mod(
     full_skin_id: u32,
 ) -> Result<String, String> {
     let root = storage::root(app)?;
-    let synthetic_id = format!(
-        "official_{champion_id}_{skin_num}_{}",
-        &format!(
-            "{:x}",
-            Sha256::digest(format!("v2:{champion_id}:{skin_num}:{full_skin_id}").as_bytes())
-        )[..16]
-    );
+    let synthetic_id = synthetic_official_mod_id(champion_id, skin_num, full_skin_id);
     let lib_dir = root.join("library");
     let content_dir = lib_dir.join("content");
     fs::create_dir_all(&content_dir).map_err(|e| e.to_string())?;
@@ -645,13 +714,7 @@ pub(crate) fn ensure_official_skin_mod_at(
     skin_num: u32,
     full_skin_id: u32,
 ) -> Result<String, String> {
-    let synthetic_id = format!(
-        "official_{champion_id}_{skin_num}_{}",
-        &format!(
-            "{:x}",
-            Sha256::digest(format!("v2:{champion_id}:{skin_num}:{full_skin_id}").as_bytes())
-        )[..16]
-    );
+    let synthetic_id = synthetic_official_mod_id(champion_id, skin_num, full_skin_id);
     let lib_dir = root.join("library");
     let content_dir = lib_dir.join("content");
     fs::create_dir_all(&content_dir).map_err(|e| e.to_string())?;
@@ -720,8 +783,20 @@ pub(crate) fn ensure_official_skin_mod_at(
             .read_skin_data_entry()?
             .ok_or_else(|| format!("SkinCharacterDataProperties missing in '{base_bin_path}'"))?;
 
-        // 1) Retarget SkinCharacterDataProperties path_hash to Skin0's identity.
+        // 1) Retarget SkinCharacterDataProperties path_hash and mResourceResolver to Skin0's identity.
         target_entry.path_hash = base_entry.path_hash;
+        let base_resolver_idx = base_prop
+            .types
+            .iter()
+            .position(|&t| t == RESOURCE_RESOLVER_CLASS_HASH);
+        let base_resolver_link = find_field_link(&base_entry.fields, PROP_M_RESOURCE_RESOLVER);
+        let base_resolver_hash = base_resolver_link
+            .map(|(_, h)| h)
+            .or_else(|| base_resolver_idx.and_then(|i| base_prop.read_entry_path_hash(i)));
+        if let Some(res_hash) = base_resolver_hash {
+            let tag = base_resolver_link.map(|(ty, _)| ty).unwrap_or(0x84);
+            set_field_link(&mut target_entry.fields, PROP_M_RESOURCE_RESOLVER, tag, res_hash);
+        }
 
         // 2) Rebase championSkinName to base skin's name.
         if let Some(base_name) = find_field_str(&base_entry.fields, PROP_CHAMPION_SKIN_NAME) {
@@ -734,7 +809,28 @@ pub(crate) fn ensure_official_skin_mod_at(
 
         // 3) Copy skin's SKL/SKN to base paths with +16 zero padding and update skinMeshProperties
         //    so base skin integrity scans accept it cleanly while keeping the skin's own geometry.
-        let (skin_skel, skin_simple) = mesh_paths(&target_entry);
+        //    For chromas that omit skeleton/simpleSkin and inherit via skinParent, resolve from parent skin.
+        let (mut skin_skel, mut skin_simple) = mesh_paths(&target_entry);
+        if skin_skel.is_none() || skin_simple.is_none() {
+            if let Some(parent_num) =
+                find_field_i32(&target_entry.fields, PROP_SKIN_PARENT).filter(|&p| p >= 0)
+            {
+                let parent_path = format!("data/characters/{character}/skins/skin{parent_num}.bin");
+                if let Some(parent_raw) = game_wad.read_path(&parent_path)? {
+                    if let Ok(parent_prop) = PropFile::parse(&parent_raw) {
+                        if let Ok(Some((_, parent_entry))) = parent_prop.read_skin_data_entry() {
+                            let (p_skel, p_simple) = mesh_paths(&parent_entry);
+                            if skin_skel.is_none() {
+                                skin_skel = p_skel;
+                            }
+                            if skin_simple.is_none() {
+                                skin_simple = p_simple;
+                            }
+                        }
+                    }
+                }
+            }
+        }
         let (base_skel, base_simple) = mesh_paths(&base_entry);
 
         for (field_hash, skin_p_opt, base_p_opt) in [
@@ -762,7 +858,15 @@ pub(crate) fn ensure_official_skin_mod_at(
             }
         }
 
-        let rebased_bin = target_prop.rewrite_entry(target_idx, &target_entry);
+        let target_resolver_idx = target_prop
+            .types
+            .iter()
+            .position(|&t| t == RESOURCE_RESOLVER_CLASS_HASH);
+        let rebased_bin = target_prop.rewrite_skin_and_resolver(
+            target_idx,
+            &target_entry,
+            target_resolver_idx.zip(base_resolver_hash),
+        );
         wad_entries.push((base_bin_path, rebased_bin));
     }
 
@@ -983,6 +1087,207 @@ mod tests {
             out.extend_from_slice(&b);
         }
         out
+    }
+
+    #[test]
+    fn ensure_official_skin_mod_at_retargets_resource_resolver_and_chroma_parent() {
+        fn build_prop_with_resolver(
+            skin_path: &str,
+            skin_name: &str,
+            skel: Option<&str>,
+            simple: Option<&str>,
+            resolver_path: &str,
+            parent_num: Option<i32>,
+            extra_opaque: Option<(u32, &[u8])>,
+        ) -> Vec<u8> {
+            let mut mesh_fields = Vec::new();
+            if let Some(s) = skel {
+                mesh_fields.push(PropField {
+                    name_hash: PROP_SKELETON,
+                    value: PropVal::Str(s.into()),
+                });
+            }
+            if let Some(s) = simple {
+                mesh_fields.push(PropField {
+                    name_hash: PROP_SIMPLE_SKIN,
+                    value: PropVal::Str(s.into()),
+                });
+            }
+            let mut fields = vec![PropField {
+                name_hash: PROP_CHAMPION_SKIN_NAME,
+                value: PropVal::Str(skin_name.into()),
+            }];
+            if let Some(p) = parent_num {
+                fields.push(PropField {
+                    name_hash: PROP_SKIN_PARENT,
+                    value: PropVal::Fixed(0x06, p.to_le_bytes().to_vec()),
+                });
+            }
+            fields.push(PropField {
+                name_hash: PROP_M_RESOURCE_RESOLVER,
+                value: PropVal::Fixed(0x84, fnv1a_lower(resolver_path).to_le_bytes().to_vec()),
+            });
+            fields.push(PropField {
+                name_hash: PROP_SKIN_MESH,
+                value: PropVal::Struct(
+                    0x83,
+                    Some(PropEmbed {
+                        name_hash: fnv1a_lower("SkinMeshDataProperties"),
+                        fields: mesh_fields,
+                    }),
+                ),
+            });
+
+            let skin_entry = PropEntry {
+                type_hash: SKIN_DATA_CLASS_HASH,
+                path_hash: fnv1a_lower(skin_path),
+                fields,
+            };
+            let resolver_entry = PropEntry {
+                type_hash: RESOURCE_RESOLVER_CLASS_HASH,
+                path_hash: fnv1a_lower(resolver_path),
+                fields: vec![PropField {
+                    name_hash: fnv1a_lower("resourceMap"),
+                    value: PropVal::Map(0x11, 0x84, vec![]),
+                }],
+            };
+
+            let mut types = vec![SKIN_DATA_CLASS_HASH];
+            let mut blobs = vec![serialize_prop_entry(&skin_entry)];
+            if let Some((ty, raw_body)) = extra_opaque {
+                types.push(ty);
+                let mut framed = Vec::with_capacity(4 + raw_body.len());
+                framed.extend_from_slice(&(raw_body.len() as u32).to_le_bytes());
+                framed.extend_from_slice(raw_body);
+                blobs.push(framed);
+            }
+            types.push(RESOURCE_RESOLVER_CLASS_HASH);
+            blobs.push(serialize_prop_entry(&resolver_entry));
+
+            let mut out = Vec::new();
+            out.extend_from_slice(b"PROP");
+            out.extend_from_slice(&2u32.to_le_bytes());
+            out.extend_from_slice(&0u32.to_le_bytes());
+            out.extend_from_slice(&(types.len() as u32).to_le_bytes());
+            for t in types {
+                out.extend_from_slice(&t.to_le_bytes());
+            }
+            for b in blobs {
+                out.extend_from_slice(&b);
+            }
+            out
+        }
+
+        let temp = std::env::temp_dir().join(format!(
+            "laap-overlay-res-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let _ = fs::remove_dir_all(&temp);
+        let final_dir = temp.join("Game").join("DATA").join("FINAL");
+        let champs_dir = final_dir.join("Champions");
+        fs::create_dir_all(&champs_dir).unwrap();
+
+        let base_bin = build_prop_with_resolver(
+            "Characters/Ahri/Skins/Skin0",
+            "AhriBase",
+            Some("ASSETS/Characters/Ahri/Skins/Base/Ahri.skl"),
+            Some("ASSETS/Characters/Ahri/Skins/Base/Ahri.skn"),
+            "Characters/Ahri/Skins/Skin0/Resources",
+            None,
+            None,
+        );
+        let skin11_bin = build_prop_with_resolver(
+            "Characters/Ahri/Skins/Skin11",
+            "AhriSkin11",
+            Some("ASSETS/Characters/Ahri/Skins/Skin11/Ahri_Skin11.skl"),
+            Some("ASSETS/Characters/Ahri/Skins/Skin11/Ahri_Skin11.skn"),
+            "Characters/Ahri/Skins/Skin11/Resources",
+            None,
+            None,
+        );
+        let opaque_mat = vec![0xCA, 0xFE, 0xBA, 0xBE, 0x01, 0x02];
+        // Chroma inherits mesh from parent Skin11 and defines its own Skin12 ResourceResolver
+        let skin12_bin = build_prop_with_resolver(
+            "Characters/Ahri/Skins/Skin12",
+            "AhriSkin12",
+            None,
+            None,
+            "Characters/Ahri/Skins/Skin12/Resources",
+            Some(11),
+            Some((STATIC_MATERIAL_DEF_CLASS, &opaque_mat)),
+        );
+
+        let wad_bytes = wad_tool::create_wad_v3(&[
+            ("data/characters/ahri/skins/skin0.bin".into(), base_bin),
+            ("data/characters/ahri/skins/skin11.bin".into(), skin11_bin),
+            ("data/characters/ahri/skins/skin12.bin".into(), skin12_bin),
+            (
+                "assets/characters/ahri/skins/skin11/ahri_skin11.skl".into(),
+                b"PARENT_SKL".to_vec(),
+            ),
+            (
+                "assets/characters/ahri/skins/skin11/ahri_skin11.skn".into(),
+                b"PARENT_SKN".to_vec(),
+            ),
+        ])
+        .unwrap();
+        fs::write(champs_dir.join("Ahri.wad.client"), wad_bytes).unwrap();
+
+        let root = temp.join("laap_root");
+        let sha = ensure_official_skin_mod_at(&root, &final_dir, "Ahri", "Ahri", Some("103"), 12, 103012)
+            .expect("ensure chroma overlay");
+
+        let zip_bytes = fs::read(root.join("library").join("content").join(&sha)).unwrap();
+        let mut archive = zip::ZipArchive::new(Cursor::new(&zip_bytes)).unwrap();
+        let mut wad_out = Vec::new();
+        {
+            let mut wf = archive.by_name("WAD/Ahri.wad.client").unwrap();
+            std::io::Read::read_to_end(&mut wf, &mut wad_out).unwrap();
+        }
+        let temp_wad = temp.join("extracted_res.wad.client");
+        fs::write(&temp_wad, &wad_out).unwrap();
+        let mut gen_wad = StreamingGameWad::open(&temp_wad).unwrap();
+
+        let out_skin0 = gen_wad
+            .read_path("data/characters/ahri/skins/skin0.bin")
+            .unwrap()
+            .unwrap();
+        let out_prop = PropFile::parse(&out_skin0).unwrap();
+        let (_, out_entry) = out_prop.read_skin_data_entry().unwrap().unwrap();
+        assert_eq!(out_entry.path_hash, fnv1a_lower("Characters/Ahri/Skins/Skin0"));
+        assert_eq!(
+            find_field_str(&out_entry.fields, PROP_CHAMPION_SKIN_NAME).as_deref(),
+            Some("AhriBase")
+        );
+        assert_eq!(
+            find_field_link(&out_entry.fields, PROP_M_RESOURCE_RESOLVER),
+            Some((0x84, fnv1a_lower("Characters/Ahri/Skins/Skin0/Resources")))
+        );
+
+        let res_idx = out_prop
+            .types
+            .iter()
+            .position(|&t| t == RESOURCE_RESOLVER_CLASS_HASH)
+            .expect("ResourceResolver preserved");
+        assert_eq!(
+            out_prop.read_entry_path_hash(res_idx),
+            Some(fnv1a_lower("Characters/Ahri/Skins/Skin0/Resources"))
+        );
+
+        let (skel, simple) = mesh_paths(&out_entry);
+        assert_eq!(skel.as_deref(), Some("ASSETS/Characters/Ahri/Skins/Base/Ahri.skl"));
+        assert_eq!(simple.as_deref(), Some("ASSETS/Characters/Ahri/Skins/Base/Ahri.skn"));
+
+        let out_skl = gen_wad
+            .read_path("assets/characters/ahri/skins/base/ahri.skl")
+            .unwrap()
+            .unwrap();
+        assert_eq!(out_skl.len(), b"PARENT_SKL".len() + MESH_PADDING_BYTES);
+
+        let _ = fs::remove_dir_all(&temp);
     }
 
     #[test]
