@@ -742,6 +742,24 @@ pub(super) fn list_installed_at(customization_root: &Path) -> Result<Vec<Install
     index(&customization_root.join("library"))
 }
 
+/// Stage enabled packages into the LAAP sandbox without invoking any adapter.
+/// Used for warm staging during lobby/ready-check so Champ Select apply is fast.
+pub(crate) fn prestage_hashes_at(
+    customization_root: &Path,
+    hashes: &[String],
+) -> Result<usize, String> {
+    let _guard = LOCK
+        .try_lock()
+        .map_err(|_| "Another library operation is in progress.")?;
+    let dir = customization_root.join("library");
+    let mut items = index(&dir)?;
+    for item in &mut items {
+        item.enabled = hashes.iter().any(|h| h == &item.manifest.sha256);
+    }
+    let (_, _, files) = super::sandbox::stage(&dir, &items)?;
+    Ok(files)
+}
+
 pub(crate) fn all_candidate_specs(
     customization_root: &Path,
 ) -> Result<Vec<super::game_adapter::AdapterCandidateSpec>, String> {

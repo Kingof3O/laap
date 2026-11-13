@@ -64,6 +64,7 @@ export interface Preset {
   skinId: string
   chromaId?: string | null
   variantId?: string | null
+  modSha256?: string | null
   accountId: string | null
   queueMode?: string | null
   notes?: string
@@ -621,6 +622,8 @@ export interface AdapterStatusReport {
   appliedInGame: boolean
   busy: boolean
   discoverySource: string | null
+  backend: 'cslol' | 'ltk' | 'generic'
+  capabilities: string[]
   binaryPath: string | null
   binarySha256: string | null
   version: string | null
@@ -685,6 +688,8 @@ export interface InGameRunnerStatus {
   activeAppliedModHash?: string | null
   autoApplyMods?: boolean
   consentGranted?: boolean
+  gameMode?: string | null
+  warmStageStatus?: string
   recentEvents: RunnerEvent[]
   errorMessage: string | null
 }
@@ -709,6 +714,17 @@ export const gameAdapter = {
   validateMod: (sha256: string) => invokeTauri<ModRuntimeEntry>('game_adapter_validate_mod', { sha256 }),
   getModStates: () => invokeTauri<ModRuntimeEntry[]>('game_adapter_get_mod_states'),
   restoreDefaults: () => invokeTauri<AdapterRestoreOutcome>('game_adapter_restore_defaults'),
+}
+
+export interface SelfTestStep {
+  name: string
+  ok: boolean
+  detail: string
+}
+
+export const customizationDiagnostics = {
+  bundle: () => invokeTauri<Record<string, unknown>>('customization_diagnostics_bundle'),
+  selfTest: () => invokeTauri<SelfTestStep[]>('game_adapter_self_test'),
 }
 
 export const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error)

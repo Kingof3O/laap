@@ -561,10 +561,7 @@ fn dispatch_rpc_at(
                     );
                 }
             };
-            let Some(item) = items
-                .into_iter()
-                .find(|m| m.manifest.sha256 == mod_sha256)
-            else {
+            if !items.iter().any(|m| m.manifest.sha256 == mod_sha256) {
                 return (
                     wrap_response(serde_json::json!({
                         "ok": false,
@@ -573,7 +570,7 @@ fn dispatch_rpc_at(
                     })),
                     false,
                 );
-            };
+            }
             // Policy restriction removed per user request (own risk).
 
             let gf_phase = in_game_runner::current_gameflow_phase();
@@ -2019,7 +2016,7 @@ mod tests {
     }
 
     #[test]
-    fn rpc_refuses_paid_riot_or_preset_mods() {
+    fn rpc_rejects_invalid_hash_and_unknown_commands() {
         let _serial = test_serial_guard();
         let root = temp_root("policy");
         let hs = Arc::new(Mutex::new(None));

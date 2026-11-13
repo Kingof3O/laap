@@ -92,6 +92,8 @@ pub struct InGameRunnerStatus {
     pub active_applied_mod_hash: Option<String>,
     pub auto_apply_mods: bool,
     pub consent_granted: bool,
+    pub game_mode: Option<String>,
+    pub warm_stage_status: String,
     pub recent_events: Vec<RunnerEvent>,
     pub error_message: Option<String>,
 }
@@ -100,6 +102,7 @@ struct RunnerState {
     phase: RunnerPhase,
     client_connected: bool,
     gameflow_phase: Option<String>,
+    game_mode: Option<String>,
     detected_champion_id: Option<u32>,
     detected_champion_name: Option<String>,
     resolved_loadout: Option<ResolvedLoadout>,
@@ -113,6 +116,7 @@ impl RunnerState {
             phase: RunnerPhase::Idle,
             client_connected: false,
             gameflow_phase: None,
+            game_mode: None,
             detected_champion_id: None,
             detected_champion_name: None,
             resolved_loadout: None,
@@ -124,6 +128,7 @@ impl RunnerState {
     fn reset_live_observation(&mut self) {
         self.client_connected = false;
         self.gameflow_phase = None;
+        self.game_mode = None;
         self.detected_champion_id = None;
         self.detected_champion_name = None;
         self.resolved_loadout = None;
@@ -340,38 +345,33 @@ pub fn champion_name_from_id(id: u32) -> &'static str {
     }
 }
 
-/// Looks up any saved Mod Library package or Preset for a champion purely for read-only reference.
-/// Never applies skins or mods in League of Legends.
+/// Looks up the best matching Mod Library package or saved Preset for a champion.
+/// Presets may map to a package hash; metadata-only presets stay reference-only.
 pub fn resolve_loadout_for_champion(
     app: &AppHandle,
     champion_id: u32,
     champ_name: &str,
 ) -> ResolvedLoadout {
-    // 1. Check Mod Library for enabled local packages targeting this champion
+    // 1. Check Mod Library for the best enabled local package targeting this champion.
     if let Ok(installed) = super::library::mod_list(app.clone()) {
-        let champ_lower = champ_name.to_lowercase().replace([' ', '\'', '.'], "");
-        for item in installed {
-            if !item.enabled {
-                continue;
-            }
-            let targets_id = item.manifest.champion_ids.contains(&champion_id);
-            let name_lower = item.manifest.display_name.to_lowercase();
-            let mod_id_lower = item.manifest.mod_id.to_lowercase();
-            let targets_name =
-                !champ_lower.is_empty() && (name_lower.contains(&champ_lower) || mod_id_lower.contains(&champ_lower));
-
-            if targets_id || targets_name {
-                return ResolvedLoadout {
-                    champion_id,
-                    champion_name: champ_name.to_string(),
-                    skin_or_mod_name: item.manifest.display_name,
-                    source: "ModLibrary".to_string(),
-                    mod_hash: Some(item.manifest.sha256),
-                    file_count: item.manifest.files.len(),
-                    applied_in_game: false,
-                    limitation: "Cached in LAAP Mod Library only; no approved live League overlay adapter is active.".to_string(),
-                };
-            }
+        if let Some(best) =
+            super::resolver::resolve_best_mod(&installed, champion_id, champ_name)
+        {
+            let file_count = installed
+                .iter()
+                .find(|item| item.manifest.sha256 == best.sha256)
+                .map(|item| item.manifest.files.len())
+                .unwrap_or(0);
+            return ResolvedLoadout {
+                champion_id,
+                champion_name: champ_name.to_string(),
+                skin_or_mod_name: best.display_name,
+                source: "ModLibrary".to_string(),
+                mod_hash: Some(best.sha256),
+                file_count,
+                applied_in_game: false,
+                limitation: "Cached in LAAP Mod Library only; activate through the configured adapter.".to_string(),
+            };
         }
     }
 
@@ -387,15 +387,16 @@ pub fn resolve_loadout_for_champion(
                 let matches_id = preset.champion_id == champion_id.to_string();
                 let matches_name = preset.champion_id.eq_ignore_ascii_case(champ_name);
                 if matches_id || matches_name {
+                    let mod_hash = preset.mod_sha256.clone();
                     return ResolvedLoadout {
                         champion_id,
                         champion_name: champ_name.to_string(),
                         skin_or_mod_name: preset.name,
                         source: "Preset".to_string(),
-                        mod_hash: None,
+                        mod_hash,
                         file_count: 0,
                         applied_in_game: false,
-                        limitation: "Catalog preset metadata/reference selected. Apply capability depends on available content/adapter configuration.".to_string(),
+                        limitation: "Preset selected. Mapped mod packages apply through the configured adapter; metadata-only presets remain references.".to_string(),
                     };
                 }
             }
@@ -453,28 +454,53 @@ fn extract_lcu_build_version(client: &crate::lcu_read::LcuConnection) -> Option<
         .and_then(super::game_path::sanitize_build_string)
 }
 
+/// Best-effort game mode from the LCU gameflow session (e.g. CLASSIC, ARAM).
+fn extract_lcu_game_mode(client: &crate::lcu_read::LcuConnection) -> Option<String> {
+    let session = client.get("/lol-gameflow/v1/session").ok()?;
+    let game_data = session.get("gameData")?;
+    game_data
+        .get("queue")
+        .and_then(|queue| queue.get("gameMode"))
+        .or_else(|| game_data.get("gameMode"))
+        .and_then(|value| value.as_str())
+        .map(|value| value.trim().to_ascii_uppercase())
+        .filter(|value| !value.is_empty() && value.len() <= 32)
+}
+
+/// Pre-stage the resolved champion package in the LAAP sandbox without activating it.
+pub fn warm_stage_for_champion_at(
+    customization_root: &std::path::Path,
+    champion_id: u32,
+    champion_name: &str,
+) -> Result<usize, String> {
+    let items = super::library::list_installed_at(customization_root)?;
+    let Some(best) = super::resolver::resolve_best_mod(&items, champion_id, champion_name) else {
+        return Ok(0);
+    };
+    super::library::prestage_hashes_at(customization_root, &[best.sha256])
+}
+
 pub(crate) fn handle_champ_select_loadout_at(
     customization_root: &std::path::Path,
     loadout: &mut ResolvedLoadout,
     auto_apply_mods: bool,
     opts: &super::game_adapter::ProbeOptions,
 ) -> (&'static str, String) {
-    if loadout.source == "Preset" {
-        // Presets are metadata-only unless a corresponding mod package/hash is provided by other flows.
-        // Do not force rollback of an unrelated active mod here; just report reference state.
+    if loadout.source == "Preset" && loadout.mod_hash.is_none() {
+        // Presets without a mapped mod package stay reference-only.
         if let Ok(mut w) = get_tracker().lock() {
             w.match_apply_status = "preset-reference".into();
         }
         return (
             "PRESET_REFERENCE",
             format!(
-                "Champion detected: {} (ID {}). Selected preset '{}' (reference).",
+                "Champion detected: {} (ID {}). Selected preset '{}' (reference; no mapped mod package).",
                 loadout.champion_name, loadout.champion_id, loadout.skin_or_mod_name
             ),
         );
     }
 
-    if loadout.source != "ModLibrary" {
+    if loadout.source != "ModLibrary" && loadout.source != "Preset" {
         if let Ok(tracker) = get_tracker().lock().map(|t| t.clone()) {
             if tracker.active_applied_mod_hash.is_some() {
                 let _ = super::library::rollback_at(customization_root, opts);
@@ -725,8 +751,33 @@ pub fn poll_tick(app: &AppHandle) {
             t.lcu_build_hint = Some(b.clone());
         }
     }
+    let game_mode_hint = extract_lcu_game_mode(&client);
+    if let Ok(mut state) = state_arc.lock() {
+        state.game_mode = game_mode_hint;
+    }
 
     let root = super::storage::root(app).ok();
+
+    // Warm staging: during lobby/matchmaking/ready-check, pre-stage the last known
+    // champion's package into the sandbox so Champ Select apply is fast.
+    if matches!(phase_val.as_str(), "Lobby" | "Matchmaking" | "ReadyCheck")
+        && previous_phase.as_deref() != Some(phase_val.as_str())
+    {
+        let champion = get_tracker()
+            .lock()
+            .ok()
+            .and_then(|t| t.last_champion_id.zip(t.last_champion_name.clone()));
+        if let (Some(root_path), Some((champ_id, champ_name))) = (root.as_deref(), champion) {
+            let status = match warm_stage_for_champion_at(root_path, champ_id, &champ_name) {
+                Ok(0) => "no-matching-mod".to_string(),
+                Ok(files) => format!("pre-staged {files} file(s) for {champ_name}"),
+                Err(err) => format!("warm-stage-failed: {err}"),
+            };
+            if let Ok(mut tracker) = get_tracker().lock() {
+                tracker.warm_stage_status = status;
+            }
+        }
+    }
     let cfg = load_runner_cfg_at(root.as_deref());
     let tracker_hint = get_tracker()
         .lock()
@@ -771,9 +822,13 @@ pub fn poll_tick(app: &AppHandle) {
                 state.phase = RunnerPhase::ChampSelect;
                 if let Some((champ_id, champ_name, loadout, (ev_type, ev_msg))) = new_selection {
                     state.detected_champion_id = Some(champ_id);
-                    state.detected_champion_name = Some(champ_name);
+                    state.detected_champion_name = Some(champ_name.clone());
                     state.add_event(ev_type, &ev_msg);
                     state.resolved_loadout = Some(loadout);
+                    if let Ok(mut tracker) = get_tracker().lock() {
+                        tracker.last_champion_id = Some(champ_id);
+                        tracker.last_champion_name = Some(champ_name);
+                    }
                 }
             }
             if notify_needed {
@@ -889,6 +944,9 @@ struct ApplyTrackerState {
     match_apply_status: String,
     active_applied_mod_hash: Option<String>,
     pending_restore_after_match: bool,
+    last_champion_id: Option<u32>,
+    last_champion_name: Option<String>,
+    warm_stage_status: String,
 }
 
 impl Default for ApplyTrackerState {
@@ -898,6 +956,9 @@ impl Default for ApplyTrackerState {
             match_apply_status: "idle".into(),
             active_applied_mod_hash: None,
             pending_restore_after_match: false,
+            last_champion_id: None,
+            last_champion_name: None,
+            warm_stage_status: "idle".into(),
         }
     }
 }
@@ -1044,6 +1105,8 @@ pub(crate) fn build_status_snapshot_at(
         active_applied_mod_hash: tracker.active_applied_mod_hash,
         auto_apply_mods: cfg.auto_apply_mods || probe.auto_apply_in_champ_select,
         consent_granted: probe.consent_granted && probe.clearance_acknowledged,
+        game_mode: state.game_mode.clone(),
+        warm_stage_status: tracker.warm_stage_status,
         recent_events: state.recent_events.clone(),
         error_message: state.error_message.clone(),
     })
@@ -1265,7 +1328,7 @@ mod tests {
     }
 
     #[test]
-    fn test_consent_and_live_probe_defaults_and_preset_exclusion() {
+    fn test_consent_and_live_probe_defaults_and_preset_reference() {
         let _serial = super::super::game_adapter::test_serial_guard();
         assert!(require_consent(false).is_err());
         assert!(require_consent(true).is_ok());

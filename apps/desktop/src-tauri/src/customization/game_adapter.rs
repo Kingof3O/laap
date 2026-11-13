@@ -84,6 +84,40 @@ const REJECTED_SHELL_NAMES: [&str; 12] = [
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub enum AdapterBackend {
+    Cslol,
+    Ltk,
+    Generic,
+}
+
+/// Identify the adapter backend from its executable filename.
+pub fn backend_for_binary(name: &str) -> AdapterBackend {
+    let lower = name.to_ascii_lowercase();
+    if lower.contains("cslol") {
+        AdapterBackend::Cslol
+    } else if lower.contains("ltk") {
+        AdapterBackend::Ltk
+    } else {
+        AdapterBackend::Generic
+    }
+}
+
+/// Backend capability identifiers surfaced to the UI.
+pub fn backend_capabilities(backend: &AdapterBackend) -> Vec<String> {
+    let mut caps = vec![
+        "stage".to_string(),
+        "activate".to_string(),
+        "restore".to_string(),
+        "build-probe".to_string(),
+    ];
+    if matches!(backend, AdapterBackend::Cslol | AdapterBackend::Generic) {
+        caps.push("format-probe".to_string());
+    }
+    caps
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum AdapterLifecycleState {
     NotInstalled,
     Detected,
@@ -199,6 +233,8 @@ pub struct AdapterStatusReport {
     pub applied_in_game: bool,
     pub busy: bool,
     pub discovery_source: Option<String>,
+    pub backend: AdapterBackend,
+    pub capabilities: Vec<String>,
     pub binary_path: Option<String>,
     pub binary_sha256: Option<String>,
     pub version: Option<String>,
@@ -877,6 +913,8 @@ fn base_status_report(
         applied_in_game: false,
         busy: false,
         discovery_source: None,
+        backend: AdapterBackend::Generic,
+        capabilities: backend_capabilities(&AdapterBackend::Generic),
         binary_path: cfg.adapter_path.clone(),
         binary_sha256: None,
         version: None,
@@ -980,6 +1018,12 @@ pub(crate) fn probe_adapter_at(customization_root: &Path, opts: &ProbeOptions) -
     );
     report.discovery_source = Some(discovery_source.clone());
     report.binary_path = Some(bin_path.to_string_lossy().into_owned());
+    let file_name = bin_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default();
+    report.backend = backend_for_binary(file_name);
+    report.capabilities = backend_capabilities(&report.backend);
 
     let sha256 = match compute_sha256_file(&bin_path) {
         Ok(h) => h,
@@ -1193,15 +1237,23 @@ pub(crate) fn apply_candidates_via_adapter_at(
                 opts.lcu_build_hint.clone(),
             );
         }
+        super::journal::record(
+            customization_root,
+            super::journal::JournalAction::Defer,
+            &deferred_hashes,
+            cfg.last_verified_version.as_deref(),
+            opts.lcu_build_hint.as_deref(),
+            reason.clone(),
+        );
         return Ok(AdapterApplyOutcome {
             state: AdapterLifecycleState::Deferred,
             applied_in_game: false,
             applied_mod_hashes: vec![],
-            deferred_mod_hashes: deferred_hashes,
+            deferred_mod_hashes: deferred_hashes.clone(),
             failed_mod_hashes: vec![],
             deferred_reason: Some(reason.clone()),
             game_overlay_directory: None,
-            message: reason,
+            message: reason.clone(),
         });
     }
 
@@ -1495,6 +1547,14 @@ pub(crate) fn apply_candidates_via_adapter_at(
                     detected_build.clone(),
                 );
             }
+            super::journal::record(
+                customization_root,
+                super::journal::JournalAction::Activate,
+                &applied_hashes,
+                probe.version.as_deref(),
+                detected_build.as_deref(),
+                "activate_staged succeeded",
+            );
 
             let mut store = load_runtime_at(customization_root);
             store.active_staged_dir = Some(staging_str);
@@ -1678,6 +1738,14 @@ pub(crate) fn restore_defaults_via_adapter_at(
             reset_store.last_action_message = Some(detail.clone());
             reset_store.updated_at = Some(now_unix());
             let _ = save_runtime_at(customization_root, &reset_store);
+            super::journal::record(
+                customization_root,
+                super::journal::JournalAction::Restore,
+                &[],
+                None,
+                opts.lcu_build_hint.as_deref(),
+                detail.clone(),
+            );
 
             Ok(AdapterRestoreOutcome {
                 state: AdapterLifecycleState::Compatible,
@@ -1692,6 +1760,14 @@ pub(crate) fn restore_defaults_via_adapter_at(
             err_store.last_action_message = Some(err.clone());
             err_store.updated_at = Some(now_unix());
             let _ = save_runtime_at(customization_root, &err_store);
+            super::journal::record(
+                customization_root,
+                super::journal::JournalAction::Fail,
+                &[],
+                None,
+                opts.lcu_build_hint.as_deref(),
+                err.clone(),
+            );
             Ok(AdapterRestoreOutcome {
                 state: AdapterLifecycleState::Failed,
                 restored_in_game: false,
@@ -2357,8 +2433,8 @@ fn main() {{
         let entries = compute_mod_runtime_entries_at(&root, &[cand.clone()], &probe_adapter_at(&root, &opts));
         assert_eq!(entries[0].state, ModRuntimeState::Applied);
 
-        // Policy exclusion blocks metadata presets and paid Riot skins before CLI invocation.
-        let forbidden = AdapterCandidateSpec {
+        // User-risk override: paid-tagged packages are structurally validated and reach the adapter.
+        let paid_candidate = AdapterCandidateSpec {
             sha256: "b".repeat(64),
             name: "Paid Skin".into(),
             format: "fantome".into(),
@@ -2367,7 +2443,10 @@ fn main() {{
             contains_paid_riot_content: true,
             valid: true,
         };
-        assert!(apply_candidates_via_adapter_at(&root, &staging_dir, &[forbidden], &opts).is_err());
+        let paid_outcome =
+            apply_candidates_via_adapter_at(&root, &staging_dir, &[paid_candidate], &opts).unwrap();
+        assert_eq!(paid_outcome.state, AdapterLifecycleState::Applied);
+        assert!(paid_outcome.applied_in_game);
 
         // Active match defers restore_defaults safely.
         let active_opts = ProbeOptions {
@@ -2555,5 +2634,25 @@ fn main() {{
         assert_eq!(found_source, "bundled");
 
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn backend_detection_maps_known_binaries_and_capabilities() {
+        assert_eq!(backend_for_binary("cslol-cli.exe"), AdapterBackend::Cslol);
+        assert_eq!(backend_for_binary("ltk-mod-cli.exe"), AdapterBackend::Ltk);
+        assert_eq!(
+            backend_for_binary("league-mod-adapter.exe"),
+            AdapterBackend::Generic
+        );
+        assert_eq!(
+            backend_for_binary("powershell.exe"),
+            AdapterBackend::Generic
+        );
+
+        let cslol = backend_capabilities(&AdapterBackend::Cslol);
+        assert!(cslol.iter().any(|c| c == "format-probe"));
+        let ltk = backend_capabilities(&AdapterBackend::Ltk);
+        assert!(!ltk.iter().any(|c| c == "format-probe"));
+        assert!(ltk.iter().any(|c| c == "restore"));
     }
 }

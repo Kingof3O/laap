@@ -28,3 +28,6 @@ pub mod client_surfaces;
 pub mod client_bridge;
 pub mod in_game_runner;
 pub mod game_adapter;
+pub mod resolver;
+pub mod journal;
+pub mod diagnostics;

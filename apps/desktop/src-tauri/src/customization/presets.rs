@@ -23,6 +23,9 @@ pub struct Preset {
     pub chroma_id: Option<String>,
     #[serde(default)]
     pub variant_id: Option<String>,
+    /// Optional Mod Library package hash this preset maps to for direct application.
+    #[serde(default)]
+    pub mod_sha256: Option<String>,
     pub account_id: Option<String>,
     #[serde(default)]
     pub queue_mode: Option<String>,
@@ -104,6 +107,13 @@ fn validate(preset: &mut Preset) -> Result<(), String> {
         {
             return Err("Invalid variant identifier.".into());
         }
+    }
+    if let Some(hash) = &preset.mod_sha256 {
+        let normalized = hash.trim().to_ascii_lowercase();
+        if normalized.len() != 64 || !normalized.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err("Invalid mod package SHA-256.".into());
+        }
+        preset.mod_sha256 = Some(normalized);
     }
     if preset.notes.chars().count() > 2000
         || !(-100..=100).contains(&preset.priority)
@@ -447,6 +457,7 @@ mod tests {
             skin_id: "99001".into(),
             chroma_id: Some("99002".into()),
             variant_id: Some("form_light".into()),
+            mod_sha256: None,
             account_id: None,
             queue_mode: Some("aram".into()),
             notes: "Test notes".into(),
@@ -475,6 +486,15 @@ mod tests {
         let mut invalid_chroma = valid.clone();
         invalid_chroma.chroma_id = Some("non-digit".into());
         assert!(validate(&mut invalid_chroma).is_err());
+
+        let mut mapped = valid.clone();
+        mapped.mod_sha256 = Some("A".repeat(64));
+        assert!(validate(&mut mapped).is_ok());
+        assert_eq!(mapped.mod_sha256, Some("a".repeat(64)));
+
+        let mut invalid_hash = valid.clone();
+        invalid_hash.mod_sha256 = Some("not-a-hash".into());
+        assert!(validate(&mut invalid_hash).is_err());
     }
 
     #[test]
@@ -486,6 +506,7 @@ mod tests {
             skin_id: "103000".into(),
             chroma_id: None,
             variant_id: None,
+            mod_sha256: None,
             account_id: None,
             queue_mode: None,
             notes: String::new(),
@@ -534,6 +555,7 @@ mod tests {
             skin_id: "103000".into(),
             chroma_id: None,
             variant_id: None,
+            mod_sha256: None,
             account_id: Some("acc-1".into()),
             queue_mode: Some("classic".into()),
             notes: String::new(),
@@ -592,6 +614,7 @@ mod tests {
             skin_id: "103000".into(),
             chroma_id: None,
             variant_id: None,
+            mod_sha256: None,
             account_id: Some(id.into()),
             queue_mode: Some("classic".into()),
             notes: String::new(),

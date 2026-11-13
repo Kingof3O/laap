@@ -466,6 +466,10 @@ pub fn run() {
             customization::game_adapter::game_adapter_get_mod_states,
             #[cfg(not(feature = "basic"))]
             customization::game_adapter::game_adapter_restore_defaults,
+            #[cfg(not(feature = "basic"))]
+            customization::diagnostics::customization_diagnostics_bundle,
+            #[cfg(not(feature = "basic"))]
+            customization::diagnostics::game_adapter_self_test,
             commands::system_utils::write_error_report,
             commands::system_utils::set_auto_launch,
             commands::system_utils::get_auto_launch,

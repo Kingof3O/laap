@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  customizationDiagnostics,
   gameAdapter,
   gamePath,
   type AdapterLifecycleState,
   type AdapterStatusReport,
   type GameAdapterConfig,
   type GameInstallInfo,
+  type SelfTestStep,
 } from './api'
 
 export function formatAdapterStateLabel(state?: AdapterLifecycleState): string {
@@ -79,6 +81,7 @@ export function GameAdapterSettingsPanel() {
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [selfTest, setSelfTest] = useState<SelfTestStep[] | null>(null)
 
   const refreshAll = useCallback(async (runLiveProbe = true) => {
     try {
@@ -371,6 +374,11 @@ export function GameAdapterSettingsPanel() {
           }}
         >
           <div>
+            <strong>Backend:</strong> {statusReport.backend}
+            {' '}| <strong>Capabilities:</strong>{' '}
+            {statusReport.capabilities.join(', ')}
+          </div>
+          <div>
             <strong>Version:</strong> {statusReport.version ?? '—'}{' '}
             | <strong>Supported Builds:</strong>{' '}
             {statusReport.supportedGameBuilds.length > 0
@@ -429,7 +437,34 @@ export function GameAdapterSettingsPanel() {
         <button type="button" disabled={busy} onClick={handleRestoreDefaults}>
           Stop & Restore Defaults
         </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true)
+            setError(null)
+            try {
+              setSelfTest(await customizationDiagnostics.selfTest())
+            } catch (err) {
+              setError(err instanceof Error ? err.message : String(err))
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          Run Adapter Self-Test
+        </button>
       </div>
+
+      {selfTest && (
+        <div data-testid="studio-adapter-self-test" style={{ marginTop: '10px', fontSize: '0.82rem' }}>
+          {selfTest.map((step) => (
+            <div key={step.name} style={{ color: step.ok ? '#22c55e' : '#ef4444' }}>
+              {step.ok ? '✓' : '✗'} {step.name}: {step.detail}
+            </div>
+          ))}
+        </div>
+      )}
 
       {notice && (
         <div
