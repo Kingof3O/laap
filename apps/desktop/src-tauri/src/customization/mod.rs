@@ -31,3 +31,6 @@ pub mod game_adapter;
 pub mod resolver;
 pub mod journal;
 pub mod diagnostics;
+pub mod skin_bootstrap;
+pub mod skin_catalog;
+pub mod skin_overlay;

@@ -850,14 +850,14 @@ fn resolve_picked_archive(token: &str) -> Result<PathBuf, String> {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct WadSubchunkRecord {
+pub(crate) struct WadSubchunkRecord {
     compressed_size: u32,
     uncompressed_size: u32,
     #[allow(dead_code)]
     checksum: u64,
 }
 
-fn detect_subchunk_toc<R: Read + Seek>(
+pub(crate) fn detect_subchunk_toc<R: Read + Seek>(
     reader: &mut R,
     total_len: u64,
     entries: &[WadEntry],
@@ -930,7 +930,7 @@ fn detect_subchunk_toc<R: Read + Seek>(
     None
 }
 
-fn decompress_entry_from_reader<R: Read + Seek>(
+pub(crate) fn decompress_entry_from_reader<R: Read + Seek>(
     reader: &mut R,
     total_len: u64,
     entry: &WadEntry,

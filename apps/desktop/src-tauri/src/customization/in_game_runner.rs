@@ -20,7 +20,7 @@ use std::{
 };
 use tauri::AppHandle;
 
-const CONFIG_FILE: &str = "in_game_runner_config.json";
+pub(crate) const CONFIG_FILE: &str = "in_game_runner_config.json";
 const MAX_LOG_EVENTS: usize = 50;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -47,7 +47,7 @@ pub struct ResolvedLoadout {
     pub champion_id: u32,
     pub champion_name: String,
     pub skin_or_mod_name: String,
-    pub source: String, // "ModLibrary", "Preset", or "Default"
+    pub source: String, // "ModLibrary", "Preset", "SkinSelection", "OfficialDefault", or "Default"
     pub mod_hash: Option<String>,
     pub file_count: usize,
     pub applied_in_game: bool,
@@ -347,13 +347,111 @@ pub fn champion_name_from_id(id: u32) -> &'static str {
 
 /// Looks up the best matching Mod Library package or saved Preset for a champion.
 /// Presets may map to a package hash; metadata-only presets stay reference-only.
-pub fn resolve_loadout_for_champion(
-    app: &AppHandle,
+fn find_game_final_dir_at(root: &std::path::Path) -> Option<PathBuf> {
+    let info = super::game_path::resolve_game_install_info_at(&root.join("game_path.json"), None);
+    let league_path = info.league_path?;
+    let game_dir = super::game_adapter::resolve_modtools_game_dir(std::path::Path::new(&league_path)).ok()?;
+    let final_dir = game_dir.join("DATA").join("FINAL");
+    final_dir.is_dir().then_some(final_dir)
+}
+
+fn resolve_display_champion_name(root: Option<&std::path::Path>, champion_id: u32) -> String {
+    if let Some(r) = root {
+        if let Some((_, name, _)) = super::skin_catalog::champion_display_from_numeric_at(r, champion_id) {
+            return name;
+        }
+    }
+    champion_name_from_id(champion_id).to_string()
+}
+
+/// Core loadout resolver operating directly on a customization root directory.
+/// Explicit skin selections take precedence so picking an official skin overrides
+/// an idle custom mod, while clearing/selecting a custom mod restores ModLibrary priority.
+pub(crate) fn resolve_loadout_for_champion_at(
+    root: &std::path::Path,
     champion_id: u32,
     champ_name: &str,
 ) -> ResolvedLoadout {
-    // 1. Check Mod Library for the best enabled local package targeting this champion.
-    if let Ok(installed) = super::library::mod_list(app.clone()) {
+    // 1. Explicit skin selection from the in-app or Pengu picker.
+    if champion_id > 0 {
+        if let Some(sel) = super::skin_catalog::read_skin_selection_at(root, champion_id) {
+            let (champ_str_id, champ_display_name, champ_key, skin_num, skin_name_opt) =
+                super::skin_catalog::resolve_skin_meta_at(
+                    root,
+                    champion_id,
+                    sel.skin_id,
+                    Some(champ_name),
+                );
+            let skin_label = skin_name_opt.unwrap_or_else(|| format!("Skin #{skin_num}"));
+
+            if skin_num == 0 {
+                return ResolvedLoadout {
+                    champion_id,
+                    champion_name: champ_display_name,
+                    skin_or_mod_name: skin_label,
+                    source: "OfficialDefault".to_string(),
+                    mod_hash: None,
+                    file_count: 0,
+                    applied_in_game: false,
+                    limitation: "Using official Riot default skin.".to_string(),
+                };
+            }
+
+            if let Some(final_dir) = find_game_final_dir_at(root) {
+                match super::skin_overlay::ensure_official_skin_mod_at(
+                    root,
+                    &final_dir,
+                    &champ_str_id,
+                    &champ_display_name,
+                    champ_key.as_deref(),
+                    skin_num,
+                    sel.skin_id,
+                ) {
+                    Ok(sha) => {
+                        return ResolvedLoadout {
+                            champion_id,
+                            champion_name: champ_display_name,
+                            skin_or_mod_name: skin_label,
+                            source: "SkinSelection".to_string(),
+                            mod_hash: Some(sha),
+                            file_count: 2,
+                            applied_in_game: false,
+                            limitation: "On-demand official skin overlay prepared from local game WAD."
+                                .to_string(),
+                        };
+                    }
+                    Err(err) => {
+                        return ResolvedLoadout {
+                            champion_id,
+                            champion_name: champ_display_name,
+                            skin_or_mod_name: skin_label,
+                            source: "SkinSelection".to_string(),
+                            mod_hash: None,
+                            file_count: 0,
+                            applied_in_game: false,
+                            limitation: format!(
+                                "Selected skin recorded (LCU best-effort); local overlay unavailable: {err}"
+                            ),
+                        };
+                    }
+                }
+            } else {
+                return ResolvedLoadout {
+                    champion_id,
+                    champion_name: champ_display_name,
+                    skin_or_mod_name: skin_label,
+                    source: "SkinSelection".to_string(),
+                    mod_hash: None,
+                    file_count: 0,
+                    applied_in_game: false,
+                    limitation: "Selected skin recorded (LCU best-effort); League DATA/FINAL directory not detected for overlay generation.".to_string(),
+                };
+            }
+        }
+    }
+
+    // 2. Check Mod Library for the best enabled user custom package targeting this champion.
+    if let Ok(installed) = super::library::list_installed_at(root) {
         if let Some(best) =
             super::resolver::resolve_best_mod(&installed, champion_id, champ_name)
         {
@@ -370,40 +468,38 @@ pub fn resolve_loadout_for_champion(
                 mod_hash: Some(best.sha256),
                 file_count,
                 applied_in_game: false,
-                limitation: "Cached in LAAP Mod Library only; activate through the configured adapter.".to_string(),
+                limitation: "Cached in LAAP Mod Library; ready to activate via managed backend.".to_string(),
             };
         }
     }
 
-    // 2. Check Presets for this champion (metadata preference only)
-    if let Ok(root) = storage::root(app) {
-        let presets_path = root.join("presets.json");
-        #[derive(Deserialize)]
-        struct PresetStore {
-            presets: Vec<super::presets::Preset>,
-        }
-        if let Ok(Some(store)) = storage::read::<PresetStore>(&presets_path, 1024 * 1024) {
-            for preset in store.presets {
-                let matches_id = preset.champion_id == champion_id.to_string();
-                let matches_name = preset.champion_id.eq_ignore_ascii_case(champ_name);
-                if matches_id || matches_name {
-                    let mod_hash = preset.mod_sha256.clone();
-                    return ResolvedLoadout {
-                        champion_id,
-                        champion_name: champ_name.to_string(),
-                        skin_or_mod_name: preset.name,
-                        source: "Preset".to_string(),
-                        mod_hash,
-                        file_count: 0,
-                        applied_in_game: false,
-                        limitation: "Preset selected. Mapped mod packages apply through the configured adapter; metadata-only presets remain references.".to_string(),
-                    };
-                }
+    // 3. Check Presets for this champion
+    let presets_path = root.join("presets.json");
+    #[derive(Deserialize)]
+    struct PresetStore {
+        presets: Vec<super::presets::Preset>,
+    }
+    if let Ok(Some(store)) = storage::read::<PresetStore>(&presets_path, 1024 * 1024) {
+        for preset in store.presets {
+            let matches_id = preset.champion_id == champion_id.to_string();
+            let matches_name = preset.champion_id.eq_ignore_ascii_case(champ_name);
+            if matches_id || matches_name {
+                let mod_hash = preset.mod_sha256.clone();
+                return ResolvedLoadout {
+                    champion_id,
+                    champion_name: champ_name.to_string(),
+                    skin_or_mod_name: preset.name,
+                    source: "Preset".to_string(),
+                    mod_hash,
+                    file_count: 0,
+                    applied_in_game: false,
+                    limitation: "Preset selected. Mapped mod packages apply through the configured adapter; metadata-only presets remain references.".to_string(),
+                };
             }
         }
     }
 
-    // 3. No matching preset or mod
+    // 4. No matching preset or mod
     ResolvedLoadout {
         champion_id,
         champion_name: champ_name.to_string(),
@@ -414,6 +510,147 @@ pub fn resolve_loadout_for_champion(
         applied_in_game: false,
         limitation: "Using official Riot client skin selection.".to_string(),
     }
+}
+
+/// Looks up the best matching selection, Mod Library package, or saved Preset for a champion.
+pub fn resolve_loadout_for_champion(
+    app: &AppHandle,
+    champion_id: u32,
+    champ_name: &str,
+) -> ResolvedLoadout {
+    if let Ok(root) = storage::root(app) {
+        return resolve_loadout_for_champion_at(&root, champion_id, champ_name);
+    }
+    ResolvedLoadout {
+        champion_id,
+        champion_name: champ_name.to_string(),
+        skin_or_mod_name: format!("No saved preset or local mod for {champ_name}"),
+        source: "Default".to_string(),
+        mod_hash: None,
+        file_count: 0,
+        applied_in_game: false,
+        limitation: "Customization storage unavailable.".to_string(),
+    }
+}
+
+/// Best-effort LCU Champ Select skin slot selection. If `preferred_skin_id` is rejected
+/// (e.g. unowned skin) and an overlay is active on `skin0`, falls back to base `champion_id * 1000`
+/// so Riot does not load a different previously-equipped owned skin over `skin0`.
+pub(crate) fn ensure_lcu_skin_slot_for_mod(
+    preferred_skin_id: Option<u32>,
+    champion_id: u32,
+) -> (bool, Option<String>) {
+    if champion_id == 0 {
+        return match preferred_skin_id {
+            Some(sid) if sid > 0 => match super::skin_catalog::try_select_skin_in_champ_select(sid) {
+                Ok(()) => (true, None),
+                Err(e) => (false, Some(e)),
+            },
+            _ => (false, None),
+        };
+    }
+    let base_skin_id = champion_id.saturating_mul(1000);
+    if let Some(sid) = preferred_skin_id {
+        if sid > 0 {
+            match super::skin_catalog::try_select_skin_in_champ_select(sid) {
+                Ok(()) => return (true, None),
+                Err(err) => {
+                    if sid != base_skin_id {
+                        let _ = super::skin_catalog::try_select_skin_in_champ_select(base_skin_id);
+                    }
+                    return (false, Some(err));
+                }
+            }
+        }
+    }
+    match super::skin_catalog::try_select_skin_in_champ_select(base_skin_id) {
+        Ok(()) => (true, None),
+        Err(err) => (false, Some(err)),
+    }
+}
+
+/// Unified handler for explicit skin selection from both the in-app picker (`skin_select`)
+/// and the Pengu companion bridge (`select_skin`). Persists selection, updates LCU best-effort,
+/// generates the official skin overlay on-demand, applies immediately if safe, and notifies UI/bridge.
+pub(crate) fn apply_selected_skin_at(
+    root: &std::path::Path,
+    champion_id: u32,
+    skin_id: u32,
+    champion_name: Option<&str>,
+) -> Result<serde_json::Value, String> {
+    let eff_champ_id = if champion_id > 0 {
+        champion_id
+    } else {
+        skin_id / 1000
+    };
+    let champ_display = champion_name
+        .map(str::trim)
+        .filter(|s| !s.is_empty() && *s != "Unknown Champion")
+        .map(str::to_string)
+        .unwrap_or_else(|| resolve_display_champion_name(Some(root), eff_champ_id));
+
+    if eff_champ_id > 0 {
+        super::skin_catalog::save_skin_selection_at(
+            root,
+            eff_champ_id,
+            skin_id,
+            Some(&champ_display),
+        )?;
+    }
+
+    let (lcu_ok, lcu_detail) = ensure_lcu_skin_slot_for_mod(Some(skin_id), eff_champ_id);
+
+    let mut loadout = resolve_loadout_for_champion_at(root, eff_champ_id, &champ_display);
+    let gf_phase = current_gameflow_phase();
+    let tracker_hint = get_tracker()
+        .lock()
+        .ok()
+        .and_then(|t| t.lcu_build_hint.clone());
+    let mut opts = super::game_adapter::ProbeOptions {
+        lcu_build_hint: tracker_hint,
+        ..super::game_adapter::ProbeOptions::default()
+    };
+    opts.active_match_running = opts.active_match_running
+        || !super::game_adapter::is_safe_gameflow_phase(gf_phase.as_deref());
+
+    let (ev_type, ev_msg) = handle_champ_select_loadout_at(root, &mut loadout, true, &opts);
+
+    let selection_updated_at = if eff_champ_id > 0 {
+        super::skin_catalog::read_skin_selection_at(root, eff_champ_id).map(|s| s.updated_at)
+    } else {
+        None
+    };
+
+    if let Ok(mut tracker) = get_tracker().lock() {
+        tracker.last_champion_id = (eff_champ_id > 0).then_some(eff_champ_id);
+        tracker.last_champion_name = Some(champ_display.clone());
+        tracker.last_skin_selection_updated_at = selection_updated_at;
+    }
+
+    if let Ok(mut state) = get_state().lock() {
+        if eff_champ_id > 0 && state.detected_champion_id.is_none() {
+            state.detected_champion_id = Some(eff_champ_id);
+            state.detected_champion_name = Some(champ_display.clone());
+        }
+        state.resolved_loadout = Some(loadout.clone());
+        state.add_event(ev_type, &ev_msg);
+    }
+
+    super::client_bridge::notify_state_changed();
+
+    let deferred = ev_type == "MOD_DEFERRED";
+    Ok(serde_json::json!({
+        "ok": true,
+        "championId": eff_champ_id,
+        "skinId": skin_id,
+        "lcuSelection": lcu_ok,
+        "lcuDetail": lcu_detail,
+        "appliedInGame": loadout.applied_in_game,
+        "deferred": deferred,
+        "modHash": loadout.mod_hash,
+        "applyMessage": ev_msg,
+        "loadout": loadout,
+    }))
 }
 
 /// Inspects LCU Champ Select session to retrieve the selected champion ID.
@@ -500,7 +737,29 @@ pub(crate) fn handle_champ_select_loadout_at(
         );
     }
 
-    if loadout.source != "ModLibrary" && loadout.source != "Preset" {
+    if loadout.source == "OfficialDefault" {
+        if let Ok(tracker) = get_tracker().lock().map(|t| t.clone()) {
+            if tracker.active_applied_mod_hash.is_some() {
+                let _ = super::library::rollback_at(customization_root, opts);
+                if let Ok(mut w) = get_tracker().lock() {
+                    w.active_applied_mod_hash = None;
+                    w.pending_restore_after_match = false;
+                }
+            }
+        }
+        if let Ok(mut w) = get_tracker().lock() {
+            w.match_apply_status = "default-skin".into();
+        }
+        return (
+            "CHAMP_DETECTED",
+            format!(
+                "Champion detected: {} (ID {}). Classic/Default skin active ({}).",
+                loadout.champion_name, loadout.champion_id, loadout.skin_or_mod_name
+            ),
+        );
+    }
+
+    if loadout.source != "ModLibrary" && loadout.source != "Preset" && loadout.source != "SkinSelection" {
         if let Ok(tracker) = get_tracker().lock().map(|t| t.clone()) {
             if tracker.active_applied_mod_hash.is_some() {
                 let _ = super::library::rollback_at(customization_root, opts);
@@ -526,13 +785,18 @@ pub(crate) fn handle_champ_select_loadout_at(
         if let Ok(mut w) = get_tracker().lock() {
             w.match_apply_status = "no-mod".into();
         }
-        return (
-            "MOD_REFERENCE",
+        let msg = if loadout.source == "SkinSelection" {
+            format!(
+                "Champion detected: {} (ID {}). Selected skin '{}' recorded; no prepared mod overlay/package available for in-game apply yet.",
+                loadout.champion_name, loadout.champion_id, loadout.skin_or_mod_name
+            )
+        } else {
             format!(
                 "Champion detected: {} (ID {}). Matching mod '{}' has no package hash.",
                 loadout.champion_name, loadout.champion_id, loadout.skin_or_mod_name
-            ),
-        );
+            )
+        };
+        return ("MOD_REFERENCE", msg);
     };
 
     // If swapping away from a different previously activated champion mod, clean up first.
@@ -573,6 +837,11 @@ pub(crate) fn handle_champ_select_loadout_at(
 
     match super::library::stage_overlay_at(customization_root, Some(&[mod_hash.clone()]), opts) {
         Ok(report) => {
+            let mod_kind = if loadout.source == "SkinSelection" {
+                "official skin overlay"
+            } else {
+                "custom mod"
+            };
             loadout.applied_in_game = report.applied_in_game;
             loadout.limitation = report.message.clone();
             if report.applied_in_game {
@@ -584,7 +853,7 @@ pub(crate) fn handle_champ_select_loadout_at(
                 (
                     "MOD_APPLIED",
                     format!(
-                        "Champion detected: {} (ID {}). Activated custom mod '{}': {}",
+                        "Champion detected: {} (ID {}). Activated {mod_kind} '{}': {}",
                         loadout.champion_name,
                         loadout.champion_id,
                         loadout.skin_or_mod_name,
@@ -612,7 +881,7 @@ pub(crate) fn handle_champ_select_loadout_at(
                 (
                     "MOD_APPLY_FAILED",
                     format!(
-                        "Custom mod '{}' could not be activated: {}",
+                        "Failed activating {mod_kind} '{}': {}",
                         loadout.skin_or_mod_name, report.message
                     ),
                 )
@@ -639,7 +908,7 @@ pub(crate) fn handle_champ_select_loadout_at(
             (
                 "MOD_APPLY_FAILED",
                 format!(
-                    "Failed activating custom mod '{}' for {}: {err}",
+                    "Failed activating '{}' for {}: {err}",
                     loadout.skin_or_mod_name, loadout.champion_name
                 ),
             )
@@ -793,12 +1062,57 @@ pub fn poll_tick(app: &AppHandle) {
     match phase_val.as_str() {
         "ChampSelect" => {
             let picked_champ = inspect_champ_select_session(&client).ok().flatten();
-            let mut new_selection: Option<(u32, String, ResolvedLoadout, (&'static str, String))> =
+            let mut new_selection: Option<(u32, String, ResolvedLoadout, (&'static str, String), Option<u64>)> =
                 None;
             if let Some(champ_id) = picked_champ {
-                if previous_champ_id != Some(champ_id) {
-                    let champ_name = champion_name_from_id(champ_id);
-                    let mut loadout = resolve_loadout_for_champion(app, champ_id, champ_name);
+                // Auto-fetch DDragon skins in the background when not yet cached so Pengu & UI populate automatically.
+                let need_catalog_fetch = root.as_deref().is_some_and(|r| {
+                    super::skin_catalog::list_cached_skins_for_numeric_champion_at(r, champ_id)
+                        .is_none()
+                });
+                if need_catalog_fetch {
+                    let should_spawn = get_tracker()
+                        .lock()
+                        .map(|mut t| {
+                            if t.last_ddragon_fetch_champ_id != Some(champ_id) {
+                                t.last_ddragon_fetch_champ_id = Some(champ_id);
+                                true
+                            } else {
+                                false
+                            }
+                        })
+                        .unwrap_or(false);
+                    if should_spawn {
+                        let app_bg = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            if super::skin_catalog::ensure_champion_detail_cached(&app_bg, champ_id)
+                                .await
+                                .is_some()
+                            {
+                                super::client_bridge::notify_state_changed();
+                            }
+                        });
+                    }
+                }
+
+                let selection_obj = root
+                    .as_deref()
+                    .and_then(|r| super::skin_catalog::read_skin_selection_at(r, champ_id));
+                let selection_ts = selection_obj.as_ref().map(|s| s.updated_at);
+                let prev_selection_ts = get_tracker()
+                    .lock()
+                    .ok()
+                    .and_then(|t| t.last_skin_selection_updated_at);
+
+                if previous_champ_id != Some(champ_id) || selection_ts != prev_selection_ts {
+                    let champ_name = resolve_display_champion_name(root.as_deref(), champ_id);
+                    let mut loadout = resolve_loadout_for_champion(app, champ_id, &champ_name);
+
+                    if cfg.auto_apply_mods && loadout.mod_hash.is_some() {
+                        let preferred = selection_obj.as_ref().map(|s| s.skin_id);
+                        let _ = ensure_lcu_skin_slot_for_mod(preferred, champ_id);
+                    }
+
                     let ev = if let Some(ref r) = root {
                         handle_champ_select_loadout_at(r, &mut loadout, cfg.auto_apply_mods, &probe_opts)
                     } else {
@@ -810,7 +1124,7 @@ pub fn poll_tick(app: &AppHandle) {
                             ),
                         )
                     };
-                    new_selection = Some((champ_id, champ_name.to_string(), loadout, ev));
+                    new_selection = Some((champ_id, champ_name, loadout, ev, selection_ts));
                 }
             }
 
@@ -820,7 +1134,7 @@ pub fn poll_tick(app: &AppHandle) {
                 state.error_message = None;
                 state.gameflow_phase = Some(phase_val);
                 state.phase = RunnerPhase::ChampSelect;
-                if let Some((champ_id, champ_name, loadout, (ev_type, ev_msg))) = new_selection {
+                if let Some((champ_id, champ_name, loadout, (ev_type, ev_msg), sel_ts)) = new_selection {
                     state.detected_champion_id = Some(champ_id);
                     state.detected_champion_name = Some(champ_name.clone());
                     state.add_event(ev_type, &ev_msg);
@@ -828,6 +1142,7 @@ pub fn poll_tick(app: &AppHandle) {
                     if let Ok(mut tracker) = get_tracker().lock() {
                         tracker.last_champion_id = Some(champ_id);
                         tracker.last_champion_name = Some(champ_name);
+                        tracker.last_skin_selection_updated_at = sel_ts;
                     }
                 }
             }
@@ -946,6 +1261,8 @@ struct ApplyTrackerState {
     pending_restore_after_match: bool,
     last_champion_id: Option<u32>,
     last_champion_name: Option<String>,
+    last_skin_selection_updated_at: Option<u64>,
+    last_ddragon_fetch_champ_id: Option<u32>,
     warm_stage_status: String,
 }
 
@@ -958,6 +1275,8 @@ impl Default for ApplyTrackerState {
             pending_restore_after_match: false,
             last_champion_id: None,
             last_champion_name: None,
+            last_skin_selection_updated_at: None,
+            last_ddragon_fetch_champ_id: None,
             warm_stage_status: "idle".into(),
         }
     }
@@ -1138,15 +1457,18 @@ pub async fn in_game_runner_apply_matched_mod(
         let Some(loadout) = loadout_opt else {
             return Err("No champion loadout is currently resolved from ChampSelect.".into());
         };
-        if !loadout.source.eq_ignore_ascii_case("ModLibrary") {
-            return Err(
-                "Matched entry is Preset metadata only. Policy permits activating verified custom .fantome/.modpkg ModLibrary packages only."
-                    .into(),
-            );
+        if !(loadout.source.eq_ignore_ascii_case("ModLibrary")
+            || loadout.source.eq_ignore_ascii_case("SkinSelection")
+            || (loadout.source.eq_ignore_ascii_case("Preset") && loadout.mod_hash.is_some()))
+        {
+            return Err(format!(
+                "Matched entry ({}) has no applicable mod/skin overlay package to activate.",
+                loadout.source
+            ));
         }
         let target_hash = loadout
             .mod_hash
-            .ok_or_else(|| "Matched ModLibrary entry has no package SHA-256.".to_string())?;
+            .ok_or_else(|| "Matched loadout entry has no package SHA-256.".to_string())?;
 
         let tracker_hint = get_tracker()
             .lock()
@@ -1360,6 +1682,78 @@ mod tests {
         let (ev_type, _) = handle_champ_select_loadout_at(&temp, &mut preset_loadout, true, &opts);
         assert_eq!(ev_type, "PRESET_REFERENCE");
         assert!(!preset_loadout.applied_in_game);
+        let _ = std::fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn resolve_loadout_generates_official_skin_overlay_and_handles_base_skin() {
+        let _serial = super::super::game_adapter::test_serial_guard();
+        let temp = std::env::temp_dir().join(format!(
+            "laap-runner-skin-sel-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_dir_all(&temp);
+        let root = temp.join("root");
+        let game_dir = temp.join("League");
+        let final_champs = game_dir.join("Game").join("DATA").join("FINAL").join("Champions");
+        std::fs::create_dir_all(&final_champs).unwrap();
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(game_dir.join("Game").join("League of Legends.exe"), b"MZ").unwrap();
+
+        // Point game_path.json to our synthetic League folder
+        super::storage::write(
+            &root.join("game_path.json"),
+            &serde_json::json!({ "leaguePath": game_dir.to_string_lossy() }),
+        )
+        .unwrap();
+
+        // Write minimal PROP skin0 & skin1 entries inside Ahri.wad.client
+        fn minimal_skin_prop(champ_skin_name: &str) -> Vec<u8> {
+            let mut body = Vec::new();
+            // path_hash (arbitrary) + u16 field_count (1)
+            body.extend_from_slice(&0x1234_5678u32.to_le_bytes());
+            body.extend_from_slice(&1u16.to_le_bytes());
+            body.extend_from_slice(&super::super::skin_overlay::fnv1a_lower("championSkinName").to_le_bytes());
+            body.push(0x10); // String
+            body.extend_from_slice(&(champ_skin_name.len() as u16).to_le_bytes());
+            body.extend_from_slice(champ_skin_name.as_bytes());
+
+            let mut out = Vec::new();
+            out.extend_from_slice(b"PROP");
+            out.extend_from_slice(&2u32.to_le_bytes());
+            out.extend_from_slice(&0u32.to_le_bytes());
+            out.extend_from_slice(&1u32.to_le_bytes());
+            out.extend_from_slice(&super::super::skin_overlay::fnv1a_lower("SkinCharacterDataProperties").to_le_bytes());
+            out.extend_from_slice(&(body.len() as u32).to_le_bytes());
+            out.extend_from_slice(&body);
+            out
+        }
+        let wad = super::super::wad_tool::create_wad_v3(&[
+            ("data/characters/ahri/skins/skin0.bin".into(), minimal_skin_prop("AhriSkin00")),
+            ("data/characters/ahri/skins/skin1.bin".into(), minimal_skin_prop("AhriSkin01")),
+        ])
+        .unwrap();
+        std::fs::write(final_champs.join("Ahri.wad.client"), wad).unwrap();
+
+        // Select skin 1 -> resolves SkinSelection with generated overlay mod_hash
+        let resp = apply_selected_skin_at(&root, 103, 103001, Some("Ahri")).unwrap();
+        assert_eq!(resp["ok"], true);
+        let mod_hash = resp["modHash"].as_str().expect("official skin overlay generated");
+        assert!(!mod_hash.is_empty());
+
+        let loadout = resolve_loadout_for_champion_at(&root, 103, "Ahri");
+        assert_eq!(loadout.source, "SkinSelection");
+        assert_eq!(loadout.mod_hash.as_deref(), Some(mod_hash));
+
+        // Select base skin 0 -> resolves OfficialDefault (no overlay)
+        super::super::skin_catalog::save_skin_selection_at(&root, 103, 103000, Some("Ahri")).unwrap();
+        let default_loadout = resolve_loadout_for_champion_at(&root, 103, "Ahri");
+        assert_eq!(default_loadout.source, "OfficialDefault");
+        assert!(default_loadout.mod_hash.is_none());
+
         let _ = std::fs::remove_dir_all(&temp);
     }
 }

@@ -136,6 +136,38 @@ export interface ExtractionSummary {
   extractedFiles: string[]
 }
 
+export interface BootstrapStatus {
+  ok: boolean
+  leagueDetected: boolean
+  adapterConfigured: boolean
+  managedBackendReady: boolean
+  runnerAutoApplyEnabled: boolean
+  detail: string
+  setupNeeded: boolean
+  provisionState?: string
+  provisionProgressPct?: number | null
+  provisionDetail?: string | null
+  penguDetected?: boolean
+  penguPluginInstalled?: boolean
+  adapterPath?: string | null
+  leaguePath?: string | null
+}
+
+export interface SkinOption {
+  id: string
+  num: number
+  name: string
+  chromas: boolean
+  isBase: boolean
+}
+
+export interface ChampionSkins {
+  championId: string
+  championName: string
+  championKey: string | null
+  skins: SkinOption[]
+}
+
 export interface CreatorProject {
   id: string
   name: string
@@ -728,3 +760,31 @@ export const customizationDiagnostics = {
 }
 
 export const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error)
+
+export const customizationBootstrap = {
+  status: () => invokeTauri<BootstrapStatus>('customization_bootstrap_status'),
+  ensure: () => invokeTauri<BootstrapStatus>('customization_bootstrap_ensure'),
+  provision: () => invokeTauri<BootstrapStatus>('customization_bootstrap_provision'),
+}
+
+export const skinCatalog = {
+  forChampion: (championId: string) =>
+    invokeTauri<ChampionSkins | null>('skin_catalog_for_champion', { championId }),
+  forNumericChampion: (numericChampionId: number) =>
+    invokeTauri<ChampionSkins | null>('skin_catalog_for_numeric_champion', { numericChampionId }),
+  select: (championId: number, skinId: number, championName?: string | null) =>
+    invokeTauri<{
+      ok: boolean
+      championId: number
+      skinId: number
+      lcuSelection: boolean
+      lcuDetail?: string | null
+      appliedInGame?: boolean
+      deferred?: boolean
+      modHash?: string | null
+      applyMessage?: string | null
+    }>(
+      'skin_select',
+      { championId, skinId, championName: championName ?? null },
+    ),
+}

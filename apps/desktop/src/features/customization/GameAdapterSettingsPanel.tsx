@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  customizationBootstrap,
   customizationDiagnostics,
   gameAdapter,
   gamePath,
   type AdapterLifecycleState,
   type AdapterStatusReport,
+  type BootstrapStatus,
   type GameAdapterConfig,
   type GameInstallInfo,
   type SelfTestStep,
@@ -78,6 +80,8 @@ export function GameAdapterSettingsPanel() {
   const [installInfo, setInstallInfo] = useState<GameInstallInfo | null>(null)
   const [customLeagueInput, setCustomLeagueInput] = useState('')
   const [statusReport, setStatusReport] = useState<AdapterStatusReport | null>(null)
+  const [bootstrapStatus, setBootstrapStatus] = useState<BootstrapStatus | null>(null)
+  const [provisionBusy, setProvisionBusy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -85,12 +89,16 @@ export function GameAdapterSettingsPanel() {
 
   const refreshAll = useCallback(async (runLiveProbe = true) => {
     try {
-      const [cfgRes, instRes] = await Promise.allSettled([
+      const [cfgRes, instRes, bootRes] = await Promise.allSettled([
         gameAdapter.getConfig(),
         gamePath.getInstallInfo(),
+        customizationBootstrap.status(),
       ])
       if (cfgRes.status === 'fulfilled' && cfgRes.value) {
         setConfig(cfgRes.value)
+      }
+      if (bootRes.status === 'fulfilled' && bootRes.value) {
+        setBootstrapStatus(bootRes.value)
       }
       if (instRes.status === 'fulfilled' && instRes.value) {
         setInstallInfo(instRes.value)
@@ -116,6 +124,27 @@ export function GameAdapterSettingsPanel() {
   useEffect(() => {
     void refreshAll(true)
   }, [refreshAll])
+
+  useEffect(() => {
+    if (
+      bootstrapStatus?.provisionState !== 'downloading' &&
+      bootstrapStatus?.provisionState !== 'extracting'
+    ) {
+      return
+    }
+    const timer = setInterval(() => {
+      void customizationBootstrap
+        .status()
+        .then((next) => {
+          if (next) setBootstrapStatus(next)
+          if (next?.managedBackendReady) {
+            void refreshAll(true)
+          }
+        })
+        .catch(() => {})
+    }, 1500)
+    return () => clearInterval(timer)
+  }, [bootstrapStatus?.provisionState, refreshAll])
 
   async function saveAdapterConfig(next: GameAdapterConfig, successMsg?: string) {
     const previous = config
@@ -243,6 +272,22 @@ export function GameAdapterSettingsPanel() {
     }
   }
 
+  async function handleProvisionManaged() {
+    setProvisionBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const next = await customizationBootstrap.provision()
+      setBootstrapStatus(next)
+      setNotice(next.provisionDetail || next.detail)
+      await refreshAll(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setProvisionBusy(false)
+    }
+  }
+
   const badgeColor = adapterStateBadgeColor(statusReport?.state)
 
   return (
@@ -361,6 +406,59 @@ export function GameAdapterSettingsPanel() {
         </div>
       </div>
 
+      {/* Managed Patcher Backend (mod-tools) Status */}
+      <div
+        data-testid="studio-managed-backend-card"
+        style={{
+          marginTop: '12px',
+          padding: '10px',
+          borderRadius: '6px',
+          background: 'rgba(255,255,255,0.04)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '8px',
+          fontSize: '0.84rem',
+        }}
+      >
+        <div>
+          <strong>Managed Patcher (<code>mod-tools</code>):</strong>{' '}
+          {bootstrapStatus ? (
+            <>
+              <span style={{ color: bootstrapStatus.managedBackendReady ? '#22c55e' : '#f59e0b', fontWeight: 600 }}>
+                {bootstrapStatus.managedBackendReady
+                  ? 'Ready'
+                  : bootstrapStatus.provisionState === 'downloading'
+                    ? `Downloading${bootstrapStatus.provisionProgressPct != null ? ` (${bootstrapStatus.provisionProgressPct}%)` : '…'}`
+                    : bootstrapStatus.provisionState === 'extracting'
+                      ? 'Extracting…'
+                      : bootstrapStatus.provisionState === 'failed'
+                        ? 'Provisioning Failed'
+                        : 'Setup Needed'}
+              </span>
+              <div className="customization-source" style={{ marginTop: '3px' }}>
+                {bootstrapStatus.provisionDetail || bootstrapStatus.detail}
+              </div>
+            </>
+          ) : (
+            <span className="customization-source">Managed provisioning status unavailable.</span>
+          )}
+        </div>
+        <button
+          type="button"
+          disabled={
+            busy ||
+            provisionBusy ||
+            bootstrapStatus?.provisionState === 'downloading' ||
+            bootstrapStatus?.provisionState === 'extracting'
+          }
+          onClick={handleProvisionManaged}
+        >
+          {provisionBusy ? 'Provisioning...' : 'Provision Managed mod-tools'}
+        </button>
+      </div>
+
       {/* Verification Status Summary */}
       {statusReport && (
         <div
@@ -374,18 +472,20 @@ export function GameAdapterSettingsPanel() {
           }}
         >
           <div>
-            <strong>Backend:</strong> {statusReport.backend}
+            <strong>Backend:</strong> {statusReport.backend ?? 'external'}
             {' '}| <strong>Capabilities:</strong>{' '}
-            {statusReport.capabilities.join(', ')}
+            {statusReport.capabilities?.length
+              ? statusReport.capabilities.join(', ')
+              : '—'}
           </div>
           <div>
             <strong>Version:</strong> {statusReport.version ?? '—'}{' '}
             | <strong>Supported Builds:</strong>{' '}
-            {statusReport.supportedGameBuilds.length > 0
+            {statusReport.supportedGameBuilds?.length
               ? statusReport.supportedGameBuilds.join(', ')
               : '—'}{' '}
             | <strong>Formats:</strong>{' '}
-            {statusReport.supportedFormats.length > 0
+            {statusReport.supportedFormats?.length
               ? statusReport.supportedFormats.join(', ')
               : '—'}
             {statusReport.discoverySource ? (

@@ -38,10 +38,11 @@ const MAX_CONFIG_BYTES: u64 = 256 * 1024;
 pub const BRIDGE_PROTOCOL_VERSION: u32 = 1;
 pub const COMPANION_PLUGIN_VERSION: &str = "1.0.0";
 
-const ALLOWED_CAPABILITIES: [&str; 4] = [
+const ALLOWED_CAPABILITIES: [&str; 5] = [
     "surfaces_css",
     "gameflow_status",
     "custom_mod_select",
+    "select_skin",
     "restore_defaults",
 ];
 
@@ -140,6 +141,15 @@ pub struct BridgeCustomModSummary {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BridgeSkinOption {
+    pub id: String,
+    pub num: u32,
+    pub name: String,
+    pub chromas: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BridgeStateSnapshot {
     pub protocol_version: u32,
     pub capabilities: Vec<String>,
@@ -155,6 +165,12 @@ pub struct BridgeStateSnapshot {
     pub adapter_available: bool,
     pub adapter_state: super::game_adapter::AdapterLifecycleState,
     pub available_custom_mods: Vec<BridgeCustomModSummary>,
+    /// All known skins for the currently detected champion (from cached catalog).
+    #[serde(default)]
+    pub available_skins: Vec<BridgeSkinOption>,
+    /// Currently selected official skin ID for the detected champion, if any.
+    #[serde(default)]
+    pub selected_skin_id: Option<u32>,
 }
 
 struct BridgeRuntime {
@@ -323,7 +339,7 @@ pub fn is_allowed_origin(origin: Option<&str>) -> bool {
     }
 }
 
-fn load_or_init_config_at(root: &Path) -> Result<ClientBridgeConfig, String> {
+pub(crate) fn load_or_init_config_at(root: &Path) -> Result<ClientBridgeConfig, String> {
     let _guard = config_lock().lock().map_err(|_| "Bridge config lock failed.")?;
     let path = root.join(CONFIG_FILE);
     let mut cfg = storage::read::<ClientBridgeConfig>(&path, MAX_CONFIG_BYTES)?.unwrap_or_default();
@@ -334,7 +350,7 @@ fn load_or_init_config_at(root: &Path) -> Result<ClientBridgeConfig, String> {
     Ok(cfg)
 }
 
-fn save_config_at(root: &Path, cfg: &ClientBridgeConfig) -> Result<(), String> {
+pub(crate) fn save_config_at(root: &Path, cfg: &ClientBridgeConfig) -> Result<(), String> {
     let _guard = config_lock().lock().map_err(|_| "Bridge config lock failed.")?;
     storage::write(&root.join(CONFIG_FILE), cfg)
 }
@@ -370,7 +386,7 @@ fn sanitize_mods_for_bridge(
 
     items
         .into_iter()
-        .filter(|m| m.enabled)
+        .filter(|m| m.enabled && !m.manifest.mod_id.starts_with("official_"))
         .map(|m| {
             let name_lower = m.manifest.display_name.to_ascii_lowercase();
             let id_lower = m.manifest.mod_id.to_ascii_lowercase();
@@ -414,6 +430,23 @@ pub(crate) fn build_bridge_state_at(root: &Path) -> Result<BridgeStateSnapshot, 
     );
 
     let available_custom_mods = sanitize_mods_for_bridge(root, detected_champion_name.as_deref());
+    let available_skins = detected_champion_id
+        .and_then(|id| super::skin_catalog::list_cached_skins_for_numeric_champion_at(root, id))
+        .map(|info| {
+            info.skins
+                .into_iter()
+                .map(|s| BridgeSkinOption {
+                    id: s.id,
+                    num: s.num,
+                    name: s.name,
+                    chromas: s.chromas,
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let selected_skin_id = detected_champion_id
+        .and_then(|id| super::skin_catalog::read_skin_selection_at(root, id))
+        .map(|sel| sel.skin_id);
 
     Ok(BridgeStateSnapshot {
         protocol_version: BRIDGE_PROTOCOL_VERSION,
@@ -430,6 +463,8 @@ pub(crate) fn build_bridge_state_at(root: &Path) -> Result<BridgeStateSnapshot, 
         adapter_available: probe.available,
         adapter_state: probe.state,
         available_custom_mods,
+        available_skins,
+        selected_skin_id,
     })
 }
 
@@ -580,6 +615,12 @@ fn dispatch_rpc_at(
 
             match library::stage_overlay_at(root, Some(&[mod_sha256.to_string()]), &opts) {
                 Ok(report) => {
+                    if let Some(cid) = in_game_runner::current_bridge_observation().3 {
+                        let _ = super::skin_catalog::clear_skin_selection_at(root, cid);
+                        if report.applied_in_game {
+                            let _ = in_game_runner::ensure_lcu_skin_slot_for_mod(None, cid);
+                        }
+                    }
                     let state_str = format!("{:?}", report.adapter_state).to_ascii_lowercase();
                     in_game_runner::record_external_apply_outcome(
                         mod_sha256,
@@ -610,6 +651,58 @@ fn dispatch_rpc_at(
                 ),
             }
         }
+        "select_skin" => {
+            let skin_id = req_value
+                .get("skinId")
+                .or_else(|| req_value.get("skin_id"))
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0) as u32;
+            let champion_id = req_value
+                .get("championId")
+                .or_else(|| req_value.get("champion_id"))
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0) as u32;
+            let champion_name = req_value
+                .get("championName")
+                .or_else(|| req_value.get("champion_name"))
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+
+            if skin_id == 0 {
+                return (
+                    wrap_response(serde_json::json!({
+                        "ok": false,
+                        "command": "select_skin",
+                        "error": "Missing or invalid skinId."
+                    })),
+                    false,
+                );
+            }
+
+            match in_game_runner::apply_selected_skin_at(
+                root,
+                champion_id,
+                skin_id,
+                champion_name.as_deref(),
+            ) {
+                Ok(mut result) => {
+                    let updated_state = build_bridge_state_at(root).ok();
+                    if let Some(obj) = result.as_object_mut() {
+                        obj.insert("command".into(), serde_json::json!("select_skin"));
+                        obj.insert("state".into(), serde_json::json!(updated_state));
+                    }
+                    (wrap_response(result), true)
+                }
+                Err(e) => (
+                    wrap_response(serde_json::json!({
+                        "ok": false,
+                        "command": "select_skin",
+                        "error": e
+                    })),
+                    false,
+                ),
+            }
+        }
         "restore_defaults" => {
             let gf_phase = in_game_runner::current_gameflow_phase();
             let mut opts = super::game_adapter::ProbeOptions::default();
@@ -618,6 +711,9 @@ fn dispatch_rpc_at(
 
             match library::rollback_at(root, &opts) {
                 Ok(report) => {
+                    if let Some(cid) = in_game_runner::current_bridge_observation().3 {
+                        let _ = super::skin_catalog::clear_skin_selection_at(root, cid);
+                    }
                     in_game_runner::record_external_restore_outcome(
                         report.game_overlay_cleaned,
                         report.deferred_reason.is_some(),
@@ -1255,6 +1351,9 @@ function sendBridgeCommand(command, payload = {}) {
   }));
 }
 
+let skinSearchQuery = '';
+let lastActionFeedback = '';
+
 function renderChampSelectDrawer(state) {
   let drawer = document.getElementById(DRAWER_ELEMENT_ID);
   if (!state || state.gameflowPhase !== 'ChampSelect') {
@@ -1264,56 +1363,126 @@ function renderChampSelectDrawer(state) {
   if (!drawer) {
     drawer = document.createElement('div');
     drawer.id = DRAWER_ELEMENT_ID;
-    drawer.style.cssText = 'position:fixed;right:18px;bottom:84px;z-index:99999;background:rgba(18,13,26,0.92);color:#f3e8ff;border:1px solid rgba(179,136,255,0.45);border-radius:10px;padding:10px 12px;width:270px;font-family:sans-serif;box-shadow:0 8px 24px rgba(0,0,0,0.45);backdrop-filter:blur(8px);';
+    drawer.style.cssText = 'position:fixed;right:18px;bottom:84px;z-index:99999;background:rgba(18,13,26,0.95);color:#f3e8ff;border:1px solid rgba(179,136,255,0.45);border-radius:10px;padding:10px 12px;width:308px;max-height:72vh;overflow:auto;font-family:sans-serif;box-shadow:0 8px 24px rgba(0,0,0,0.45);backdrop-filter:blur(8px);';
     document.body.appendChild(drawer);
   }
 
-  const champ = state.detectedChampionName ? `${state.detectedChampionName}` : 'Picking Champion';
+  const champ = state.detectedChampionName ? String(state.detectedChampionName) : 'Champion';
+  const skins = Array.isArray(state.availableSkins) ? state.availableSkins : [];
   const mods = Array.isArray(state.availableCustomMods) ? state.availableCustomMods : [];
-  const prioritized = [...mods].sort((a, b) => Number(b.matchesChampion) - Number(a.matchesChampion)).slice(0, 6);
+  const prioritizedMods = [...mods].sort((a, b) => Number(b.matchesChampion) - Number(a.matchesChampion)).slice(0, 6);
+  const selectedSkinId = Number(state.selectedSkinId || 0) || null;
 
   drawer.replaceChildren();
   const header = document.createElement('div');
   header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:12px;font-weight:700;';
-  header.textContent = `LAAP Custom Mods · ${champ}`;
+  header.textContent = 'LAAP Skins · ' + champ;
   drawer.appendChild(header);
 
   const meta = document.createElement('div');
-  meta.style.cssText = 'font-size:11px;color:#c3b5d2;margin-bottom:8px;';
-  meta.textContent = `Status: ${state.matchApplyStatus || 'ready'}`;
+  meta.style.cssText = 'font-size:11px;color:#c3b5d2;margin-bottom:8px;line-height:1.35;';
+  meta.textContent = lastActionFeedback
+    ? lastActionFeedback
+    : 'Status: ' + (state.matchApplyStatus || 'ready') + (state.activeAppliedModHash ? ' · overlay active' : '');
   drawer.appendChild(meta);
 
-  if (prioritized.length === 0) {
+  const sectionTitle = (text) => {
+    const el = document.createElement('div');
+    el.style.cssText = 'font-size:11px;font-weight:700;color:#ddd6fe;margin:8px 0 4px;';
+    el.textContent = text;
+    return el;
+  };
+
+  drawer.appendChild(sectionTitle('All skins'));
+  if (skins.length === 0) {
     const empty = document.createElement('div');
-    empty.style.cssText = 'font-size:11px;color:#a78bfa;';
-    empty.textContent = 'No enabled verified custom mods in LAAP Mod Library.';
+    empty.style.cssText = 'font-size:11px;color:#a78bfa;margin-bottom:6px;';
+    empty.textContent = 'Fetching champion skins automatically...';
     drawer.appendChild(empty);
   } else {
-    for (const mod of prioritized) {
+    if (skins.length > 6) {
+      const search = document.createElement('input');
+      search.type = 'text';
+      search.placeholder = 'Search skins...';
+      search.value = skinSearchQuery;
+      search.style.cssText = 'width:100%;box-sizing:border-box;margin-bottom:6px;padding:4px 8px;border-radius:6px;border:1px solid rgba(179,136,255,0.35);background:rgba(0,0,0,0.35);color:#fff;font-size:11px;outline:none;';
+      search.oninput = (ev) => {
+        skinSearchQuery = ev.target.value || '';
+        renderChampSelectDrawer(latestState);
+        const refocus = drawer.querySelector('input[type="text"]');
+        if (refocus) {
+          refocus.focus();
+          refocus.setSelectionRange(skinSearchQuery.length, skinSearchQuery.length);
+        }
+      };
+      drawer.appendChild(search);
+    }
+    const q = skinSearchQuery.trim().toLowerCase();
+    const filteredSkins = q
+      ? skins.filter((s) => String(s.name || '').toLowerCase().includes(q))
+      : skins;
+    const listWrap = document.createElement('div');
+    listWrap.style.cssText = 'max-height:240px;overflow-y:auto;padding-right:2px;';
+    for (const skin of filteredSkins) {
+      const btn = document.createElement('button');
+      const fullId = Number(skin.id) || (Number(state.detectedChampionId || 0) * 1000 + Number(skin.num || 0));
+      const isSelected = selectedSkinId === fullId;
+      btn.style.cssText = 'display:block;width:100%;text-align:left;margin-bottom:4px;padding:5px 8px;border-radius:6px;border:1px solid ' + (isSelected ? '#a855f7' : 'rgba(255,255,255,0.12)') + ';background:' + (isSelected ? 'rgba(168,85,247,0.28)' : 'rgba(255,255,255,0.06)') + ';color:#fff;cursor:pointer;font-size:11px;';
+      const suffix = skin.chromas ? ' [chromas]' : '';
+      btn.textContent = (isSelected ? '* ' : '') + (skin.num === 0 ? 'Default: ' : '') + String(skin.name || ('Skin ' + skin.num)) + suffix;
+      btn.onclick = () => {
+        lastActionFeedback = 'Applying ' + String(skin.name || ('Skin ' + skin.num)) + '...';
+        renderChampSelectDrawer(latestState);
+        sendBridgeCommand('select_skin', {
+          skinId: fullId,
+          championId: state.detectedChampionId || 0,
+          championName: state.detectedChampionName || null,
+        });
+      };
+      listWrap.appendChild(btn);
+    }
+    drawer.appendChild(listWrap);
+  }
+
+  drawer.appendChild(sectionTitle('Custom mods'));
+  if (prioritizedMods.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'font-size:11px;color:#a78bfa;';
+    empty.textContent = 'No matching custom mods installed.';
+    drawer.appendChild(empty);
+  } else {
+    for (const mod of prioritizedMods) {
       const btn = document.createElement('button');
       const active = state.activeAppliedModHash === mod.sha256;
-      btn.style.cssText = `display:block;width:100%;text-align:left;margin-bottom:4px;padding:5px 8px;border-radius:6px;border:1px solid ${active ? '#22c55e' : 'rgba(255,255,255,0.12)'};background:${active ? 'rgba(34,197,94,0.18)' : 'rgba(255,255,255,0.06)'};color:#fff;cursor:pointer;font-size:11px;`;
-      btn.textContent = `${active ? '✓ ' : ''}${mod.displayName} (${mod.format})`;
+      btn.style.cssText = 'display:block;width:100%;text-align:left;margin-bottom:4px;padding:5px 8px;border-radius:6px;border:1px solid ' + (active ? '#22c55e' : 'rgba(255,255,255,0.12)') + ';background:' + (active ? 'rgba(34,197,94,0.18)' : 'rgba(255,255,255,0.06)') + ';color:#fff;cursor:pointer;font-size:11px;';
+      btn.textContent = (active ? '* ' : '') + String(mod.displayName) + ' (' + String(mod.format) + ')';
       btn.onclick = () => sendBridgeCommand('select_custom_mod', { modSha256: mod.sha256 });
       drawer.appendChild(btn);
     }
   }
 
-  if (state.activeAppliedModHash) {
-    const restoreBtn = document.createElement('button');
-    restoreBtn.style.cssText = 'margin-top:4px;width:100%;padding:5px 8px;border-radius:6px;border:1px solid rgba(239,68,68,0.4);background:rgba(239,68,68,0.15);color:#fecaca;cursor:pointer;font-size:11px;';
-    restoreBtn.textContent = 'Restore Default (Clear Custom Mod)';
-    restoreBtn.onclick = () => sendBridgeCommand('restore_defaults');
-    drawer.appendChild(restoreBtn);
-  }
+  const restoreBtn = document.createElement('button');
+  restoreBtn.style.cssText = 'margin-top:6px;width:100%;padding:5px 8px;border-radius:6px;border:1px solid rgba(239,68,68,0.4);background:rgba(239,68,68,0.15);color:#fecaca;cursor:pointer;font-size:11px;';
+  restoreBtn.textContent = 'Restore Default / Clear Custom Mod';
+  restoreBtn.onclick = () => sendBridgeCommand('restore_defaults');
+  drawer.appendChild(restoreBtn);
 }
 
 function handleBridgeMessage(raw) {
   let msg;
   try { msg = JSON.parse(raw); } catch { return; }
+  if (typeof msg.error === 'string' && msg.error) {
+    lastActionFeedback = 'Error: ' + msg.error;
+  } else if (typeof msg.applyMessage === 'string' && msg.applyMessage) {
+    lastActionFeedback = msg.applyMessage;
+  } else if (typeof msg.message === 'string' && msg.message && msg.command) {
+    lastActionFeedback = msg.message;
+  }
   if (msg.state) {
     latestState = msg.state;
     applySurfacesCss(latestState);
+    renderChampSelectDrawer(latestState);
+  } else if (lastActionFeedback && latestState) {
     renderChampSelectDrawer(latestState);
   }
 }
@@ -2031,6 +2200,41 @@ mod tests {
         assert_eq!(resp["ok"], false);
         let (unknown, _) = dispatch_rpc_at(&root, &hs, &serde_json::json!({ "command": "hack_memory" }));
         assert_eq!(unknown["ok"], false);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn rpc_select_skin_persists_selection_and_updates_snapshot() {
+        let _serial = test_serial_guard();
+        let root = temp_root("select-skin");
+        let hs = Arc::new(Mutex::new(None));
+
+        let (bad, _) = dispatch_rpc_at(
+            &root,
+            &hs,
+            &serde_json::json!({ "command": "select_skin", "skinId": 0 }),
+        );
+        assert_eq!(bad["ok"], false);
+
+        let (ok_resp, changed) = dispatch_rpc_at(
+            &root,
+            &hs,
+            &serde_json::json!({
+                "command": "select_skin",
+                "championId": 103,
+                "skinId": 103007,
+                "championName": "Ahri"
+            }),
+        );
+        assert!(changed);
+        assert_eq!(ok_resp["ok"], true);
+        assert_eq!(ok_resp["command"], "select_skin");
+        assert_eq!(ok_resp["skinId"], 103007);
+        assert_eq!(ok_resp["championId"], 103);
+
+        let saved = super::super::skin_catalog::read_skin_selection_at(&root, 103).expect("skin selection saved");
+        assert_eq!(saved.skin_id, 103007);
+
         let _ = fs::remove_dir_all(&root);
     }
 }

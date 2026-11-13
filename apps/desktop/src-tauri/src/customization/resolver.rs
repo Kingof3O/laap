@@ -71,7 +71,7 @@ pub fn resolve_best_mod(
 ) -> Option<ModMatch> {
     items
         .iter()
-        .filter(|item| item.enabled)
+        .filter(|item| item.enabled && !item.manifest.mod_id.starts_with("official_"))
         .filter_map(|item| {
             let confidence = score_mod_for_champion(
                 &item.manifest.display_name,

@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
 import { invokeTauri } from '../../lib/api'
 import {
+  customizationBootstrap,
   errorMessage,
   gameAdapter,
   inGameRunner,
+  skinCatalog,
   type AdapterStatusReport,
+  type BootstrapStatus,
+  type ChampionSkins,
   type InGameRunnerConfig,
   type InGameRunnerStatus,
 } from './api'
@@ -14,16 +18,22 @@ type Status = { connected: boolean; phase: string | null }
 
 export function ClientStatusPage() {
   const [status, setStatus] = useState<Status | null>(null)
-  const [consent, setConsent] = useState(false)
-  const [autoPoll, setAutoPoll] = useState(false)
+  const [consent, setConsent] = useState(true)
+  const [autoPoll, setAutoPoll] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
   const [runnerStatus, setRunnerStatus] = useState<InGameRunnerStatus | null>(null)
   const [runnerConfig, setRunnerConfig] = useState<InGameRunnerConfig | null>(null)
   const [adapterStatus, setAdapterStatus] = useState<AdapterStatusReport | null>(null)
+  const [bootstrapStatus, setBootstrapStatus] = useState<BootstrapStatus | null>(null)
+  const [provisionBusy, setProvisionBusy] = useState(false)
   const [actionNotice, setActionNotice] = useState('')
   const [monitorBusy, setMonitorBusy] = useState(false)
+  const [championSkins, setChampionSkins] = useState<ChampionSkins | null>(null)
+  const [skinBusy, setSkinBusy] = useState(false)
+  const [selectedSkinId, setSelectedSkinId] = useState<number | null>(null)
+  const [skinQuery, setSkinQuery] = useState('')
 
   async function readClientStatus(currentConsent = consent) {
     if (!currentConsent) return
@@ -123,8 +133,113 @@ export function ClientStatusPage() {
   }
 
   useEffect(() => {
-    void refreshRunnerStatus()
+    let cancelled = false
+    void (async () => {
+      try {
+        const bs = await customizationBootstrap.status().catch(() => null)
+        if (!cancelled && bs) setBootstrapStatus(bs)
+      } catch {
+        // Ignore when bootstrap command is unmocked.
+      }
+      try {
+        await inGameRunner.setEnabled(true, true).catch(() => null)
+      } catch {
+        // Ignore best-effort enable failures.
+      }
+      if (!cancelled) {
+        await readClientStatus(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
+
+  useEffect(() => {
+    if (
+      bootstrapStatus?.provisionState !== 'downloading' &&
+      bootstrapStatus?.provisionState !== 'extracting'
+    ) {
+      return
+    }
+    const timer = setInterval(() => {
+      void customizationBootstrap
+        .status()
+        .then((next) => {
+          if (next) setBootstrapStatus(next)
+          if (next?.managedBackendReady) {
+            void readClientStatus(consent)
+          }
+        })
+        .catch(() => {})
+    }, 1500)
+    return () => clearInterval(timer)
+  }, [bootstrapStatus?.provisionState, consent])
+
+  useEffect(() => {
+    const champId = runnerStatus?.detectedChampionId
+    setSelectedSkinId(null)
+    setSkinQuery('')
+    if (!champId) {
+      setChampionSkins(null)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const skins = await skinCatalog.forNumericChampion(champId)
+        if (!cancelled) setChampionSkins(skins)
+      } catch {
+        if (!cancelled) setChampionSkins(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [runnerStatus?.detectedChampionId])
+
+  async function triggerProvisioning() {
+    setProvisionBusy(true)
+    setError('')
+    try {
+      const next = await customizationBootstrap.provision()
+      setBootstrapStatus(next)
+      await readClientStatus(consent)
+    } catch (cause) {
+      setError(errorMessage(cause))
+    } finally {
+      setProvisionBusy(false)
+    }
+  }
+
+  async function selectSkin(skinId: number) {
+    const champId = runnerStatus?.detectedChampionId
+    if (!champId) return
+    setSelectedSkinId(skinId)
+    setSkinBusy(true)
+    setError('')
+    setActionNotice('')
+    try {
+      const res = await skinCatalog.select(champId, skinId, runnerStatus?.detectedChampionName ?? null)
+      const msgParts = [
+        res.applyMessage ||
+          `Skin ${skinId} selected for ${runnerStatus?.detectedChampionName ?? 'champion'}.`,
+        res.lcuSelection
+          ? 'LCU selection updated.'
+          : res.lcuDetail
+            ? `LCU: ${res.lcuDetail}`
+            : '',
+      ].filter(Boolean)
+      setActionNotice(msgParts.join(' '))
+      // Nudge runner to re-evaluate/apply with the new selection.
+      if (consent) await readClientStatus(true)
+      await refreshRunnerStatus()
+    } catch (cause) {
+      setError(errorMessage(cause))
+    } finally {
+      setSkinBusy(false)
+    }
+  }
 
   useEffect(() => {
     if (!consent || !autoPoll) return
@@ -234,6 +349,68 @@ export function ClientStatusPage() {
           </button>
         )}
       </div>
+
+      {bootstrapStatus && (
+        <div
+          data-testid="client-bootstrap-status"
+          className="customization-card"
+          style={{
+            padding: '0.85rem 1.1rem',
+            borderRadius: '8px',
+            marginBottom: '1rem',
+            border: '1px solid var(--border-color)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '10px',
+            fontSize: '0.85rem',
+          }}
+        >
+          <div>
+            <div>
+              <strong>Managed Patcher:</strong>{' '}
+              <span style={{ color: bootstrapStatus.managedBackendReady ? '#10b981' : '#f59e0b', fontWeight: 600 }}>
+                {bootstrapStatus.managedBackendReady
+                  ? 'Ready'
+                  : bootstrapStatus.provisionState === 'downloading'
+                    ? `Downloading${bootstrapStatus.provisionProgressPct != null ? ` (${bootstrapStatus.provisionProgressPct}%)` : '…'}`
+                    : bootstrapStatus.provisionState === 'extracting'
+                      ? 'Extracting…'
+                      : bootstrapStatus.provisionState === 'failed'
+                        ? 'Provisioning Failed'
+                        : 'Setup Needed'}
+              </span>
+              {' | '}
+              <strong>Pengu Companion:</strong>{' '}
+              <span style={{ color: bootstrapStatus.penguPluginInstalled ? '#10b981' : '#f59e0b', fontWeight: 600 }}>
+                {bootstrapStatus.penguPluginInstalled
+                  ? 'Installed'
+                  : bootstrapStatus.penguDetected
+                    ? 'Pengu Detected (Pending)'
+                    : 'Not Detected'}
+              </span>
+            </div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '3px' }}>
+              {bootstrapStatus.provisionDetail || bootstrapStatus.detail}
+            </div>
+          </div>
+          {(!bootstrapStatus.managedBackendReady || bootstrapStatus.provisionState === 'failed') && (
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={
+                provisionBusy ||
+                bootstrapStatus.provisionState === 'downloading' ||
+                bootstrapStatus.provisionState === 'extracting'
+              }
+              onClick={() => void triggerProvisioning()}
+            >
+              {provisionBusy ? 'Provisioning…' : 'Provision Managed Backend'}
+            </button>
+          )}
+        </div>
+      )}
 
       {error && <p role="alert" style={{ color: '#ef4444', marginBottom: '1rem' }}>{error}</p>}
 
@@ -348,6 +525,95 @@ export function ClientStatusPage() {
             </div>
           </div>
 
+          {runnerStatus?.detectedChampionId ? (
+            <div
+              style={{
+                marginTop: '1rem',
+                paddingTop: '0.85rem',
+                borderTop: '1px solid rgba(255,255,255,0.08)',
+              }}
+            >
+              <h4 style={{ margin: '0 0 8px', fontSize: '0.95rem' }}>
+                All skins for {runnerStatus.detectedChampionName ?? `Champion ${runnerStatus.detectedChampionId}`}
+              </h4>
+              <p style={{ margin: '0 0 10px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                Select any skin (including unowned). Selection is saved locally, sent best-effort to Champ Select, and prepared into an overlay for the managed patcher backend.
+              </p>
+              {!championSkins || championSkins.skins.length === 0 ? (
+                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  Fetching champion skins from Data Dragon…
+                </p>
+              ) : (
+                <>
+                  <input
+                    type="search"
+                    aria-label="Filter champion skins"
+                    placeholder="Filter skins…"
+                    value={skinQuery}
+                    onChange={(e) => setSkinQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      maxWidth: '280px',
+                      marginBottom: '10px',
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      fontSize: '0.84rem',
+                    }}
+                  />
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+                      gap: '8px',
+                      maxHeight: '320px',
+                      overflowY: 'auto',
+                      paddingRight: '4px',
+                    }}
+                  >
+                    {championSkins.skins
+                      .filter((skin) =>
+                        skin.name.toLowerCase().includes(skinQuery.trim().toLowerCase()),
+                      )
+                      .map((skin) => {
+                        const fullId = Number(skin.id) || (Number(runnerStatus.detectedChampionId || 0) * 1000 + Number(skin.num || 0))
+                        const isSelected =
+                          selectedSkinId === fullId ||
+                          (selectedSkinId === null &&
+                            matchedLoadout?.source === 'SkinSelection' &&
+                            matchedLoadout.skinOrModName === skin.name)
+                        return (
+                          <button
+                            key={skin.id}
+                            type="button"
+                            className="btn-secondary"
+                            aria-pressed={isSelected}
+                            disabled={skinBusy || !runnerStatus.detectedChampionId}
+                            onClick={() => void selectSkin(fullId)}
+                            style={{
+                              textAlign: 'left',
+                              padding: '8px 10px',
+                              fontSize: '0.82rem',
+                              whiteSpace: 'normal',
+                              border: isSelected
+                                ? '1px solid var(--color-accent-400, #38bdf8)'
+                                : undefined,
+                              background: isSelected
+                                ? 'rgba(56, 189, 248, 0.16)'
+                                : undefined,
+                            }}
+                            title={skin.chromas ? 'Has chromas' : undefined}
+                          >
+                            {skin.isBase ? 'Default: ' : ''}{skin.name}
+                            {skin.chromas ? ' • chromas' : ''}
+                          </button>
+                        )
+                      })}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : null}
+
           {/* Explicit Opt-In Adapter Activation Controls */}
           <div
             style={{
@@ -382,6 +648,7 @@ export function ClientStatusPage() {
                   !consent ||
                   !(
                     matchedLoadout?.source === 'ModLibrary' ||
+                    matchedLoadout?.source === 'SkinSelection' ||
                     (matchedLoadout?.source === 'Preset' && Boolean(matchedLoadout?.modHash))
                   ) ||
                   !(runnerStatus?.adapterAvailable ?? adapterStatus?.compatible)
@@ -410,6 +677,7 @@ export function ClientStatusPage() {
           {(status?.phase ?? runnerStatus?.gameflowPhase) === 'ChampSelect' && (
             <p role="status" style={{ marginTop: '1rem', marginBottom: 0 }}>
               {matchedLoadout?.source === 'ModLibrary' ||
+              matchedLoadout?.source === 'SkinSelection' ||
               (matchedLoadout?.source === 'Preset' && matchedLoadout?.modHash) ? (
                 matchedLoadout.appliedInGame
                   ? `Champion select active — '${matchedLoadout.skinOrModName}' activated via the configured external adapter.`

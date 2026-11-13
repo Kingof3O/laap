@@ -4,7 +4,8 @@ import {
   resolveProfileContext,
 } from "./completeContext";
 import { useStudioTheme, ThemeBackground } from "./themeRuntime";
-import { lazy, Suspense, useCallback, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { customizationBootstrap } from "./api";
 import App from "../../App";
 const StudioWorkspace = lazy(() => import("./StudioWorkspace"));
 const GameAdapterSettingsPanel = lazy(() =>
@@ -15,6 +16,20 @@ const GameAdapterSettingsPanel = lazy(() =>
 export default function CompleteApp() {
   const theme = useStudioTheme();
   const [studio, setStudio] = useState(false);
+
+  useEffect(() => {
+    // Zero-interaction bootstrap: detect/configure, start bridge/observer, and provision managed backend if needed.
+    void (async () => {
+      try {
+        const status = await customizationBootstrap.ensure();
+        if (status.setupNeeded || !status.managedBackendReady) {
+          void customizationBootstrap.provision().catch(() => {});
+        }
+      } catch {
+        // Best-effort; UI/status surfaces will reflect state.
+      }
+    })();
+  }, []);
   const [profile, setProfile] = useState<
     { id: string; name: string } | undefined
   >();

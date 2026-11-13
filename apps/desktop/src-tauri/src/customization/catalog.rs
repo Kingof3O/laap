@@ -49,30 +49,30 @@ pub struct TftItem {
 
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct Champion {
-    pub(super) id: String,
+    pub id: String,
     #[serde(default)]
-    pub(super) key: Option<String>,
-    name: String,
-    title: String,
-    tags: Vec<String>,
+    pub key: Option<String>,
+    pub name: String,
+    pub title: String,
+    pub tags: Vec<String>,
 }
 
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct ChampionDetail {
     #[serde(flatten)]
-    pub(super) champion: Champion,
-    lore: String,
-    pub(super) skins: Vec<Skin>,
+    pub champion: Champion,
+    pub lore: String,
+    pub skins: Vec<Skin>,
     #[serde(default)]
     pub variants: Vec<Variant>,
 }
 
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct Skin {
-    pub(super) id: String,
-    pub(super) num: u32,
-    name: String,
-    chromas: bool,
+    pub id: String,
+    pub num: u32,
+    pub name: String,
+    pub chromas: bool,
     #[serde(default, rename = "availableChromas")]
     pub chroma_list: Vec<Chroma>,
     #[serde(default)]
@@ -81,13 +81,13 @@ pub struct Skin {
 
 #[derive(Deserialize, Serialize)]
 pub struct Snapshot<T> {
-    pub(super) version: String,
-    pub(super) locale: String,
-    pub(super) data: T,
+    pub version: String,
+    pub locale: String,
+    pub data: T,
     #[serde(default)]
-    cached: bool,
+    pub cached: bool,
     #[serde(default)]
-    bundled: bool,
+    pub bundled: bool,
 }
 
 pub(super) fn safe_id(id: &str) -> bool {

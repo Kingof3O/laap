@@ -85,6 +85,22 @@ pub(crate) fn connection() -> Result<Option<LcuConnection>, String> {
     }
 }
 impl LcuConnection {
+    fn read_json(response: reqwest::blocking::Response) -> Result<serde_json::Value, String> {
+        let mut bytes = Vec::new();
+        response
+            .take((JSON_LIMIT + 1) as u64)
+            .read_to_end(&mut bytes)
+            .map_err(|_| "Unable to read local League response".to_string())?;
+        if bytes.len() > JSON_LIMIT {
+            return Err("Local League response too large".into());
+        }
+        if bytes.is_empty() {
+            return Ok(serde_json::Value::Null);
+        }
+        serde_json::from_slice(&bytes)
+            .map_err(|_| "Invalid response from local League client".into())
+    }
+
     pub(crate) fn get(&self, path: &str) -> Result<serde_json::Value, String> {
         let response = self
             .client
@@ -94,15 +110,26 @@ impl LcuConnection {
             .map_err(|_| "League client is not ready yet".to_string())?
             .error_for_status()
             .map_err(|_| "League client has no active login yet".to_string())?;
-        let mut bytes = Vec::new();
-        response
-            .take((JSON_LIMIT + 1) as u64)
-            .read_to_end(&mut bytes)
-            .map_err(|_| "Unable to read local League response".to_string())?;
-        if bytes.len() > JSON_LIMIT {
-            return Err("Local League response too large".into());
+        Self::read_json(response)
+    }
+
+    /// Best-effort PATCH to LCU (used for champ select skin selection). Local loopback only.
+    pub(crate) fn patch(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, String> {
+        let response = self
+            .client
+            .patch(format!("https://127.0.0.1:{}{path}", self.port))
+            .basic_auth("riot", Some(self.password.as_str()))
+            .json(body)
+            .send()
+            .map_err(|_| "League client is not ready yet".to_string())?;
+        // Some endpoints return 204/empty on success; treat non-2xx as soft failure.
+        if !response.status().is_success() {
+            return Err(format!("League client rejected request ({})", response.status()));
         }
-        serde_json::from_slice(&bytes)
-            .map_err(|_| "Invalid response from local League client".into())
+        Self::read_json(response)
     }
 }

@@ -3,10 +3,10 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs::{self, File};
-use std::io::Read;
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::sync::Mutex;
+use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use sysinfo::System;
 use tauri::AppHandle;
@@ -61,10 +61,12 @@ pub const DOCUMENTED_SUBCOMMANDS: [&str; 9] = [
     "restore_defaults",
 ];
 
-const DISCOVERABLE_BINARY_NAMES: [&str; 3] = [
+const DISCOVERABLE_BINARY_NAMES: [&str; 5] = [
     "league-mod-adapter.exe",
     "ltk-mod-cli.exe",
     "cslol-cli.exe",
+    "mod-tools.exe",
+    "cslol-mod-tools.exe",
 ];
 
 const REJECTED_SHELL_NAMES: [&str; 12] = [
@@ -93,13 +95,206 @@ pub enum AdapterBackend {
 /// Identify the adapter backend from its executable filename.
 pub fn backend_for_binary(name: &str) -> AdapterBackend {
     let lower = name.to_ascii_lowercase();
-    if lower.contains("cslol") {
+    if lower == "mod-tools.exe" || lower == "cslol-mod-tools.exe" {
+        AdapterBackend::Cslol
+    } else if lower.contains("cslol") {
         AdapterBackend::Cslol
     } else if lower.contains("ltk") {
         AdapterBackend::Ltk
     } else {
         AdapterBackend::Generic
     }
+}
+
+fn is_managed_modtools_binary(bin_path: &Path) -> bool {
+    bin_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(|n| {
+            let l = n.to_ascii_lowercase();
+            l == "mod-tools.exe" || l == "cslol-mod-tools.exe"
+        })
+        .unwrap_or(false)
+}
+
+fn managed_modtools_sibling_ok(bin_path: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        bin_path
+            .parent()
+            .map(|p| p.join("cslol-dll.dll").is_file())
+            .unwrap_or(false)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = bin_path;
+        true
+    }
+}
+
+struct ManagedOverlayProcess {
+    child: Child,
+    stdin: Option<ChildStdin>,
+    output_lines: Arc<Mutex<Vec<String>>>,
+}
+
+static MANAGED_MODTOOLS_PROC: OnceLock<Mutex<Option<ManagedOverlayProcess>>> = OnceLock::new();
+
+fn managed_proc_slot() -> &'static Mutex<Option<ManagedOverlayProcess>> {
+    MANAGED_MODTOOLS_PROC.get_or_init(|| Mutex::new(None))
+}
+
+fn push_bounded_line(buf: &Arc<Mutex<Vec<String>>>, line: String) {
+    let mut lines = buf.lock().unwrap_or_else(|e| e.into_inner());
+    if lines.len() >= 64 {
+        lines.remove(0);
+    }
+    lines.push(line);
+}
+
+fn spawn_line_reader<R: Read + Send + 'static>(
+    reader: R,
+    buf: Arc<Mutex<Vec<String>>>,
+    tag: &'static str,
+) {
+    std::thread::spawn(move || {
+        let mut br = BufReader::new(reader);
+        let mut line = String::new();
+        loop {
+            line.clear();
+            match br.read_line(&mut line) {
+                Ok(0) | Err(_) => break,
+                Ok(_) => {
+                    let trimmed = line.trim().to_string();
+                    if !trimmed.is_empty() {
+                        push_bounded_line(&buf, format!("[{tag}] {trimmed}"));
+                    }
+                }
+            }
+        }
+    });
+}
+
+fn shutdown_managed_overlay_process(mut proc_handle: ManagedOverlayProcess) {
+    // cslol mod-tools runoverlay exits cleanly on a newline to stdin (or stdin EOF).
+    if let Some(mut stdin) = proc_handle.stdin.take() {
+        let _ = stdin.write_all(b"\n");
+        let _ = stdin.flush();
+    }
+    let deadline = Instant::now() + Duration::from_millis(800);
+    loop {
+        match proc_handle.child.try_wait() {
+            Ok(Some(_)) => return,
+            Ok(None) if Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(40));
+            }
+            _ => {
+                let _ = proc_handle.child.kill();
+                let _ = proc_handle.child.wait();
+                return;
+            }
+        }
+    }
+}
+
+/// Gracefully stop any active managed mod-tools overlay process tracked in memory.
+pub(crate) fn shutdown_managed_backend() {
+    let existing = {
+        let mut guard = managed_proc_slot()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        guard.take()
+    };
+    if let Some(proc_handle) = existing {
+        shutdown_managed_overlay_process(proc_handle);
+    }
+}
+
+fn latest_managed_output_status() -> Option<String> {
+    let guard = managed_proc_slot()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    let proc_handle = guard.as_ref()?;
+    let lines = proc_handle
+        .output_lines
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    lines.last().cloned()
+}
+
+fn is_pid_running_modtools(pid: u32) -> bool {
+    let sys_pid = sysinfo::Pid::from_u32(pid);
+    let mut sys = System::new();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[sys_pid]), true);
+    sys.process(sys_pid)
+        .map(|p| {
+            let name = p.name().to_string_lossy().to_ascii_lowercase();
+            name.contains("mod-tools")
+        })
+        .unwrap_or(false)
+}
+
+fn is_managed_overlay_alive(store: &RuntimeStore) -> bool {
+    {
+        let mut guard = managed_proc_slot()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        if let Some(ref mut proc_handle) = *guard {
+            match proc_handle.child.try_wait() {
+                Ok(None) => return true,
+                Ok(Some(_)) | Err(_) => {
+                    *guard = None;
+                }
+            }
+        }
+    }
+    if let Some(pid) = store.managed_pid {
+        if is_pid_running_modtools(pid) {
+            return true;
+        }
+    }
+    if let Some(pid) = store
+        .active_game_dir
+        .as_deref()
+        .and_then(|s| s.strip_prefix("__pid__:"))
+        .and_then(|s| s.parse::<u32>().ok())
+    {
+        return is_pid_running_modtools(pid);
+    }
+    false
+}
+
+/// Resolve League's `Game` directory (containing `DATA/FINAL/`) expected by `mod-tools --game:`.
+pub(crate) fn resolve_modtools_game_dir(league_dir: &Path) -> Result<PathBuf, String> {
+    if league_dir.join("DATA").join("FINAL").is_dir() {
+        return Ok(league_dir.to_path_buf());
+    }
+    let game = league_dir.join("Game");
+    if game.join("DATA").join("FINAL").is_dir() {
+        return Ok(game);
+    }
+    let mac_lol_game = league_dir.join("Contents").join("LoL").join("Game");
+    if mac_lol_game.join("DATA").join("FINAL").is_dir() {
+        return Ok(mac_lol_game);
+    }
+    let mac_app_game = league_dir
+        .join("League of Legends.app")
+        .join("Contents")
+        .join("LoL")
+        .join("Game");
+    if mac_app_game.join("DATA").join("FINAL").is_dir() {
+        return Ok(mac_app_game);
+    }
+    if league_dir.join("League of Legends.exe").is_file() {
+        return Ok(league_dir.to_path_buf());
+    }
+    if game.join("League of Legends.exe").is_file() {
+        return Ok(game);
+    }
+    Err(format!(
+        "Could not locate League 'Game' directory containing DATA/FINAL under '{}'.",
+        league_dir.display()
+    ))
 }
 
 /// Backend capability identifiers surfaced to the UI.
@@ -199,6 +394,8 @@ struct RuntimeStore {
     pub mods: HashMap<String, ModRuntimeRecord>,
     pub active_staged_dir: Option<String>,
     pub active_game_dir: Option<String>,
+    #[serde(default)]
+    pub managed_pid: Option<u32>,
     pub last_action: Option<String>,
     pub last_action_message: Option<String>,
     pub updated_at: Option<u64>,
@@ -604,6 +801,10 @@ fn find_adapter_in_dirs(dirs: &[PathBuf], source_label: &str) -> Option<(PathBuf
         for bin_name in DISCOVERABLE_BINARY_NAMES {
             let candidate = dir.join(bin_name);
             if candidate.is_file() && validate_adapter_binary_path(&candidate).is_ok() {
+                if is_managed_modtools_binary(&candidate) && !managed_modtools_sibling_ok(&candidate)
+                {
+                    continue;
+                }
                 return Some((candidate, source_label.into()));
             }
         }
@@ -631,6 +832,15 @@ fn discover_adapter_binary_with_bundled(
     allow_path_discovery: bool,
     bundled_dirs: &[PathBuf],
 ) -> Result<Option<(PathBuf, String)>, String> {
+    discover_adapter_binary_with_roots(None, cfg, allow_path_discovery, bundled_dirs)
+}
+
+fn discover_adapter_binary_with_roots(
+    customization_root: Option<&Path>,
+    cfg: &GameAdapterConfig,
+    allow_path_discovery: bool,
+    bundled_dirs: &[PathBuf],
+) -> Result<Option<(PathBuf, String)>, String> {
     if let Some(ref configured) = cfg.adapter_path {
         let trimmed = configured.trim();
         if !trimmed.is_empty() {
@@ -643,6 +853,13 @@ fn discover_adapter_binary_with_bundled(
         return Ok(None);
     }
 
+    if let Some(root) = customization_root {
+        let managed_dir = root.join("adapters").join("mod-tools");
+        if let Some(found) = find_adapter_in_dirs(&[managed_dir], "managed") {
+            return Ok(Some(found));
+        }
+    }
+
     if let Some(found) = find_adapter_in_dirs(bundled_dirs, "bundled") {
         return Ok(Some(found));
     }
@@ -652,21 +869,44 @@ fn discover_adapter_binary_with_bundled(
         search_dirs.extend(std::env::split_paths(&path_env));
     }
     #[cfg(windows)]
-    if let Some(local_app) = std::env::var_os("LOCALAPPDATA") {
-        let base = PathBuf::from(local_app);
-        search_dirs.push(base.join("LAAP").join("adapters"));
-        search_dirs.push(base.join("Programs").join("cslol-manager"));
-        search_dirs.push(base.join("Programs").join("ltk-mod-cli"));
+    {
+        if let Some(local_app) = std::env::var_os("LOCALAPPDATA") {
+            let base = PathBuf::from(local_app);
+            search_dirs.push(base.join("LAAP").join("adapters").join("mod-tools"));
+            search_dirs.push(base.join("LAAP").join("adapters"));
+            search_dirs.push(base.join("cslol-manager").join("cslol-tools"));
+            search_dirs.push(base.join("Programs").join("cslol-manager").join("cslol-tools"));
+            search_dirs.push(base.join("Programs").join("cslol-manager"));
+            search_dirs.push(base.join("Programs").join("ltk-mod-cli"));
+        }
+        if let Some(pf) = std::env::var_os("ProgramFiles") {
+            let base = PathBuf::from(pf);
+            search_dirs.push(base.join("cslol-manager").join("cslol-tools"));
+            search_dirs.push(base.join("cslol-manager"));
+        }
     }
 
     Ok(find_adapter_in_dirs(&search_dirs, "discovered"))
 }
 
-fn discover_adapter_binary(
+pub(crate) fn discover_adapter_binary(
     cfg: &GameAdapterConfig,
     allow_path_discovery: bool,
 ) -> Result<Option<(PathBuf, String)>, String> {
     discover_adapter_binary_with_bundled(cfg, allow_path_discovery, &bundled_adapter_dirs())
+}
+
+pub(crate) fn discover_adapter_binary_at(
+    customization_root: &Path,
+    cfg: &GameAdapterConfig,
+    allow_path_discovery: bool,
+) -> Result<Option<(PathBuf, String)>, String> {
+    discover_adapter_binary_with_roots(
+        Some(customization_root),
+        cfg,
+        allow_path_discovery,
+        &bundled_adapter_dirs(),
+    )
 }
 
 fn read_capped_stream<R: Read + Send + 'static>(mut reader: R) -> std::thread::JoinHandle<String> {
@@ -986,7 +1226,7 @@ pub(crate) fn probe_adapter_at(customization_root: &Path, opts: &ProbeOptions) -
         );
     }
 
-    let discovered = match discover_adapter_binary(&cfg, opts.allow_path_discovery) {
+    let discovered = match discover_adapter_binary_at(customization_root, &cfg, opts.allow_path_discovery) {
         Ok(Some(found)) => found,
         Ok(None) => {
             return base_status_report(
@@ -1034,6 +1274,86 @@ pub(crate) fn probe_adapter_at(customization_root: &Path, opts: &ProbeOptions) -
         }
     };
     report.binary_sha256 = Some(sha256.clone());
+
+    // Managed mod-tools backend (cslol-tools): uses native overlay CLI flow (mkoverlay + runoverlay).
+    if is_managed_modtools_binary(&bin_path) {
+        report.version = Some("mod-tools".into());
+        report.supported_formats = vec!["fantome".into(), "modpkg".into(), "zip".into(), "wad".into()];
+        // Mod-tools overlay is compatible across builds; verified against local League Game/ dir.
+        report.supported_game_builds = vec![];
+
+        if !managed_modtools_sibling_ok(&bin_path) {
+            report.state = AdapterLifecycleState::Failed;
+            report.available = false;
+            report.compatible = false;
+            report.detail = format!(
+                "Managed mod-tools backend at '{}' is missing required sibling cslol-dll.dll.",
+                bin_path.display()
+            );
+            return report;
+        }
+
+        let Some(ref league_path) = league_install.league_path.clone() else {
+            report.state = AdapterLifecycleState::UnsupportedGameBuild;
+            report.detail = "Managed mod-tools backend found, but League of Legends installation directory could not be verified.".into();
+            return report;
+        };
+
+        if let Err(err) = resolve_modtools_game_dir(Path::new(league_path)) {
+            report.state = AdapterLifecycleState::UnsupportedGameBuild;
+            report.detail = err;
+            return report;
+        }
+
+        if league_install.detected_build.is_none() {
+            if let Some(hint) = opts.lcu_build_hint.as_deref().and_then(sanitize_build_string) {
+                league_install.detected_build = Some(hint);
+                report.league_install = league_install.clone();
+            }
+        }
+
+        report.available = true;
+        report.compatible = true;
+
+        let mut store = load_runtime_at(customization_root);
+        let overlay_alive = is_managed_overlay_alive(&store);
+        if !overlay_alive && (store.managed_pid.is_some() || store.active_staged_dir.is_some()) {
+            store.managed_pid = None;
+            store.active_staged_dir = None;
+            for rec in store.mods.values_mut() {
+                if matches!(rec.state, ModRuntimeState::Applied | ModRuntimeState::Staged) {
+                    rec.state = ModRuntimeState::SafeToStore;
+                    rec.updated_at = now_unix();
+                }
+            }
+            let _ = save_runtime_at(customization_root, &store);
+        }
+        report.applied_in_game = overlay_alive;
+
+        if report.applied_in_game {
+            report.state = AdapterLifecycleState::Applied;
+            let live_tail = latest_managed_output_status()
+                .map(|line| format!(" ({line})"))
+                .unwrap_or_default();
+            report.detail = format!(
+                "Managed mod-tools backend ready and active for League build {}.{live_tail}",
+                report.league_install.detected_build.as_deref().unwrap_or("unknown")
+            );
+        } else if opts.active_match_running {
+            report.state = AdapterLifecycleState::Deferred;
+            report.detail = "Managed mod-tools backend ready, but an active League match is running; changes deferred.".into();
+        } else if !cfg.user_consent_granted || !cfg.clearance_acknowledged {
+            report.state = AdapterLifecycleState::BlockedByPolicy;
+            report.detail = "Managed mod-tools backend ready. Auto-consent/clearance will be applied on bootstrap; re-check status.".into();
+        } else {
+            report.state = AdapterLifecycleState::Compatible;
+            report.detail = format!(
+                "Managed mod-tools backend ready for League build {}.",
+                report.league_install.detected_build.as_deref().unwrap_or("unknown")
+            );
+        }
+        return report;
+    }
 
     if let Some(pinned) = effective_expected_sha256(&cfg, &discovery_source) {
         if !pinned.eq_ignore_ascii_case(&sha256) {
@@ -1187,6 +1507,506 @@ fn ensure_safe_candidate_entry(path: &Path) -> Result<(), String> {
     ensure_safe_existing_entry(path, meta.is_dir())
 }
 
+fn sanitized_mod_folder_name(sha256: &str, idx: usize) -> String {
+    let prefix: String = sha256
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .take(16)
+        .collect::<String>()
+        .to_ascii_lowercase();
+    let tag = if prefix.is_empty() { "mod" } else { prefix.as_str() };
+    format!("m_{tag}_{idx}")
+}
+
+fn flatten_single_nested_mod_dir(out_dir: &Path) -> Result<(), String> {
+    if out_dir.join("WAD").is_dir() || out_dir.join("RAW").is_dir() {
+        return Ok(());
+    }
+    let entries: Vec<PathBuf> = fs::read_dir(out_dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok().map(|x| x.path()))
+        .collect();
+    if entries.len() != 1 || !entries[0].is_dir() {
+        return Ok(());
+    }
+    let nested = &entries[0];
+    if !(nested.join("WAD").is_dir()
+        || nested.join("RAW").is_dir()
+        || nested.join("META").is_dir())
+    {
+        return Ok(());
+    }
+    for sub in fs::read_dir(nested).map_err(|e| e.to_string())? {
+        let sub = sub.map_err(|e| e.to_string())?;
+        let target = out_dir.join(sub.file_name());
+        if target != sub.path() {
+            fs::rename(sub.path(), &target).map_err(|e| e.to_string())?;
+        }
+    }
+    let _ = fs::remove_dir(nested);
+    Ok(())
+}
+
+fn ensure_mod_meta_info(out_dir: &Path, mod_name: &str) -> Result<(), String> {
+    let meta_dir = out_dir.join("META");
+    let info_path = meta_dir.join("info.json");
+    if info_path.is_file() {
+        return Ok(());
+    }
+    fs::create_dir_all(&meta_dir).map_err(|e| e.to_string())?;
+    let clean_name = if mod_name.trim().is_empty() {
+        "LAAP Mod"
+    } else {
+        mod_name.trim()
+    };
+    let info = serde_json::json!({
+        "Name": clean_name,
+        "Author": "LAAP",
+        "Version": "1.0.0",
+        "Description": "Managed mod package"
+    });
+    let bytes = serde_json::to_vec_pretty(&info).map_err(|e| e.to_string())?;
+    fs::write(&info_path, bytes).map_err(|e| e.to_string())
+}
+
+fn extract_mod_to_folder(src: &Path, mod_name: &str, out_dir: &Path) -> Result<(), String> {
+    fs::create_dir_all(out_dir).map_err(|e| e.to_string())?;
+    if src.is_dir() {
+        fn copy_dir(from: &Path, to: &Path) -> Result<(), String> {
+            fs::create_dir_all(to).map_err(|e| e.to_string())?;
+            for entry in fs::read_dir(from).map_err(|e| e.to_string())? {
+                let entry = entry.map_err(|e| e.to_string())?;
+                let p = entry.path();
+                let dest = to.join(entry.file_name());
+                let meta = fs::symlink_metadata(&p).map_err(|e| e.to_string())?;
+                if meta.file_type().is_symlink() {
+                    continue;
+                }
+                if meta.is_dir() {
+                    copy_dir(&p, &dest)?;
+                } else if meta.is_file() {
+                    fs::copy(&p, &dest).map_err(|e| e.to_string())?;
+                }
+            }
+            Ok(())
+        }
+        copy_dir(src, out_dir)?;
+        flatten_single_nested_mod_dir(out_dir)?;
+        return ensure_mod_meta_info(out_dir, mod_name);
+    }
+
+    let file_name_lower = src
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if file_name_lower.ends_with(".wad.client") || file_name_lower.ends_with(".wad") {
+        let wad_dir = out_dir.join("WAD");
+        fs::create_dir_all(&wad_dir).map_err(|e| e.to_string())?;
+        let fname = src
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("mod.wad.client");
+        fs::copy(src, wad_dir.join(fname)).map_err(|e| e.to_string())?;
+        return ensure_mod_meta_info(out_dir, mod_name);
+    }
+
+    let mut f = File::open(src).map_err(|e| format!("Cannot read mod package: {e}"))?;
+    let mut magic = [0u8; 4];
+    let n = f.read(&mut magic).map_err(|e| format!("Cannot read mod package header: {e}"))?;
+    if n < 4 || magic != *b"PK\x03\x04" {
+        return Err("Unsupported mod package format for managed mod-tools backend.".into());
+    }
+    drop(f);
+
+    let file = File::open(src).map_err(|e| format!("Cannot open mod package: {e}"))?;
+    let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+    let mut total_written: u64 = 0;
+    for i in 0..zip.len() {
+        let entry = zip.by_index(i).map_err(|e| e.to_string())?;
+        let Some(enclosed) = entry.enclosed_name().map(|p| p.to_path_buf()) else {
+            continue;
+        };
+        let out_path = out_dir.join(&enclosed);
+        if entry.is_dir() {
+            fs::create_dir_all(&out_path).map_err(|e| e.to_string())?;
+            continue;
+        }
+        if let Some(parent) = out_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let mut out = File::create(&out_path).map_err(|e| e.to_string())?;
+        let copied = std::io::copy(&mut entry.take(MAX_BINARY_BYTES + 1), &mut out)
+            .map_err(|e| e.to_string())?;
+        total_written = total_written.saturating_add(copied);
+        if total_written > MAX_BINARY_BYTES {
+            return Err("Mod package exceeds extraction size cap.".into());
+        }
+    }
+    flatten_single_nested_mod_dir(out_dir)?;
+    ensure_mod_meta_info(out_dir, mod_name)
+}
+
+fn stop_managed_modtools(customization_root: &Path) {
+    shutdown_managed_backend();
+
+    let store = load_runtime_at(customization_root);
+    let legacy_pid = store
+        .active_game_dir
+        .as_deref()
+        .and_then(|s| s.strip_prefix("__pid__:"))
+        .and_then(|s| s.parse::<u32>().ok());
+    for pid in [store.managed_pid, legacy_pid].into_iter().flatten() {
+        if is_pid_running_modtools(pid) {
+            let sys_pid = sysinfo::Pid::from_u32(pid);
+            let mut sys = System::new();
+            sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[sys_pid]), true);
+            if let Some(proc_info) = sys.process(sys_pid) {
+                proc_info.kill();
+            }
+        }
+    }
+}
+
+fn run_command_with_timeout(
+    mut cmd: Command,
+    timeout: Duration,
+    label: &str,
+) -> Result<(i32, String, String), String> {
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to start {label}: {e}"))?;
+    let stdout_handle = child.stdout.take().map(read_capped_stream);
+    let stderr_handle = child.stderr.take().map(read_capped_stream);
+    let deadline = Instant::now() + timeout;
+
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(st)) => break st,
+            Ok(None) if Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(25));
+            }
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("{label} timed out after {}s.", timeout.as_secs()));
+            }
+            Err(e) => {
+                let _ = child.kill();
+                return Err(format!("Failed waiting for {label}: {e}"));
+            }
+        }
+    };
+
+    let stdout = stdout_handle
+        .and_then(|h| h.join().ok())
+        .unwrap_or_default();
+    let stderr = stderr_handle
+        .and_then(|h| h.join().ok())
+        .unwrap_or_default();
+    Ok((status.code().unwrap_or(-1), stdout, stderr))
+}
+
+fn apply_via_modtools(
+    customization_root: &Path,
+    bin_path: &Path,
+    game_dir: &str,
+    candidates: &[AdapterCandidateSpec],
+    opts: &ProbeOptions,
+) -> Result<AdapterApplyOutcome, String> {
+    if !managed_modtools_sibling_ok(bin_path) {
+        return Err(format!(
+            "Managed mod-tools backend at '{}' is missing required sibling cslol-dll.dll.",
+            bin_path.display()
+        ));
+    }
+
+    let target_game_dir = resolve_modtools_game_dir(Path::new(game_dir))?;
+    let detected_build =
+        resolve_game_install_info_safe(customization_root, opts.lcu_build_hint.as_deref())
+            .detected_build;
+
+    // Stop any prior managed runoverlay before replacing overlay workspace files.
+    stop_managed_modtools(customization_root);
+
+    let work_dir = customization_root
+        .join("adapters")
+        .join("mod-tools")
+        .join("workspace");
+    let mods_dir = work_dir.join("mods");
+    let overlay_dir = work_dir.join("overlay");
+    let _ = fs::remove_dir_all(&mods_dir);
+    let _ = fs::remove_dir_all(&overlay_dir);
+    fs::create_dir_all(&mods_dir).map_err(|e| e.to_string())?;
+    fs::create_dir_all(&overlay_dir).map_err(|e| e.to_string())?;
+
+    let mut applied_hashes = Vec::new();
+    let mut mod_folder_names = Vec::new();
+    let mut failed_hashes = Vec::new();
+    let mut first_error = None;
+    for (idx, cand) in candidates.iter().enumerate() {
+        let folder_name = sanitized_mod_folder_name(&cand.sha256, idx);
+        let mod_folder = mods_dir.join(&folder_name);
+        match extract_mod_to_folder(&cand.source_path, &cand.name, &mod_folder) {
+            Ok(_) => {
+                applied_hashes.push(cand.sha256.clone());
+                mod_folder_names.push(folder_name);
+                record_mod_state_at(
+                    customization_root,
+                    &cand.sha256,
+                    ModRuntimeState::Staged,
+                    None,
+                    None,
+                    Some("mod-tools".into()),
+                    detected_build.clone(),
+                );
+            }
+            Err(e) => {
+                failed_hashes.push(cand.sha256.clone());
+                record_mod_state_at(
+                    customization_root,
+                    &cand.sha256,
+                    ModRuntimeState::Failed,
+                    Some(e.clone()),
+                    None,
+                    Some("mod-tools".into()),
+                    detected_build.clone(),
+                );
+                if first_error.is_none() {
+                    first_error = Some(e);
+                }
+            }
+        }
+    }
+    if applied_hashes.is_empty() {
+        return Ok(AdapterApplyOutcome {
+            state: AdapterLifecycleState::Failed,
+            applied_in_game: false,
+            applied_mod_hashes: vec![],
+            deferred_mod_hashes: vec![],
+            failed_mod_hashes: failed_hashes,
+            deferred_reason: None,
+            game_overlay_directory: None,
+            message: first_error
+                .unwrap_or_else(|| "No mods could be prepared for managed mod-tools backend.".into()),
+        });
+    }
+
+    let mut mk_cmd = Command::new(bin_path);
+    mk_cmd
+        .arg("mkoverlay")
+        .arg(&mods_dir)
+        .arg(&overlay_dir)
+        .arg(format!("--game:{}", target_game_dir.display()))
+        .arg(format!("--mods:{}", mod_folder_names.join("/")))
+        .arg("--noTFT")
+        .arg("--ignoreConflict")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        mk_cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let (mk_code, mk_stdout, mk_stderr) =
+        run_command_with_timeout(mk_cmd, Duration::from_secs(60), "mod-tools mkoverlay")?;
+    if mk_code != 0 {
+        let err_tail = if !mk_stderr.trim().is_empty() {
+            mk_stderr.trim().to_string()
+        } else if !mk_stdout.trim().is_empty() {
+            mk_stdout.trim().to_string()
+        } else {
+            format!("exit code {mk_code}")
+        };
+        for h in &applied_hashes {
+            record_mod_state_at(
+                customization_root,
+                h,
+                ModRuntimeState::Failed,
+                Some(err_tail.clone()),
+                None,
+                Some("mod-tools".into()),
+                detected_build.clone(),
+            );
+        }
+        let mut all_failed = applied_hashes;
+        all_failed.extend(failed_hashes);
+        super::journal::record(
+            customization_root,
+            super::journal::JournalAction::Fail,
+            &all_failed,
+            Some("mod-tools"),
+            detected_build.as_deref(),
+            format!("Managed mod-tools mkoverlay failed: {err_tail}"),
+        );
+        return Ok(AdapterApplyOutcome {
+            state: AdapterLifecycleState::Failed,
+            applied_in_game: false,
+            applied_mod_hashes: vec![],
+            deferred_mod_hashes: vec![],
+            failed_mod_hashes: all_failed,
+            deferred_reason: None,
+            game_overlay_directory: Some(overlay_dir.to_string_lossy().into_owned()),
+            message: format!("Managed mod-tools mkoverlay failed: {err_tail}"),
+        });
+    }
+
+    let config_file = work_dir.join("runoverlay.config");
+    if !config_file.exists() {
+        let _ = fs::write(&config_file, "");
+    }
+
+    let mut run_cmd = Command::new(bin_path);
+    run_cmd
+        .arg("runoverlay")
+        .arg(&overlay_dir)
+        .arg(&config_file)
+        .arg(format!("--game:{}", target_game_dir.display()))
+        .arg("--opts:configless")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        run_cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let mut child = run_cmd
+        .spawn()
+        .map_err(|e| format!("Failed to spawn managed mod-tools runoverlay: {e}"))?;
+    let pid = child.id();
+    let stdin = child.stdin.take();
+    let output_lines = Arc::new(Mutex::new(Vec::new()));
+    if let Some(stdout) = child.stdout.take() {
+        spawn_line_reader(stdout, output_lines.clone(), "out");
+    }
+    if let Some(stderr) = child.stderr.take() {
+        spawn_line_reader(stderr, output_lines.clone(), "err");
+    }
+
+    // Wait briefly so immediate startup failures surface clearly while long-running watcher settles.
+    let settle_deadline = Instant::now() + Duration::from_millis(600);
+    loop {
+        if let Some(exit_status) = child
+            .try_wait()
+            .map_err(|e| format!("Failed polling managed mod-tools runoverlay: {e}"))?
+        {
+            std::thread::sleep(Duration::from_millis(40));
+            let captured = output_lines
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .join(" | ");
+            let detail = if captured.is_empty() {
+                format!("mod-tools runoverlay exited unexpectedly with {exit_status}.")
+            } else {
+                format!("mod-tools runoverlay exited early ({exit_status}): {captured}")
+            };
+            for h in &applied_hashes {
+                record_mod_state_at(
+                    customization_root,
+                    h,
+                    ModRuntimeState::Failed,
+                    Some(detail.clone()),
+                    None,
+                    Some("mod-tools".into()),
+                    detected_build.clone(),
+                );
+            }
+            let mut all_failed = applied_hashes;
+            all_failed.extend(failed_hashes);
+            return Ok(AdapterApplyOutcome {
+                state: AdapterLifecycleState::Failed,
+                applied_in_game: false,
+                applied_mod_hashes: vec![],
+                deferred_mod_hashes: vec![],
+                failed_mod_hashes: all_failed,
+                deferred_reason: None,
+                game_overlay_directory: Some(overlay_dir.to_string_lossy().into_owned()),
+                message: detail,
+            });
+        }
+        let saw_ready = {
+            let lines = output_lines.lock().unwrap_or_else(|e| e.into_inner());
+            lines
+                .iter()
+                .any(|l| l.contains("Status:") || l.contains("Waiting"))
+        };
+        if saw_ready || Instant::now() >= settle_deadline {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(40));
+    }
+
+    {
+        let mut guard = managed_proc_slot()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        if let Some(prev) = guard.take() {
+            shutdown_managed_overlay_process(prev);
+        }
+        *guard = Some(ManagedOverlayProcess {
+            child,
+            stdin,
+            output_lines,
+        });
+    }
+
+    for h in &applied_hashes {
+        record_mod_state_at(
+            customization_root,
+            h,
+            ModRuntimeState::Applied,
+            None,
+            None,
+            Some("mod-tools".into()),
+            detected_build.clone(),
+        );
+    }
+    super::journal::record(
+        customization_root,
+        super::journal::JournalAction::Activate,
+        &applied_hashes,
+        Some("mod-tools"),
+        detected_build.as_deref(),
+        "Managed mod-tools overlay running",
+    );
+
+    let mut store = load_runtime_at(customization_root);
+    store.active_staged_dir = Some(mods_dir.to_string_lossy().into_owned());
+    store.active_game_dir = Some(game_dir.to_string());
+    store.managed_pid = Some(pid);
+    store.last_action = Some("activate_staged".into());
+    let summary = format!(
+        "Activated {} mod(s) via managed mod-tools overlay (pid {}).",
+        applied_hashes.len(),
+        pid
+    );
+    store.last_action_message = Some(summary.clone());
+    store.updated_at = Some(now_unix());
+    let _ = save_runtime_at(customization_root, &store);
+
+    let mut updated_cfg = load_config_at(customization_root).unwrap_or_default();
+    updated_cfg.last_verified_sha256 = compute_sha256_file(bin_path).ok();
+    updated_cfg.last_verified_version = Some("mod-tools".into());
+    let _ = storage::write(&config_file_for_root(customization_root), &updated_cfg);
+
+    Ok(AdapterApplyOutcome {
+        state: AdapterLifecycleState::Applied,
+        applied_in_game: true,
+        applied_mod_hashes: applied_hashes,
+        deferred_mod_hashes: vec![],
+        failed_mod_hashes: failed_hashes,
+        deferred_reason: None,
+        game_overlay_directory: Some(overlay_dir.to_string_lossy().into_owned()),
+        message: summary,
+    })
+}
+
 pub(crate) fn apply_candidates_via_adapter_at(
     customization_root: &Path,
     staging_dir: &Path,
@@ -1326,6 +2146,11 @@ pub(crate) fn apply_candidates_via_adapter_at(
         .clone()
         .ok_or_else(|| "Verified League installation path unavailable.".to_string())?;
     let detected_build = probe.league_install.detected_build.clone();
+
+    // Managed mod-tools backend: native overlay flow (no LAAP JSON CLI protocol).
+    if is_managed_modtools_binary(&bin_path) {
+        return apply_via_modtools(customization_root, &bin_path, &game_dir, candidates, opts);
+    }
 
     let mut validated_candidates = Vec::new();
     let mut failed_hashes = Vec::new();
@@ -1664,11 +2489,13 @@ pub(crate) fn restore_defaults_via_adapter_at(
         });
     }
 
-    let discovered = discover_adapter_binary(&cfg, opts.allow_path_discovery)?;
+    let discovered =
+        discover_adapter_binary_at(customization_root, &cfg, opts.allow_path_discovery)?;
     let Some((bin_path, discovery_source)) = discovered else {
         let mut reset_store = store;
         reset_store.mods.clear();
         reset_store.active_staged_dir = None;
+        reset_store.managed_pid = None;
         reset_store.updated_at = Some(now_unix());
         let _ = save_runtime_at(customization_root, &reset_store);
         return Ok(AdapterRestoreOutcome {
@@ -1687,7 +2514,12 @@ pub(crate) fn restore_defaults_via_adapter_at(
     }
 
     let league_info = resolve_game_install_info_safe(customization_root, opts.lcu_build_hint.as_deref());
-    let Some(game_dir) = store.active_game_dir.clone().or(league_info.league_path) else {
+    let stored_game_dir = store
+        .active_game_dir
+        .as_deref()
+        .filter(|s| !s.starts_with("__pid__:"))
+        .map(str::to_string);
+    let Some(game_dir) = stored_game_dir.or(league_info.league_path) else {
         return Ok(AdapterRestoreOutcome {
             state: AdapterLifecycleState::Unavailable,
             restored_in_game: false,
@@ -1700,6 +2532,51 @@ pub(crate) fn restore_defaults_via_adapter_at(
     }
 
     let _guard = acquire_adapter_lock(Duration::from_millis(500))?;
+
+    if is_managed_modtools_binary(&bin_path) {
+        stop_managed_modtools(customization_root);
+        let work_dir = customization_root
+            .join("adapters")
+            .join("mod-tools")
+            .join("workspace");
+        let _ = fs::remove_dir_all(work_dir.join("overlay"));
+        let _ = fs::remove_dir_all(work_dir.join("mods"));
+
+        let mut reset_store = load_runtime_at(customization_root);
+        for rec in reset_store.mods.values_mut() {
+            if matches!(
+                rec.state,
+                ModRuntimeState::Applied | ModRuntimeState::Staged | ModRuntimeState::Deferred
+            ) {
+                rec.state = ModRuntimeState::SafeToStore;
+                rec.last_error = None;
+                rec.deferred_reason = None;
+                rec.updated_at = now_unix();
+            }
+        }
+        reset_store.active_staged_dir = None;
+        reset_store.active_game_dir = None;
+        reset_store.managed_pid = None;
+        reset_store.last_action = Some("restore_defaults".into());
+        let detail = "Stopped managed mod-tools overlay and restored defaults.".to_string();
+        reset_store.last_action_message = Some(detail.clone());
+        reset_store.updated_at = Some(now_unix());
+        let _ = save_runtime_at(customization_root, &reset_store);
+        super::journal::record(
+            customization_root,
+            super::journal::JournalAction::Restore,
+            &[],
+            Some("mod-tools"),
+            opts.lcu_build_hint.as_deref(),
+            detail.clone(),
+        );
+        return Ok(AdapterRestoreOutcome {
+            state: AdapterLifecycleState::Compatible,
+            restored_in_game: true,
+            deferred_reason: None,
+            message: detail,
+        });
+    }
 
     // Best-effort `stop` before mandatory `restore_defaults`.
     let _ = invoke_adapter_cli(
@@ -1853,6 +2730,55 @@ pub fn validate_single_candidate_at(
     let _guard = acquire_adapter_lock(Duration::from_millis(500))?;
 
     ensure_safe_candidate_entry(&cand.source_path)?;
+    if is_managed_modtools_binary(&bin_path) {
+        let fmt = cand.format.to_ascii_lowercase();
+        let supported = matches!(fmt.as_str(), "fantome" | "zip" | "modpkg" | "wad");
+        if !supported {
+            let msg = format!(
+                "Managed mod-tools backend does not support format '{}' for '{}'.",
+                cand.format, cand.name
+            );
+            record_mod_state_at(
+                customization_root,
+                &cand.sha256,
+                ModRuntimeState::Failed,
+                Some(msg.clone()),
+                None,
+                probe.version,
+                detected_build,
+            );
+            return Ok(ModRuntimeEntry {
+                sha256: cand.sha256.clone(),
+                state: ModRuntimeState::Failed,
+                detail: msg,
+                updated_at: Some(now_unix()),
+            });
+        }
+        if !cand.source_path.is_dir() && (fmt == "fantome" || fmt == "zip" || fmt == "modpkg") {
+            let file = File::open(&cand.source_path).map_err(|e| format!("Cannot read mod archive: {e}"))?;
+            zip::ZipArchive::new(file).map_err(|e| format!("Invalid mod zip archive: {e}"))?;
+        }
+        let detail = format!(
+            "Validated for managed mod-tools backend (League build {}).",
+            detected_build.as_deref().unwrap_or("unknown")
+        );
+        record_mod_state_at(
+            customization_root,
+            &cand.sha256,
+            ModRuntimeState::AdapterReady,
+            None,
+            None,
+            probe.version,
+            detected_build,
+        );
+        return Ok(ModRuntimeEntry {
+            sha256: cand.sha256.clone(),
+            state: ModRuntimeState::AdapterReady,
+            detail,
+            updated_at: Some(now_unix()),
+        });
+    }
+
     match invoke_adapter_cli(
         &bin_path,
         AdapterCommand::ValidateCandidate {
@@ -2654,5 +3580,161 @@ fn main() {{
         let ltk = backend_capabilities(&AdapterBackend::Ltk);
         assert!(!ltk.iter().any(|c| c == "format-probe"));
         assert!(ltk.iter().any(|c| c == "restore"));
+    }
+
+    #[test]
+    fn resolve_modtools_game_dir_handles_root_and_game_subdirs() {
+        let root = temp_root("modtools-gamedir");
+        assert!(resolve_modtools_game_dir(&root).is_err());
+
+        let game_final = root.join("Game").join("DATA").join("FINAL");
+        fs::create_dir_all(&game_final).unwrap();
+        let expected = root.join("Game");
+        assert_eq!(resolve_modtools_game_dir(&root).unwrap(), expected);
+        assert_eq!(resolve_modtools_game_dir(&expected).unwrap(), expected);
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn managed_modtools_requires_sibling_dll_and_runs_mkoverlay_and_runoverlay() {
+        let _serial = test_serial_guard();
+        shutdown_managed_backend();
+
+        let root = temp_root("managed-modtools");
+        let league = setup_fake_league(&root, "14.20.1.1");
+        fs::create_dir_all(league.join("Game").join("DATA").join("FINAL")).unwrap();
+
+        let tools_dir = root.join("adapters").join("mod-tools");
+        fs::create_dir_all(&tools_dir).unwrap();
+        let args_log = root.join("modtools_args.log");
+        let args_log_escaped = args_log.to_string_lossy().replace('\\', "\\\\");
+        let body = format!(
+            r#"
+    let log_path = std::path::Path::new("{args_log_escaped}");
+    let args: Vec<String> = std::env::args().collect();
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(log_path) {{
+        use std::io::Write;
+        let _ = writeln!(f, "{{}}", args.join(" | "));
+    }}
+    if args.get(1).map(|s| s.as_str()) == Some("mkoverlay") {{
+        // Verify --game points to Game dir and --mods uses '/' separated folder names
+        assert!(args.iter().any(|a| a.starts_with("--game:") && a.ends_with("Game")));
+        assert!(args.iter().any(|a| a == "--noTFT"));
+        assert!(args.iter().any(|a| a == "--ignoreConflict"));
+        println!("Status: mkoverlay done");
+        return;
+    }}
+    if args.get(1).map(|s| s.as_str()) == Some("runoverlay") {{
+        println!("Status: Waiting for league match to start");
+        use std::io::BufRead;
+        let mut line = String::new();
+        let stdin = std::io::stdin();
+        let _ = stdin.lock().read_line(&mut line);
+        return;
+    }}
+    std::process::exit(2);
+"#
+        );
+        let bin = compile_mock_adapter(&tools_dir, "mod-tools", &body);
+
+        let opts = ProbeOptions {
+            allow_path_discovery: false,
+            lcu_build_hint: Some("14.20.1.1".into()),
+            active_match_running: false,
+            ..ProbeOptions::default()
+        };
+        save_config_at(
+            &root,
+            GameAdapterConfig {
+                adapter_path: Some(bin.to_string_lossy().into_owned()),
+                expected_sha256: None,
+                user_consent_granted: true,
+                clearance_acknowledged: true,
+                auto_apply_in_champ_select: true,
+                last_verified_sha256: None,
+                last_verified_version: None,
+            },
+        )
+        .unwrap();
+
+        #[cfg(windows)]
+        {
+            // Missing cslol-dll.dll must fail clearly
+            let missing_dll_probe = probe_adapter_at(&root, &opts);
+            assert_eq!(missing_dll_probe.state, AdapterLifecycleState::Failed);
+            assert!(!missing_dll_probe.compatible);
+            assert!(
+                missing_dll_probe.detail.contains("cslol-dll.dll"),
+                "unexpected detail: {}",
+                missing_dll_probe.detail
+            );
+        }
+
+        // Provide sibling cslol-dll.dll -> Compatible
+        fs::write(tools_dir.join("cslol-dll.dll"), b"stub").unwrap();
+        let ok_probe = probe_adapter_at(&root, &opts);
+        assert_eq!(ok_probe.state, AdapterLifecycleState::Compatible);
+        assert!(ok_probe.compatible);
+        assert!(!ok_probe.applied_in_game);
+
+        // Create a zip candidate without META/info.json to test metadata synthesis + WAD copy
+        let staging_dir = root.join("staging");
+        fs::create_dir_all(&staging_dir).unwrap();
+        let mod_zip = staging_dir.join("skin.fantome");
+        {
+            let f = fs::File::create(&mod_zip).unwrap();
+            let mut z = zip::ZipWriter::new(f);
+            let wopts = zip::write::SimpleFileOptions::default();
+            z.start_file("WAD/Ahri.wad.client", wopts).unwrap();
+            std::io::Write::write_all(&mut z, b"WADTEST").unwrap();
+            z.finish().unwrap();
+        }
+        let cand = AdapterCandidateSpec {
+            sha256: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789".into(),
+            name: "Ahri Test Skin".into(),
+            format: "fantome".into(),
+            source_path: mod_zip,
+            supported_game_builds: vec![],
+            contains_paid_riot_content: false,
+            valid: true,
+        };
+
+        let val = validate_single_candidate_at(&root, &cand, &opts).unwrap();
+        assert_eq!(val.state, ModRuntimeState::AdapterReady);
+
+        let outcome =
+            apply_candidates_via_adapter_at(&root, &staging_dir, &[cand], &opts).unwrap();
+        assert_eq!(outcome.state, AdapterLifecycleState::Applied);
+        assert!(outcome.applied_in_game);
+        assert_eq!(outcome.applied_mod_hashes.len(), 1);
+
+        let active_probe = probe_adapter_at(&root, &opts);
+        assert_eq!(active_probe.state, AdapterLifecycleState::Applied);
+        assert!(active_probe.applied_in_game);
+
+        let staged_meta = tools_dir
+            .join("workspace")
+            .join("mods")
+            .join("m_abcdef0123456789_0")
+            .join("META")
+            .join("info.json");
+        assert!(staged_meta.is_file());
+
+        let restored = restore_defaults_via_adapter_at(&root, &opts).unwrap();
+        assert!(restored.restored_in_game);
+        assert_eq!(restored.state, AdapterLifecycleState::Compatible);
+
+        let post_probe = probe_adapter_at(&root, &opts);
+        assert!(!post_probe.applied_in_game);
+        assert_eq!(post_probe.state, AdapterLifecycleState::Compatible);
+
+        let logged = fs::read_to_string(&args_log).unwrap();
+        assert!(logged.contains("mkoverlay"));
+        assert!(logged.contains("runoverlay"));
+        assert!(logged.contains("--opts:configless"));
+
+        shutdown_managed_backend();
+        let _ = fs::remove_dir_all(&root);
     }
 }

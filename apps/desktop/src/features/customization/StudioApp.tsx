@@ -1,6 +1,7 @@
 import { useStudioTheme, ThemeBackground } from './themeRuntime'
 import { StudioSettings } from './StudioSettings'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { customizationBootstrap } from './api'
 import { WindowTitleBar } from '../../shared/ui/WindowTitleBar'
 import { Header } from '../../shared/ui/Header'
 import { UpdateModal } from '../../shared/ui/UpdateModal'
@@ -12,6 +13,19 @@ export default function StudioApp() {
   const update = useUpdateChecker()
   const [settings, setSettings] = useState(false)
   const [release, setRelease] = useState(false)
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const status = await customizationBootstrap.ensure()
+        if (status.setupNeeded || !status.managedBackendReady) {
+          void customizationBootstrap.provision().catch(() => {})
+        }
+      } catch {
+        // Best-effort.
+      }
+    })()
+  }, [])
   return (
     <div className="app-container studio-active">
       <ThemeBackground theme={theme} />

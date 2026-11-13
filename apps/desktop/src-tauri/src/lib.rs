@@ -58,6 +58,25 @@ pub fn run() {
                     }
                 });
             }
+            #[cfg(not(feature = "basic"))]
+            {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let ensure_handle = handle.clone();
+                    if let Ok(Ok(status)) = tauri::async_runtime::spawn_blocking(move || {
+                        customization::skin_bootstrap::customization_bootstrap_ensure(ensure_handle)
+                    })
+                    .await
+                    {
+                        if status.setup_needed || !status.managed_backend_ready {
+                            let _ = customization::skin_bootstrap::customization_bootstrap_provision(
+                                handle,
+                            )
+                            .await;
+                        }
+                    }
+                });
+            }
             #[cfg(target_os = "windows")]
             {
                 if let Some(window) = app.get_webview_window("main") {
@@ -470,6 +489,18 @@ pub fn run() {
             customization::diagnostics::customization_diagnostics_bundle,
             #[cfg(not(feature = "basic"))]
             customization::diagnostics::game_adapter_self_test,
+            #[cfg(not(feature = "basic"))]
+            customization::skin_bootstrap::customization_bootstrap_status,
+            #[cfg(not(feature = "basic"))]
+            customization::skin_bootstrap::customization_bootstrap_ensure,
+            #[cfg(not(feature = "basic"))]
+            customization::skin_bootstrap::customization_bootstrap_provision,
+            #[cfg(not(feature = "basic"))]
+            customization::skin_catalog::skin_catalog_for_champion,
+            #[cfg(not(feature = "basic"))]
+            customization::skin_catalog::skin_catalog_for_numeric_champion,
+            #[cfg(not(feature = "basic"))]
+            customization::skin_catalog::skin_select,
             commands::system_utils::write_error_report,
             commands::system_utils::set_auto_launch,
             commands::system_utils::get_auto_launch,
@@ -493,27 +524,34 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building LAAP desktop")
         .run(|handle, event| {
-            if let tauri::RunEvent::ExitRequested { api, .. } = event {
-                if tray::available(handle)
-                    && !tray::QUIT_ALLOWED.load(std::sync::atomic::Ordering::SeqCst)
-                {
-                    api.prevent_exit();
-                    if let Some(window) = handle.get_webview_window("main") {
-                        let _ = window.hide();
-                    }
-                } else {
-                    #[cfg(not(feature = "studio"))]
-                    if presence::keep_open() {
-                    api.prevent_exit();
-                    presence::explain_close();
-                    if let Some(window) = handle.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
-                } else {
-                        let _ = presence::stop_proxy();
+            match event {
+                tauri::RunEvent::ExitRequested { api, .. } => {
+                    if tray::available(handle)
+                        && !tray::QUIT_ALLOWED.load(std::sync::atomic::Ordering::SeqCst)
+                    {
+                        api.prevent_exit();
+                        if let Some(window) = handle.get_webview_window("main") {
+                            let _ = window.hide();
+                        }
+                    } else {
+                        #[cfg(not(feature = "studio"))]
+                        if presence::keep_open() {
+                            api.prevent_exit();
+                            presence::explain_close();
+                            if let Some(window) = handle.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        } else {
+                            let _ = presence::stop_proxy();
+                        }
                     }
                 }
+                tauri::RunEvent::Exit => {
+                    #[cfg(not(feature = "basic"))]
+                    customization::game_adapter::shutdown_managed_backend();
+                }
+                _ => {}
             }
         });
 }
