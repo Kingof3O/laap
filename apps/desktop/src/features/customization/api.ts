@@ -379,6 +379,8 @@ export interface WadEntry {
   compressionType: number
   compressionName: string
   isDuplicate: boolean
+  checksum?: number
+  resolvedPath?: string | null
 }
 
 export interface WadInspectionReport {
@@ -389,6 +391,35 @@ export interface WadInspectionReport {
   entries: WadEntry[]
   totalUncompressedSize: number
   totalCompressedSize: number
+  sourceLabel?: string | null
+  pickedToken?: string | null
+  archiveSizeBytes?: number | null
+  resolvedCount?: number | null
+}
+
+export interface WadExtractReport {
+  success: boolean
+  extractedCount: number
+  outputDir: string
+  extractedFiles: string[]
+  projectId?: string | null
+  projectName?: string | null
+}
+
+export interface GameWadArchiveSummary {
+  relativePath: string
+  fileName: string
+  category: string
+  championHint: string | null
+  sizeBytes: number
+}
+
+export interface WadHashDictionaryStatus {
+  installed: boolean
+  entryCount: number
+  path: string | null
+  fileSizeBytes: number
+  detail: string
 }
 
 export interface WadPackReport {
@@ -400,10 +431,29 @@ export interface WadPackReport {
 
 export const wadTool = {
   inspect: (archiveBase64: string) => invokeTauri<WadInspectionReport>('wad_inspect', { archiveBase64 }),
-  extractLocal: (archiveBase64: string) => invokeTauri<{ extractedCount: number; outputDir: string }>('wad_extract_local', { archiveBase64 }),
+  extractLocal: (archiveBase64: string) => invokeTauri<WadExtractReport>('wad_extract_local', { archiveBase64 }),
   extractFiles: (archiveBase64: string, targetDir: string) =>
-    invokeTauri<{ success: boolean; extractedCount: number; outputDir: string; extractedFiles: string[] }>('wad_extract_files', { archiveBase64, targetDir }),
+    invokeTauri<WadExtractReport>('wad_extract_files', { archiveBase64, targetDir }),
   packFiles: (sourceDir: string) => invokeTauri<WadPackReport>('wad_pack_files', { sourceDir }),
+  getHashDictionaryStatus: () =>
+    invokeTauri<WadHashDictionaryStatus>('wad_get_hash_dictionary_status'),
+  pickHashDictionary: () =>
+    invokeTauri<WadHashDictionaryStatus>('wad_pick_hash_dictionary'),
+  listGameArchives: () =>
+    invokeTauri<GameWadArchiveSummary[]>('wad_list_game_archives'),
+  inspectGameArchive: (relativePath: string) =>
+    invokeTauri<WadInspectionReport>('wad_inspect_game_archive', { relativePath }),
+  pickAndInspect: () =>
+    invokeTauri<WadInspectionReport | null>('wad_pick_and_inspect'),
+  extractEntries: (params: {
+    sourceKind: 'game' | 'picked'
+    sourceRef: string
+    selectedHashes: string[]
+    destinationMode: 'exportFolder' | 'creatorProject'
+    projectName?: string
+    champion?: string
+    author?: string
+  }) => invokeTauri<WadExtractReport>('wad_extract_entries', params),
 }
 
 export interface SurfaceConfig {
@@ -432,6 +482,56 @@ export const clientSurfaces = {
   resetDefaults: () => invokeTauri<ClientSurfacesConfig>('client_surfaces_reset_defaults'),
   exportSnippet: () => invokeTauri<string>('client_surfaces_export_snippet'),
   getAdapterStatus: () => invokeTauri<{ isAvailable: boolean; adapterType: string; activeSurfacesCount: number; message: string }>('client_surfaces_get_adapter_status'),
+}
+
+export interface PenguDetectionInfo {
+  platformSupported: boolean
+  penguDetected: boolean
+  detectedPluginsDir: string | null
+  effectivePluginsDir: string | null
+  detail: string
+}
+
+export interface BridgeClientPeerInfo {
+  clientName: string
+  pluginVersion: string
+  connectedAt: string
+}
+
+export interface ClientBridgeStatus {
+  running: boolean
+  enabled: boolean
+  port: number
+  bridgeUrl: string | null
+  wsUrl: string | null
+  protocolVersion: number
+  tokenPreview: string
+  activeClients: number
+  lastHandshake: BridgeClientPeerInfo | null
+  pluginInstalled: boolean
+  pluginVerified: boolean
+  pluginDir: string | null
+  customPluginsDir: string | null
+  pluginConsentGranted: boolean
+  pengu: PenguDetectionInfo
+  capabilities: string[]
+  message: string
+}
+
+export const clientBridge = {
+  getStatus: () => invokeTauri<ClientBridgeStatus>('client_bridge_get_status'),
+  start: () => invokeTauri<ClientBridgeStatus>('client_bridge_start'),
+  stop: () => invokeTauri<ClientBridgeStatus>('client_bridge_stop'),
+  rotateToken: () => invokeTauri<ClientBridgeStatus>('client_bridge_rotate_token'),
+  setPluginsDir: (pluginsDir: string | null) =>
+    invokeTauri<ClientBridgeStatus>('client_bridge_set_plugins_dir', { pluginsDir }),
+  pickPluginsDir: () => invokeTauri<ClientBridgeStatus>('client_bridge_pick_plugins_dir'),
+  setConsent: (granted: boolean) =>
+    invokeTauri<ClientBridgeStatus>('client_bridge_set_consent', { granted }),
+  installPlugin: (pluginsDir?: string | null) =>
+    invokeTauri<ClientBridgeStatus>('client_bridge_install_plugin', { pluginsDir: pluginsDir ?? null }),
+  uninstallPlugin: () => invokeTauri<ClientBridgeStatus>('client_bridge_uninstall_plugin'),
+  exportPluginZip: () => invokeTauri<string>('client_bridge_export_plugin_zip'),
 }
 
 export const creator = {

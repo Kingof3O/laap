@@ -9,6 +9,7 @@ import {
   type AdapterStatusReport,
   type ConflictReport,
   type FantomeEntry,
+  type FantomeInspectionReport,
   type FantomeMeta,
   type GameAdapterConfig,
   type ModRuntimeEntry,
@@ -88,6 +89,8 @@ export function ModLibrary() {
   const [detectedFormat, setDetectedFormat] = useState<string>('')
   const [fantomeMeta, setFantomeMeta] = useState<FantomeMeta | null>(null)
   const [archiveEntries, setArchiveEntries] = useState<FantomeEntry[] | null>(null)
+  const [archiveBase64, setArchiveBase64] = useState<string>('')
+  const [packageInspection, setPackageInspection] = useState<FantomeInspectionReport | null>(null)
   const [confirmed, setConfirmed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -173,13 +176,24 @@ export function ModLibrary() {
     setDetectedFormat('')
     setFantomeMeta(null)
     setArchiveEntries(null)
+    setArchiveBase64('')
+    setPackageInspection(null)
     if (!file) return
 
     try {
       const b64 = await readFileBase64(file)
+      if (sequence !== archiveSequence.current) return
+      setArchiveBase64(b64)
+
       const format = await mods.detectFormat(b64)
       if (sequence !== archiveSequence.current) return
       setDetectedFormat(format)
+
+      const inspectRep = await mods.inspect(b64).catch(() => null)
+      if (sequence !== archiveSequence.current) return
+      if (inspectRep) {
+        setPackageInspection(inspectRep)
+      }
 
       try {
         const entries = await mods.listContents(b64)
@@ -204,6 +218,51 @@ export function ModLibrary() {
       }
     } catch (e) {
       setError(errorMessage(e))
+    }
+  }
+
+  async function repairSelectedArchive() {
+    if (!archive || !archiveBase64 || busy) return
+    setBusy(true)
+    setError('')
+    setStatus('')
+    try {
+      const result = await mods.repair(archiveBase64)
+      if (result.repaired && result.repairedArchiveBase64) {
+        const repairedB64 = result.repairedArchiveBase64
+        const binary = atob(repairedB64)
+        const bytes = new Uint8Array(binary.length)
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i)
+        }
+        const normalizedName = archive.name.toLowerCase().endsWith('.fantome')
+          ? archive.name
+          : `${archive.name.replace(/\.[^.]+$/, '')}-repaired.fantome`
+        const repairedFile = new File([bytes], normalizedName, { type: 'application/zip' })
+        setArchive(repairedFile)
+        setArchiveBase64(repairedB64)
+        setDetectedFormat('fantome')
+        const [inspectRep, entries, meta] = await Promise.all([
+          mods.inspect(repairedB64).catch(() => null),
+          mods.listContents(repairedB64).catch(() => null),
+          mods.readMeta(repairedB64).catch(() => null),
+        ])
+        if (inspectRep) setPackageInspection(inspectRep)
+        if (entries) setArchiveEntries(entries)
+        if (meta) {
+          setFantomeMeta(meta)
+          if (!assetName) setAssetName(meta.name)
+          if (!assetAuthor) setAssetAuthor(meta.author)
+          if (!assetLicense && meta.license) setAssetLicense(meta.license)
+        }
+        setStatus(`Repaired package inline (${result.actionsTaken.join('; ') || 'normalized structure'}). Review and import below.`)
+      } else {
+        setStatus('No automatic repairs were needed for this package.')
+      }
+    } catch (e) {
+      setError(errorMessage(e))
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -261,6 +320,8 @@ export function ModLibrary() {
       setDetectedFormat('')
       setFantomeMeta(null)
       setArchiveEntries(null)
+      setArchiveBase64('')
+      setPackageInspection(null)
       setConfirmed(false)
       setFormKey((key) => key + 1)
       await load()
@@ -529,7 +590,7 @@ export function ModLibrary() {
               </div>
               <p style={{ margin: '0.25rem 0', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                 {adapterStatus?.detail ??
-                  'Stage verified custom mods (.fantome, .modpkg, .zip) in LAAP sandbox, and activate them via a verified external adapter configured in Studio Settings.'}
+                  'Stage verified custom mods (.fantome, .modpkg, .zip) in LAAP sandbox, and activate them via a verified external adapter configured in Settings → Advanced.'}
               </p>
             </div>
             <div className="customization-actions" style={{ margin: 0 }}>
@@ -579,6 +640,37 @@ export function ModLibrary() {
             <p style={{ fontSize: '0.85rem', color: 'var(--color-accent-400, #a78bfa)' }}>
               Detected Format: <strong>{detectedFormat.toUpperCase()}</strong> {archiveEntries ? `(${archiveEntries.length} files inside)` : ''}
             </p>
+          )}
+          {packageInspection && (packageInspection.issuesFound.length > 0 || packageInspection.warnings.length > 0 || !packageInspection.isValid) && (
+            <div
+              data-testid="mod-inline-repair-banner"
+              style={{
+                margin: '0.5rem 0',
+                padding: '0.65rem 0.85rem',
+                borderRadius: '6px',
+                background: 'rgba(245, 158, 11, 0.12)',
+                border: '1px solid rgba(245, 158, 11, 0.35)',
+                fontSize: '0.83rem',
+              }}
+            >
+              <strong>Package structure notices detected before import:</strong>
+              <ul style={{ margin: '0.35rem 0 0.5rem', paddingLeft: '1.2rem' }}>
+                {packageInspection.issuesFound.map((msg, idx) => (
+                  <li key={`issue-${idx}`}>{msg}</li>
+                ))}
+                {packageInspection.warnings.map((msg, idx) => (
+                  <li key={`warn-${idx}`}>{msg}</li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={busy}
+                onClick={() => void repairSelectedArchive()}
+              >
+                Repair & Normalize Archive
+              </button>
+            </div>
           )}
 
           <label style={{ marginTop: '0.5rem' }}>LAAP manifest JSON (optional)

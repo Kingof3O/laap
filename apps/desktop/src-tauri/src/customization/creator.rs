@@ -171,6 +171,72 @@ pub fn creator_list_projects(app: AppHandle) -> Result<Vec<ProjectSummary>, Stri
     Ok(summaries)
 }
 
+pub(crate) fn create_project_with_assets_at(
+    customization_root: &std::path::Path,
+    name: &str,
+    champion: &str,
+    author: &str,
+    assets: Vec<(String, Vec<u8>)>,
+) -> Result<CreatorProject, String> {
+    let trimmed_name = name.trim();
+    if trimmed_name.is_empty() || trimmed_name.chars().count() > 80 {
+        return Err("Project name must be between 1 and 80 characters.".into());
+    }
+    let dir = customization_root.join("creator_projects");
+    super::sandbox::check_chain(&dir, true)?;
+    let _guard = LOCK.lock().map_err(|_| "Projects lock unavailable.")?;
+
+    let count = std::fs::read_dir(&dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(Result::ok)
+        .filter(|e| e.path().extension().is_some_and(|v| v == "json"))
+        .count();
+    if count >= MAX_PROJECTS {
+        return Err("Maximum number of projects reached (100).".into());
+    }
+
+    let id = generate_id()?;
+    let now = now_iso();
+    let mut files = Vec::with_capacity(assets.len());
+    for (rel, bytes) in assets {
+        let safe_rel = super::fantome::validate_zip_entry_path(&rel)?;
+        let clean_path = safe_rel.to_string_lossy().replace('\\', "/");
+        let ext = clean_path
+            .rsplit_once('.')
+            .map(|(_, e)| e.to_ascii_lowercase())
+            .unwrap_or_default();
+        if super::fantome::is_executable_extension(&ext) {
+            return Err("Executable files are forbidden in Creator packages.".into());
+        }
+        let sha256 = format!("{:x}", Sha256::digest(&bytes));
+        files.push(ProjectFile {
+            format_type: super::fantome::classify_format(&clean_path),
+            relative_path: clean_path,
+            size_bytes: bytes.len() as u64,
+            sha256,
+            data_base64: Some(STANDARD.encode(&bytes)),
+        });
+    }
+
+    let project = CreatorProject {
+        id: id.clone(),
+        name: trimmed_name.to_string(),
+        author: author.trim().into(),
+        version: "1.0.0".into(),
+        description: "Extracted locally from verified game WAD assets.".into(),
+        champion: champion.trim().to_string(),
+        skin_num: 0,
+        tags: vec!["local-wad".into()],
+        files,
+        created_at: now.clone(),
+        updated_at: now,
+    };
+
+    let file_path = dir.join(format!("{id}.json"));
+    write_project(&file_path, &project)?;
+    Ok(project)
+}
+
 #[tauri::command]
 pub fn creator_create_project(
     app: AppHandle,

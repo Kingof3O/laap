@@ -248,7 +248,7 @@ export function GameAdapterSettingsPanel() {
         <div>
           <strong>External Custom Mod Loader Adapter (CLI)</strong>
           <p className="customization-source" style={{ marginTop: '4px', marginBottom: 0 }}>
-            User-installed external CLI only (Windows). Activates verified local custom <code>.fantome</code> / <code>.modpkg</code> mods; never unlocks unowned Riot skins, downloads external patchers silently, or hooks game memory.
+            User-installed external CLI integration (Windows). Can activate local custom mod packages via the configured adapter. Use at your own risk; you are responsible for compliance with game/platform policies.
           </p>
         </div>
         <span
@@ -380,6 +380,12 @@ export function GameAdapterSettingsPanel() {
             {statusReport.supportedFormats.length > 0
               ? statusReport.supportedFormats.join(', ')
               : '—'}
+            {statusReport.discoverySource ? (
+              <>
+                {' '}
+                | <strong>Source:</strong> {statusReport.discoverySource}
+              </>
+            ) : null}
           </div>
           <div className="customization-source" style={{ marginTop: '4px' }}>
             {statusReport.detail}

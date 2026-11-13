@@ -322,7 +322,7 @@ export function ClientStatusPage() {
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
                       {runnerStatus?.adapterStatus ??
                         adapterStatus?.detail ??
-                        'Configure an external mod loader adapter in Studio Settings to apply custom .fantome / .modpkg mods.'}
+                        'Configure an external mod loader adapter in Settings → Advanced to apply custom .fantome / .modpkg mods.'}
                     </div>
                     {(runnerStatus?.adapterVersion || adapterStatus?.version || runnerStatus?.detectedGameBuild || adapterStatus?.leagueInstall?.detectedBuild) && (
                       <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '4px' }}>

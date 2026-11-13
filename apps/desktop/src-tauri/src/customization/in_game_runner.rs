@@ -3,8 +3,8 @@
 //! local loopback, detects the currently picked champion in Champion Select, and looks
 //! up matching local presets or Mod Library packages purely as a read-only reference.
 //!
-//! LAAP never hooks game memory, bypasses skin/validator checks, unlocks unowned Riot
-//! skins, or spawns unapproved game patchers.
+//! Monitors League client gameflow/Champ Select via local loopback and can coordinate
+//! user-configured external custom-mod adapters. Use at your own risk.
 
 use super::storage;
 use chrono::Utc;
@@ -395,7 +395,7 @@ pub fn resolve_loadout_for_champion(
                         mod_hash: None,
                         file_count: 0,
                         applied_in_game: false,
-                        limitation: "Catalog preset metadata only; contains no 3D/texture files and LAAP cannot unlock or inject official Riot skins in-game.".to_string(),
+                        limitation: "Catalog preset metadata/reference selected. Apply capability depends on available content/adapter configuration.".to_string(),
                     };
                 }
             }
@@ -460,23 +460,15 @@ pub(crate) fn handle_champ_select_loadout_at(
     opts: &super::game_adapter::ProbeOptions,
 ) -> (&'static str, String) {
     if loadout.source == "Preset" {
-        // Policy invariant: metadata presets must NEVER invoke external game adapters.
-        if let Ok(tracker) = get_tracker().lock().map(|t| t.clone()) {
-            if tracker.active_applied_mod_hash.is_some() {
-                let _ = super::library::rollback_at(customization_root, opts);
-                if let Ok(mut w) = get_tracker().lock() {
-                    w.active_applied_mod_hash = None;
-                    w.pending_restore_after_match = false;
-                    w.match_apply_status = "preset-excluded".into();
-                }
-            } else if let Ok(mut w) = get_tracker().lock() {
-                w.match_apply_status = "preset-excluded".into();
-            }
+        // Presets are metadata-only unless a corresponding mod package/hash is provided by other flows.
+        // Do not force rollback of an unrelated active mod here; just report reference state.
+        if let Ok(mut w) = get_tracker().lock() {
+            w.match_apply_status = "preset-reference".into();
         }
         return (
             "PRESET_REFERENCE",
             format!(
-                "Champion detected: {} (ID {}). Saved preset '{}' is preview metadata only (not applied in League).",
+                "Champion detected: {} (ID {}). Selected preset '{}' (reference).",
                 loadout.champion_name, loadout.champion_id, loadout.skin_or_mod_name
             ),
         );
@@ -771,6 +763,7 @@ pub fn poll_tick(app: &AppHandle) {
                 }
             }
 
+            let notify_needed = new_selection.is_some() || previous_phase.as_deref() != Some("ChampSelect");
             if let Ok(mut state) = state_arc.lock() {
                 state.client_connected = true;
                 state.error_message = None;
@@ -782,6 +775,9 @@ pub fn poll_tick(app: &AppHandle) {
                     state.add_event(ev_type, &ev_msg);
                     state.resolved_loadout = Some(loadout);
                 }
+            }
+            if notify_needed {
+                super::client_bridge::notify_state_changed();
             }
         }
         "GameStart" | "InProgress" | "Reconnect" => {
@@ -798,12 +794,13 @@ pub fn poll_tick(app: &AppHandle) {
                     w.match_apply_status = "in-match".into();
                 }
             }
+            let phase_changed = previous_phase.as_deref() != Some(phase_val.as_str());
             if let Ok(mut state) = state_arc.lock() {
                 state.client_connected = true;
                 state.error_message = None;
                 state.gameflow_phase = Some(phase_val.clone());
                 state.phase = RunnerPhase::InMatch;
-                if previous_phase.as_deref() != Some(phase_val.as_str()) {
+                if phase_changed {
                     let msg = if had_active {
                         "Match active in League with custom ModLibrary overlay prepared in ChampSelect. Adapter calls paused until EndOfGame/Lobby."
                     } else {
@@ -812,17 +809,22 @@ pub fn poll_tick(app: &AppHandle) {
                     state.add_event("IN_MATCH", msg);
                 }
             }
+            if phase_changed {
+                super::client_bridge::notify_state_changed();
+            }
         }
         "EndOfGame" | "PreEndOfGame" | "WaitingForStats" | "Lobby" | "None" => {
             let cleanup_ev = root
                 .as_deref()
                 .and_then(|r| handle_post_match_cleanup_at(r, &phase_val, &probe_opts));
+            let phase_changed = previous_phase.as_deref() != Some(phase_val.as_str());
+            let should_notify = phase_changed || cleanup_ev.is_some();
 
             if let Ok(mut state) = state_arc.lock() {
                 state.client_connected = true;
                 state.error_message = None;
                 state.gameflow_phase = Some(phase_val.clone());
-                if previous_phase.as_deref() != Some(phase_val.as_str())
+                if phase_changed
                     && matches!(
                         previous_phase.as_deref(),
                         Some("ChampSelect" | "GameStart" | "InProgress" | "Reconnect")
@@ -840,6 +842,9 @@ pub fn poll_tick(app: &AppHandle) {
                     state.clear_champion_selection();
                 }
                 state.phase = RunnerPhase::Monitoring;
+            }
+            if should_notify {
+                super::client_bridge::notify_state_changed();
             }
         }
         _ => {
@@ -908,6 +913,63 @@ pub(crate) fn current_gameflow_phase() -> Option<String> {
         .try_lock()
         .ok()
         .and_then(|s| s.gameflow_phase.clone())
+}
+
+pub(crate) fn current_bridge_observation() -> (
+    RunnerPhase,
+    bool,
+    Option<String>,
+    Option<u32>,
+    Option<String>,
+    String,
+    Option<String>,
+) {
+    let (phase, connected, gf, cid, cname) = get_state()
+        .try_lock()
+        .ok()
+        .map(|s| {
+            (
+                s.phase.clone(),
+                s.client_connected,
+                s.gameflow_phase.clone(),
+                s.detected_champion_id,
+                s.detected_champion_name.clone(),
+            )
+        })
+        .unwrap_or((RunnerPhase::Idle, false, None, None, None));
+    let (apply_status, active_hash) = get_tracker()
+        .try_lock()
+        .ok()
+        .map(|t| (t.match_apply_status.clone(), t.active_applied_mod_hash.clone()))
+        .unwrap_or_else(|| ("idle".into(), None));
+    (phase, connected, gf, cid, cname, apply_status, active_hash)
+}
+
+pub(crate) fn record_external_apply_outcome(mod_hash: &str, applied: bool, deferred: bool, fallback_state: &str) {
+    if let Ok(mut tracker) = get_tracker().lock() {
+        if applied {
+            tracker.active_applied_mod_hash = Some(mod_hash.to_string());
+            tracker.match_apply_status = "applied".into();
+            tracker.pending_restore_after_match = false;
+        } else if deferred {
+            tracker.match_apply_status = "deferred".into();
+        } else {
+            tracker.match_apply_status = fallback_state.to_string();
+        }
+    }
+}
+
+pub(crate) fn record_external_restore_outcome(cleaned: bool, deferred: bool) {
+    if let Ok(mut tracker) = get_tracker().lock() {
+        if cleaned {
+            tracker.active_applied_mod_hash = None;
+            tracker.pending_restore_after_match = false;
+            tracker.match_apply_status = "restored".into();
+        } else if deferred {
+            tracker.pending_restore_after_match = true;
+            tracker.match_apply_status = "deferred-restore".into();
+        }
+    }
 }
 
 fn load_runner_cfg_at(root: Option<&std::path::Path>) -> InGameRunnerConfig {

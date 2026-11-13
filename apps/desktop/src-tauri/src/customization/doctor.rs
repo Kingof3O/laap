@@ -96,6 +96,12 @@ pub async fn doctor_collect(app: AppHandle) -> Result<Report, String> {
             healthy,
             detail,
         });
+        let (bridge_healthy, bridge_detail) = super::client_bridge::doctor_check_summary(&root);
+        checks.push(Check {
+            name: "Companion bridge",
+            healthy: bridge_healthy,
+            detail: bridge_detail,
+        });
         Ok(Report {
             checks,
             media_bytes,

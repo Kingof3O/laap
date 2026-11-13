@@ -7,6 +7,11 @@ import { useStudioTheme, ThemeBackground } from "./themeRuntime";
 import { lazy, Suspense, useCallback, useRef, useState } from "react";
 import App from "../../App";
 const StudioWorkspace = lazy(() => import("./StudioWorkspace"));
+const GameAdapterSettingsPanel = lazy(() =>
+  import("./GameAdapterSettingsPanel").then((mod) => ({
+    default: mod.GameAdapterSettingsPanel,
+  })),
+);
 export default function CompleteApp() {
   const theme = useStudioTheme();
   const [studio, setStudio] = useState(false);
@@ -46,6 +51,11 @@ export default function CompleteApp() {
         onShowAccounts={() => setStudio(false)}
         onProfilesChanged={onProfilesChanged}
         onProfileSwitched={switched}
+        advancedSettings={
+          <Suspense fallback={null}>
+            <GameAdapterSettingsPanel />
+          </Suspense>
+        }
         profileActions={(account) => (
           <button
             className="inspector-edit"

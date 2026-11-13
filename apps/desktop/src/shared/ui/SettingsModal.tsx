@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { LauncherController } from '../../hooks/useLauncher'
 import { LauncherSettingsPanel } from './LauncherSettingsPanel'
 import { product } from '../../product/flavors'
@@ -39,6 +39,7 @@ export interface SettingsModalProps {
   onToggleAutoCheck?: (enabled: boolean) => void
   onOpenReleaseModal?: () => void
   currentVersion?: string
+  advancedSettings?: ReactNode
 }
 
 export function SettingsModal({
@@ -60,6 +61,7 @@ export function SettingsModal({
   onToggleAutoCheck,
   onOpenReleaseModal,
   currentVersion = APP_VERSION,
+  advancedSettings,
 }: SettingsModalProps) {
   const dialogRef = useDialog(isOpen, onClose, busy)
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('general')
@@ -270,7 +272,10 @@ export function SettingsModal({
             )}
 
             {activeCategory === 'advanced' && (
-              <AdvancedSettings onResetRiot={onResetRiot} busy={busy} />
+              <>
+                <AdvancedSettings onResetRiot={onResetRiot} busy={busy} />
+                {advancedSettings}
+              </>
             )}
 
             {activeCategory === 'about' && (

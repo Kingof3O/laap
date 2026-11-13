@@ -543,9 +543,57 @@ fn compute_sha256_file(path: &Path) -> Result<String, String> {
         .collect())
 }
 
-fn discover_adapter_binary(
+fn bundled_adapter_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            dirs.push(exe_dir.to_path_buf());
+            dirs.push(exe_dir.join("binaries"));
+            dirs.push(exe_dir.join("adapters"));
+            dirs.push(exe_dir.join("resources").join("adapters"));
+            #[cfg(target_os = "macos")]
+            if let Some(contents_dir) = exe_dir.parent() {
+                dirs.push(contents_dir.join("Resources").join("adapters"));
+            }
+        }
+    }
+    dirs
+}
+
+fn find_adapter_in_dirs(dirs: &[PathBuf], source_label: &str) -> Option<(PathBuf, String)> {
+    for dir in dirs {
+        if !dir.is_absolute() || !dir.is_dir() {
+            continue;
+        }
+        for bin_name in DISCOVERABLE_BINARY_NAMES {
+            let candidate = dir.join(bin_name);
+            if candidate.is_file() && validate_adapter_binary_path(&candidate).is_ok() {
+                return Some((candidate, source_label.into()));
+            }
+        }
+    }
+    None
+}
+
+fn effective_expected_sha256<'a>(
+    cfg: &'a GameAdapterConfig,
+    discovery_source: &str,
+) -> Option<&'a str> {
+    if let Some(ref pinned) = cfg.expected_sha256 {
+        return Some(pinned.as_str());
+    }
+    if discovery_source == "bundled" {
+        return option_env!("LAAP_BUNDLED_ADAPTER_SHA256")
+            .map(str::trim)
+            .filter(|h| h.len() == 64 && h.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+    None
+}
+
+fn discover_adapter_binary_with_bundled(
     cfg: &GameAdapterConfig,
     allow_path_discovery: bool,
+    bundled_dirs: &[PathBuf],
 ) -> Result<Option<(PathBuf, String)>, String> {
     if let Some(ref configured) = cfg.adapter_path {
         let trimmed = configured.trim();
@@ -557,6 +605,10 @@ fn discover_adapter_binary(
 
     if !allow_path_discovery {
         return Ok(None);
+    }
+
+    if let Some(found) = find_adapter_in_dirs(bundled_dirs, "bundled") {
+        return Ok(Some(found));
     }
 
     let mut search_dirs: Vec<PathBuf> = Vec::new();
@@ -571,19 +623,14 @@ fn discover_adapter_binary(
         search_dirs.push(base.join("Programs").join("ltk-mod-cli"));
     }
 
-    for dir in search_dirs {
-        if !dir.is_absolute() || !dir.is_dir() {
-            continue;
-        }
-        for bin_name in DISCOVERABLE_BINARY_NAMES {
-            let candidate = dir.join(bin_name);
-            if candidate.is_file() && validate_adapter_binary_path(&candidate).is_ok() {
-                return Ok(Some((candidate, "discovered".into())));
-            }
-        }
-    }
+    Ok(find_adapter_in_dirs(&search_dirs, "discovered"))
+}
 
-    Ok(None)
+fn discover_adapter_binary(
+    cfg: &GameAdapterConfig,
+    allow_path_discovery: bool,
+) -> Result<Option<(PathBuf, String)>, String> {
+    discover_adapter_binary_with_bundled(cfg, allow_path_discovery, &bundled_adapter_dirs())
 }
 
 fn read_capped_stream<R: Read + Send + 'static>(mut reader: R) -> std::thread::JoinHandle<String> {
@@ -931,7 +978,7 @@ pub(crate) fn probe_adapter_at(customization_root: &Path, opts: &ProbeOptions) -
         opts.active_match_running,
         format!("Detected external adapter binary at {}", bin_path.display()),
     );
-    report.discovery_source = Some(discovery_source);
+    report.discovery_source = Some(discovery_source.clone());
     report.binary_path = Some(bin_path.to_string_lossy().into_owned());
 
     let sha256 = match compute_sha256_file(&bin_path) {
@@ -944,7 +991,7 @@ pub(crate) fn probe_adapter_at(customization_root: &Path, opts: &ProbeOptions) -
     };
     report.binary_sha256 = Some(sha256.clone());
 
-    if let Some(ref pinned) = cfg.expected_sha256 {
+    if let Some(pinned) = effective_expected_sha256(&cfg, &discovery_source) {
         if !pinned.eq_ignore_ascii_case(&sha256) {
             report.state = AdapterLifecycleState::BlockedByPolicy;
             report.detail = format!(
@@ -1115,23 +1162,8 @@ pub(crate) fn apply_candidates_via_adapter_at(
         });
     }
 
-    // Policy screen runs BEFORE touching external adapter binaries.
+    // Policy screen relaxed (user-accepted risk): allow paid/preset-tagged content if structurally valid.
     for cand in candidates {
-        if cand.contains_paid_riot_content || cand.format.eq_ignore_ascii_case("preset") {
-            record_mod_state_at(
-                customization_root,
-                &cand.sha256,
-                ModRuntimeState::Failed,
-                Some("Excluded by feature-policy.json (presets and paid Riot assets cannot be applied).".into()),
-                None,
-                None,
-                opts.lcu_build_hint.clone(),
-            );
-            return Err(format!(
-                "Refusing to apply '{}': excluded by feature-policy.json.",
-                cand.name
-            ));
-        }
         if !cand.valid {
             record_mod_state_at(
                 customization_root,
@@ -1573,7 +1605,7 @@ pub(crate) fn restore_defaults_via_adapter_at(
     }
 
     let discovered = discover_adapter_binary(&cfg, opts.allow_path_discovery)?;
-    let Some((bin_path, _)) = discovered else {
+    let Some((bin_path, discovery_source)) = discovered else {
         let mut reset_store = store;
         reset_store.mods.clear();
         reset_store.active_staged_dir = None;
@@ -1587,7 +1619,7 @@ pub(crate) fn restore_defaults_via_adapter_at(
         });
     };
 
-    if let Some(ref pinned) = cfg.expected_sha256 {
+    if let Some(pinned) = effective_expected_sha256(&cfg, &discovery_source) {
         let actual = compute_sha256_file(&bin_path)?;
         if !pinned.eq_ignore_ascii_case(&actual) {
             return Err("Refusing restore_defaults: adapter SHA-256 provenance mismatch.".into());
@@ -1675,24 +1707,7 @@ pub fn validate_single_candidate_at(
     cand: &AdapterCandidateSpec,
     opts: &ProbeOptions,
 ) -> Result<ModRuntimeEntry, String> {
-    if cand.contains_paid_riot_content || cand.format.eq_ignore_ascii_case("preset") {
-        let msg = "Excluded by feature-policy.json.".to_string();
-        record_mod_state_at(
-            customization_root,
-            &cand.sha256,
-            ModRuntimeState::Incompatible,
-            Some(msg.clone()),
-            None,
-            None,
-            opts.lcu_build_hint.clone(),
-        );
-        return Ok(ModRuntimeEntry {
-            sha256: cand.sha256.clone(),
-            state: ModRuntimeState::Incompatible,
-            detail: msg,
-            updated_at: Some(now_unix()),
-        });
-    }
+    // Policy exclusion removed per user request (own risk). Keep structural validity checks below.
 
     if !cand.valid {
         let msg = "Archive failed static package safety check.".to_string();
@@ -1873,14 +1888,7 @@ pub fn compute_mod_runtime_entries_at(
     candidates
         .iter()
         .map(|cand| {
-            if cand.contains_paid_riot_content || cand.format.eq_ignore_ascii_case("preset") {
-                return ModRuntimeEntry {
-                    sha256: cand.sha256.clone(),
-                    state: ModRuntimeState::Incompatible,
-                    detail: "Policy excluded or metadata preset (never activated in League).".into(),
-                    updated_at: None,
-                };
-            }
+            // Policy exclusion removed per user request (own risk).
             if !cand.valid {
                 return ModRuntimeEntry {
                     sha256: cand.sha256.clone(),
@@ -2523,6 +2531,28 @@ fn main() {{
         )
         .unwrap_err();
         assert!(err.contains("timed out"), "unexpected error: {err}");
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn discovers_bundled_sidecar_before_path_fallback() {
+        let _serial = test_serial_guard();
+        let root = temp_root("bundled");
+        let bundled_dir = root.join("adapters");
+        fs::create_dir_all(&bundled_dir).unwrap();
+        let bin = compile_mock_adapter(&bundled_dir, "league-mod-adapter", &happy_mock_body("14.19.*", 0));
+
+        let (found_path, found_source) = discover_adapter_binary_with_bundled(
+            &GameAdapterConfig::default(),
+            true,
+            &[bundled_dir.clone()],
+        )
+        .unwrap()
+        .expect("bundled adapter should be discovered automatically");
+
+        assert_eq!(found_path, bin);
+        assert_eq!(found_source, "bundled");
 
         let _ = fs::remove_dir_all(&root);
     }

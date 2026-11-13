@@ -13,6 +13,8 @@ import {
   type FantomeRepairResult,
   type BinInspectionReport,
   type WadInspectionReport,
+  type GameWadArchiveSummary,
+  type WadHashDictionaryStatus,
 } from './api'
 import { readFileBase64 } from './packageFiles'
 import { ProjectSaveQueue, readRecovery, writeRecovery, removeRecovery, removeSavedRecovery, validateSnapshot, projectFingerprint } from './projectPersistence'
@@ -128,6 +130,29 @@ export function CreatorWorkshop() {
   // WAD Tool State
   const [wadB64, setWadB64] = useState<string>('')
   const [wadReport, setWadReport] = useState<WadInspectionReport | null>(null)
+  const [wadSource, setWadSource] = useState<{
+    kind: 'base64' | 'game' | 'picked'
+    ref: string
+    label: string
+    championHint?: string | null
+  } | null>(null)
+  const [gameArchives, setGameArchives] = useState<GameWadArchiveSummary[] | null>(null)
+  const [archiveFilter, setArchiveFilter] = useState('')
+  const [entryFilter, setEntryFilter] = useState('')
+  const [selectedWadHashes, setSelectedWadHashes] = useState<Set<string>>(new Set())
+  const [hashDictStatus, setHashDictStatus] = useState<WadHashDictionaryStatus | null>(null)
+  const [extractProjName, setExtractProjName] = useState('')
+  const [extractChamp, setExtractChamp] = useState('')
+
+  useEffect(() => {
+    if (tab !== 'wadtool') return
+    void wadTool
+      .getHashDictionaryStatus()
+      .then((res) => {
+        if (res) setHashDictStatus(res)
+      })
+      .catch(() => null)
+  }, [tab])
 
   async function loadProjects() {
     try {
@@ -555,7 +580,118 @@ export function CreatorWorkshop() {
       setWadB64(b64)
       const report = await wadTool.inspect(b64)
       setWadReport(report)
+      setWadSource({ kind: 'base64', ref: file.name, label: file.name })
+      setSelectedWadHashes(new Set())
       setStatus(`WAD archive "${file.name}": v${report.major}.${report.minor}, ${report.entryCount} entries.`)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleScanGameArchives() {
+    setBusy(true)
+    setError('')
+    try {
+      const list = await wadTool.listGameArchives()
+      setGameArchives(list)
+      setStatus(`Discovered ${list.length} local League .wad archive(s) under Game/DATA/FINAL.`)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleInspectGameArchive(item: GameWadArchiveSummary) {
+    setBusy(true)
+    setError('')
+    try {
+      const report = await wadTool.inspectGameArchive(item.relativePath)
+      setWadReport(report)
+      setWadSource({
+        kind: 'game',
+        ref: item.relativePath,
+        label: item.relativePath,
+        championHint: item.championHint,
+      })
+      setSelectedWadHashes(new Set())
+      setEntryFilter('')
+      setExtractProjName(item.championHint ? `${item.championHint} Local WAD` : item.fileName)
+      setExtractChamp(item.championHint ?? 'Generic')
+      setStatus(`Streaming local WAD "${item.relativePath}": v${report.major}.${report.minor}, ${report.entryCount} entries.`)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handlePickNativeWad() {
+    setBusy(true)
+    setError('')
+    try {
+      const report = await wadTool.pickAndInspect()
+      if (!report) return
+      setWadReport(report)
+      const label = report.sourceLabel ?? 'Selected Local WAD'
+      setWadSource({
+        kind: 'picked',
+        ref: report.pickedToken ?? '',
+        label,
+      })
+      setSelectedWadHashes(new Set())
+      setEntryFilter('')
+      setExtractProjName(label.replace(/\.wad(\.client)?$/i, ''))
+      setExtractChamp('Generic')
+      setStatus(`Opened local WAD "${label}" from disk (v${report.major}.${report.minor}, ${report.entryCount} entries).`)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handlePickHashDict() {
+    setBusy(true)
+    setError('')
+    try {
+      const st = await wadTool.pickHashDictionary()
+      setHashDictStatus(st)
+      if (wadSource?.kind === 'game') {
+        const refreshed = await wadTool.inspectGameArchive(wadSource.ref)
+        setWadReport(refreshed)
+      }
+      setStatus(st.detail)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleExtractSelectedWad(destinationMode: 'exportFolder' | 'creatorProject') {
+    if (!wadSource || wadSource.kind === 'base64') return
+    setBusy(true)
+    setError('')
+    try {
+      const result = await wadTool.extractEntries({
+        sourceKind: wadSource.kind,
+        sourceRef: wadSource.ref,
+        selectedHashes: Array.from(selectedWadHashes),
+        destinationMode,
+        projectName: extractProjName.trim() || undefined,
+        champion: extractChamp.trim() || undefined,
+      })
+      if (destinationMode === 'creatorProject' && result.projectId) {
+        await loadProjects()
+        await openProject(result.projectId)
+        setTab('projects')
+        setStatus(`Imported ${result.extractedCount} WAD asset(s) into Creator Project "${result.projectName ?? result.projectId}".`)
+      } else {
+        setStatus(`Extracted ${result.extractedCount} files into LAAP's local export folder: ${result.outputDir}. No League files were changed.`)
+      }
     } catch (err) {
       setError(errorMessage(err))
     } finally {
@@ -851,57 +987,234 @@ export function CreatorWorkshop() {
 
       {tab === 'wadtool' && (
         <section className="customization-editor creator-workbench" style={{ padding: '1.5rem' }}>
-          <h3>League WAD Archive Inspector</h3>
-          <p>Inspect supported RW WAD archives and entry metadata. Inspection does not verify Riot signatures or apply assets to League.</p>
+          <h3>League WAD Archive Inspector & Offline Extractor</h3>
+          <p>Read local <code>.wad</code> / <code>.wad.client</code> archives directly from disk (no 32 MiB limit) and extract entries to an export folder or a Creator Workshop project. Never modifies League files.</p>
 
-          <label className="btn-secondary" style={{ display: 'inline-block', margin: '1rem 0', cursor: 'pointer' }}>
-            Choose .wad / .wad.client file to inspect
+          <div className="customization-card" style={{ padding: '1rem', margin: '1rem 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <div>
+                <strong>Installed League Game Archives (<code>Game/DATA/FINAL</code>)</strong>
+                <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                  {hashDictStatus
+                    ? hashDictStatus.detail
+                    : 'Optionally import a CommunityDragon/Obsidian hashes.game.txt file to resolve path hashes to readable filenames.'}
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button type="button" className="btn-primary" disabled={busy} onClick={() => void handleScanGameArchives()}>
+                  Scan Game WAD Folder
+                </button>
+                <button type="button" className="btn-secondary" disabled={busy} onClick={() => void handlePickNativeWad()}>
+                  Open Any .wad File From Disk…
+                </button>
+                <button type="button" className="btn-secondary" disabled={busy} onClick={() => void handlePickHashDict()}>
+                  {hashDictStatus?.installed ? 'Update Hash Dictionary…' : 'Import hashes.game.txt…'}
+                </button>
+              </div>
+            </div>
+
+            {gameArchives && (
+              <div style={{ marginTop: '0.85rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                  <input
+                    type="search"
+                    aria-label="Filter game WAD archives"
+                    placeholder="Filter champion or map archives (e.g. Ahri, Map11)…"
+                    value={archiveFilter}
+                    onChange={(e) => setArchiveFilter(e.target.value)}
+                    style={{ flex: '1 1 260px', padding: '0.4rem 0.65rem' }}
+                  />
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{gameArchives.length} archive(s)</span>
+                </div>
+                <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.45rem' }}>
+                  {gameArchives
+                    .filter((a) => !archiveFilter.trim() || a.relativePath.toLowerCase().includes(archiveFilter.trim().toLowerCase()))
+                    .slice(0, 120)
+                    .map((item) => (
+                      <button
+                        key={item.relativePath}
+                        type="button"
+                        className={wadSource?.ref === item.relativePath ? 'btn-primary' : 'btn-secondary'}
+                        disabled={busy}
+                        onClick={() => void handleInspectGameArchive(item)}
+                        style={{ textAlign: 'left', padding: '0.45rem 0.65rem', fontSize: '0.8rem' }}
+                      >
+                        <div style={{ fontWeight: 600 }}>{item.championHint ?? item.fileName}</div>
+                        <div style={{ opacity: 0.78, fontSize: '0.73rem' }}>
+                          {item.category} · {(item.sizeBytes / (1024 * 1024)).toFixed(1)} MB
+                        </div>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <label className="btn-secondary" style={{ display: 'inline-block', margin: '0.25rem 0 0.75rem', cursor: 'pointer' }}>
+            Or upload small .wad / .wad.client file in browser (up to 32 MiB)
             <input type="file" accept=".wad,.client" style={{ display: 'none' }} onChange={(e) => {
               const f = e.target.files?.[0]
               if (f) void handleInspectWad(f)
             }} />
           </label>
 
-          {wadReport && (
-            <div className="customization-card" style={{ padding: '1rem', marginTop: '1rem' }}>
-              <h4>WAD v{wadReport.major}.{wadReport.minor} Archive</h4>
-              <button className="btn-secondary" disabled={busy} onClick={() => {
-                setBusy(true); setError('')
-                void wadTool.extractLocal(wadB64).then(result => setStatus(`Extracted ${result.extractedCount} files into LAAP's local export folder: ${result.outputDir}. No League files were changed.`))
-                  .catch(cause => setError(`Extraction stopped: ${errorMessage(cause)}. Any completed files remain in the separate LAAP export folder.`))
-                  .finally(() => setBusy(false))
-              }}>{busy ? 'Extracting…' : 'Extract into a new LAAP export folder'}</button>
-              <p>Entries: <strong>{wadReport.entryCount}</strong> · Total Uncompressed: <strong>{(wadReport.totalUncompressedSize / (1024 * 1024)).toFixed(2)} MB</strong> · Compressed: <strong>{(wadReport.totalCompressedSize / (1024 * 1024)).toFixed(2)} MB</strong></p>
+          {wadReport && (() => {
+            const q = entryFilter.trim().toLowerCase()
+            const filteredEntries = q
+              ? wadReport.entries.filter(
+                  (e) =>
+                    e.pathHashHex.toLowerCase().includes(q) ||
+                    (e.resolvedPath ?? '').toLowerCase().includes(q) ||
+                    e.compressionName.toLowerCase().includes(q),
+                )
+              : wadReport.entries
+            const visibleSlice = filteredEntries.slice(0, 250)
+            return (
+              <div className="customization-card" style={{ padding: '1rem', marginTop: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <h4 style={{ margin: 0 }}>
+                    WAD v{wadReport.major}.{wadReport.minor} {wadSource ? `· ${wadSource.label}` : 'Archive'}
+                  </h4>
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                    Entries: <strong>{wadReport.entryCount}</strong>
+                    {typeof wadReport.resolvedCount === 'number' && ` (${wadReport.resolvedCount} named)`}
+                    {' · '}Uncompressed: <strong>{(wadReport.totalUncompressedSize / (1024 * 1024)).toFixed(2)} MB</strong>
+                  </span>
+                </div>
 
-              <div style={{ maxHeight: '300px', overflowY: 'auto', marginTop: '1rem' }}>
-                <table style={{ width: '100%', fontSize: '0.85rem', textAlign: 'left', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                      <th style={{ padding: '6px' }}>Path Hash</th>
-                      <th style={{ padding: '6px' }}>Offset</th>
-                      <th style={{ padding: '6px' }}>Compressed</th>
-                      <th style={{ padding: '6px' }}>Uncompressed</th>
-                      <th style={{ padding: '6px' }}>Compression</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {wadReport.entries.slice(0, 50).map((e) => (
-                      <tr key={e.pathHashHex} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                        <td style={{ padding: '4px 6px', fontFamily: 'monospace' }}>{e.pathHashHex}</td>
-                        <td style={{ padding: '4px 6px' }}>{e.offset}</td>
-                        <td style={{ padding: '4px 6px' }}>{e.compressedSize} B</td>
-                        <td style={{ padding: '4px 6px' }}>{e.uncompressedSize} B</td>
-                        <td style={{ padding: '4px 6px' }}>{e.compressionName}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {wadReport.entries.length > 50 && (
-                  <p style={{ fontSize: '0.75rem', color: '#888', marginTop: '0.5rem' }}>Showing first 50 entries of {wadReport.entryCount}.</p>
+                {wadSource && wadSource.kind !== 'base64' ? (
+                  <div style={{ marginTop: '0.75rem', padding: '0.75rem', borderRadius: '6px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <input
+                        type="search"
+                        aria-label="Filter WAD entries"
+                        placeholder="Filter entries by path, hash, or compression…"
+                        value={entryFilter}
+                        onChange={(e) => setEntryFilter(e.target.value)}
+                        style={{ flex: '1 1 220px', padding: '0.4rem 0.65rem' }}
+                      />
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={busy}
+                        onClick={() => {
+                          const next = new Set(selectedWadHashes)
+                          for (const item of visibleSlice) {
+                            if (item.compressionType !== 2) next.add(item.pathHashHex)
+                          }
+                          setSelectedWadHashes(next)
+                        }}
+                      >
+                        Select Visible ({visibleSlice.filter((e) => e.compressionType !== 2).length})
+                      </button>
+                      {selectedWadHashes.size > 0 && (
+                        <button type="button" className="btn-secondary" disabled={busy} onClick={() => setSelectedWadHashes(new Set())}>
+                          Clear Selection ({selectedWadHashes.size})
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        aria-label="Destination project name"
+                        placeholder="Creator project name"
+                        value={extractProjName}
+                        onChange={(e) => setExtractProjName(e.target.value)}
+                        style={{ padding: '0.4rem 0.65rem', minWidth: '180px' }}
+                      />
+                      <input
+                        type="text"
+                        aria-label="Destination champion"
+                        placeholder="Champion (e.g. Ahri)"
+                        value={extractChamp}
+                        onChange={(e) => setExtractChamp(e.target.value)}
+                        style={{ padding: '0.4rem 0.65rem', width: '140px' }}
+                      />
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={busy || selectedWadHashes.size === 0}
+                        onClick={() => void handleExtractSelectedWad('exportFolder')}
+                      >
+                        {busy ? 'Extracting…' : `Extract Selected (${selectedWadHashes.size}) to Export Folder`}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        disabled={busy || selectedWadHashes.size === 0}
+                        onClick={() => void handleExtractSelectedWad('creatorProject')}
+                      >
+                        {busy ? 'Creating Project…' : `Import Selected (${selectedWadHashes.size}) to Creator Project`}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: '0.65rem' }}>
+                    <button className="btn-secondary" disabled={busy} onClick={() => {
+                      setBusy(true); setError('')
+                      void wadTool.extractLocal(wadB64).then(result => setStatus(`Extracted ${result.extractedCount} files into LAAP's local export folder: ${result.outputDir}. No League files were changed.`))
+                        .catch(cause => setError(`Extraction stopped: ${errorMessage(cause)}. Any completed files remain in the separate LAAP export folder.`))
+                        .finally(() => setBusy(false))
+                    }}>{busy ? 'Extracting…' : 'Extract into a new LAAP export folder'}</button>
+                  </div>
                 )}
+
+                <div style={{ maxHeight: '340px', overflowY: 'auto', marginTop: '0.85rem' }}>
+                  <table style={{ width: '100%', fontSize: '0.85rem', textAlign: 'left', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                        {wadSource && wadSource.kind !== 'base64' && <th style={{ padding: '6px', width: '32px' }}>Pick</th>}
+                        <th style={{ padding: '6px' }}>Path / Hash</th>
+                        <th style={{ padding: '6px' }}>Compressed</th>
+                        <th style={{ padding: '6px' }}>Uncompressed</th>
+                        <th style={{ padding: '6px' }}>Compression</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleSlice.map((e) => (
+                        <tr key={e.pathHashHex} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                          {wadSource && wadSource.kind !== 'base64' && (
+                            <td style={{ padding: '4px 6px' }}>
+                              <input
+                                type="checkbox"
+                                aria-label={`Select ${e.resolvedPath ?? e.pathHashHex}`}
+                                disabled={busy || e.compressionType === 2}
+                                checked={selectedWadHashes.has(e.pathHashHex)}
+                                onChange={(ev) => {
+                                  const next = new Set(selectedWadHashes)
+                                  if (ev.target.checked) next.add(e.pathHashHex)
+                                  else next.delete(e.pathHashHex)
+                                  setSelectedWadHashes(next)
+                                }}
+                              />
+                            </td>
+                          )}
+                          <td style={{ padding: '4px 6px' }}>
+                            {e.resolvedPath ? (
+                              <>
+                                <div><code>{e.resolvedPath}</code></div>
+                                <div style={{ fontSize: '0.73rem', opacity: 0.65, fontFamily: 'monospace' }}>{e.pathHashHex}</div>
+                              </>
+                            ) : (
+                              <span style={{ fontFamily: 'monospace' }}>{e.pathHashHex}</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '4px 6px' }}>{e.compressedSize} B</td>
+                          <td style={{ padding: '4px 6px' }}>{e.uncompressedSize} B</td>
+                          <td style={{ padding: '4px 6px' }}>{e.compressionName}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {filteredEntries.length > visibleSlice.length && (
+                    <p style={{ fontSize: '0.75rem', color: '#888', marginTop: '0.5rem' }}>
+                      Showing first {visibleSlice.length} matching entries of {filteredEntries.length} (total {wadReport.entryCount}).
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
         </section>
       )}
 

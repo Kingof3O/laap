@@ -22,13 +22,14 @@ interface AppProps {
   background?: ReactNode
   navigation?: ReactNode
   studio?: ReactNode
+  advancedSettings?: ReactNode
   onShowAccounts?: () => void
   profileActions?: ComponentProps<typeof PersonalRosterView>['profileActions']
   onProfilesChanged?: (profiles: {id:string;name:string}[]) => void
   onProfileSwitched?: (id:string) => void
 }
 
-function AppContent({ background, navigation, studio, onShowAccounts, profileActions, onProfilesChanged, onProfileSwitched }: AppProps) {
+function AppContent({ background, navigation, studio, advancedSettings, onShowAccounts, profileActions, onProfilesChanged, onProfileSwitched }: AppProps) {
   const operations = useRiotOperations()
   const launcher = useLauncher()
   const activeOperations = useRef(false)
@@ -264,6 +265,7 @@ function AppContent({ background, navigation, studio, onShowAccounts, profileAct
           setShowUpdateModal(true)
         }}
         currentVersion={currentVersion}
+        advancedSettings={advancedSettings}
       />
 
       {/* Update Available Modal */}

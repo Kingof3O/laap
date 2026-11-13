@@ -364,6 +364,7 @@ test('StudioSettings, ModLibrary, and ClientStatusPage wire external game adapte
   await page.getByRole('checkbox', { name: /Riot \/ Vanguard compliance responsibility/i }).check()
   await expect(page.getByTestId('studio-adapter-state-badge')).toHaveText('Compatible')
   await expect(page.getByTestId('studio-adapter-verification-summary')).toContainText('2.4.0')
+  await expect(page.getByTestId('studio-adapter-verification-summary')).toContainText('Source: configured')
 
   // Verify unsupported build surface cleanly
   detectedBuild = '14.20.999.1'

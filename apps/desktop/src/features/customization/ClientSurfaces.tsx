@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import {
+  clientBridge,
   clientSurfaces,
   errorMessage,
+  type ClientBridgeStatus,
   type ClientSurfacesConfig,
   type SurfaceConfig,
 } from './api'
@@ -14,6 +16,8 @@ export function ClientSurfaces() {
     activeSurfacesCount: number
     message: string
   } | null>(null)
+  const [bridge, setBridge] = useState<ClientBridgeStatus | null>(null)
+  const [pluginsDirDraft, setPluginsDirDraft] = useState('')
   const [category, setCategory] = useState<string>('all')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -21,16 +25,33 @@ export function ClientSurfaces() {
   const [copiedSnippet, setCopiedSnippet] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
+  async function refreshBridgeAndAdapter() {
+    const [adapter, bridgeState] = await Promise.all([
+      clientSurfaces.getAdapterStatus().catch(() => null),
+      clientBridge.getStatus().catch(() => null),
+    ])
+    if (adapter) setAdapterStatus(adapter)
+    if (bridgeState) {
+      setBridge(bridgeState)
+      setPluginsDirDraft(bridgeState.customPluginsDir ?? bridgeState.pengu.effectivePluginsDir ?? '')
+    }
+  }
+
   async function load() {
     setBusy(true)
     setError('')
     try {
-      const [cfg, adapter] = await Promise.all([
+      const [cfg, adapter, bridgeState] = await Promise.all([
         clientSurfaces.getConfig(),
         clientSurfaces.getAdapterStatus(),
+        clientBridge.getStatus().catch(() => null),
       ])
       setConfig(cfg)
       setAdapterStatus(adapter)
+      if (bridgeState) {
+        setBridge(bridgeState)
+        setPluginsDirDraft(bridgeState.customPluginsDir ?? bridgeState.pengu.effectivePluginsDir ?? '')
+      }
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -57,8 +78,7 @@ export function ClientSurfaces() {
     setStatus('')
     try {
       await clientSurfaces.saveConfig(config)
-      const adapter = await clientSurfaces.getAdapterStatus()
-      setAdapterStatus(adapter)
+      await refreshBridgeAndAdapter()
       setStatus('Client surfaces configuration saved.')
     } catch (e) {
       setError(errorMessage(e))
@@ -74,8 +94,7 @@ export function ClientSurfaces() {
     try {
       const def = await clientSurfaces.resetDefaults()
       setConfig(def)
-      const adapter = await clientSurfaces.getAdapterStatus()
-      setAdapterStatus(adapter)
+      await refreshBridgeAndAdapter()
       setStatus('Reset all 16 client surfaces to factory defaults.')
     } catch (e) {
       setError(errorMessage(e))
@@ -140,6 +159,61 @@ export function ClientSurfaces() {
     finally { setBusy(false) }
   }
 
+  async function handleToggleConsent(granted: boolean) {
+    const previous = bridge?.pluginConsentGranted ?? false
+    setBridge((prev) => (prev ? { ...prev, pluginConsentGranted: granted } : prev))
+    const ok = await runBridgeAction(() => clientBridge.setConsent(granted))
+    if (!ok) {
+      setBridge((prev) => (prev ? { ...prev, pluginConsentGranted: previous } : prev))
+    }
+  }
+
+  async function runBridgeAction(
+    action: () => Promise<ClientBridgeStatus>,
+    successMessage?: string,
+  ): Promise<boolean> {
+    setBusy(true)
+    setError('')
+    setStatus('')
+    try {
+      const next = await action()
+      setBridge(next)
+      setPluginsDirDraft(next.customPluginsDir ?? next.pengu.effectivePluginsDir ?? '')
+      const adapter = await clientSurfaces.getAdapterStatus().catch(() => null)
+      if (adapter) setAdapterStatus(adapter)
+      setStatus(successMessage ?? next.message)
+      return true
+    } catch (e) {
+      setError(errorMessage(e))
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleExportPluginZip() {
+    setBusy(true)
+    setError('')
+    setStatus('')
+    try {
+      const b64 = await clientBridge.exportPluginZip()
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/zip' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'laap-companion-pengu-plugin.zip'
+      document.body.append(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+      setStatus('Exported standalone laap-companion Pengu plugin archive (.zip).')
+    } catch (e) {
+      setError(errorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const categories = ['all', ...(config ? Array.from(new Set(config.surfaces.map((s) => s.category))) : [])]
   const filteredSurfaces = config?.surfaces.filter((s) => category === 'all' || s.category === category)
   const activeCount = config?.surfaces.filter((s) => s.enabled).length ?? 0
@@ -174,12 +248,16 @@ export function ClientSurfaces() {
         style={{
           margin: '1rem 0',
           padding: '1rem 1.25rem',
-          background: 'rgba(99, 102, 241, 0.08)',
-          border: '1px solid rgba(99, 102, 241, 0.3)',
+          background: adapterStatus?.isAvailable
+            ? 'rgba(16, 185, 129, 0.08)'
+            : 'rgba(99, 102, 241, 0.08)',
+          border: adapterStatus?.isAvailable
+            ? '1px solid rgba(16, 185, 129, 0.35)'
+            : '1px solid rgba(99, 102, 241, 0.3)',
           borderRadius: '8px',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
           <div>
             <strong>Client Integration Status</strong>
             <p style={{ margin: '0.25rem 0', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
@@ -192,15 +270,162 @@ export function ClientSurfaces() {
               padding: '4px 10px',
               borderRadius: '6px',
               fontSize: '0.8rem',
-              background: 'rgba(245, 158, 11, 0.15)',
-              color: '#f59e0b',
-              border: '1px solid rgba(245, 158, 11, 0.3)',
+              background: adapterStatus?.isAvailable
+                ? 'rgba(16, 185, 129, 0.15)'
+                : 'rgba(245, 158, 11, 0.15)',
+              color: adapterStatus?.isAvailable ? '#34d399' : '#f59e0b',
+              border: adapterStatus?.isAvailable
+                ? '1px solid rgba(16, 185, 129, 0.35)'
+                : '1px solid rgba(245, 158, 11, 0.3)',
             }}
           >
-            Configuration only · Integration unavailable
+            {adapterStatus?.isAvailable
+              ? bridge && bridge.activeClients > 0
+                ? `Bridge Active · ${bridge.activeClients} peer(s) connected`
+                : 'Bridge Active · Companion plugin ready'
+              : 'Configuration only · Integration unavailable'}
           </span>
         </div>
       </div>
+
+      {/* Rose-Model Loopback Bridge & Companion Plugin Card */}
+      {bridge && (
+        <div
+          className="customization-card"
+          data-testid="companion-bridge-card"
+          style={{
+            margin: '0 0 1rem 0',
+            padding: '1rem 1.25rem',
+            borderRadius: '8px',
+            border: '1px solid rgba(255,255,255,0.1)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+            <div>
+              <strong>In-Client Companion Bridge (Authenticated Loopback)</strong>
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                {bridge.message}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className={bridge.running ? 'btn-secondary' : 'btn-primary'}
+                disabled={busy}
+                onClick={() => void runBridgeAction(() => (bridge.running ? clientBridge.stop() : clientBridge.start()))}
+              >
+                {bridge.running ? 'Stop Loopback Bridge' : 'Start Loopback Bridge'}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={busy}
+                onClick={() => void runBridgeAction(() => clientBridge.rotateToken(), 'Rotated loopback bearer token and updated companion plugin config.')}
+              >
+                Rotate Bearer Token
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '0.85rem' }}>
+            <span>Protocol: <strong>v{bridge.protocolVersion}</strong></span>
+            <span>Endpoint: <strong>{bridge.running && bridge.bridgeUrl ? bridge.bridgeUrl : 'Stopped (127.0.0.1)'}</strong></span>
+            <span>Bearer Token: <code>{bridge.tokenPreview}</code></span>
+            <span>Connected Peers: <strong>{bridge.activeClients}</strong></span>
+            {bridge.lastHandshake && (
+              <span>Last Peer: <strong>{bridge.lastHandshake.clientName} v{bridge.lastHandshake.pluginVersion}</strong></span>
+            )}
+          </div>
+
+          <div style={{ paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <div>
+                <strong>Optional Pengu Loader Companion Plugin (<code>laap-companion</code>)</strong>
+                <p style={{ margin: '0.2rem 0 0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                  {bridge.pengu.detail}
+                </p>
+              </div>
+              <span style={{ fontSize: '0.8rem', color: bridge.pluginInstalled ? '#34d399' : '#94a3b8' }}>
+                {bridge.pluginInstalled
+                  ? bridge.pluginVerified
+                    ? '✓ Installed & receipt-verified'
+                    : 'Installed (config sync needed)'
+                  : 'Not installed'}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.65rem' }}>
+              <input
+                type="text"
+                aria-label="Pengu Loader plugins directory"
+                value={pluginsDirDraft}
+                onChange={(e) => setPluginsDirDraft(e.target.value)}
+                placeholder="Path to Pengu Loader plugins folder"
+                style={{ flex: '1 1 260px', padding: '0.45rem 0.65rem' }}
+              />
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={busy}
+                onClick={() => void runBridgeAction(() => clientBridge.setPluginsDir(pluginsDirDraft.trim() || null))}
+              >
+                Save Folder
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={busy}
+                onClick={() => void runBridgeAction(() => clientBridge.pickPluginsDir())}
+              >
+                Browse Folder…
+              </button>
+            </div>
+
+            <label className="customization-check" style={{ marginBottom: '0.75rem' }}>
+              <input
+                type="checkbox"
+                checked={bridge.pluginConsentGranted}
+                disabled={busy}
+                onChange={(e) => void handleToggleConsent(e.target.checked)}
+              />
+              I authorize LAAP to install and manage its reversible <code>laap-companion</code> folder inside the Pengu Loader plugins directory (does not bundle third-party binaries or unlock paid Riot skins).
+            </label>
+
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={busy || !bridge.pluginConsentGranted || (!bridge.pengu.effectivePluginsDir && !pluginsDirDraft.trim())}
+                onClick={() =>
+                  void runBridgeAction(() =>
+                    clientBridge.installPlugin(pluginsDirDraft.trim() || bridge.customPluginsDir || null),
+                  )
+                }
+              >
+                {bridge.pluginInstalled ? 'Update Companion Plugin' : 'Install Companion Plugin'}
+              </button>
+              {bridge.pluginInstalled && (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={busy}
+                  onClick={() => void runBridgeAction(() => clientBridge.uninstallPlugin())}
+                >
+                  Uninstall Companion Plugin
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={busy}
+                onClick={() => void handleExportPluginZip()}
+              >
+                Export Standalone Plugin .zip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && <p role="alert">{error}</p>}
       {status && <p role="status" style={{ color: '#10b981' }}>{status}</p>}

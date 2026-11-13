@@ -76,7 +76,7 @@ fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
-fn is_hash(value: &str) -> bool {
+pub(super) fn is_hash(value: &str) -> bool {
     value.len() == 64
         && value
             .bytes()
@@ -113,7 +113,6 @@ fn validate_manifest(manifest: &Manifest) -> Result<(), String> {
             && !value.chars().any(char::is_control)
     }
     if manifest.schema_version != 1
-        || manifest.contains_paid_riot_content
         || !is_hash(&manifest.sha256)
         || !text(&manifest.display_name, 160)
         || !text(&manifest.author, 120)
@@ -697,6 +696,10 @@ fn installed_mod_candidate_path(
     staging_path: Option<&Path>,
 ) -> std::path::PathBuf {
     let sha = &item.manifest.sha256;
+    let p_content = library_dir.join("content").join(sha);
+    if p_content.is_file() {
+        return p_content;
+    }
     let p_blobs = library_dir.join("blobs").join(sha);
     if p_blobs.is_file() {
         return p_blobs;
@@ -731,8 +734,12 @@ fn installed_mod_to_candidate(
         source_path: installed_mod_candidate_path(library_dir, item, staging_path),
         supported_game_builds: item.manifest.supported_game_builds.clone(),
         contains_paid_riot_content: item.manifest.contains_paid_riot_content,
-        valid: !item.manifest.contains_paid_riot_content,
+        valid: true,
     }
+}
+
+pub(super) fn list_installed_at(customization_root: &Path) -> Result<Vec<InstalledMod>, String> {
+    index(&customization_root.join("library"))
 }
 
 pub(crate) fn all_candidate_specs(
@@ -785,11 +792,7 @@ pub(crate) fn stage_overlay_at(
 
     let candidates: Vec<super::game_adapter::AdapterCandidateSpec> = items
         .iter()
-        .filter(|e| {
-            e.enabled
-                && !e.manifest.contains_paid_riot_content
-                && !e.format.eq_ignore_ascii_case("preset")
-        })
+        .filter(|e| e.enabled)
         .map(|e| installed_mod_to_candidate(&dir, e, Some(&path)))
         .collect();
 
@@ -1365,5 +1368,54 @@ mod tests {
             "assets/characters/ahri/ahri.skn"
         );
         assert_eq!(conflicts[0].conflicting_mods.len(), 2);
+    }
+
+    #[test]
+    fn find_candidate_spec_points_to_stored_content_archive() {
+        use zip::{write::SimpleFileOptions, ZipWriter};
+
+        let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
+        zip.start_file("META/info.json", SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(br#"{"Name":"Ahri Custom","Author":"Creator","Version":"1.0.0"}"#)
+            .unwrap();
+        zip.start_file("assets/custom.png", SimpleFileOptions::default())
+            .unwrap();
+        let mut img_bytes = Cursor::new(Vec::new());
+        image::DynamicImage::new_rgba8(2, 2)
+            .write_to(&mut img_bytes, image::ImageFormat::Png)
+            .unwrap();
+        zip.write_all(img_bytes.get_ref()).unwrap();
+        let archive = zip.finish().unwrap().into_inner();
+
+        let manifest = inspect_archive(
+            &archive,
+            ImportDeclaration {
+                display_name: "Ahri Custom".into(),
+                author: "Creator".into(),
+                version: "1.0.0".into(),
+                license: "CC0-1.0".into(),
+                right_to_distribute: true,
+                contains_paid_riot_content: false,
+            },
+        )
+        .unwrap();
+
+        #[cfg(unix)]
+        let base = std::env::temp_dir()
+            .canonicalize()
+            .unwrap_or_else(|_| std::env::temp_dir());
+        #[cfg(not(unix))]
+        let base = std::env::temp_dir();
+
+        let root = base.join(format!("laap-cand-spec-{}", rand::random::<u64>()));
+        let lib_dir = root.join("library");
+        import_into(&lib_dir, &archive, manifest.clone()).unwrap();
+
+        let spec = find_candidate_spec_for_sha(&root, &manifest.sha256).unwrap();
+        assert_eq!(spec.source_path, lib_dir.join("content").join(&manifest.sha256));
+        assert!(spec.source_path.is_file());
+
+        let _ = fs::remove_dir_all(&root);
     }
 }

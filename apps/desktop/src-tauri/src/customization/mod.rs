@@ -25,5 +25,6 @@ pub mod provider_support;
 pub mod bin_tool;
 pub mod wad_tool;
 pub mod client_surfaces;
+pub mod client_bridge;
 pub mod in_game_runner;
 pub mod game_adapter;

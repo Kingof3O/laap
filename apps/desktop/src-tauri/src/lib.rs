@@ -393,6 +393,18 @@ pub fn run() {
             #[cfg(not(feature = "basic"))]
             customization::wad_tool::wad_pack_files,
             #[cfg(not(feature = "basic"))]
+            customization::wad_tool::wad_get_hash_dictionary_status,
+            #[cfg(not(feature = "basic"))]
+            customization::wad_tool::wad_pick_hash_dictionary,
+            #[cfg(not(feature = "basic"))]
+            customization::wad_tool::wad_list_game_archives,
+            #[cfg(not(feature = "basic"))]
+            customization::wad_tool::wad_inspect_game_archive,
+            #[cfg(not(feature = "basic"))]
+            customization::wad_tool::wad_pick_and_inspect,
+            #[cfg(not(feature = "basic"))]
+            customization::wad_tool::wad_extract_entries,
+            #[cfg(not(feature = "basic"))]
             customization::client_surfaces::client_surfaces_validate_config,
             #[cfg(not(feature = "basic"))]
             customization::client_surfaces::client_surfaces_get_config,
@@ -404,6 +416,26 @@ pub fn run() {
             customization::client_surfaces::client_surfaces_export_snippet,
             #[cfg(not(feature = "basic"))]
             customization::client_surfaces::client_surfaces_get_adapter_status,
+            #[cfg(not(feature = "basic"))]
+            customization::client_bridge::client_bridge_get_status,
+            #[cfg(not(feature = "basic"))]
+            customization::client_bridge::client_bridge_start,
+            #[cfg(not(feature = "basic"))]
+            customization::client_bridge::client_bridge_stop,
+            #[cfg(not(feature = "basic"))]
+            customization::client_bridge::client_bridge_rotate_token,
+            #[cfg(not(feature = "basic"))]
+            customization::client_bridge::client_bridge_set_plugins_dir,
+            #[cfg(not(feature = "basic"))]
+            customization::client_bridge::client_bridge_pick_plugins_dir,
+            #[cfg(not(feature = "basic"))]
+            customization::client_bridge::client_bridge_set_consent,
+            #[cfg(not(feature = "basic"))]
+            customization::client_bridge::client_bridge_install_plugin,
+            #[cfg(not(feature = "basic"))]
+            customization::client_bridge::client_bridge_uninstall_plugin,
+            #[cfg(not(feature = "basic"))]
+            customization::client_bridge::client_bridge_export_plugin_zip,
             #[cfg(not(feature = "basic"))]
             customization::in_game_runner::in_game_runner_get_config,
             #[cfg(not(feature = "basic"))]

@@ -259,7 +259,11 @@ fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 pub fn load_config(app: &AppHandle) -> Result<ClientSurfacesConfig, String> {
-    let p = config_path(app)?;
+    load_config_at(&storage::root(app)?)
+}
+
+pub(super) fn load_config_at(root: &std::path::Path) -> Result<ClientSurfacesConfig, String> {
+    let p = root.join("client_surfaces.json");
     if let Some(cfg) = storage::read::<ClientSurfacesConfig>(&p, 1024 * 1024)? {
         validate_config(&cfg)?;
         Ok(cfg)
@@ -273,7 +277,9 @@ pub fn load_config(app: &AppHandle) -> Result<ClientSurfacesConfig, String> {
 pub fn save_config(app: &AppHandle, config: &ClientSurfacesConfig) -> Result<(), String> {
     validate_config(config)?;
     let p = config_path(app)?;
-    storage::write(&p, config)
+    storage::write(&p, config)?;
+    super::client_bridge::notify_state_changed();
+    Ok(())
 }
 
 #[tauri::command]
@@ -301,11 +307,9 @@ pub fn client_surfaces_reset_defaults(app: AppHandle) -> Result<ClientSurfacesCo
     Ok(def)
 }
 
-#[tauri::command]
-pub fn client_surfaces_export_snippet(app: AppHandle) -> Result<String, String> {
-    let config = load_config(&app)?;
+pub(super) fn render_surfaces_css(config: &ClientSurfacesConfig) -> String {
     if !config.global_enabled {
-        return Ok("/* LAAP Client Surfaces: Disabled globally */".into());
+        return "/* LAAP Client Surfaces: Disabled globally */".into();
     }
 
     let mut css = String::from("/* LAAP 16 Customizable League Client Surfaces CSS Snippet */\n");
@@ -324,7 +328,13 @@ pub fn client_surfaces_export_snippet(app: AppHandle) -> Result<String, String> 
             }
         }
     }
-    Ok(css)
+    css
+}
+
+#[tauri::command]
+pub fn client_surfaces_export_snippet(app: AppHandle) -> Result<String, String> {
+    let config = load_config(&app)?;
+    Ok(render_surfaces_css(&config))
 }
 
 #[tauri::command]
@@ -333,14 +343,64 @@ pub fn client_surfaces_get_adapter_status(
 ) -> Result<ClientSurfaceAdapterStatus, String> {
     let config = load_config(&app)?;
     let active_count = config.surfaces.iter().filter(|s| s.enabled).count();
+    let bridge = super::client_bridge::bridge_status_summary(&storage::root(&app)?);
+    let (is_available, adapter_type, message) = if bridge.running && bridge.active_clients > 0 {
+        (
+            true,
+            "loopback_websocket_pengu_companion".to_string(),
+            format!(
+                "LAAP Companion Bridge active on 127.0.0.1:{} ({} connected client(s)); syncing {active_count}/{} surfaces cleanly over authenticated loopback WebSocket.",
+                bridge.port,
+                bridge.active_clients,
+                config.surfaces.len()
+            ),
+        )
+    } else if bridge.running && bridge.plugin_installed {
+        (
+            true,
+            "loopback_websocket_pengu_companion".to_string(),
+            format!(
+                "LAAP Companion Bridge running on 127.0.0.1:{} and Pengu companion plugin installed ({}). Waiting for League Client CEF connection to sync {active_count}/{} surfaces.",
+                bridge.port,
+                bridge.plugin_dir.unwrap_or_else(|| "laap-companion".into()),
+                config.surfaces.len()
+            ),
+        )
+    } else if bridge.running {
+        (
+            false,
+            "loopback_bridge_awaiting_companion".to_string(),
+            format!(
+                "Loopback WebSocket bridge listening on 127.0.0.1:{}, but the companion Pengu plugin is not installed or verified yet ({active_count}/{} surfaces configured).",
+                bridge.port,
+                config.surfaces.len()
+            ),
+        )
+    } else if bridge.plugin_installed {
+        (
+            false,
+            "companion_plugin_bridge_stopped".to_string(),
+            format!(
+                "LAAP Companion Plugin installed at {}, but the loopback bridge is currently stopped ({active_count}/{} surfaces configured).",
+                bridge.plugin_dir.unwrap_or_else(|| "laap-companion".into()),
+                config.surfaces.len()
+            ),
+        )
+    } else {
+        (
+            false,
+            "configuration_and_snippet_exporter".to_string(),
+            format!(
+                "16 customizable League client surfaces configured in LAAP ({active_count}/{} active). Enable the In-Client Companion Bridge & install the decoupled Pengu plugin below to sync live into League Client CEF.",
+                config.surfaces.len()
+            ),
+        )
+    };
     Ok(ClientSurfaceAdapterStatus {
-        is_available: false,
-        adapter_type: "configuration_and_snippet_exporter".into(),
+        is_available,
+        adapter_type,
         active_surfaces_count: active_count,
-        message: format!(
-            "16 customizable League client surfaces configured in LAAP ({active_count}/{} active). These are local configuration definitions only. No League-client integration adapter is installed or verified; no game-client changes are applied.",
-            config.surfaces.len()
-        ),
+        message,
     })
 }
 
