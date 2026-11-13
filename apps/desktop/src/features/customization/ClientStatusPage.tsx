@@ -187,7 +187,7 @@ export function ClientStatusPage() {
       </p>
 
       <p className="customization-source" style={{ marginBottom: '1.25rem' }}>
-        Game integrity & policy: Paid-skin unlocking, DLL hijacking, LTK validator bypasses, memory hooking, automatic accept, and auto-lock are strictly excluded. LAAP does not modify active League matches.
+        Custom mod activation is user-configured and user-accepted risk. LAAP itself does not implement memory hooking, DLL injection, or Vanguard bypass; apply/restore is delegated to the external adapter you configure.
       </p>
 
       <div className="customization-filters" style={{ marginBottom: '1rem' }}>
@@ -380,7 +380,10 @@ export function ClientStatusPage() {
                 disabled={
                   monitorBusy ||
                   !consent ||
-                  matchedLoadout?.source !== 'ModLibrary' ||
+                  !(
+                    matchedLoadout?.source === 'ModLibrary' ||
+                    (matchedLoadout?.source === 'Preset' && Boolean(matchedLoadout?.modHash))
+                  ) ||
                   !(runnerStatus?.adapterAvailable ?? adapterStatus?.compatible)
                 }
                 onClick={() => void applyMatchedModNow()}
@@ -406,16 +409,19 @@ export function ClientStatusPage() {
 
           {(status?.phase ?? runnerStatus?.gameflowPhase) === 'ChampSelect' && (
             <p role="status" style={{ marginTop: '1rem', marginBottom: 0 }}>
-              {matchedLoadout?.source === 'ModLibrary'
-                ? matchedLoadout.appliedInGame
-                  ? `Champion select active — custom ModLibrary mod '${matchedLoadout.skinOrModName}' activated via verified external adapter.`
-                  : `Champion select active — matched custom ModLibrary mod '${matchedLoadout.skinOrModName}'. Use Opt-In Auto-Apply or 'Apply Matched Mod'.`
-                : 'Champion select is active. Saved catalog presets are preview/organization metadata only and are never injected into League.'}
+              {matchedLoadout?.source === 'ModLibrary' ||
+              (matchedLoadout?.source === 'Preset' && matchedLoadout?.modHash) ? (
+                matchedLoadout.appliedInGame
+                  ? `Champion select active — '${matchedLoadout.skinOrModName}' activated via the configured external adapter.`
+                  : `Champion select active — matched '${matchedLoadout.skinOrModName}'. Use Opt-In Auto-Apply or 'Apply Matched Mod'.`
+              ) : (
+                'Champion select is active. This preset has no mapped mod package, so only reference metadata is available.'
+              )}
             </p>
           )}
           {(status?.phase ?? runnerStatus?.gameflowPhase) === 'InProgress' && (
             <p role="status" style={{ marginTop: '1rem', marginBottom: 0 }}>
-              Active match in progress. LAAP performs zero in-game file replacement or memory modification; your Riot account&apos;s owned skin selection is shown in-game.
+              Active match in progress. Adapter activation/restore is deferred until Lobby or EndOfGame to avoid modifying live match files.
             </p>
           )}
           {(status?.phase ?? runnerStatus?.gameflowPhase) === 'ReadyCheck' && (
