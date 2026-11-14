@@ -12,7 +12,10 @@ import {
   type SelfTestStep,
 } from './api'
 
-export function formatAdapterStateLabel(state?: AdapterLifecycleState): string {
+export function formatAdapterStateLabel(
+  state?: AdapterLifecycleState,
+  detail?: string | null,
+): string {
   switch (state) {
     case 'compatible':
       return 'Compatible'
@@ -37,6 +40,9 @@ export function formatAdapterStateLabel(state?: AdapterLifecycleState): string {
     case 'needsUpdate':
       return 'Needs Adapter Update'
     case 'blockedByPolicy':
+      if (detail && /vrf00000008|host verification/i.test(detail)) {
+        return 'Host Verification Blocked'
+      }
       return 'Opt-in / Policy Confirmation Required'
     case 'failed':
       return 'Verification Failed'
@@ -66,6 +72,59 @@ export function adapterStateBadgeColor(state?: AdapterLifecycleState): string {
       return '#dc2626'
     default:
       return '#6b7280'
+  }
+}
+
+export function describeManagedBootstrap(bootstrap: BootstrapStatus): {
+  label: string
+  color: string
+  buttonLabel: string
+  isActionable: boolean
+} {
+  const isError =
+    bootstrap.provisionState === 'failed' ||
+    bootstrap.provisionState === 'error' ||
+    bootstrap.provisionState === 'blocked' ||
+    bootstrap.actionRequired === 'ltk_host_verification_blocked'
+  const label = bootstrap.managedBackendReady
+    ? 'Ready'
+    : bootstrap.provisionState === 'downloading'
+      ? `Downloading${bootstrap.provisionProgressPct != null ? ` (${bootstrap.provisionProgressPct}%)` : '…'}`
+      : bootstrap.provisionState === 'extracting'
+        ? 'Extracting…'
+        : bootstrap.actionRequired === 'elevation_mismatch'
+          ? 'Admin Mismatch Detected'
+          : bootstrap.actionRequired === 'ltk_host_verification_blocked'
+            ? 'Host Verification Blocked'
+            : bootstrap.actionRequired === 'sync_ltk_dll'
+              ? 'LTK Sync Needed'
+              : bootstrap.actionRequired === 'install_ltk_manager' ||
+                  bootstrap.actionRequired === 'confirm_uac'
+                ? 'LTK Setup Required'
+                : bootstrap.provisionState === 'failed' ||
+                    bootstrap.provisionState === 'error'
+                  ? 'Provisioning Failed'
+                  : 'Setup Needed'
+  const buttonLabel =
+    bootstrap.actionRequired === 'install_ltk_manager' ||
+    bootstrap.actionRequired === 'confirm_uac'
+      ? 'Install LTK Patcher'
+      : bootstrap.actionRequired === 'sync_ltk_dll'
+        ? 'Sync LTK Patcher'
+        : bootstrap.actionRequired === 'elevation_mismatch'
+          ? 'Re-check Elevation'
+          : bootstrap.actionRequired === 'ltk_host_verification_blocked'
+            ? 'Re-check Backend'
+            : 'Provision Managed Backend'
+  return {
+    label,
+    color: bootstrap.managedBackendReady ? '#22c55e' : isError ? '#ef4444' : '#f59e0b',
+    buttonLabel,
+    isActionable:
+      !bootstrap.managedBackendReady ||
+      bootstrap.provisionState === 'failed' ||
+      bootstrap.provisionState === 'error' ||
+      Boolean(bootstrap.actionRequired),
   }
 }
 
@@ -278,7 +337,10 @@ export function GameAdapterSettingsPanel() {
     setError(null)
     setNotice(null)
     try {
-      const next = await customizationBootstrap.provision(true)
+      const next =
+        bootstrapStatus?.actionRequired === 'ltk_host_verification_blocked'
+          ? await customizationBootstrap.ensure()
+          : await customizationBootstrap.provision(true)
       setBootstrapStatus(next)
       setNotice(next.provisionDetail || next.detail)
       await refreshAll(true)
@@ -314,7 +376,7 @@ export function GameAdapterSettingsPanel() {
             background: badgeColor,
           }}
         >
-          {formatAdapterStateLabel(statusReport?.state)}
+          {formatAdapterStateLabel(statusReport?.state, statusReport?.detail)}
         </span>
       </div>
 
@@ -436,42 +498,24 @@ export function GameAdapterSettingsPanel() {
             </code>
             ):
           </strong>{' '}
-          {bootstrapStatus ? (
-            <>
-              <span
-                style={{
-                  color: bootstrapStatus.managedBackendReady
-                    ? '#22c55e'
-                    : bootstrapStatus.provisionState === 'failed' ||
-                        bootstrapStatus.provisionState === 'error'
-                      ? '#ef4444'
-                      : '#f59e0b',
-                  fontWeight: 600,
-                }}
-              >
-                {bootstrapStatus.managedBackendReady
-                  ? 'Ready'
-                  : bootstrapStatus.provisionState === 'downloading'
-                    ? `Downloading${bootstrapStatus.provisionProgressPct != null ? ` (${bootstrapStatus.provisionProgressPct}%)` : '…'}`
-                    : bootstrapStatus.provisionState === 'extracting'
-                      ? 'Extracting…'
-                      : bootstrapStatus.actionRequired === 'elevation_mismatch'
-                        ? 'Admin Mismatch Detected'
-                        : bootstrapStatus.actionRequired === 'sync_ltk_dll'
-                          ? 'LTK Sync Needed'
-                          : bootstrapStatus.actionRequired === 'install_ltk_manager' ||
-                              bootstrapStatus.actionRequired === 'confirm_uac'
-                            ? 'LTK Setup Required'
-                            : bootstrapStatus.provisionState === 'failed' ||
-                                bootstrapStatus.provisionState === 'error'
-                              ? 'Provisioning Failed'
-                              : 'Setup Needed'}
-              </span>
-              <div className="customization-source" style={{ marginTop: '3px' }}>
-                {bootstrapStatus.provisionDetail || bootstrapStatus.detail}
-              </div>
-            </>
-          ) : (
+          {bootstrapStatus ? (() => {
+            const summary = describeManagedBootstrap(bootstrapStatus)
+            return (
+              <>
+                <span
+                  style={{
+                    color: summary.color,
+                    fontWeight: 600,
+                  }}
+                >
+                  {summary.label}
+                </span>
+                <div className="customization-source" style={{ marginTop: '3px' }}>
+                  {bootstrapStatus.provisionDetail || bootstrapStatus.detail}
+                </div>
+              </>
+            )
+          })() : (
             <span className="customization-source">Managed provisioning status unavailable.</span>
           )}
         </div>
@@ -487,14 +531,9 @@ export function GameAdapterSettingsPanel() {
         >
           {provisionBusy
             ? 'Working…'
-            : bootstrapStatus?.actionRequired === 'install_ltk_manager' ||
-                bootstrapStatus?.actionRequired === 'confirm_uac'
-              ? 'Install LTK Patcher'
-              : bootstrapStatus?.actionRequired === 'sync_ltk_dll'
-                ? 'Sync LTK Patcher'
-                : bootstrapStatus?.actionRequired === 'elevation_mismatch'
-                  ? 'Re-check Elevation'
-                  : 'Provision Managed Backend'}
+            : bootstrapStatus
+              ? describeManagedBootstrap(bootstrapStatus).buttonLabel
+              : 'Provision Managed Backend'}
         </button>
       </div>
 

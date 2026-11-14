@@ -786,6 +786,10 @@ struct RuntimeStore {
     pub active_game_dir: Option<String>,
     #[serde(default)]
     pub managed_pid: Option<u32>,
+    #[serde(default)]
+    pub host_verification_error: Option<String>,
+    #[serde(default)]
+    pub host_verification_binary_sha256: Option<String>,
     pub last_action: Option<String>,
     pub last_action_message: Option<String>,
     pub updated_at: Option<u64>,
@@ -1083,7 +1087,16 @@ pub fn save_config_at(
         validate_adapter_binary_path(Path::new(path_str))?;
     }
 
+    let prev_path = load_config_at(customization_root)
+        .ok()
+        .and_then(|c| c.adapter_path)
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
     storage::write(&config_file_for_root(customization_root), &cfg)?;
+    if prev_path != cfg.adapter_path {
+        clear_host_verification_block_at(customization_root);
+    }
     Ok(cfg)
 }
 
@@ -1702,7 +1715,7 @@ pub(crate) fn probe_adapter_at(customization_root: &Path, opts: &ProbeOptions) -
             if let Some(meta) = super::skin_bootstrap::managed_ltk_stage_meta(customization_root) {
                 if meta.dll_eol.is_some_and(|eol| now_unix() > u64::from(eol)) {
                     report.state = AdapterLifecycleState::NeedsUpdate;
-                    report.available = true;
+                    report.available = false;
                     report.compatible = false;
                     report.detail = "Staged ltk_patcher_dll.dll has expired for current League patches; open/sync LTK Manager to refresh.".into();
                     return report;
@@ -1717,9 +1730,18 @@ pub(crate) fn probe_adapter_at(customization_root: &Path, opts: &ProbeOptions) -
                 report.detail = elev_err;
                 return report;
             }
+            if let Some(vrf_err) =
+                active_host_verification_block_for_sha(customization_root, Some(&sha256))
+            {
+                report.state = AdapterLifecycleState::BlockedByPolicy;
+                report.available = false;
+                report.compatible = false;
+                report.detail = vrf_err;
+                return report;
+            }
         } else if is_known_eol_cslol_dll(&bin_path) {
             report.state = AdapterLifecycleState::NeedsUpdate;
-            report.available = true;
+            report.available = false;
             report.compatible = false;
             report.detail = "Legacy cslol-dll.dll (2026-04-15) reached end-of-life and cannot patch live League builds; install/sync LTK Patcher runtime.".into();
             return report;
@@ -2083,6 +2105,103 @@ fn extract_mod_to_folder(src: &Path, mod_name: &str, out_dir: &Path) -> Result<(
     }
     flatten_single_nested_mod_dir(out_dir)?;
     ensure_mod_meta_info(out_dir, mod_name)
+}
+
+pub(crate) fn is_host_verification_refusal(msg: &str) -> bool {
+    let lower = msg.to_ascii_lowercase();
+    lower.contains("vrf00000008")
+        || lower.contains("host verification failed")
+        || lower.contains("refusing overlay")
+}
+
+pub(crate) fn format_host_verification_refusal(raw_error: &str) -> String {
+    let cleaned = raw_error.trim();
+    format!(
+        "LTK host verification refused overlay ({cleaned}). Signed ltk_patcher_dll.dll (v1.30+) requires official LTK Manager launched directly from Windows Explorer rather than third-party launchers like LAAP."
+    )
+}
+
+pub(crate) fn clear_host_verification_block_at(customization_root: &Path) {
+    let mut store = load_runtime_at(customization_root);
+    if store.host_verification_error.is_some() || store.host_verification_binary_sha256.is_some() {
+        store.host_verification_error = None;
+        store.host_verification_binary_sha256 = None;
+        store.updated_at = Some(now_unix());
+        let _ = save_runtime_at(customization_root, &store);
+    }
+}
+
+fn active_host_verification_block_for_sha(
+    customization_root: &Path,
+    binary_sha256: Option<&str>,
+) -> Option<String> {
+    let store = load_runtime_at(customization_root);
+    let err = store.host_verification_error?;
+    match (store.host_verification_binary_sha256.as_deref(), binary_sha256) {
+        (Some(blocked_sha), Some(cur_sha)) if blocked_sha != cur_sha => None,
+        _ => Some(err),
+    }
+}
+
+pub(crate) fn active_managed_host_verification_block_at(
+    customization_root: &Path,
+) -> Option<String> {
+    let cfg = load_config_at(customization_root).unwrap_or_default();
+    let Ok(Some((bin_path, _))) = discover_adapter_binary_at(customization_root, &cfg, true) else {
+        return None;
+    };
+    if !is_managed_ltk_host_binary(&bin_path) {
+        return None;
+    }
+    let sha = compute_sha256_file(&bin_path).ok();
+    active_host_verification_block_for_sha(customization_root, sha.as_deref())
+}
+
+pub(crate) fn record_managed_host_error_at(
+    customization_root: Option<&Path>,
+    active_mod_hash: Option<&str>,
+    raw_error: &str,
+) {
+    let Some(root) = customization_root else {
+        return;
+    };
+    let trimmed_err = raw_error.trim().to_string();
+    stop_managed_modtools(root);
+
+    let cfg = load_config_at(root).unwrap_or_default();
+    let binary_sha = discover_adapter_binary_at(root, &cfg, true)
+        .ok()
+        .flatten()
+        .filter(|(p, _)| is_managed_ltk_host_binary(p))
+        .and_then(|(p, _)| compute_sha256_file(&p).ok());
+
+    let now = now_unix();
+    let mut store = load_runtime_at(root);
+    store.managed_pid = None;
+    store.active_staged_dir = None;
+    store.active_game_dir = None;
+    if is_host_verification_refusal(&trimmed_err) {
+        store.host_verification_error = Some(format_host_verification_refusal(&trimmed_err));
+        store.host_verification_binary_sha256 = binary_sha;
+        store.last_action = Some("host_verification_blocked".into());
+    } else {
+        store.last_action = Some("managed_host_error".into());
+    }
+    store.last_action_message = Some(trimmed_err.clone());
+    store.updated_at = Some(now);
+
+    for (hash, rec) in store.mods.iter_mut() {
+        if active_mod_hash.is_some_and(|target| target == hash) {
+            rec.state = ModRuntimeState::Failed;
+            rec.last_error = Some(trimmed_err.clone());
+            rec.deferred_reason = None;
+            rec.updated_at = now;
+        } else if matches!(rec.state, ModRuntimeState::Applied | ModRuntimeState::Staged) {
+            rec.state = ModRuntimeState::SafeToStore;
+            rec.updated_at = now;
+        }
+    }
+    let _ = save_runtime_at(root, &store);
 }
 
 fn stop_managed_modtools(customization_root: &Path) {
@@ -4587,6 +4706,96 @@ fn main() {{
 
         shutdown_managed_backend();
         clear_managed_host_events();
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn vrf00000008_error_latches_host_verification_block_and_clears_on_config_change() {
+        let _serial = test_serial_guard();
+        shutdown_managed_backend();
+        clear_managed_host_events();
+
+        let root = temp_root("vrf-latch");
+        let league = setup_fake_league(&root, "16.22.834.8910");
+        let final_dir = league.join("Game").join("DATA").join("FINAL").join("Champions");
+        fs::create_dir_all(&final_dir).unwrap();
+        fs::write(final_dir.join("Alistar.wad.client"), b"WAD").unwrap();
+
+        let ltk_dir = root.join("adapters").join("ltk-patcher");
+        fs::create_dir_all(&ltk_dir).unwrap();
+        let host_name = if cfg!(windows) {
+            "ltk_patcher_host.exe"
+        } else {
+            "ltk_patcher_host"
+        };
+        let host_exe = ltk_dir.join(host_name);
+        fs::write(&host_exe, b"MZ-dummy-ltk-host").unwrap();
+        fs::write(ltk_dir.join("ltk_patcher_dll.dll"), b"MZ-dummy-ltk-dll").unwrap();
+
+        let alt_exe = root.join("alt_patcher.exe");
+        fs::write(&alt_exe, b"MZ-dummy-alt").unwrap();
+
+        let mut cfg = GameAdapterConfig::default();
+        cfg.adapter_path = Some(host_exe.to_string_lossy().into_owned());
+        cfg.user_consent_granted = true;
+        cfg.clearance_acknowledged = true;
+        save_config_at(&root, cfg.clone()).unwrap();
+
+        let opts = ProbeOptions {
+            allow_path_discovery: false,
+            lcu_build_hint: Some("16.22.834.8910".into()),
+            active_match_running: false,
+            ..ProbeOptions::default()
+        };
+
+        let initial = probe_adapter_at(&root, &opts);
+        assert_eq!(initial.state, AdapterLifecycleState::Compatible);
+        assert!(initial.available);
+
+        let mut store = load_runtime_at(&root);
+        store.mods.insert(
+            "hash-alistar".into(),
+            ModRuntimeRecord {
+                state: ModRuntimeState::Applied,
+                last_error: None,
+                deferred_reason: None,
+                adapter_version: Some("ltk_patcher-30".into()),
+                game_build: Some("16.22.834.8910".into()),
+                updated_at: now_unix(),
+            },
+        );
+        save_runtime_at(&root, &store).unwrap();
+
+        record_managed_host_error_at(
+            Some(&root),
+            Some("hash-alistar"),
+            "ltk_patcher_dll::verify: host verification failed, refusing overlay: [VRF00000008] (26280,ltk-manager.exe)",
+        );
+
+        let blocked = probe_adapter_at(&root, &opts);
+        assert_eq!(blocked.state, AdapterLifecycleState::BlockedByPolicy);
+        assert!(!blocked.available);
+        assert!(!blocked.compatible);
+        assert!(blocked.detail.contains("VRF00000008"));
+
+        let after_err = load_runtime_at(&root);
+        assert_eq!(
+            after_err.mods.get("hash-alistar").map(|m| &m.state),
+            Some(&ModRuntimeState::Failed)
+        );
+        assert!(after_err.active_staged_dir.is_none());
+        assert!(after_err.managed_pid.is_none());
+
+        // Switching adapter_path away and back clears the persisted latch.
+        let mut cfg_alt = cfg.clone();
+        cfg_alt.adapter_path = Some(alt_exe.to_string_lossy().into_owned());
+        save_config_at(&root, cfg_alt).unwrap();
+        assert!(load_runtime_at(&root).host_verification_error.is_none());
+
+        save_config_at(&root, cfg).unwrap();
+        let recovered = probe_adapter_at(&root, &opts);
+        assert_eq!(recovered.state, AdapterLifecycleState::Compatible);
+
         let _ = fs::remove_dir_all(&root);
     }
 }

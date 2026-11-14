@@ -546,7 +546,15 @@ fn try_stage_installed_ltk_patcher(
 
     if let (Some(host_src), Some(dll)) = (host_source.as_ref(), delivered.as_ref()) {
         if !dll.is_expired {
-            if stage_ltk_pair_at(root, host_src, dll).is_ok() {
+            let prev_meta = managed_ltk_stage_meta(root);
+            if let Ok(new_meta) = stage_ltk_pair_at(root, host_src, dll) {
+                let changed = prev_meta.as_ref().is_none_or(|prev| {
+                    prev.host_sha256 != new_meta.host_sha256
+                        || prev.dll_sha256 != new_meta.dll_sha256
+                });
+                if changed {
+                    game_adapter::clear_host_verification_block_at(root);
+                }
                 return LtkStageDiscovery::Ready;
             }
         }
@@ -765,15 +773,24 @@ fn build_bootstrap_status_with_discovery(
         "none".to_string()
     };
 
+    let host_vrf_block = if cfg!(windows) && backend_kind == "ltk-patcher" {
+        game_adapter::active_managed_host_verification_block_at(root)
+    } else {
+        None
+    };
+
     let managed_backend_ready = if cfg!(windows) {
         (ltk_patcher_ready || backend_kind == "external")
             && adapter_configured
             && elevation_issue.is_none()
+            && host_vrf_block.is_none()
     } else {
         adapter_configured
     };
 
-    if using_legacy_modtools && !ltk_patcher_ready {
+    if let Some(ref vrf) = host_vrf_block {
+        detail_parts.push(vrf.clone());
+    } else if using_legacy_modtools && !ltk_patcher_ready {
         detail_parts.push(
             "Legacy cslol-tools (Apr 2026) cannot inject into live League; LTK Patcher setup needed".into(),
         );
@@ -838,6 +855,11 @@ fn build_bootstrap_status_with_discovery(
         action_required = Some("elevation_mismatch".into());
         progress.state = "action_required".into();
         progress.detail = Some(elev.clone());
+    } else if let Some(ref vrf) = host_vrf_block {
+        action_required = Some("ltk_host_verification_blocked".into());
+        progress.state = "blocked".into();
+        progress.progress_pct = None;
+        progress.detail = Some(vrf.clone());
     } else if managed_backend_ready {
         progress.state = "ready".into();
         progress.progress_pct = Some(100);
@@ -1907,6 +1929,53 @@ mod tests {
         println!("promoted={}\nfiles={:?}", out.display(), list);
         let cmd_out = std::process::Command::new(&out).arg("help").output().expect("run mod-tools help");
         println!("exit={:?}\nstdout={}\nstderr={}", cmd_out.status, String::from_utf8_lossy(&cmd_out.stdout), String::from_utf8_lossy(&cmd_out.stderr));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn bootstrap_surfaces_ltk_host_verification_block() {
+        let root = temp_root("ltk-vrf-block");
+        let fake_install = root.join("fake_ltk_install");
+        fs::create_dir_all(&fake_install).unwrap();
+        fs::write(fake_install.join(LTK_HOST_EXE_NAME), b"MZ-ltk-host").unwrap();
+
+        let patcher_dir = root.join("fake_appdata_patcher");
+        let dll_bytes = b"MZ-ltk-hook-dll";
+        let dll_sha = format!("{:x}", Sha256::digest(dll_bytes));
+        fs::create_dir_all(patcher_dir.join(&dll_sha)).unwrap();
+        fs::write(patcher_dir.join(&dll_sha).join(LTK_HOOK_DLL_NAME), dll_bytes).unwrap();
+
+        let ready = build_bootstrap_status_with_discovery(
+            &root,
+            std::slice::from_ref(&fake_install),
+            std::slice::from_ref(&patcher_dir),
+        );
+        assert!(ready.managed_backend_ready || !ready.league_detected);
+
+        game_adapter::record_managed_host_error_at(
+            Some(&root),
+            Some("modhash1"),
+            "ltk_patcher_dll::verify: host verification failed, refusing overlay: [VRF00000008] (26280,ltk-manager.exe)",
+        );
+
+        let blocked = build_bootstrap_status_with_discovery(
+            &root,
+            std::slice::from_ref(&fake_install),
+            std::slice::from_ref(&patcher_dir),
+        );
+        assert!(!blocked.managed_backend_ready);
+        assert!(blocked.setup_needed);
+        assert_eq!(
+            blocked.action_required.as_deref(),
+            Some("ltk_host_verification_blocked")
+        );
+        assert_eq!(blocked.provision_state, "blocked");
+        assert!(blocked
+            .provision_detail
+            .as_deref()
+            .unwrap_or_default()
+            .contains("VRF00000008"));
+
         let _ = fs::remove_dir_all(root);
     }
 }

@@ -334,3 +334,249 @@ pub async fn skin_select(
     .await
     .map_err(|e| format!("Skin select task failed: {e}"))?
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportedSkinOverlay {
+    pub mod_hash: String,
+    pub path: String,
+    pub file_name: String,
+    pub size_bytes: u64,
+    pub revealed: bool,
+}
+
+fn sanitize_export_segment(input: &str, fallback: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut last_underscore = false;
+    for ch in input.chars() {
+        if ch.is_ascii_alphanumeric() || ch == '-' {
+            out.push(ch);
+            last_underscore = false;
+        } else if !last_underscore {
+            out.push('_');
+            last_underscore = true;
+        }
+    }
+    let trimmed = out.trim_matches('_');
+    if trimmed.is_empty() {
+        fallback.to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+pub(crate) fn export_skin_overlay_at(
+    root: &Path,
+    final_dir: &Path,
+    champion_id: u32,
+    skin_id: u32,
+    champion_name: Option<&str>,
+) -> Result<ExportedSkinOverlay, String> {
+    let eff_champ_id = if champion_id > 0 {
+        champion_id
+    } else {
+        skin_id / 1000
+    };
+    let (champ_str_id, champ_display_name, champ_key, skin_num, skin_name_opt) =
+        resolve_skin_meta_at(root, eff_champ_id, skin_id, champion_name);
+    if skin_num == 0 {
+        return Err("Default skin does not require a .fantome overlay export.".into());
+    }
+    let mod_hash = super::skin_overlay::ensure_official_skin_mod_at(
+        root,
+        final_dir,
+        &champ_str_id,
+        &champ_display_name,
+        champ_key.as_deref(),
+        skin_num,
+        skin_id,
+    )?;
+    let src_path = root.join("library").join("content").join(&mod_hash);
+    if !src_path.is_file() {
+        return Err(format!(
+            "Generated overlay package '{mod_hash}' was not found in local Mod Library content."
+        ));
+    }
+    let skin_label = skin_name_opt.unwrap_or_else(|| format!("Skin_{skin_num}"));
+    let file_name = format!(
+        "{}_{}_{}.fantome",
+        sanitize_export_segment(&champ_str_id, "Champion"),
+        sanitize_export_segment(&skin_label, "Skin"),
+        skin_id
+    );
+    let exports_dir = root.join("exports");
+    std::fs::create_dir_all(&exports_dir)
+        .map_err(|e| format!("Cannot create exports folder: {e}"))?;
+    let dest_path = exports_dir.join(&file_name);
+    let size_bytes = std::fs::copy(&src_path, &dest_path)
+        .map_err(|e| format!("Failed writing exported .fantome file: {e}"))?;
+    Ok(ExportedSkinOverlay {
+        mod_hash,
+        path: dest_path.to_string_lossy().into_owned(),
+        file_name,
+        size_bytes,
+        revealed: false,
+    })
+}
+
+fn reveal_path_in_file_manager(path: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        std::process::Command::new("explorer.exe")
+            .arg(format!("/select,{}", path.display()))
+            .spawn()
+            .is_ok()
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = path;
+        false
+    }
+}
+
+/// Export the cached or locally generated official-skin `.fantome` overlay under `<root>/exports/`
+/// and optionally highlight it in Windows Explorer for manual use in external mod managers.
+#[tauri::command]
+pub async fn skin_export_overlay(
+    app: AppHandle,
+    champion_id: u32,
+    skin_id: u32,
+    champion_name: Option<String>,
+    open_folder: Option<bool>,
+) -> Result<ExportedSkinOverlay, String> {
+    let eff_champ_id = if champion_id > 0 {
+        champion_id
+    } else {
+        skin_id / 1000
+    };
+    if eff_champ_id > 0 {
+        let _ = ensure_champion_detail_cached(&app, eff_champ_id).await;
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = storage::root(&app)?;
+        let final_dir = super::in_game_runner::find_game_final_dir_at(&root).ok_or_else(|| {
+            "League DATA/FINAL directory was not detected for .fantome export.".to_string()
+        })?;
+        let mut exported = export_skin_overlay_at(
+            &root,
+            &final_dir,
+            eff_champ_id,
+            skin_id,
+            champion_name.as_deref(),
+        )?;
+        if open_folder.unwrap_or(true) {
+            exported.revealed = reveal_path_in_file_manager(Path::new(&exported.path));
+        }
+        Ok(exported)
+    })
+    .await
+    .map_err(|e| format!("Skin export task failed: {e}"))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn export_skin_overlay_copies_cached_fantome_cleanly() {
+        let root = std::env::temp_dir().join(format!(
+            "laap-skin-export-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        let final_dir = root.join("Game").join("DATA").join("FINAL");
+        std::fs::create_dir_all(root.join("library").join("content")).unwrap();
+        std::fs::create_dir_all(&final_dir).unwrap();
+
+        let fake_hash = "0364da7009649269fbdc94da2ed7de4b5e9749255da3807f0430b3a1c9b4b75e";
+        let payload = b"PK-mock-fantome-zip";
+        std::fs::write(root.join("library").join("content").join(fake_hash), payload).unwrap();
+
+        let mod_id = super::super::skin_overlay::synthetic_official_mod_id("Alistar", 1, 12001);
+        let index = vec![super::super::library::InstalledMod {
+            manifest: super::super::library::Manifest {
+                schema_version: 1,
+                mod_id,
+                version: "1.0.0".into(),
+                display_name: "Alistar - Black Alistar".into(),
+                author: "LAAP".into(),
+                license: "local-game-asset".into(),
+                right_to_distribute: false,
+                contains_paid_riot_content: true,
+                sha256: fake_hash.into(),
+                supported_game_builds: vec![],
+                champion_ids: vec![12],
+                files: vec![],
+                attribution_url: None,
+                notes: None,
+            },
+            archive_bytes: payload.len() as u64,
+            enabled: false,
+            priority: 0,
+            format: "fantome".into(),
+        }];
+        storage::write(&root.join("library").join("index.json"), &index).unwrap();
+
+        let champ = catalog::Champion {
+            id: "Alistar".into(),
+            key: Some("12".into()),
+            name: "Alistar".into(),
+            title: "the Minotaur".into(),
+            tags: vec![],
+        };
+        let detail = catalog::Snapshot {
+            version: "16.22.1".into(),
+            locale: "en_US".into(),
+            cached: true,
+            bundled: false,
+            data: catalog::ChampionDetail {
+                champion: champ.clone(),
+                lore: String::new(),
+                skins: vec![
+                    catalog::Skin {
+                        id: "12000".into(),
+                        num: 0,
+                        name: "default".into(),
+                        chromas: false,
+                        chroma_list: vec![],
+                        variants: vec![],
+                    },
+                    catalog::Skin {
+                        id: "12001".into(),
+                        num: 1,
+                        name: "Black Alistar".into(),
+                        chromas: false,
+                        chroma_list: vec![],
+                        variants: vec![],
+                    },
+                ],
+                variants: vec![],
+            },
+        };
+        let champions_index = catalog::Snapshot {
+            version: "16.22.1".into(),
+            locale: "en_US".into(),
+            cached: true,
+            bundled: false,
+            data: vec![champ],
+        };
+        storage::write(&root.join("catalog").join("detail-en_US-Alistar.json"), &detail).unwrap();
+        storage::write(&root.join("catalog").join("champions-en_US.json"), &champions_index).unwrap();
+
+        let err = export_skin_overlay_at(&root, &final_dir, 12, 12000, Some("Alistar")).unwrap_err();
+        assert!(err.contains("Default skin"));
+
+        let out = export_skin_overlay_at(&root, &final_dir, 12, 12001, Some("Alistar")).unwrap();
+        assert_eq!(out.mod_hash, fake_hash);
+        assert_eq!(out.file_name, "Alistar_Black_Alistar_12001.fantome");
+        assert_eq!(out.size_bytes, payload.len() as u64);
+        assert!(!out.revealed);
+        assert!(Path::new(&out.path).is_file());
+        assert_eq!(std::fs::read(&out.path).unwrap(), payload);
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+}

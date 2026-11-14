@@ -1357,6 +1357,7 @@ let lastActionFeedback = '';
 function renderChampSelectDrawer(state) {
   let drawer = document.getElementById(DRAWER_ELEMENT_ID);
   if (!state || state.gameflowPhase !== 'ChampSelect') {
+    lastActionFeedback = '';
     if (drawer) drawer.remove();
     return;
   }
@@ -1380,10 +1381,19 @@ function renderChampSelectDrawer(state) {
   drawer.appendChild(header);
 
   const meta = document.createElement('div');
-  meta.style.cssText = 'font-size:11px;color:#c3b5d2;margin-bottom:8px;line-height:1.35;';
-  meta.textContent = lastActionFeedback
-    ? lastActionFeedback
-    : 'Status: ' + (state.matchApplyStatus || 'ready') + (state.activeAppliedModHash ? ' · overlay active' : '');
+  const applyStatus = String(state.matchApplyStatus || 'ready');
+  const vrfBlocked = state.adapterState === 'blockedByPolicy' || applyStatus.toLowerCase().includes('vrf00000008');
+  const adapterDown = state.adapterAvailable === false || vrfBlocked || applyStatus.startsWith('failed');
+  meta.style.cssText = 'font-size:11px;margin-bottom:8px;line-height:1.35;color:' + (adapterDown ? '#fca5a5;' : '#c3b5d2;');
+  if (lastActionFeedback) {
+    meta.textContent = lastActionFeedback;
+  } else if (vrfBlocked) {
+    meta.textContent = 'Blocked (VRF00000008): ltk_patcher_dll refuses external launchers. Export .fantome from LAAP if needed.';
+  } else if (state.adapterState === 'needsUpdate') {
+    meta.textContent = 'Patcher update needed: legacy cslol/DLL cannot patch live League builds.';
+  } else {
+    meta.textContent = 'Status: ' + applyStatus + (state.activeAppliedModHash ? ' · overlay active' : '');
+  }
   drawer.appendChild(meta);
 
   const sectionTitle = (text) => {

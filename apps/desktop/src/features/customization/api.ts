@@ -793,4 +793,20 @@ export const skinCatalog = {
       'skin_select',
       { championId, skinId, championName: championName ?? null },
     ),
+  exportOverlay: (championId: number, skinId: number, championName?: string | null, openFolder?: boolean) =>
+    invokeTauri<{
+      modHash: string
+      path: string
+      fileName: string
+      sizeBytes: number
+      revealed: boolean
+    }>(
+      'skin_export_overlay',
+      {
+        championId,
+        skinId,
+        championName: championName ?? null,
+        openFolder: openFolder ?? true,
+      },
+    ),
 }

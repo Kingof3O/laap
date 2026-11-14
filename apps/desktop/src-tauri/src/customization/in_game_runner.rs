@@ -165,7 +165,12 @@ fn acquire_apply_lock() -> std::sync::MutexGuard<'static, ()> {
         .unwrap_or_else(|poison| poison.into_inner())
 }
 
+#[cfg(test)]
 fn drain_and_record_host_events() -> bool {
+    drain_and_record_host_events_at(None)
+}
+
+fn drain_and_record_host_events_at(customization_root: Option<&std::path::Path>) -> bool {
     use super::game_adapter::ManagedHostEventKind;
     let events = super::game_adapter::drain_managed_host_events();
     if events.is_empty() {
@@ -222,15 +227,29 @@ fn drain_and_record_host_events() -> bool {
                 }
             }
             ManagedHostEventKind::Error => {
-                let short: String = msg.chars().take(120).collect();
-                if let Ok(mut w) = get_tracker().lock() {
-                    w.match_apply_status = format!("failed: {short}");
+                let active_hash = if let Ok(mut w) = get_tracker().lock() {
+                    let prev_hash = w.active_applied_mod_hash.take();
+                    w.pending_restore_after_match = false;
+                    w.match_apply_status = if super::game_adapter::is_host_verification_refusal(msg) {
+                        "failed: host verification blocked [VRF00000008]".into()
+                    } else {
+                        let short: String = msg.chars().take(120).collect();
+                        format!("failed: {short}")
+                    };
                     changed = true;
-                }
+                    prev_hash
+                } else {
+                    None
+                };
                 if let Ok(mut s) = get_state().lock() {
                     s.add_event("PATCHER_ERROR", msg);
                     changed = true;
                 }
+                super::game_adapter::record_managed_host_error_at(
+                    customization_root,
+                    active_hash.as_deref(),
+                    msg,
+                );
             }
             ManagedHostEventKind::Exited => {
                 let in_match = get_tracker().lock().ok().is_some_and(|w| {
@@ -446,7 +465,7 @@ pub fn champion_name_from_id(id: u32) -> &'static str {
 
 /// Looks up the best matching Mod Library package or saved Preset for a champion.
 /// Presets may map to a package hash; metadata-only presets stay reference-only.
-fn find_game_final_dir_at(root: &std::path::Path) -> Option<PathBuf> {
+pub(crate) fn find_game_final_dir_at(root: &std::path::Path) -> Option<PathBuf> {
     let info = super::game_path::resolve_game_install_info_at(&root.join("game_path.json"), None);
     let league_path = info.league_path?;
     let game_dir = super::game_adapter::resolve_modtools_game_dir(std::path::Path::new(&league_path)).ok()?;
@@ -738,7 +757,7 @@ pub(crate) fn apply_selected_skin_at(
         }
 
         drop(_apply_guard);
-        let _ = drain_and_record_host_events();
+        let _ = drain_and_record_host_events_at(Some(root));
         super::client_bridge::notify_state_changed();
 
         let deferred = ev_type == "MOD_DEFERRED";
@@ -998,9 +1017,23 @@ pub(crate) fn handle_champ_select_loadout_at(
                         report.message
                     ),
                 )
-            } else if report.adapter_state == super::game_adapter::AdapterLifecycleState::Failed {
+            } else if matches!(
+                report.adapter_state,
+                super::game_adapter::AdapterLifecycleState::Failed
+                    | super::game_adapter::AdapterLifecycleState::NeedsUpdate
+            ) || (report.adapter_state
+                == super::game_adapter::AdapterLifecycleState::BlockedByPolicy
+                && super::game_adapter::is_host_verification_refusal(&report.message))
+            {
                 if let Ok(mut w) = get_tracker().lock() {
-                    w.match_apply_status = "failed".into();
+                    w.active_applied_mod_hash = None;
+                    w.pending_restore_after_match = false;
+                    w.match_apply_status =
+                        if super::game_adapter::is_host_verification_refusal(&report.message) {
+                            "failed: host verification blocked [VRF00000008]".into()
+                        } else {
+                            "failed".into()
+                        };
                 }
                 (
                     "MOD_APPLY_FAILED",
@@ -1105,7 +1138,8 @@ pub(crate) fn handle_post_match_cleanup_at(
 
 /// Core single-tick polling logic (network & adapter operations run outside `STATE` mutex).
 pub fn poll_tick(app: &AppHandle) {
-    let drained_early = drain_and_record_host_events();
+    let root = super::storage::root(app).ok();
+    let drained_early = drain_and_record_host_events_at(root.as_deref());
     let state_arc = get_state();
     let (previous_phase, _previous_champ_id) = match state_arc.lock() {
         Ok(s) => (s.gameflow_phase.clone(), s.detected_champion_id),
@@ -1160,8 +1194,6 @@ pub fn poll_tick(app: &AppHandle) {
     if let Ok(mut state) = state_arc.lock() {
         state.game_mode = game_mode_hint;
     }
-
-    let root = super::storage::root(app).ok();
 
     // Warm staging: during lobby/matchmaking/ready-check, pre-stage the last known
     // champion's package into the sandbox so Champ Select apply is fast.
@@ -1293,7 +1325,7 @@ pub fn poll_tick(app: &AppHandle) {
                     state.phase = RunnerPhase::ChampSelect;
                 }
             }
-            let drained_late = drain_and_record_host_events();
+            let drained_late = drain_and_record_host_events_at(root.as_deref());
             let notify_needed = applied_selection
                 || drained_early
                 || drained_late
@@ -1335,7 +1367,7 @@ pub fn poll_tick(app: &AppHandle) {
                     state.add_event("IN_MATCH", msg);
                 }
             }
-            let drained_late = drain_and_record_host_events();
+            let drained_late = drain_and_record_host_events_at(root.as_deref());
             if phase_changed || drained_early || drained_late {
                 super::client_bridge::notify_state_changed();
             }
@@ -1346,7 +1378,7 @@ pub fn poll_tick(app: &AppHandle) {
                 handle_post_match_cleanup_at(r, &phase_val, &probe_opts)
             });
             let phase_changed = previous_phase.as_deref() != Some(phase_val.as_str());
-            let drained_late = drain_and_record_host_events();
+            let drained_late = drain_and_record_host_events_at(root.as_deref());
             let should_notify =
                 phase_changed || cleanup_ev.is_some() || drained_early || drained_late;
 
@@ -1384,7 +1416,7 @@ pub fn poll_tick(app: &AppHandle) {
                 state.gameflow_phase = Some(phase_val);
                 state.phase = RunnerPhase::Monitoring;
             }
-            let drained_late = drain_and_record_host_events();
+            let drained_late = drain_and_record_host_events_at(root.as_deref());
             if drained_early || drained_late {
                 super::client_bridge::notify_state_changed();
             }
@@ -1599,6 +1631,9 @@ pub(crate) fn build_status_snapshot_at(
 pub async fn in_game_runner_get_status(app: AppHandle) -> Result<InGameRunnerStatus, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let root = super::storage::root(&app).ok();
+        if drain_and_record_host_events_at(root.as_deref()) {
+            super::client_bridge::notify_state_changed();
+        }
         build_status_snapshot_at(root.as_deref(), None)
     })
     .await
@@ -1659,7 +1694,7 @@ pub async fn in_game_runner_apply_matched_mod(
             }
         }
         drop(_apply_guard);
-        let _ = drain_and_record_host_events();
+        let _ = drain_and_record_host_events_at(Some(&root));
         Ok(report)
     })
     .await
@@ -1697,7 +1732,7 @@ pub async fn in_game_runner_restore_defaults(
             }
         }
         drop(_apply_guard);
-        let _ = drain_and_record_host_events();
+        let _ = drain_and_record_host_events_at(Some(&root));
         Ok(report)
     })
     .await
@@ -2034,5 +2069,98 @@ mod tests {
         drop(g);
         handle.join().unwrap();
         assert!(!overlap.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    #[test]
+    fn host_event_vrf00000008_clears_active_hash_and_persists_runtime_block() {
+        let _serial = super::super::game_adapter::test_serial_guard();
+        let root = std::env::temp_dir().join(format!(
+            "laap-runner-vrf-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        let ltk_dir = root.join("adapters").join("ltk-patcher");
+        let league_dir = root.join("League");
+        let final_dir = league_dir.join("Game").join("DATA").join("FINAL").join("Champions");
+        std::fs::create_dir_all(&ltk_dir).unwrap();
+        std::fs::create_dir_all(&final_dir).unwrap();
+        std::fs::write(league_dir.join("Game").join("League of Legends.exe"), b"MZ").unwrap();
+        std::fs::write(final_dir.join("Alistar.wad.client"), b"WAD").unwrap();
+        super::storage::write(
+            &root.join("game_path.json"),
+            &serde_json::json!({ "leaguePath": league_dir.to_string_lossy() }),
+        )
+        .unwrap();
+
+        let host_name = if cfg!(windows) {
+            "ltk_patcher_host.exe"
+        } else {
+            "ltk_patcher_host"
+        };
+        let host_exe = ltk_dir.join(host_name);
+        std::fs::write(&host_exe, b"MZ-dummy-ltk-host").unwrap();
+        std::fs::write(ltk_dir.join("ltk_patcher_dll.dll"), b"MZ-dummy-ltk-dll").unwrap();
+
+        let mut cfg = super::super::game_adapter::GameAdapterConfig::default();
+        cfg.adapter_path = Some(host_exe.to_string_lossy().into_owned());
+        cfg.user_consent_granted = true;
+        cfg.clearance_acknowledged = true;
+        super::super::game_adapter::save_config_at(&root, cfg).unwrap();
+
+        let _ = super::super::game_adapter::drain_managed_host_events();
+        let state_arc = get_state();
+        {
+            let mut s = state_arc.lock().unwrap();
+            s.recent_events.clear();
+        }
+        {
+            let mut w = get_tracker().lock().unwrap();
+            w.active_applied_mod_hash = Some("hash123".into());
+            w.pending_restore_after_match = true;
+            w.match_apply_status = "injected".into();
+        }
+
+        super::super::game_adapter::push_managed_host_event_for_test(
+            super::super::game_adapter::ManagedHostEvent {
+                kind: super::super::game_adapter::ManagedHostEventKind::Error,
+                state: Some("failed".into()),
+                summary: "ltk_patcher_dll::verify: host verification failed, refusing overlay: [VRF00000008] (26280,ltk-manager.exe)".into(),
+                raw: "dll 4.0 ERROR ltk_patcher_dll::verify: host verification failed, refusing overlay: [VRF00000008] (26280,ltk-manager.exe)".into(),
+            },
+        );
+        assert!(drain_and_record_host_events_at(Some(&root)));
+
+        {
+            let w = get_tracker().lock().unwrap();
+            assert_eq!(w.active_applied_mod_hash, None);
+            assert!(!w.pending_restore_after_match);
+            assert_eq!(
+                w.match_apply_status,
+                "failed: host verification blocked [VRF00000008]"
+            );
+        }
+
+        let probe_opts = super::super::game_adapter::ProbeOptions {
+            allow_path_discovery: false,
+            lcu_build_hint: Some("16.22.834.8910".into()),
+            ..super::super::game_adapter::ProbeOptions::default()
+        };
+        let snap = build_status_snapshot_at(Some(&root), Some(&probe_opts)).unwrap();
+        assert_eq!(
+            snap.adapter_state,
+            super::super::game_adapter::AdapterLifecycleState::BlockedByPolicy
+        );
+        assert!(!snap.adapter_available);
+        assert_eq!(snap.active_applied_mod_hash, None);
+
+        let mut w = get_tracker().lock().unwrap();
+        w.active_applied_mod_hash = None;
+        w.pending_restore_after_match = false;
+        w.match_apply_status = "idle".into();
+        state_arc.lock().unwrap().recent_events.clear();
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

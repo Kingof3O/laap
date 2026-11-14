@@ -654,7 +654,7 @@ fn set_mesh_path(entry: &mut PropEntry, field_hash: u32, new_path: String) {
 /// Generate and cache a local mod package for an official champion skin by
 /// extracting and rebasing the target skin `.bin` (plus sub-characters and padded
 /// mesh/skeleton assets) from the local League champion WAD onto the `skin0` slot.
-fn synthetic_official_mod_id(champion_id: &str, skin_num: u32, full_skin_id: u32) -> String {
+pub(crate) fn synthetic_official_mod_id(champion_id: &str, skin_num: u32, full_skin_id: u32) -> String {
     format!(
         "official_{champion_id}_{skin_num}_{}",
         &format!(

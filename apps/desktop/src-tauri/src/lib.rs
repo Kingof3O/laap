@@ -502,6 +502,8 @@ pub fn run() {
             customization::skin_catalog::skin_catalog_for_numeric_champion,
             #[cfg(not(feature = "basic"))]
             customization::skin_catalog::skin_select,
+            #[cfg(not(feature = "basic"))]
+            customization::skin_catalog::skin_export_overlay,
             commands::system_utils::write_error_report,
             commands::system_utils::set_auto_launch,
             commands::system_utils::get_auto_launch,

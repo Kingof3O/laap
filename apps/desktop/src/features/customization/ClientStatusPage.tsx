@@ -12,7 +12,11 @@ import {
   type InGameRunnerConfig,
   type InGameRunnerStatus,
 } from './api'
-import { adapterStateBadgeColor, formatAdapterStateLabel } from './GameAdapterSettingsPanel'
+import {
+  adapterStateBadgeColor,
+  describeManagedBootstrap,
+  formatAdapterStateLabel,
+} from './GameAdapterSettingsPanel'
 
 type Status = { connected: boolean; phase: string | null }
 
@@ -203,7 +207,10 @@ export function ClientStatusPage() {
     setProvisionBusy(true)
     setError('')
     try {
-      const next = await customizationBootstrap.provision(true)
+      const next =
+        bootstrapStatus?.actionRequired === 'ltk_host_verification_blocked'
+          ? await customizationBootstrap.ensure()
+          : await customizationBootstrap.provision(true)
       setBootstrapStatus(next)
       await readClientStatus(consent)
     } catch (cause) {
@@ -238,6 +245,30 @@ export function ClientStatusPage() {
       // Nudge runner to re-evaluate/apply with the new selection.
       if (consent) await readClientStatus(true)
       await refreshRunnerStatus()
+    } catch (cause) {
+      setError(errorMessage(cause))
+    } finally {
+      setSkinBusy(false)
+    }
+  }
+
+  async function exportSelectedSkin(skinId: number) {
+    const champId = runnerStatus?.detectedChampionId
+    if (!champId || !skinId) return
+    setSkinBusy(true)
+    setError('')
+    setActionNotice('')
+    try {
+      const exported = await skinCatalog.exportOverlay(
+        champId,
+        skinId,
+        runnerStatus?.detectedChampionName ?? null,
+        true,
+      )
+      const kb = Math.max(1, Math.round(exported.sizeBytes / 1024))
+      setActionNotice(
+        `Exported ${exported.fileName} (${kb} KB) to ${exported.path}. You can import it manually inside standalone LTK Manager (official skins may still trigger LTK Manager WAD checks).`,
+      )
     } catch (cause) {
       setError(errorMessage(cause))
     } finally {
@@ -371,78 +402,52 @@ export function ClientStatusPage() {
             fontSize: '0.85rem',
           }}
         >
-          <div>
-            <div>
-              <strong>Managed Patcher{bootstrapStatus.backendKind === 'ltk-patcher' ? ' (LTK)' : ''}:</strong>{' '}
-              <span
-                style={{
-                  color: bootstrapStatus.managedBackendReady
-                    ? '#10b981'
-                    : bootstrapStatus.provisionState === 'failed' ||
-                        bootstrapStatus.provisionState === 'error'
-                      ? '#ef4444'
-                      : '#f59e0b',
-                  fontWeight: 600,
-                }}
-              >
-                {bootstrapStatus.managedBackendReady
-                  ? 'Ready'
-                  : bootstrapStatus.provisionState === 'downloading'
-                    ? `Downloading${bootstrapStatus.provisionProgressPct != null ? ` (${bootstrapStatus.provisionProgressPct}%)` : '…'}`
-                    : bootstrapStatus.provisionState === 'extracting'
-                      ? 'Extracting…'
-                      : bootstrapStatus.actionRequired === 'elevation_mismatch'
-                        ? 'Admin Mismatch Detected'
-                        : bootstrapStatus.actionRequired === 'sync_ltk_dll'
-                          ? 'LTK Sync Needed'
-                          : bootstrapStatus.actionRequired === 'install_ltk_manager' ||
-                              bootstrapStatus.actionRequired === 'confirm_uac'
-                            ? 'LTK Setup Required'
-                            : bootstrapStatus.provisionState === 'failed' ||
-                                bootstrapStatus.provisionState === 'error'
-                              ? 'Provisioning Failed'
-                              : 'Setup Needed'}
-              </span>
-              {' | '}
-              <strong>Pengu Companion:</strong>{' '}
-              <span style={{ color: bootstrapStatus.penguPluginInstalled ? '#10b981' : '#f59e0b', fontWeight: 600 }}>
-                {bootstrapStatus.penguPluginInstalled
-                  ? 'Installed'
-                  : bootstrapStatus.penguDetected
-                    ? 'Pengu Detected (Pending)'
-                    : 'Not Detected'}
-              </span>
-            </div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '3px' }}>
-              {bootstrapStatus.provisionDetail || bootstrapStatus.detail}
-            </div>
-          </div>
-          {(!bootstrapStatus.managedBackendReady ||
-            bootstrapStatus.provisionState === 'failed' ||
-            bootstrapStatus.provisionState === 'error' ||
-            Boolean(bootstrapStatus.actionRequired)) && (
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={
-                provisionBusy ||
-                bootstrapStatus.provisionState === 'downloading' ||
-                bootstrapStatus.provisionState === 'extracting'
-              }
-              onClick={() => void triggerProvisioning()}
-            >
-              {provisionBusy
-                ? 'Working…'
-                : bootstrapStatus.actionRequired === 'install_ltk_manager' ||
-                    bootstrapStatus.actionRequired === 'confirm_uac'
-                  ? 'Install LTK Patcher'
-                  : bootstrapStatus.actionRequired === 'sync_ltk_dll'
-                    ? 'Sync LTK Patcher'
-                    : bootstrapStatus.actionRequired === 'elevation_mismatch'
-                      ? 'Re-check Elevation'
-                      : 'Provision Managed Backend'}
-            </button>
-          )}
+          {(() => {
+            const summary = describeManagedBootstrap(bootstrapStatus)
+            return (
+              <>
+                <div>
+                  <div>
+                    <strong>Managed Patcher{bootstrapStatus.backendKind === 'ltk-patcher' ? ' (LTK)' : ''}:</strong>{' '}
+                    <span
+                      style={{
+                        color: summary.color,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {summary.label}
+                    </span>
+                    {' | '}
+                    <strong>Pengu Companion:</strong>{' '}
+                    <span style={{ color: bootstrapStatus.penguPluginInstalled ? '#10b981' : '#f59e0b', fontWeight: 600 }}>
+                      {bootstrapStatus.penguPluginInstalled
+                        ? 'Installed'
+                        : bootstrapStatus.penguDetected
+                          ? 'Pengu Detected (Pending)'
+                          : 'Not Detected'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '3px' }}>
+                    {bootstrapStatus.provisionDetail || bootstrapStatus.detail}
+                  </div>
+                </div>
+                {summary.isActionable && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={
+                      provisionBusy ||
+                      bootstrapStatus.provisionState === 'downloading' ||
+                      bootstrapStatus.provisionState === 'extracting'
+                    }
+                    onClick={() => void triggerProvisioning()}
+                  >
+                    {provisionBusy ? 'Working…' : summary.buttonLabel}
+                  </button>
+                )}
+              </>
+            )
+          })()}
         </div>
       )}
 
@@ -513,11 +518,21 @@ export function ClientStatusPage() {
                   runnerStatus?.adapterState ??
                   adapterStatus?.state ??
                   (runnerStatus?.adapterAvailable ? 'compatible' : 'unavailable')
+                const isBlockedOrFailed =
+                  effectiveState === 'blockedByPolicy' ||
+                  effectiveState === 'needsUpdate' ||
+                  effectiveState === 'failed' ||
+                  effectiveState === 'unsupportedGameBuild' ||
+                  effectiveState === 'unsupportedPlatform' ||
+                  effectiveState === 'notInstalled' ||
+                  effectiveState === 'unavailable'
                 const isReady =
-                  runnerStatus?.adapterAvailable ||
-                  adapterStatus?.compatible ||
-                  effectiveState === 'applied' ||
-                  effectiveState === 'compatible'
+                  !isBlockedOrFailed &&
+                  (Boolean(runnerStatus?.adapterAvailable) ||
+                    Boolean(adapterStatus?.compatible) ||
+                    effectiveState === 'applied' ||
+                    effectiveState === 'compatible')
+                const adapterDetail = runnerStatus?.adapterStatus ?? adapterStatus?.detail
                 return (
                   <>
                     <div
@@ -528,11 +543,10 @@ export function ClientStatusPage() {
                         color: adapterStateBadgeColor(effectiveState),
                       }}
                     >
-                      {isReady ? '●' : '○'} {formatAdapterStateLabel(effectiveState)}
+                      {isReady ? '●' : '○'} {formatAdapterStateLabel(effectiveState, adapterDetail)}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                      {runnerStatus?.adapterStatus ??
-                        adapterStatus?.detail ??
+                      {adapterDetail ??
                         'Configure an external mod loader adapter in Settings → Advanced to apply custom .fantome / .modpkg mods.'}
                     </div>
                     {(runnerStatus?.adapterVersion || adapterStatus?.version || runnerStatus?.detectedGameBuild || adapterStatus?.leagueInstall?.detectedBuild) && (
@@ -583,11 +597,56 @@ export function ClientStatusPage() {
                 borderTop: '1px solid rgba(255,255,255,0.08)',
               }}
             >
-              <h4 style={{ margin: '0 0 8px', fontSize: '0.95rem' }}>
-                All skins for {runnerStatus.detectedChampionName ?? `Champion ${runnerStatus.detectedChampionId}`}
-              </h4>
+              {(() => {
+                const matchedSkin = championSkins?.skins.find(
+                  (s) => matchedLoadout?.source === 'SkinSelection' && matchedLoadout.skinOrModName === s.name,
+                )
+                const exportSkinId =
+                  selectedSkinId ??
+                  (matchedSkin
+                    ? Number(matchedSkin.id) ||
+                      Number(runnerStatus.detectedChampionId || 0) * 1000 + Number(matchedSkin.num || 0)
+                    : null)
+                const selectedOption = championSkins?.skins.find(
+                  (s) =>
+                    (Number(s.id) || Number(runnerStatus.detectedChampionId || 0) * 1000 + Number(s.num || 0)) ===
+                    exportSkinId,
+                )
+                const exportIsBase = selectedOption
+                  ? selectedOption.isBase
+                  : exportSkinId != null && exportSkinId % 1000 === 0
+                return (
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '8px',
+                      marginBottom: '8px',
+                    }}
+                  >
+                    <h4 style={{ margin: 0, fontSize: '0.95rem' }}>
+                      All skins for {runnerStatus.detectedChampionName ?? `Champion ${runnerStatus.detectedChampionId}`}
+                    </h4>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      disabled={skinBusy || !exportSkinId || exportIsBase}
+                      onClick={() => exportSkinId && void exportSelectedSkin(exportSkinId)}
+                      title={
+                        !exportSkinId || exportIsBase
+                          ? 'Select any non-default skin below to export its .fantome overlay'
+                          : 'Export generated .fantome overlay package to LAAP exports folder'
+                      }
+                    >
+                      Export .fantome
+                    </button>
+                  </div>
+                )
+              })()}
               <p style={{ margin: '0 0 10px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                Select any skin (including unowned). Selection is saved locally, sent best-effort to Champ Select, and prepared into an overlay for the managed patcher backend.
+                Select any skin (including unowned). Selection is saved locally, sent best-effort to Champ Select, and prepared into an overlay for the managed patcher backend (or exported as .fantome for manual use in standalone LTK Manager).
               </p>
               {!championSkins || championSkins.skins.length === 0 ? (
                 <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
