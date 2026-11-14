@@ -193,6 +193,31 @@
   gap: 8px;
 }
 
+.btn-card-action {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.btn-card-action:hover:not(:disabled) {
+  background: rgba(201, 166, 255, 0.12);
+  border-color: var(--accent-border-subtle);
+  color: var(--text-primary);
+}
+
+.btn-card-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* Primary Launch Button */
 .btn-launch-primary {
   min-width: 84px;

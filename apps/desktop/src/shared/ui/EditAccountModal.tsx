@@ -36,7 +36,7 @@ export function EditAccountModal({
     <div className="modal-backdrop">
       <div
         ref={ref}
-        className="modal-panel profile-modal"
+        className="modal-panel profile-modal profile-modal-wide"
         role="dialog"
         aria-modal="true"
         aria-labelledby="edit-title"

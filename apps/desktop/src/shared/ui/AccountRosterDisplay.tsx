@@ -37,6 +37,7 @@ export interface AccountRosterDisplayProps {
   onLaunch: (id: string) => void
   onSync?: (id: string) => void
   profileActions?: (account: RosterItem) => ReactNode
+  toolbarSlot?: ReactNode
   onPushToCloud?: (id: string) => void
   onForceRelease?: (id: string) => void
   onRevokeSession?: (id: string) => void
@@ -61,6 +62,7 @@ export function AccountRosterDisplay({
   onSync,
   onPushToCloud,
   profileActions,
+  toolbarSlot,
   onForceRelease,
   onRevokeSession,
   onDelete,
@@ -117,7 +119,31 @@ export function AccountRosterDisplay({
           {activeHero.notes}
         </span>
       ) : null}
-      {viewMode === 'grid' && activeHero ? <div className="roster-heading"><div><span className="roster-kicker">{isCloud ? 'SHARED ACCOUNTS' : 'YOUR ACCOUNTS'}</span><h1>Choose your next session</h1></div><button type="button" className="details-toggle" aria-expanded={detailsOpen} aria-controls="profile-inspector" onClick={() => toggleDetails(!detailsOpen)}><PanelRightOpen size={16} />{detailsOpen ? 'Hide details' : 'Show details'}</button></div> : null}
+      {viewMode === 'grid' && activeHero ? (
+        <div className="roster-heading">
+          <div>
+            <span className="roster-kicker">
+              {isCloud ? 'SHARED ACCOUNTS' : 'YOUR ACCOUNTS'}
+            </span>
+            <h1>Choose your next session</h1>
+          </div>
+          <div className="roster-heading-actions">
+            {toolbarSlot}
+            <button
+              type="button"
+              className="details-toggle"
+              aria-expanded={detailsOpen}
+              aria-controls="profile-inspector"
+              onClick={() => toggleDetails(!detailsOpen)}
+            >
+              <PanelRightOpen size={16} />
+              {detailsOpen ? 'Hide details' : 'Show details'}
+            </button>
+          </div>
+        </div>
+      ) : toolbarSlot ? (
+        <div className="roster-list-utility">{toolbarSlot}</div>
+      ) : null}
       {viewMode === 'grid' ? (
         <div className={detailsOpen && activeHero ? 'roster-workspace' : 'roster-workspace roster-workspace-full'}>
         <div className={gridLayoutClass} role="region" aria-label="Account Roster">
@@ -176,7 +202,17 @@ export function AccountRosterDisplay({
             )
           })}
         </div>
-        {detailsOpen && activeHero ? <ProfileInspector account={activeHero} busy={busy} onClose={() => toggleDetails(false)} onEdit={onEdit ? () => onEdit(activeHero.id) : undefined} actions={profileActions?.(activeHero)} /> : null}
+        {detailsOpen && activeHero ? (
+          <ProfileInspector
+            account={activeHero}
+            busy={busy || launchingId === activeHero.id}
+            onClose={() => toggleDetails(false)}
+            onEdit={onEdit ? () => onEdit(activeHero.id) : undefined}
+            onLaunch={() => onLaunch(activeHero.id)}
+            launchLabel={launchLabel}
+            actions={profileActions?.(activeHero)}
+          />
+        ) : null}
         </div>
       ) : (
         <AccountListTable

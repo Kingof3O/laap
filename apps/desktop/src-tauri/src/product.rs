@@ -24,6 +24,11 @@ pub fn update_channel() -> &'static str {
     PRODUCT.2
 }
 
+/// Returns the active bundle identifier used for single-instance identity and Windows AUMID grouping.
+pub fn app_identifier() -> &'static str {
+    PRODUCT.1
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProductCapabilities {
@@ -59,6 +64,7 @@ mod tests {
             _ => unreachable!(),
         }
         assert_eq!(update_channel(), PRODUCT.2);
+        assert_eq!(app_identifier(), PRODUCT.1);
     }
 
     #[test]

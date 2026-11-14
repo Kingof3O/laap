@@ -299,18 +299,6 @@ export function AccountCard({
               disabled={busy}
               title="Edit Profile"
               aria-label={`Edit ${name}`}
-              style={{
-                width: '32px',
-                height: '32px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '6px',
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid var(--border-subtle)',
-                color: 'var(--text-secondary)',
-                cursor: 'pointer',
-              }}
             >
               <Pencil size={13} />
             </button>

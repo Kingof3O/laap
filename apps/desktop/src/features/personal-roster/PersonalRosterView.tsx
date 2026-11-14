@@ -293,36 +293,77 @@ export function PersonalRosterView({
     }
   }
   const blocked = busy || capturing || operations.busy || provisioning
+  const syncWidget = syncEnabled ? (
+    <details className={`sync-compact sync-status-${syncState}`}>
+      <summary>
+        <RefreshCw size={15} /> <span>Icon &amp; rank sync</span>
+        <span className="sync-compact-state">
+          {syncState === 'syncing'
+            ? 'Syncing…'
+            : syncState === 'error'
+              ? 'Needs attention'
+              : syncState === 'waiting'
+                ? 'Waiting'
+                : syncState === 'success'
+                  ? 'Up to date'
+                  : 'Enabled'}
+        </span>
+      </summary>
+      <div className="sync-compact-panel">
+        <p role="status">
+          {syncMessage ??
+            'Checks enabled profile options when League Client is available.'}
+        </p>
+        {lastSyncAt ? (
+          <small>
+            Last checked: {lastSyncAt.toLocaleTimeString()}
+            {lastSuccessfulSyncAt
+              ? ` · Last successful: ${lastSuccessfulSyncAt.toLocaleTimeString()}`
+              : ''}
+          </small>
+        ) : null}
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={syncState === 'syncing' || blocked}
+          onClick={() => void syncNow()}
+        >
+          {syncState === 'syncing'
+            ? 'Syncing…'
+            : syncState === 'error'
+              ? 'Retry sync'
+              : 'Sync now'}
+        </button>
+      </div>
+    </details>
+  ) : null
   return (
     <div>
-      {syncEnabled ? (
-        <details className={`sync-compact sync-status-${syncState}`}>
-          <summary><RefreshCw size={15} /> <span>Icon & rank sync</span><span className="sync-compact-state">{syncState === 'syncing' ? 'Syncing…' : syncState === 'error' ? 'Needs attention' : syncState === 'waiting' ? 'Waiting' : syncState === 'success' ? 'Up to date' : 'Enabled'}</span></summary>
-          <div className="sync-compact-panel">
-            <p role="status">{syncMessage ?? 'Checks enabled profile options when League Client is available.'}</p>
-            {lastSyncAt ? <small>Last checked: {lastSyncAt.toLocaleTimeString()}{lastSuccessfulSyncAt ? ` · Last successful: ${lastSuccessfulSyncAt.toLocaleTimeString()}` : ''}</small> : null}
-            <button type="button" className="btn-secondary" disabled={syncState === 'syncing' || blocked} onClick={() => void syncNow()}>{syncState === 'syncing' ? 'Syncing…' : syncState === 'error' ? 'Retry sync' : 'Sync now'}</button>
-          </div>
-        </details>
-      ) : null}
       {loading || error ? (
-        <AccountLoadState
-          loading={loading}
-          error={error}
-          onRetry={() => void loadAccounts()}
-        />
+        <>
+          {syncWidget ? <div className="roster-list-utility roster-list-utility-padded">{syncWidget}</div> : null}
+          <AccountLoadState
+            loading={loading}
+            error={error}
+            onRetry={() => void loadAccounts()}
+          />
+        </>
       ) : filteredAccounts.length === 0 ? (
-        <EmptyState
-          isCloud={false}
-          searchActive={Boolean(
-            searchQuery || selectedRegion !== 'ALL' || selectedRank !== 'all',
-          )}
-          onAction={onOpenAddModal}
-          onQuickImport={() => void detect()}
-        />
+        <>
+          {syncWidget ? <div className="roster-list-utility roster-list-utility-padded">{syncWidget}</div> : null}
+          <EmptyState
+            isCloud={false}
+            searchActive={Boolean(
+              searchQuery || selectedRegion !== 'ALL' || selectedRank !== 'all',
+            )}
+            onAction={onOpenAddModal}
+            onQuickImport={() => void detect()}
+          />
+        </>
       ) : (
         <AccountRosterDisplay
           profileActions={profileActions}
+          toolbarSlot={syncWidget}
           items={filteredAccounts.map((acc) => ({
             id: acc.id,
             name: acc.name,

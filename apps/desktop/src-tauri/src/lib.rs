@@ -29,7 +29,27 @@ pub use riot as session;
 #[cfg(not(feature = "studio"))]
 pub use riot::{RiotProvisioner, RiotSessionManager};
 
+#[cfg(target_os = "windows")]
+fn encode_wide_null(value: &str) -> Vec<u16> {
+    value.encode_utf16().chain(std::iter::once(0)).collect()
+}
+
+#[cfg(target_os = "windows")]
+fn set_windows_app_user_model_id(app_id: &str) {
+    let wide = encode_wide_null(app_id);
+    // Register the explicit AUMID before creating windows or WebView2 so NSIS Start Menu / taskbar pins group reliably.
+    let hr = unsafe {
+        windows_sys::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID(wide.as_ptr())
+    };
+    if hr < 0 {
+        eprintln!("Unable to register Windows AppUserModelID '{app_id}': HRESULT 0x{hr:08x}");
+    }
+}
+
 pub fn run() {
+    #[cfg(target_os = "windows")]
+    set_windows_app_user_model_id(product::app_identifier());
+
     use tauri::{Emitter, Manager};
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -557,4 +577,19 @@ pub fn run() {
                 _ => {}
             }
         });
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod windows_identity_tests {
+    use super::{encode_wide_null, product};
+
+    #[test]
+    fn windows_aumid_is_non_empty_and_null_terminated() {
+        let id = product::app_identifier();
+        let wide = encode_wide_null(id);
+        assert_eq!(wide.last().copied(), Some(0));
+        assert_eq!(wide.len(), id.encode_utf16().count() + 1);
+        #[cfg(feature = "basic")]
+        assert_eq!(id, "com.laap.offline");
+    }
 }

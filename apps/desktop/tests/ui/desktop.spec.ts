@@ -543,7 +543,9 @@ test('profile notes and cached avatars survive reload; editor preview, regions a
   const root = path.resolve('../../.artifacts/profile-editor')
   mkdirSync(root, { recursive: true })
   await dialog.screenshot({ path: path.join(root, 'edit-profile.png') })
-  await dialog.getByText('Advanced customization', { exact: true }).click()
+  await expect(
+    dialog.getByText('Customization & Client Sync', { exact: true })
+  ).toBeVisible()
   await dialog
     .getByLabel('Auto-sync rank on game login', { exact: true })
     .check()
@@ -822,7 +824,9 @@ test('failed icon previews show an error and retry downloads successfully', asyn
     .getByRole('button', { name: 'Edit Main', exact: true })
     .first()
     .click()
-  await page.getByText('Advanced customization', { exact: true }).click()
+  await expect(
+    page.getByText('Customization & Client Sync', { exact: true })
+  ).toBeVisible()
   await page.getByRole('button', { name: 'League icons', exact: true }).click()
   await page
     .getByRole('button', { name: 'Load online previews', exact: true })
@@ -1077,4 +1081,90 @@ test('toolbar shortcut, filter dismissal, and About branding', async ({ page }) 
   await expect(about.getByRole('img', { name: 'LAAP' })).toHaveAttribute('src', '/logo.webp')
   await expect(about).not.toContainText('Created by')
   await expect(about).not.toContainText('Hussien Salah')
+})
+
+test('add account modal mode switcher, always-visible customization, and inspector launch action', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const launched: string[] = []
+    ;(window as any).launchedIds = launched
+    ;(window as any).clientStarted = false
+    ;(window as any).__TAURI_INTERNALS__ = {
+      metadata: {
+        currentWindow: { label: 'main' },
+        currentWebview: { label: 'main' },
+      },
+      transformCallback: () => 1,
+      unregisterCallback: () => {},
+      invoke: async (command: string, args: any) => {
+        if (command === 'runtime_snapshot')
+          return {
+            riot_client: (window as any).clientStarted,
+            league_client: (window as any).clientStarted,
+            league_game: false,
+            valorant_game: false,
+          }
+        if (command === 'list_local_accounts')
+          return [
+            {
+              id: 'acc-main',
+              name: 'My Main',
+              region: 'EUW',
+              rank: 'Diamond II',
+              notes: 'Solo queue',
+              favorite: true,
+              session_status: 'saved',
+              has_session: true,
+              created_at: '2026-01-01',
+              last_used_at: null,
+            },
+          ]
+        if (command === 'launch_local_account') {
+          launched.push(args.id)
+          ;(window as any).clientStarted = true
+          return null
+        }
+        return null
+      },
+    }
+  })
+
+  await page.goto('/')
+  await page.locator('.btn-add-primary').click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await expect(
+    dialog.getByText('Customization & Client Sync', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    dialog.getByRole('button', { name: 'Sign In To Another Account' }),
+  ).toBeDisabled()
+  await expect(
+    dialog.getByText('Fill Name & Region above to launch Riot sign-in.'),
+  ).toBeVisible()
+
+  await dialog
+    .getByRole('tab', { name: 'Import Current Session', exact: true })
+    .click()
+  await expect(
+    dialog.getByRole('button', { name: 'Import Current Account' }),
+  ).toBeVisible()
+
+  await dialog.getByRole('tab', { name: 'New Riot Sign-In', exact: true }).click()
+  await expect(
+    dialog.getByRole('button', { name: 'Sign In To Another Account' }),
+  ).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+
+  const launchBtn = page.getByRole('button', {
+    name: 'Launch My Main',
+    exact: true,
+  })
+  await expect(launchBtn).toBeVisible()
+  await launchBtn.click()
+  await expect
+    .poll(() => page.evaluate(() => (window as any).launchedIds))
+    .toEqual(['acc-main'])
 })

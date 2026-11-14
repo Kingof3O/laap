@@ -15,6 +15,7 @@ import {
   useRiotOperations,
 } from './context/RiotOperations'
 import { isNewerVersion } from './hooks/useUpdateChecker'
+import { product } from './product/flavors'
 import type { SortOrder } from './lib/sorting'
 import type { Region, ViewMode } from './lib/types'
 
@@ -104,7 +105,7 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
     try {
       const release = await checkForUpdates(true)
       if (release && !isNewerVersion(release.version, currentVersion))
-        showSuccess(`LAAP Desktop is up to date (v${currentVersion}).`)
+        showSuccess(`${product.name} is up to date (v${currentVersion}).`)
     } catch (error) {
       showError('Unable to check for updates (Offline/Blocked)')
       throw error

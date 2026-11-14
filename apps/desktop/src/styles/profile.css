@@ -5,8 +5,144 @@
   max-height: calc(100dvh - 40px);
   overflow: hidden;
   border-color: rgba(201, 166, 255, 0.22);
-  border-radius: 18px;
+  border-radius: 16px;
   animation: profile-enter 0.16s ease-out;
+}
+.profile-modal-wide {
+  width: min(880px, 100%);
+  max-width: 880px;
+}
+.add-mode-switcher {
+  display: inline-flex;
+  gap: 6px;
+  margin: 0 28px 12px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.28);
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+.add-mode-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.add-mode-tab:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+}
+.add-mode-tab-active {
+  background: rgba(201, 166, 255, 0.16);
+  color: var(--accent-light);
+  box-shadow: inset 0 0 0 1px rgba(201, 166, 255, 0.3);
+}
+.import-session-card {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(201, 166, 255, 0.22);
+  background: linear-gradient(145deg, rgba(201, 166, 255, 0.06), rgba(16, 13, 25, 0.72));
+}
+.import-session-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--accent-light);
+  background: rgba(201, 166, 255, 0.14);
+  border: 1px solid rgba(201, 166, 255, 0.3);
+}
+.import-session-copy {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.import-session-copy h3 {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+.import-session-copy p {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.import-session-steps {
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.import-session-steps li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.import-session-steps svg {
+  color: var(--status-ready);
+  flex-shrink: 0;
+}
+.import-session-actions {
+  margin-top: 4px;
+  display: flex;
+  gap: 10px;
+}
+.profile-fields-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 18px;
+  align-items: start;
+}
+.profile-col-primary {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.profile-advanced-panel {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.02);
+}
+.profile-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.profile-col-heading {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+.profile-panel-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent-light);
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: rgba(201, 166, 255, 0.12);
+  border: 1px solid rgba(201, 166, 255, 0.24);
+}
+.profile-callout {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.025);
 }
 .profile-modal > form {
   display: flex;
@@ -208,7 +344,23 @@
   color: var(--text-muted);
   font-weight: 400;
 }
-.profile-favorite-toggle,
+.profile-favorite-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.profile-favorite-toggle:hover {
+  border-color: var(--accent-border-subtle);
+  background: rgba(201, 166, 255, 0.04);
+}
 .profile-sync-toggle {
   display: flex;
   align-items: center;
@@ -553,19 +705,19 @@
 
 .profile-tools-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 14px;
-  align-items: start;
-}
-.profile-tools-grid:has(.icon-browser) {
   grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
 }
 .profile-modal textarea {
   font-family: var(--font-body);
 }
-@media (max-width: 680px) {
-  .profile-tools-grid {
+@media (max-width: 760px) {
+  .profile-fields-columns {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .add-mode-switcher {
+    margin: 0 20px 10px;
   }
 }
 
