@@ -295,13 +295,23 @@ fn discover_ltk_install_in_dirs(extra_dirs: &[PathBuf]) -> Option<LtkInstallPath
         }
     }
 
+    find_ltk_install_in(&dirs)
+}
+
+fn find_ltk_manager_exe(dir: &Path) -> Option<PathBuf> {
+    ["ltk-manager.exe", "LTK Manager.exe"]
+        .into_iter()
+        .map(|name| dir.join(name))
+        .find(|p| p.is_file())
+}
+
+fn find_ltk_install_in(dirs: &[PathBuf]) -> Option<LtkInstallPaths> {
     for dir in dirs {
         let host = dir.join(LTK_HOST_EXE_NAME);
         if host.is_file() {
-            let mgr = dir.join("LTK Manager.exe");
             return Some(LtkInstallPaths {
                 host_exe: host,
-                manager_exe: mgr.is_file().then_some(mgr),
+                manager_exe: find_ltk_manager_exe(dir),
             });
         }
     }
@@ -310,17 +320,7 @@ fn discover_ltk_install_in_dirs(extra_dirs: &[PathBuf]) -> Option<LtkInstallPath
 
 #[cfg(not(windows))]
 fn discover_ltk_install_in_dirs(extra_dirs: &[PathBuf]) -> Option<LtkInstallPaths> {
-    for dir in extra_dirs {
-        let host = dir.join(LTK_HOST_EXE_NAME);
-        if host.is_file() {
-            let mgr = dir.join("LTK Manager.exe");
-            return Some(LtkInstallPaths {
-                host_exe: host,
-                manager_exe: mgr.is_file().then_some(mgr),
-            });
-        }
-    }
-    None
+    find_ltk_install_in(extra_dirs)
 }
 
 fn collect_ltk_patcher_dirs(extra_dirs: &[PathBuf]) -> Vec<PathBuf> {
@@ -1443,7 +1443,10 @@ fn is_ltk_manager_running() -> bool {
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     sys.processes().values().any(|p| {
         let n = p.name().to_string_lossy().to_ascii_lowercase();
-        n == "ltk manager.exe" || n == "ltk manager"
+        matches!(
+            n.as_str(),
+            "ltk-manager.exe" | "ltk-manager" | "ltk manager.exe" | "ltk manager"
+        )
     })
 }
 
@@ -1813,6 +1816,44 @@ mod tests {
             .contains(LTK_HOST_EXE_NAME));
         assert!(managed_ltk_dir(&root).join(LTK_HOOK_DLL_NAME).is_file());
         assert!(managed_ltk_stage_meta(&root).is_some());
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn discover_ltk_install_recognizes_hyphenated_and_spaced_manager_exe() {
+        let root = temp_root("ltk-mgr-exe-names");
+        let dir_hyphen = root.join("hyphen");
+        fs::create_dir_all(&dir_hyphen).unwrap();
+        fs::write(dir_hyphen.join(LTK_HOST_EXE_NAME), b"MZ-host").unwrap();
+        fs::write(dir_hyphen.join("ltk-manager.exe"), b"MZ-mgr").unwrap();
+
+        let found_hyphen = find_ltk_install_in(std::slice::from_ref(&dir_hyphen))
+            .expect("should discover hyphenated ltk-manager install");
+        assert_eq!(found_hyphen.host_exe, dir_hyphen.join(LTK_HOST_EXE_NAME));
+        assert_eq!(
+            found_hyphen.manager_exe,
+            Some(dir_hyphen.join("ltk-manager.exe"))
+        );
+
+        let dir_spaced = root.join("spaced");
+        fs::create_dir_all(&dir_spaced).unwrap();
+        fs::write(dir_spaced.join(LTK_HOST_EXE_NAME), b"MZ-host").unwrap();
+        fs::write(dir_spaced.join("LTK Manager.exe"), b"MZ-mgr").unwrap();
+
+        let found_spaced = find_ltk_install_in(std::slice::from_ref(&dir_spaced))
+            .expect("should discover legacy spaced LTK Manager install");
+        assert_eq!(
+            found_spaced.manager_exe,
+            Some(dir_spaced.join("LTK Manager.exe"))
+        );
+
+        let dir_only_host = root.join("only_host");
+        fs::create_dir_all(&dir_only_host).unwrap();
+        fs::write(dir_only_host.join(LTK_HOST_EXE_NAME), b"MZ-host").unwrap();
+        let found_only_host = find_ltk_install_in(std::slice::from_ref(&dir_only_host))
+            .expect("host alone should still discover host_exe");
+        assert_eq!(found_only_host.manager_exe, None);
 
         let _ = fs::remove_dir_all(root);
     }

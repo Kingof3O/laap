@@ -127,6 +127,7 @@ export function GameAdapterSettingsPanel() {
 
   useEffect(() => {
     if (
+      !provisionBusy &&
       bootstrapStatus?.provisionState !== 'downloading' &&
       bootstrapStatus?.provisionState !== 'extracting'
     ) {
@@ -144,7 +145,7 @@ export function GameAdapterSettingsPanel() {
         .catch(() => {})
     }, 1500)
     return () => clearInterval(timer)
-  }, [bootstrapStatus?.provisionState, refreshAll])
+  }, [provisionBusy, bootstrapStatus?.provisionState, refreshAll])
 
   async function saveAdapterConfig(next: GameAdapterConfig, successMsg?: string) {
     const previous = config
@@ -283,6 +284,9 @@ export function GameAdapterSettingsPanel() {
       await refreshAll(true)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+      void customizationBootstrap.status().then((next) => {
+        if (next) setBootstrapStatus(next)
+      }).catch(() => {})
     } finally {
       setProvisionBusy(false)
     }
@@ -438,7 +442,8 @@ export function GameAdapterSettingsPanel() {
                 style={{
                   color: bootstrapStatus.managedBackendReady
                     ? '#22c55e'
-                    : bootstrapStatus.provisionState === 'failed'
+                    : bootstrapStatus.provisionState === 'failed' ||
+                        bootstrapStatus.provisionState === 'error'
                       ? '#ef4444'
                       : '#f59e0b',
                   fontWeight: 600,
@@ -457,7 +462,8 @@ export function GameAdapterSettingsPanel() {
                           : bootstrapStatus.actionRequired === 'install_ltk_manager' ||
                               bootstrapStatus.actionRequired === 'confirm_uac'
                             ? 'LTK Setup Required'
-                            : bootstrapStatus.provisionState === 'failed'
+                            : bootstrapStatus.provisionState === 'failed' ||
+                                bootstrapStatus.provisionState === 'error'
                               ? 'Provisioning Failed'
                               : 'Setup Needed'}
               </span>

@@ -157,6 +157,7 @@ export function ClientStatusPage() {
 
   useEffect(() => {
     if (
+      !provisionBusy &&
       bootstrapStatus?.provisionState !== 'downloading' &&
       bootstrapStatus?.provisionState !== 'extracting'
     ) {
@@ -174,7 +175,7 @@ export function ClientStatusPage() {
         .catch(() => {})
     }, 1500)
     return () => clearInterval(timer)
-  }, [bootstrapStatus?.provisionState, consent])
+  }, [provisionBusy, bootstrapStatus?.provisionState, consent])
 
   useEffect(() => {
     const champId = runnerStatus?.detectedChampionId
@@ -207,6 +208,9 @@ export function ClientStatusPage() {
       await readClientStatus(consent)
     } catch (cause) {
       setError(errorMessage(cause))
+      void customizationBootstrap.status().then((next) => {
+        if (next) setBootstrapStatus(next)
+      }).catch(() => {})
     } finally {
       setProvisionBusy(false)
     }
@@ -374,7 +378,8 @@ export function ClientStatusPage() {
                 style={{
                   color: bootstrapStatus.managedBackendReady
                     ? '#10b981'
-                    : bootstrapStatus.provisionState === 'failed'
+                    : bootstrapStatus.provisionState === 'failed' ||
+                        bootstrapStatus.provisionState === 'error'
                       ? '#ef4444'
                       : '#f59e0b',
                   fontWeight: 600,
@@ -393,7 +398,8 @@ export function ClientStatusPage() {
                           : bootstrapStatus.actionRequired === 'install_ltk_manager' ||
                               bootstrapStatus.actionRequired === 'confirm_uac'
                             ? 'LTK Setup Required'
-                            : bootstrapStatus.provisionState === 'failed'
+                            : bootstrapStatus.provisionState === 'failed' ||
+                                bootstrapStatus.provisionState === 'error'
                               ? 'Provisioning Failed'
                               : 'Setup Needed'}
               </span>
@@ -413,6 +419,7 @@ export function ClientStatusPage() {
           </div>
           {(!bootstrapStatus.managedBackendReady ||
             bootstrapStatus.provisionState === 'failed' ||
+            bootstrapStatus.provisionState === 'error' ||
             Boolean(bootstrapStatus.actionRequired)) && (
             <button
               type="button"
