@@ -3,19 +3,23 @@ import type { FixedWindowRateLimiter } from './http/rate-limit.js'
 import { HttpError } from './http/errors.js'
 import { sendJson } from './http/response.js'
 import type { LaapServicePort } from './services/service-port.js'
+import type { RiotLiveTracker } from './services/riot-live.js'
 import type { RouteContext, RuntimeConfig } from './routes/types.js'
 import { handleAuthRoutes } from './routes/auth.routes.js'
 import { handleAccountRoutes } from './routes/accounts.routes.js'
 import { handleLeaseRoutes } from './routes/leases.routes.js'
 import { handleDeviceRoutes } from './routes/devices.routes.js'
 import { handleAdminAndDashboardRoutes } from './routes/admin.routes.js'
+import { handleRiotRoutes } from './routes/riot.routes.js'
 
 export async function routeRequest(
   request: IncomingMessage,
   response: ServerResponse,
   service: LaapServicePort,
   runtime: RuntimeConfig,
-  loginLimiter: FixedWindowRateLimiter
+  loginLimiter: FixedWindowRateLimiter,
+  riotProxyLimiter: FixedWindowRateLimiter,
+  riotLive: RiotLiveTracker
 ): Promise<void> {
   const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`)
   const method = request.method ?? 'GET'
@@ -55,6 +59,8 @@ export async function routeRequest(
     service,
     runtime,
     loginLimiter,
+    riotProxyLimiter,
+    riotLive,
     url,
     method,
     parts,
@@ -70,6 +76,8 @@ export async function routeRequest(
       return handleLeaseRoutes(ctx)
     case 'devices':
       return handleDeviceRoutes(ctx)
+    case 'riot':
+      return handleRiotRoutes(ctx)
     case 'dashboard':
     case 'metrics':
     case 'sessions':

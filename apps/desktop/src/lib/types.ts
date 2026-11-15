@@ -50,6 +50,7 @@ export interface LocalAccountSummary {
   customization?: ProfileCustomization
   session_status: 'missing' | 'stale' | 'saved' | 'unknown'
   has_session: boolean
+  has_puuid?: boolean
   created_at: string
   last_used_at: string | null
 }
@@ -86,4 +87,40 @@ export interface ProfileDetails {
 export interface CapturedProfile {
   session_blob: string
   details: { name: string | null; region: string | null; puuid: string | null }
+}
+
+export type LiveStatusMode = 'off' | 'direct' | 'worker'
+
+export interface LiveStatusSettings {
+  mode: LiveStatusMode
+  workerUrl: string
+  prelaunchGuard: boolean
+  hasRiotApiKey: boolean
+  hasWorkerToken: boolean
+  envRiotKeyPresent: boolean
+  builtInWorkerConfigured?: boolean
+}
+
+export interface LiveMatchStatus {
+  configured: boolean
+  mode: LiveStatusMode
+  inGame: boolean
+  cached: boolean
+  puuid: string | null
+  platform: string
+  checkedAt: string
+  gameId: number | null
+  gameMode: string | null
+  gameType: string | null
+  queueId: number | null
+  gameLengthSeconds: number | null
+  championId: number | null
+}
+
+export interface LiveStatusBadge {
+  checking?: boolean
+  inGame?: boolean
+  gameMode?: string | null
+  gameLengthSeconds?: number | null
+  checkedAt?: string | null
 }

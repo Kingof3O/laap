@@ -1,8 +1,18 @@
 import type { ReactNode } from 'react'
-import { Clock3, FileText, Play, Settings2, ShieldCheck, X } from 'lucide-react'
+import {
+  Activity,
+  Clock3,
+  FileText,
+  Loader2,
+  Play,
+  Settings2,
+  ShieldCheck,
+  X,
+} from 'lucide-react'
 import type { RosterItem } from './AccountRosterDisplay'
 import { ProfileAvatar } from './ProfileAvatar'
 import { RankCrest } from './RankPicker'
+import { formatLiveMatchLabel } from '../../lib/liveStatus'
 
 export function ProfileInspector({
   account,
@@ -10,6 +20,7 @@ export function ProfileInspector({
   onClose,
   onEdit,
   onLaunch,
+  onCheckLive,
   launchLabel = 'Launch',
   actions,
 }: {
@@ -18,6 +29,7 @@ export function ProfileInspector({
   onClose: () => void
   onEdit?: () => void
   onLaunch?: () => void
+  onCheckLive?: () => void
   launchLabel?: string
   actions?: ReactNode
 }) {
@@ -93,6 +105,24 @@ export function ProfileInspector({
             <dd>{added}</dd>
           </div>
         ) : null}
+        {onCheckLive || account.liveStatus ? (
+          <div>
+            <dt>
+              <Activity size={15} /> Live match
+            </dt>
+            <dd
+              className={
+                account.liveStatus?.inGame
+                  ? 'inspector-live-in-game'
+                  : account.liveStatus && !account.liveStatus.checking
+                    ? 'inspector-live-idle'
+                    : undefined
+              }
+            >
+              {formatLiveMatchLabel(account.liveStatus)}
+            </dd>
+          </div>
+        ) : null}
       </dl>
       {account.notes !== undefined ? (
         <div className="inspector-notes">
@@ -114,6 +144,24 @@ export function ProfileInspector({
             <Play size={13} fill="currentColor" />
             <span>
               {launchLabel === 'Switch' ? 'Switch account' : 'Launch session'}
+            </span>
+          </button>
+        ) : null}
+        {onCheckLive ? (
+          <button
+            className="btn-live-check"
+            type="button"
+            onClick={onCheckLive}
+            disabled={busy || account.liveStatus?.checking}
+            aria-label={`Check live match status for ${account.name}`}
+          >
+            {account.liveStatus?.checking ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Activity size={13} />
+            )}
+            <span>
+              {account.liveStatus?.checking ? 'Checking…' : 'Check live'}
             </span>
           </button>
         ) : null}

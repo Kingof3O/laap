@@ -19,6 +19,8 @@ pub mod product;
 pub mod profile_assets;
 #[cfg(not(feature = "studio"))]
 pub mod riot;
+#[cfg(not(feature = "studio"))]
+pub mod riot_live;
 #[cfg_attr(feature = "studio", path = "studio_tray.rs")]
 pub mod tray;
 
@@ -210,6 +212,12 @@ pub fn run() {
             presence::retry_presence,
             #[cfg(not(feature = "studio"))]
             commands::session::restart_riot_presence,
+            #[cfg(not(feature = "studio"))]
+            riot_live::get_live_status_settings,
+            #[cfg(not(feature = "studio"))]
+            riot_live::save_live_status_settings,
+            #[cfg(not(feature = "studio"))]
+            riot_live::check_account_live_status,
             product::get_product_capabilities,
             commands::window::open_external_url,
             #[cfg(not(feature = "basic"))]

@@ -1168,3 +1168,156 @@ test('add account modal mode switcher, always-visible customization, and inspect
     .poll(() => page.evaluate(() => (window as any).launchedIds))
     .toEqual(['acc-main'])
 })
+
+test('live match settings save, Check live displays active match state, and pre-launch guard confirms before launch', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const launched: string[] = []
+    let liveSettings = {
+      mode: 'off',
+      workerUrl: '',
+      prelaunchGuard: true,
+      hasRiotApiKey: false,
+      hasWorkerToken: false,
+      envRiotKeyPresent: false,
+    }
+    ;(window as any).launchedIds = launched
+    ;(window as any).savedLivePayloads = []
+    let liveCheckCalls = 0
+    ;(window as any).__TAURI_INTERNALS__ = {
+      metadata: {
+        currentWindow: { label: 'main' },
+        currentWebview: { label: 'main' },
+      },
+      transformCallback: () => 1,
+      unregisterCallback: () => {},
+      invoke: async (command: string, args: any) => {
+        if (command === 'runtime_snapshot')
+          return {
+            riot_client: false,
+            league_client: false,
+            league_game: false,
+            valorant_game: false,
+          }
+        if (command === 'list_local_accounts')
+          return [
+            {
+              id: 'acc-live',
+              name: 'SmurfAccount#EUW',
+              region: 'EUW',
+              rank: 'Emerald I',
+              notes: 'Climbing',
+              favorite: false,
+              session_status: 'saved',
+              has_session: true,
+              has_puuid: true,
+              created_at: '2026-01-01',
+              last_used_at: null,
+            },
+          ]
+        if (command === 'get_live_status_settings') return liveSettings
+        if (command === 'save_live_status_settings') {
+          ;(window as any).savedLivePayloads.push(args.input)
+          liveSettings = {
+            mode: args.input.mode,
+            workerUrl: args.input.workerUrl ?? '',
+            prelaunchGuard: Boolean(args.input.prelaunchGuard),
+            hasRiotApiKey:
+              !args.input.clearRiotApiKey &&
+              (Boolean(args.input.riotApiKey) || liveSettings.hasRiotApiKey),
+            hasWorkerToken:
+              !args.input.clearWorkerToken &&
+              (Boolean(args.input.workerToken) || liveSettings.hasWorkerToken),
+            envRiotKeyPresent: false,
+          }
+          return liveSettings
+        }
+        if (command === 'check_account_live_status') {
+          liveCheckCalls += 1
+          if (liveCheckCalls === 1) {
+            throw new Error('Riot API returned HTTP 400')
+          }
+          return {
+            configured: liveSettings.mode !== 'off',
+            mode: liveSettings.mode,
+            inGame: true,
+            cached: false,
+            puuid: 'fixture-puuid',
+            platform: 'euw1',
+            checkedAt: '2026-11-14T00:00:00Z',
+            gameId: 123456,
+            gameMode: 'CLASSIC',
+            gameType: 'MATCHED_GAME',
+            queueId: 420,
+            gameLengthSeconds: 725,
+            championId: 99,
+          }
+        }
+        if (command === 'launch_local_account') {
+          launched.push(args.id)
+          return null
+        }
+        return null
+      },
+    }
+  })
+
+  await page.goto('/')
+  await expect(
+    page.getByText('SmurfAccount#EUW', { exact: true }).first(),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Check live match status for SmurfAccount#EUW' }),
+  ).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  const settingsDialog = page.getByRole('dialog')
+  await settingsDialog.getByRole('tab', { name: 'Advanced', exact: true }).click()
+  await settingsDialog.getByRole('button', { name: 'Personal Key' }).click()
+  await settingsDialog
+    .getByLabel(/Riot Personal API Key/)
+    .fill('personal-key-fixture-01')
+  await settingsDialog.getByRole('button', { name: 'Save Live Settings' }).click()
+  await expect
+    .poll(() => page.evaluate(() => (window as any).savedLivePayloads.length))
+    .toBe(1)
+  await expect(settingsDialog.getByText('Saved in encrypted vault')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(settingsDialog).toHaveCount(0)
+
+  await page
+    .getByRole('button', { name: 'Check live match status for SmurfAccount#EUW' })
+    .click()
+  await expect(page.getByText('Riot API returned HTTP 400')).toBeVisible()
+  await expect(page.locator('#profile-inspector')).toContainText('Not checked')
+  await expect(page.locator('#profile-inspector')).not.toContainText('Not in game')
+  await expect(page.locator('.roster-card')).not.toContainText('Not in game')
+
+  await page
+    .getByRole('button', { name: 'Check live match status for SmurfAccount#EUW' })
+    .click()
+  await expect(page.locator('#profile-inspector')).toContainText(
+    "In match · Summoner's Rift · 12m",
+  )
+  await expect(page.locator('.roster-card')).toContainText('In Match · 12m')
+
+  await page
+    .getByRole('button', { name: 'Launch SmurfAccount#EUW', exact: true })
+    .click()
+  const warningDialog = page.getByRole('dialog', { name: 'Live Match Warning' })
+  await expect(warningDialog).toContainText('SmurfAccount#EUW')
+  await expect(warningDialog).toContainText("Summoner's Rift match (12m elapsed)")
+  await warningDialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(warningDialog).toHaveCount(0)
+  expect(await page.evaluate(() => (window as any).launchedIds)).toEqual([])
+
+  await page
+    .getByRole('button', { name: 'Launch SmurfAccount#EUW', exact: true })
+    .click()
+  await expect(warningDialog).toBeVisible()
+  await warningDialog.getByRole('button', { name: 'Launch Anyway' }).click()
+  await expect
+    .poll(() => page.evaluate(() => (window as any).launchedIds))
+    .toEqual(['acc-live'])
+})

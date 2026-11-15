@@ -295,3 +295,17 @@
 .card-status-pill { font-size: 11px; line-height: 1.4; color: var(--text-secondary); }
 .card-status-ready { color: var(--status-ready); }
 .card-status-warn { color: var(--status-warning); }
+.card-status-ingame {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  background: var(--status-warning-bg);
+  border: 1px solid var(--status-warning-border);
+  color: var(--status-warning);
+  font-weight: 600;
+}
+.card-status-idle {
+  color: var(--text-muted);
+}

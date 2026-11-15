@@ -145,3 +145,34 @@ body { background: #0c0a13; }
 
 .filter-menu-content .toolbar-region-select { width:100%; max-width:none; }
 .filter-menu-content .rank-filter { width:100%; max-width:none; }
+.btn-live-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 7px;
+  border: 1px solid rgba(168, 155, 190, 0.22);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+.btn-live-check:hover:not(:disabled) {
+  border-color: var(--accent-border-subtle);
+  background: rgba(201, 166, 255, 0.1);
+  color: var(--text-primary);
+}
+.btn-live-check:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.inspector-live-in-game {
+  color: var(--status-warning);
+  font-weight: 600;
+}
+.inspector-live-idle {
+  color: var(--status-ready);
+}

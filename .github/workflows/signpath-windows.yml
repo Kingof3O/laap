@@ -15,6 +15,10 @@ on:
     secrets:
       SIGNPATH_API_TOKEN:
         required: false
+      LAAP_LIVE_WORKER_URL:
+        required: false
+      LAAP_LIVE_WORKER_TOKEN:
+        required: false
     outputs:
       artifact-id:
         description: Verified Windows application/installer artifact ID
@@ -65,6 +69,9 @@ jobs:
       - name: Build both application editions and verify version metadata
         id: applications
         shell: pwsh
+        env:
+          LAAP_LIVE_WORKER_URL: ${{ secrets.LAAP_LIVE_WORKER_URL }}
+          LAAP_LIVE_WORKER_TOKEN: ${{ secrets.LAAP_LIVE_WORKER_TOKEN }}
         run: ./.signpath/windows-artifacts.ps1 -Stage BuildApplications
       - uses: actions/upload-artifact@v4
         id: input-applications

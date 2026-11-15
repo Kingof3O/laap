@@ -1,5 +1,10 @@
 export class HttpError extends Error {
-  constructor(readonly status: number, readonly code: string, message = code) {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message = code,
+    readonly retryAfterSeconds?: number,
+  ) {
     super(message)
   }
 }

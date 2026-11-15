@@ -37,22 +37,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
-            edition: team
-            args: '--target universal-apple-darwin'
-            targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
-          - platform: macos-latest
-            edition: offline
-            args: '--target universal-apple-darwin --config src-tauri/tauri.offline.conf.json'
-            targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
-          - platform: windows-latest
-            edition: team
-            args: ''
-            targets: ''
           - platform: windows-latest
             edition: offline
             args: '--config src-tauri/tauri.offline.conf.json'
             targets: ''
+          - platform: macos-latest
+            edition: offline
+            args: '--target universal-apple-darwin --config src-tauri/tauri.offline.conf.json'
+            targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
     runs-on: ${{ matrix.platform }}
     defaults:
       run:
@@ -87,17 +79,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          LAAP_LIVE_WORKER_URL: ${{ secrets.LAAP_LIVE_WORKER_URL }}
+          LAAP_LIVE_WORKER_TOKEN: ${{ secrets.LAAP_LIVE_WORKER_TOKEN }}
         with:
           projectPath: apps/desktop
           tagName: ${{ github.ref_name }}
-          releaseName: 'LAAP Desktop ${{ github.ref_name }}'
+          releaseName: 'LAAP Offline ${{ github.ref_name }}'
           releaseBody: |
-            Official LAAP Desktop release.
+            Official LAAP Offline release.
 
             [Code signing policy](https://github.com/Kingof3O/laap/blob/main/CODE_SIGNING.md) · [Privacy policy](https://github.com/Kingof3O/laap/blob/main/PRIVACY.md)
 
-            - **LAAP Desktop**: Full Team Edition (Shared Accounts + Personal Roster).
-            - **LAAP Offline**: Community Standalone Edition (local Personal Roster; optional icon downloads, opt-in League Client sync, and Windows/macOS LAAP Presence).
+            - **LAAP Offline**: Community Standalone Edition (local Personal Roster, live match status, optional icon downloads, opt-in League Client sync, and Windows/macOS LAAP Presence).
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
@@ -122,6 +115,8 @@ jobs:
       sign: true
     secrets:
       SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+      LAAP_LIVE_WORKER_URL: ${{ secrets.LAAP_LIVE_WORKER_URL }}
+      LAAP_LIVE_WORKER_TOKEN: ${{ secrets.LAAP_LIVE_WORKER_TOKEN }}
 
   upload-signpath-windows:
     needs: [release, signpath-windows]
@@ -178,12 +173,10 @@ jobs:
           mkdir -p release-assets
           gh release download "$RELEASE_TAG" --dir release-assets
           version="${RELEASE_TAG#v}"
-          # Generate and verify Team edition updater manifest for all advertised platforms
-          node scripts/generate-update-manifest.mjs --version "$version" --tag "$RELEASE_TAG" --edition team --artifacts-dir release-assets --output latest-team.json --require-all-platforms --require-verification
           # Generate and verify Offline edition updater manifest for all advertised platforms
           node scripts/generate-update-manifest.mjs --version "$version" --tag "$RELEASE_TAG" --edition offline --artifacts-dir release-assets --output latest-offline.json --require-all-platforms --require-verification
           # Upload verified manifests and any newly signed signatures to the release
-          gh release upload "$RELEASE_TAG" latest-team.json latest-offline.json release-assets/*.sig --clobber || gh release upload "$RELEASE_TAG" latest-team.json latest-offline.json --clobber
+          gh release upload "$RELEASE_TAG" latest-offline.json release-assets/*.sig --clobber || gh release upload "$RELEASE_TAG" latest-offline.json --clobber
 
   publish:
     needs: [release, signpath-windows, upload-signpath-windows, generate-updater-manifests]

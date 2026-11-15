@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { RotateCcw, AlertTriangle, RefreshCw, Cpu } from 'lucide-react'
 import { hasTauri, invokeTauri } from '../../../lib/api'
 import { useToast } from '../../../context/ToastContext'
+import { LiveStatusSettingsCard } from './LiveStatusSettingsCard'
 
 interface AdvancedSettingsProps {
   onResetRiot: () => Promise<void>
@@ -33,6 +34,9 @@ export function AdvancedSettings({ onResetRiot, busy }: AdvancedSettingsProps) {
           Diagnostic utilities, session recovery tools, and native client maintenance.
         </p>
       </div>
+
+      {/* Live Match Tracking (Riot Spectator API / Worker Proxy) */}
+      <LiveStatusSettingsCard busy={busy} />
 
       {/* Riot Session Reset */}
       <div className="settings-card">

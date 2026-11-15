@@ -5,7 +5,9 @@ import {
   EmptyState,
   AccountRosterDisplay,
   DeleteConfirmModal,
+  LiveMatchWarningModal,
 } from '../../shared/ui'
+import type { LiveMatchWarningTarget } from '../../shared/ui/LiveMatchWarningModal'
 import { AccountLoadState } from '../../shared/ui/AccountLoadState'
 import { EditAccountModal } from '../../shared/ui/EditAccountModal'
 import { AddAccountModal } from './AddAccountModal'
@@ -13,10 +15,14 @@ import { useLocalAccounts } from './useLocalAccounts'
 import { useProvisioningSandbox } from '../../shared/hooks/useProvisioningSandbox'
 import { useToast } from '../../context/ToastContext'
 import { useRiotOperations } from '../../context/RiotOperations'
-import { invokeTauri } from '../../lib/api'
+import { hasTauri, invokeTauri } from '../../lib/api'
+import { formatLiveMinutes, formatLiveMode } from '../../lib/liveStatus'
 import { sortProfiles, type SortOrder } from '../../lib/sorting'
 import type {
   CapturedProfile,
+  LiveMatchStatus,
+  LiveStatusBadge,
+  LiveStatusSettings,
   LocalAccountSummary,
   ProfileDetails,
   Region,
@@ -71,6 +77,13 @@ export function PersonalRosterView({
   const [pending, setPending] = useState<ProfileDetails | null>(null)
   const [launchingId, setLaunchingId] = useState<string | null>(null),
     [failedLaunchId, setFailedLaunchId] = useState<string | null>(null)
+  const [liveSettings, setLiveSettings] = useState<LiveStatusSettings | null>(null)
+  const [liveStatusById, setLiveStatusById] = useState<
+    Record<string, LiveStatusBadge>
+  >({})
+  const [liveWarning, setLiveWarning] = useState<LiveMatchWarningTarget | null>(
+    null,
+  )
   const {
     localAccounts,
     syncMessage,
@@ -165,15 +178,137 @@ export function PersonalRosterView({
       ),
     [localAccounts, selectedRegion, selectedRank, searchQuery, sortOrder],
   )
+  useEffect(() => {
+    if (!hasTauri) return
+    let active = true
+    invokeTauri<LiveStatusSettings | null>('get_live_status_settings')
+      .then((res) => {
+        if (active && res) setLiveSettings(res)
+      })
+      .catch(() => {})
+    const onConfigUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<LiveStatusSettings>).detail
+      if (detail) setLiveSettings(detail)
+    }
+    window.addEventListener('laap:live-status-config', onConfigUpdate)
+    return () => {
+      active = false
+      window.removeEventListener('laap:live-status-config', onConfigUpdate)
+    }
+  }, [])
   useEffect(
     () => onCountChange?.(filteredAccounts.length),
     [filteredAccounts.length, onCountChange],
   )
-  const handleLaunch = async (id: string) => {
+  const applyLiveStatusResult = (
+    account: LocalAccountSummary,
+    res: LiveMatchStatus,
+  ) => {
+    setLiveStatusById((prev) => ({
+      ...prev,
+      [account.id]: {
+        checking: false,
+        inGame: res.inGame,
+        gameMode: res.gameMode,
+        gameLengthSeconds: res.gameLengthSeconds,
+        checkedAt: res.checkedAt,
+      },
+    }))
+    if (!account.has_puuid && res.puuid) {
+      void loadAccounts()
+    }
+  }
+  const handleCheckLive = async (id: string) => {
+    const account = localAccounts.find((a) => a.id === id)
+    if (!account) return
+    setLiveStatusById((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], checking: true },
+    }))
+    try {
+      const res = await invokeTauri<LiveMatchStatus>(
+        'check_account_live_status',
+        {
+          accountId: account.id,
+          region: account.region,
+          name: account.name,
+          bypassCache: true,
+        },
+      )
+      if (!res.configured) {
+        setLiveStatusById((prev) => {
+          const next = { ...prev }
+          delete next[id]
+          return next
+        })
+        showError(
+          'Live match tracking is Off — enable Personal Key or Cloudflare Worker in Settings → Advanced first.',
+        )
+        return
+      }
+      applyLiveStatusResult(account, res)
+      showSuccess(
+        res.inGame
+          ? `${account.name} is currently in a match (${formatLiveMode(res.gameMode)}).`
+          : `${account.name} is not in a game.`,
+      )
+    } catch (cause) {
+      setLiveStatusById((prev) => {
+        const current = prev[id]
+        if (!current) return prev
+        const next = { ...prev }
+        if (typeof current.inGame === 'boolean') {
+          next[id] = { ...current, checking: false }
+        } else {
+          delete next[id]
+        }
+        return next
+      })
+      showError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+  const handleLaunch = async (id: string, skipLiveCheck = false) => {
+    const account = localAccounts.find((a) => a.id === id)
     setBusy(true)
     setLaunchingId(id)
     setFailedLaunchId(null)
     try {
+      if (
+        !skipLiveCheck &&
+        account &&
+        liveSettings?.mode &&
+        liveSettings.mode !== 'off' &&
+        liveSettings.prelaunchGuard &&
+        (account.has_puuid || account.name.includes('#'))
+      ) {
+        try {
+          const res = await invokeTauri<LiveMatchStatus>(
+            'check_account_live_status',
+            {
+              accountId: account.id,
+              region: account.region,
+              name: account.name,
+              bypassCache: false,
+            },
+          )
+          if (res.configured) {
+            applyLiveStatusResult(account, res)
+            if (res.inGame) {
+              setLiveWarning({
+                accountId: account.id,
+                name: account.name,
+                gameMode: res.gameMode,
+                elapsedMinutes: formatLiveMinutes(res.gameLengthSeconds),
+              })
+              return
+            }
+          }
+        } catch (cause) {
+          showError(
+            `Live match check skipped: ${cause instanceof Error ? cause.message : String(cause)}`,
+          )
+        }
+      }
       await launchAccount(id)
       onProfileSwitched?.(id)
     } catch (cause) {
@@ -386,6 +521,7 @@ export function PersonalRosterView({
               : null,
             rawLastUsed: acc.last_used_at,
             createdAt: acc.created_at,
+            liveStatus: liveStatusById[acc.id] ?? null,
           }))}
           viewMode={viewMode}
           isCloud={false}
@@ -399,7 +535,13 @@ export function PersonalRosterView({
               : null
           }
           failedLaunchId={failedLaunchId}
-          onLaunch={handleLaunch}
+          onLaunch={(id) => void handleLaunch(id)}
+          onCheckLive={
+            liveSettings?.mode && liveSettings.mode !== 'off'
+              ? (id) => void handleCheckLive(id)
+              : undefined
+          }
+          showLiveMenuAction={Boolean(liveSettings?.mode && liveSettings.mode !== 'off')}
           launchLabel={operations.running ? 'Switch' : 'Play'}
           onEdit={(id) =>
             setEditTarget(localAccounts.find((a) => a.id === id) ?? null)
@@ -451,6 +593,16 @@ export function PersonalRosterView({
           } finally {
             setBusy(false)
           }
+        }}
+      />
+      <LiveMatchWarningModal
+        target={liveWarning}
+        busy={busy || operations.busy}
+        onClose={() => setLiveWarning(null)}
+        onConfirm={() => {
+          const targetId = liveWarning?.accountId
+          setLiveWarning(null)
+          if (targetId) void handleLaunch(targetId, true)
         }}
       />
     </div>

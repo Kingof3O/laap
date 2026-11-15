@@ -43,6 +43,8 @@ pub struct LocalAccountSummary {
     pub customization: ProfileCustomization,
     pub session_status: String,
     pub has_session: bool,
+    #[serde(default)]
+    pub has_puuid: bool,
     pub created_at: String,
     pub last_used_at: Option<String>,
 }
@@ -63,6 +65,10 @@ impl From<&LocalAccount> for LocalAccountSummary {
             )
             .into(),
             has_session: crate::riot::session_format::has_persisted_session(&account.session_blob),
+            has_puuid: account
+                .puuid
+                .as_deref()
+                .is_some_and(|puuid| !puuid.trim().is_empty()),
             created_at: account.created_at.clone(),
             last_used_at: account.last_used_at.clone(),
         }

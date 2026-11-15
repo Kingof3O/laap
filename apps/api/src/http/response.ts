@@ -4,7 +4,7 @@ import { isHttpError } from './errors.js'
 export function applySecurityHeaders(response: ServerResponse, allowedOrigin: string, secure = false) {
   response.setHeader('Access-Control-Allow-Origin', allowedOrigin)
   response.setHeader('Access-Control-Allow-Credentials', 'true')
-  response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Laap-Riot-Token')
   response.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
   response.setHeader('Vary', 'Origin')
   response.setHeader('X-Content-Type-Options', 'nosniff')
@@ -26,7 +26,12 @@ export function sendJson(response: ServerResponse, status: number, payload: unkn
 }
 
 export function sendError(response: ServerResponse, error: unknown, requestId?: string) {
-  if (isHttpError(error)) return sendJson(response, error.status, { error: { code: error.code, message: error.message }, requestId })
+  if (isHttpError(error)) {
+    if (error.retryAfterSeconds !== undefined && !response.headersSent) {
+      response.setHeader('Retry-After', String(error.retryAfterSeconds))
+    }
+    return sendJson(response, error.status, { error: { code: error.code, message: error.message }, requestId })
+  }
   console.error(error)
   return sendJson(response, 500, { error: { code: 'INTERNAL_ERROR', message: 'Unexpected server error' }, requestId })
 }

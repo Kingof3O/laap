@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { AccountCard } from './AccountCard'
 import { AccountListTable } from './AccountListTable'
-import type { ViewMode } from '../../lib/types'
+import type { LiveStatusBadge, ViewMode } from '../../lib/types'
 import { PanelRightOpen } from 'lucide-react'
 import { ProfileInspector } from './ProfileInspector'
 
@@ -19,6 +19,7 @@ export interface RosterItem {
   createdAt?: string | null
   status?: string
   favorite?: boolean
+  liveStatus?: LiveStatusBadge | null
 }
 
 export interface AccountRosterDisplayProps {
@@ -35,6 +36,8 @@ export interface AccountRosterDisplayProps {
   onEdit?: (id: string) => void
   onRefreshSession?: (id: string) => void
   onLaunch: (id: string) => void
+  onCheckLive?: (id: string) => void
+  showLiveMenuAction?: boolean
   onSync?: (id: string) => void
   profileActions?: (account: RosterItem) => ReactNode
   toolbarSlot?: ReactNode
@@ -59,6 +62,8 @@ export function AccountRosterDisplay({
   onEdit,
   onRefreshSession,
   onLaunch,
+  onCheckLive,
+  showLiveMenuAction = false,
   onSync,
   onPushToCloud,
   profileActions,
@@ -166,6 +171,7 @@ export function AccountRosterDisplay({
                 lastUsedText={item.lastUsedText}
                 hasSession={item.hasSession}
                 status={item.status}
+                liveStatus={item.liveStatus}
                 isSelected={isSelected}
                 isFavorite={item.favorite}
                 isRecent={isRecent}
@@ -198,6 +204,8 @@ export function AccountRosterDisplay({
                 onToggleFavorite={
                   onToggleFavorite ? () => onToggleFavorite(item.id) : undefined
                 }
+                onCheckLive={onCheckLive ? () => onCheckLive(item.id) : undefined}
+                showLiveMenuAction={showLiveMenuAction}
               />
             )
           })}
@@ -209,6 +217,7 @@ export function AccountRosterDisplay({
             onClose={() => toggleDetails(false)}
             onEdit={onEdit ? () => onEdit(activeHero.id) : undefined}
             onLaunch={() => onLaunch(activeHero.id)}
+            onCheckLive={onCheckLive ? () => onCheckLive(activeHero.id) : undefined}
             launchLabel={launchLabel}
             actions={profileActions?.(activeHero)}
           />

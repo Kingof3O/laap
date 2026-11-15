@@ -8,6 +8,7 @@ import { FixedWindowRateLimiter } from './http/rate-limit.js'
 import { applySecurityHeaders, sendError, sendJson } from './http/response.js'
 import { SupabaseLaapService } from './services/supabase-service.js'
 import type { LaapServicePort } from './services/service-port.js'
+import { RiotLiveTracker } from './services/riot-live.js'
 import { routeRequest } from './router.js'
 import { isTrustedDesktopOrigin, serviceErrorToHttp, type RuntimeConfig } from './routes/types.js'
 
@@ -60,6 +61,8 @@ export async function createApp(overrides: Partial<RuntimeConfig> & { dataDir?: 
   await seedDatabase(database, runtime.adminPassword)
   const service = new LaapService(database, runtime.vaultKey)
   const loginLimiter = new FixedWindowRateLimiter(8, 5 * 60_000)
+  const riotProxyLimiter = new FixedWindowRateLimiter(30, 60_000)
+  const riotLive = runtime.riotLiveTracker ?? new RiotLiveTracker()
 
   const server = configureServer(http.createServer(async (request, response) => {
     const requestId = randomUUID()
@@ -92,7 +95,7 @@ export async function createApp(overrides: Partial<RuntimeConfig> & { dataDir?: 
     }
 
     try {
-      await routeRequest(request, response, service, runtime, loginLimiter)
+      await routeRequest(request, response, service, runtime, loginLimiter, riotProxyLimiter, riotLive)
       if (request.method && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method)) {
         await database.save()
       }
@@ -136,6 +139,8 @@ export async function createSupabaseApp(overrides: Partial<RuntimeConfig> = {}):
     vaultKey: runtime.vaultKey,
   })
   const loginLimiter = new FixedWindowRateLimiter(8, 5 * 60_000)
+  const riotProxyLimiter = new FixedWindowRateLimiter(30, 60_000)
+  const riotLive = runtime.riotLiveTracker ?? new RiotLiveTracker()
 
   const server = configureServer(http.createServer(async (request, response) => {
     const requestId = randomUUID()
@@ -168,7 +173,7 @@ export async function createSupabaseApp(overrides: Partial<RuntimeConfig> = {}):
     }
 
     try {
-      await routeRequest(request, response, service, runtime, loginLimiter)
+      await routeRequest(request, response, service, runtime, loginLimiter, riotProxyLimiter, riotLive)
     } catch (error) {
       sendError(response, serviceErrorToHttp(error), requestId)
     }

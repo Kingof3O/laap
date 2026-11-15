@@ -333,3 +333,110 @@
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
 }
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.form-field input {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 7px;
+  background: var(--bg-canvas);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.form-field input:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 1px var(--accent-primary), 0 0 12px rgba(201, 166, 255, 0.2);
+}
+
+.live-mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.live-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 7px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.live-mode-btn:hover:not(:disabled) {
+  border-color: var(--accent-border-subtle);
+  color: var(--text-primary);
+}
+
+.live-mode-btn-active {
+  border-color: var(--accent-border);
+  background: rgba(201, 166, 255, 0.14);
+  color: var(--accent-light);
+}
+
+.live-config-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.live-field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.live-secret-state {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.btn-link-subtle {
+  align-self: flex-start;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--status-warning);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.btn-link-subtle:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.live-warning-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--status-warning-bg);
+  border: 1px solid var(--status-warning-border);
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.5;
+}

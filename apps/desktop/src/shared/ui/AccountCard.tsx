@@ -2,6 +2,7 @@ import { ProfileAvatar } from './ProfileAvatar'
 import { RankCrest } from './RankPicker'
 import { ContextMenu, type MenuItem } from './ContextMenu'
 import {
+  Activity,
   KeyRound,
   Loader2,
   LogIn,
@@ -14,6 +15,8 @@ import {
   Zap,
 } from 'lucide-react'
 import { getRankTierClass } from '../../lib/sorting'
+import { formatLiveMatchLabel, formatLiveMinutes } from '../../lib/liveStatus'
+import type { LiveStatusBadge } from '../../lib/types'
 
 export interface AccountCardProps {
   id: string
@@ -47,6 +50,9 @@ export interface AccountCardProps {
   onRevokeSession?: () => void
   onDelete: () => void
   onToggleFavorite?: () => void
+  onCheckLive?: () => void
+  showLiveMenuAction?: boolean
+  liveStatus?: LiveStatusBadge | null
 }
 
 export function AccountCard({
@@ -80,6 +86,9 @@ export function AccountCard({
   onRevokeSession,
   onDelete,
   onToggleFavorite,
+  onCheckLive,
+  showLiveMenuAction = false,
+  liveStatus,
 }: AccountCardProps) {
   const isLeased = isCloud && status === 'Leased'
   const isStale = !isCloud && (status === 'Session stale' || status.includes('unknown'))
@@ -87,6 +96,15 @@ export function AccountCard({
 
   // Context menu actions for secondary capabilities
   const menuItems: MenuItem[] = []
+
+  if (onCheckLive && showLiveMenuAction) {
+    menuItems.push({
+      id: 'check-live',
+      label: 'Check Live Match',
+      icon: <Activity size={14} />,
+      onClick: onCheckLive,
+    })
+  }
 
   if (onRefreshSession) {
     menuItems.push({
@@ -259,6 +277,30 @@ export function AccountCard({
                   {isCloud ? 'Available' : 'Login Saved'}
                 </span>
               )}
+
+              {liveStatus?.checking ? (
+                <span className="card-status-pill card-status-idle">
+                  Checking live…
+                </span>
+              ) : liveStatus?.inGame ? (
+                <span
+                  className="card-status-pill card-status-ingame"
+                  title={formatLiveMatchLabel(liveStatus)}
+                >
+                  <Activity size={11} />
+                  {(() => {
+                    const mins = formatLiveMinutes(liveStatus.gameLengthSeconds)
+                    return mins !== null ? `In Match · ${mins}m` : 'In Match'
+                  })()}
+                </span>
+              ) : liveStatus?.inGame === false ? (
+                <span
+                  className="card-status-pill card-status-idle"
+                  title={formatLiveMatchLabel(liveStatus)}
+                >
+                  Not in game
+                </span>
+              ) : null}
             </div>
           </div>
         </div>

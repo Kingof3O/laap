@@ -16,6 +16,8 @@ const app = await createSupabaseApp({
   supabaseServiceRoleKey: process.env.LAAP_WORKER_SUPABASE_SERVICE_ROLE_KEY ?? '',
   jwtSecret: process.env.LAAP_WORKER_JWT_SECRET ?? '',
   vaultKey: process.env.LAAP_WORKER_VAULT_KEY ?? '',
+  riotApiKey: process.env.RIOT_API_KEY ?? '',
+  riotProxyToken: process.env.LAAP_RIOT_PROXY_TOKEN ?? '',
   allowedOrigin: process.env.ALLOWED_ORIGIN ?? 'https://laap-control-center.pages.dev',
   enableDemoAuth: false,
   logRequests: false,
