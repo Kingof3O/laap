@@ -16,7 +16,7 @@ name = "laap-desktop-core"
 path = "src/main.rs"
 
 [dependencies]
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 base64 = "0.23"
 chrono = { version = "0.4", features = ["clock", "serde"] }
 directories = "6"
