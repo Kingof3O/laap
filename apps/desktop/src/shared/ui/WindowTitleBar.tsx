@@ -57,16 +57,10 @@ export function WindowTitleBar({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div
-      className="titlebar"
-      data-tauri-drag-region
-      onDoubleClick={(event) => {
-        if ((event.target as HTMLElement).hasAttribute('data-tauri-drag-region')) void handleToggleMaximize()
-      }}
-    >
+    <div className="titlebar" data-tauri-drag-region>
       {children}
 
-      <div className="titlebar-controls" data-tauri-drag-region="false">
+      <div className="titlebar-controls">
         <button
           type="button"
           className="titlebar-btn titlebar-minimize"

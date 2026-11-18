@@ -9,6 +9,8 @@ import { I18nProvider } from './context/I18nContext'
 import { PersonalRosterView } from './features/personal-roster'
 import { useUpdateChecker } from './hooks/useUpdateChecker'
 import { VIEW_MODE_KEY } from './lib/constants'
+import { BillingModal } from './features/billing/BillingModal'
+import { useBilling, type ProfileSlots } from './features/billing/useBilling'
 import { hasTauri, invokeTauri } from './lib/api'
 import {
   RiotOperationsProvider,
@@ -58,9 +60,21 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showUpdateModal, setShowUpdateModal] = useState(false)
   const [localCount, setLocalCount] = useState(0)
+  const [profileSlots, setProfileSlots] = useState<ProfileSlots | null>(null)
+  const [showBilling, setShowBilling] = useState(false)
+  const billing = useBilling()
   const [busy, setBusy] = useState(false)
 
   const { showSuccess, showError } = useToast()
+  const openAddProfile = () => {
+    if (profileSlots?.canAdd === false) {
+      if (profileSlots.chooseCount > 0) showError('Choose your two active Basic profiles first.')
+      else if (billing.status?.available) setShowBilling(true)
+      else showError('Basic supports two active profiles. Remove a profile to free a slot.')
+      return
+    }
+    setShowAddModal(true)
+  }
 
   const [trayRequest, setTrayRequest] = useState<{
     id: string
@@ -171,16 +185,20 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
   }
 
   return (
-    <div className={studio ? "app-container studio-active" : "app-container"}>
+    <div className="app-container">
       {background}
       <WindowTitleBar>
       <Header
         navigation={navigation}
+        brandLabel={billing.status?.pro ? 'LAAP Pro' : undefined}
         updateAvailable={updateAvailable}
         onOpenUpdates={() => setShowUpdateModal(true)}
         onRefresh={() => window.dispatchEvent(new Event('laap:refresh'))}
         onOpenSettings={() => setShowSettingsModal(true)}
         presenceControl={<PresenceSelect launcher={launcher} operationBusy={operations.busy || operations.provisioning} />}
+        billingControl={billing.status?.available ? <button type="button" className="btn-secondary billing-header-button" onClick={() => setShowBilling(true)}>
+          {billing.status.pro ? 'Manage Pro' : 'Upgrade'}
+        </button> : undefined}
         riotRunning={operations.running}
         operationBusy={operations.busy || operations.provisioning}
         onStopRiot={async () => {
@@ -215,15 +233,15 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
           onSortChange={setSortOrder}
           viewMode={viewMode}
           onViewModeChange={handleViewModeChange}
-          onAddAccount={() => setShowAddModal(true)}
+          onAddAccount={openAddProfile}
           addButtonLabel="Add Profile"
           totalCount={localCount}
         />
       )}
 
       {/* Main Content Stage */}
-      {studio && <section className="main-viewport">{studio}</section>}
-      <main className="main-viewport" style={studio ? { display: 'none' } : undefined}>
+      {studio && <section className="main-viewport" tabIndex={0}>{studio}</section>}
+      <main className="main-viewport" tabIndex={0} style={studio ? { display: 'none' } : undefined}>
           <PersonalRosterView
             profileActions={profileActions}
             onProfilesChanged={onProfilesChanged}
@@ -238,10 +256,13 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
             viewMode={viewMode}
             showAddModal={showAddModal}
             onCloseAddModal={() => setShowAddModal(false)}
-            onOpenAddModal={() => setShowAddModal(true)}
+            onOpenAddModal={openAddProfile}
             onCountChange={setLocalCount}
+            onSlotsChange={setProfileSlots}
           />
       </main>
+
+      {showBilling && billing.status && <BillingModal status={billing.status} onStatus={billing.apply} onClose={() => setShowBilling(false)} />}
 
       {/* Settings Modal */}
       <SettingsModal

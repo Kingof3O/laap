@@ -1,6 +1,6 @@
 # Privacy policy
 
-Updated 2026-11-11 for Basic, Studio, and Complete development builds from the official [GitHub repository](https://github.com/Kingof3O/laap).
+This policy covers the maintained LAAP account manager from the official [GitHub repository](https://github.com/Kingof3O/laap).
 
 ## Local profile data and Riot login sessions
 
@@ -22,11 +22,11 @@ Presence setup fetches and caches a public TLS compatibility certificate from `h
 
 The presence service uses local configuration/chat listeners and forwards the routed client's configuration and authenticated chat traffic to Riot's own services. Online/offline mode modifies global presence messages. Credentials and chat payloads remain in memory and are not logged or stored by LAAP. LAAP does not change the system trust store or install a root certificate. LAAP Presence prepares automatically on startup in Windows and macOS releases, including Basic. The local roster works independently from the optional network services described here.
 
-## Updates and community services
+## Updates and Pro billing
 
-Basic and Complete check GitHub on their existing native update channels. Studio checks its own channel. GitHub receives ordinary HTTPS request metadata. New desktop builds do not sign in to the legacy Team service or send Riot sessions to it. Older Team installations use the historical service and policies until migration. Its server and stored data have not been decommissioned by this change.
+LAAP checks GitHub for signed updates on its Offline channel. GitHub receives ordinary HTTPS request metadata.
 
-Studio and Complete can request public cosmetic metadata and images from Riot Data Dragon. The optional Community API is a separate service. Party rooms use temporary IDs and membership credentials held in memory. The relay can see the connection address, room membership, and explicitly shared cosmetic IDs. Room data expires after an hour. Loading and downloading approved packages discloses ordinary request metadata and package identifiers. The desktop sends no Riot session, vault contents, or local account identifier to the Community API. Community activity is optional and requires a configured service.
+When Pro billing is configured, the billing service stores verified billing emails, provider purchase references, license and gift history, and a randomly generated public device key. It also processes hashed IP addresses for request rate limits. Paddle collects payment details through its browser checkout. Supabase Auth and its configured mail provider deliver sign-in codes. The billing service receives no local profile information, Riot credentials, or saved Riot login material. Basic requires no billing sign-in.
 
 LAAP does not upload crash dumps automatically and does not include an advertising or analytics SDK.
 

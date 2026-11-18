@@ -14,7 +14,7 @@
     <a href="https://github.com/Kingof3O/laap/releases/latest"><strong>⬇️ Download Latest Release</strong></a> •
     <a href="#key-features">Key Features</a> •
     <a href="#how-it-works">How It Works</a> •
-    <a href="#choose-your-edition">Editions</a> •
+    <a href="#basic-and-pro">Basic and Pro</a> •
     <a href="#security--anti-cheat-safety">Security & Safety</a> •
     <a href="#local-development">Development</a>
   </p>
@@ -29,16 +29,6 @@
 Featuring a dark-first, refined **Velvet Amethyst** aesthetic, LAAP delivers the responsiveness and polish of a premier native desktop utility while keeping your credentials cryptographically secured in your hardware vault.
 
 ---
-
-## First-launch Studio content
-
-Studio and Complete installers include a verified catalog pack so browsing can start without a download. The current pack contains 173 champions, 9,268 cosmetic metadata records and 2,136 available public previews, totaling approximately 106 MiB. Catalog metadata refreshes from Riot Data Dragon and keeps a local fallback. Provider-unavailable artwork is labeled explicitly.
-
-The initial workspace shows actual local catalog, preset and package counts. Basic retains its local-launcher scope.
-
-![LAAP Studio native first-launch overview](docs/visual-three-editions/studio-native-overview.png)
-
-*Native Studio first launch with the included catalog. Hosted services require configuration.*
 
 ## Desktop Showcase
 
@@ -70,28 +60,18 @@ Play games in complete stealth. LAAP includes an integrated local proxy that let
 - **Quick Search (`Ctrl+K` / `Cmd+K`):** Instantly filter accounts by summoner name, server region, or competitive tier.
 
 ### 🔄 Cryptographic In-App Updates
-Basic and Complete retain the existing native **Ed25519/Minisign** update channels. Studio has a separate channel and cannot install updates until a verified Studio signing key and signed artifacts are available.
+LAAP uses the existing signed Offline update channel for both license tiers.
 
 ### 🪟 Windows Frameless Title Bar & System Tray
 Enjoy a native, borderless desktop window with drag support, maximize/restore toggling, and close-to-tray capability. Quick-switch accounts or change presence directly from your Windows Notification Tray or macOS Menu Bar.
 
 ---
 
-## Choose Your Edition
+## Basic and Pro
 
-This source tree builds three editions. The public Releases page may still show the previous Offline and Team installers.
+The maintained LAAP app is a local League of Legends account manager. Basic supports two active profiles and works without a billing account. Pro unlocks unlimited profiles on one computer through the same app and updater.
 
-| Capability | LAAP Basic | LAAP Studio | LAAP Complete |
-| --- | --- | --- | --- |
-| Encrypted local roster, launch, switch, and Presence | Included | Absent | Included |
-| Cosmetic catalog, presets, image package library, creator export, and theme preview | Absent | Included | Included |
-| Local profile preset links | Absent | Absent | Included |
-| Optional party relay and approved package catalog | Absent | Configured service required | Configured service required |
-| Riot account sharing and Team leases | Retired | Absent | Retired |
-
-Basic keeps the Offline installation identity. Complete keeps the former Team identity to support a future signed upgrade. Both use the existing local vault. Studio stores customization data separately and excludes account IPC. The legacy service remains available to its existing deployments pending an authorized sunset.
-
-See the [implementation and verification report](docs/LAAP_THREE_EDITION_IMPLEMENTATION.md) for coverage, build names, migration limits, and release gates.
+The planned Pro launch prices are $3 monthly, $20 yearly, and $60 lifetime. Checkout availability depends on launch approval and billing configuration. If Pro ends, extra profiles stay in your existing encrypted vault and return when Pro is active again. See the [billing setup and release checks](billing/README.md).
 
 ---
 

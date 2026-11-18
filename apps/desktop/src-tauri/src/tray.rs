@@ -258,6 +258,16 @@ pub fn show_launcher(app: AppHandle) {
 #[tauri::command]
 pub fn update_tray(app: AppHandle, snapshot: TraySnapshot) -> Result<(), String> {
     if let Some(tray) = app.tray_by_id("laap") {
+        #[cfg(feature = "basic")]
+        let snapshot = {
+            let mut snapshot = snapshot;
+            snapshot.accounts = crate::commands::local_accounts::list_local_accounts_sync()
+                .unwrap_or_default().into_iter().map(|account| TrayAccount {
+                    id: account.id, name: account.name, region: account.region,
+                    has_session: account.has_session,
+                }).collect();
+            snapshot
+        };
         tray.set_menu(Some(menu(&app, &snapshot)?)).map_err(error)?;
     }
     Ok(())

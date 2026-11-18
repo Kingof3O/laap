@@ -1,11 +1,15 @@
 pub mod crypto;
 pub mod manager;
 pub mod models;
+#[cfg(feature = "basic")]
+mod profile_access;
 pub mod storage;
 
 pub use manager::{LocalStore, ProfileDetails};
 pub use models::{LocalAccount, LocalAccountSummary, ProfileCustomization};
 pub use storage::LocalAccountStorage;
+#[cfg(feature = "basic")]
+pub use profile_access::ProfileSlots;
 
 #[cfg(test)]
 mod tests {
@@ -119,7 +123,7 @@ mod safety_tests {
         std::fs::remove_dir_all(path).unwrap();
     }
     #[test]
-    fn concurrent_additions_do_not_overwrite_each_other() {
+    fn concurrent_additions_respect_account_capacity_without_losing_records() {
         let (store, path) = store();
         let handles: Vec<_> = (0..16)
             .map(|index| {
@@ -132,19 +136,84 @@ mod safety_tests {
                             "rso_token: test".into(),
                             None,
                         )
-                        .unwrap()
                 })
             })
             .collect();
-        for handle in handles {
-            handle.join().unwrap();
-        }
-        assert_eq!(store.load_accounts().unwrap().len(), 16);
+        let results: Vec<_> = handles.into_iter().map(|handle| handle.join().unwrap()).collect();
+        let expected = if cfg!(feature = "basic") { 2 } else { 16 };
+        assert_eq!(results.iter().filter(|result| result.is_ok()).count(), expected);
+        assert!(results.iter().filter_map(|result| result.as_ref().err()).all(|error| error.contains("two active profiles")));
+        assert_eq!(store.load_accounts().unwrap().len(), expected);
         assert!(!std::fs::read_dir(&path)
             .unwrap()
             .filter_map(Result::ok)
             .any(|e| e.path().extension().is_some_and(|x| x == "tmp")));
         std::fs::remove_dir_all(path).unwrap();
+    }
+
+    #[cfg(feature = "basic")]
+    #[test]
+    fn legacy_vault_requires_selection_and_keeps_extras_encrypted() {
+        use std::fs;
+        let (store, path) = store();
+        let legacy: Vec<LocalAccount> = ["one", "two", "three", "four"].into_iter().map(|id| {
+            serde_json::from_value(serde_json::json!({
+                "id": id, "name": id, "region": "EUW", "session_blob": "rso_token: sample",
+                "created_at": "2025-01-01T00:00:00Z", "last_used_at": null
+            })).unwrap()
+        }).collect();
+        store.save_accounts(&legacy).unwrap();
+        let vault = path.join(storage::LOCAL_STORE_FILENAME);
+        let before = fs::read(&vault).unwrap();
+        assert_eq!(store.profile_slots().unwrap().choose_count, 2);
+        assert!(store.list_summaries().unwrap().is_empty());
+        assert!(store.select_profiles(vec!["one".into(), "one".into()]).is_err());
+        store.select_profiles(vec!["one".into(), "three".into()]).unwrap();
+        assert_eq!(fs::read(&vault).unwrap(), before);
+        assert!(store.session_for("three").is_ok());
+        assert!(store.session_for("four").is_err());
+        assert!(store.refresh_session("four", "rso_token: sample".into()).is_err());
+        assert!(store.select_profiles(vec!["four".into()]).is_err());
+        store.delete_account("one").unwrap();
+        assert_eq!(store.profile_slots().unwrap().choose_count, 1);
+        store.select_profiles(vec!["four".into()]).unwrap();
+        assert!(store.session_for("four").is_ok());
+        assert_eq!(store.profile_slots().unwrap().locked_count, 1);
+        let persisted = fs::read_to_string(vault).unwrap();
+        assert!(persisted.contains("\"id\": \"two\""));
+        assert!(!persisted.contains("rso_token: sample"));
+        fs::remove_dir_all(path).unwrap();
+    }
+
+    #[cfg(feature = "basic")]
+    #[test]
+    fn expired_offline_access_restores_previous_slots_until_the_paid_term_ends() {
+        use crate::billing::Entitlement;
+        use super::profile_access::{ProfileAccess, Slots};
+        let accounts: Vec<LocalAccount> = ["one", "two", "three"].into_iter().map(|id| {
+            serde_json::from_value(serde_json::json!({
+                "id": id, "name": id, "region": "EUW", "session_blob": "rso_token: sample",
+                "created_at": "2025-01-01T00:00:00Z", "last_used_at": null
+            })).unwrap()
+        }).collect();
+        let mut basic = ProfileAccess::new(Slots::default(), Entitlement::default(), &accounts);
+        basic.select(vec!["one".into(), "two".into()], &accounts).unwrap();
+        let mut entitlement = Entitlement::default();
+        entitlement.pro = true;
+        let pro = ProfileAccess::new(basic.slots, entitlement, &accounts);
+        assert!(pro.allows("three"));
+        let offline = ProfileAccess::new(pro.slots, Entitlement::default(), &accounts);
+        assert!(offline.allows("one"));
+        assert!(!offline.allows("three"));
+        let mut ended = Entitlement::default();
+        ended.ended_grant = Some("purchase".into());
+        let mut expired = ProfileAccess::new(offline.slots, ended.clone(), &accounts);
+        assert_eq!(expired.describe(&accounts).choose_count, 2);
+        expired.select(vec!["one".into(), "three".into()], &accounts).unwrap();
+        let next = ProfileAccess::new(expired.slots, ended, &accounts);
+        assert!(next.allows("three"));
+        assert!(!next.allows("two"));
+        assert_eq!(next.describe(&accounts).choose_count, 0);
     }
     #[test]
     fn refresh_preserves_profile_metadata_and_rejects_wrong_identity() {

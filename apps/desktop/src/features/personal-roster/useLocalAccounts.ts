@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { invokeTauri, isTauriAvailable } from '../../lib/api'
 import { invalidateIcons } from '../../lib/iconCache'
 import { useRiotOperations } from '../../context/RiotOperations'
+import { flavor } from '../../product/flavors'
+import type { ProfileSlots } from '../billing/useBilling'
 import type {
   CapturedProfile,
   LocalAccountFull,
@@ -16,6 +18,7 @@ export function useLocalAccounts() {
   const [localAccounts, setLocalAccounts] = useState<LocalAccountSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const [profileSlots, setProfileSlots] = useState<ProfileSlots | null>(null)
   const [provisioning, setProvisioning] = useState(false)
   const ticket = useRef<string | null>(null)
   const generation = useRef(0)
@@ -51,8 +54,11 @@ export function useLocalAccounts() {
       const accounts = await invokeTauri<LocalAccountSummary[]>(
         'list_local_accounts',
       )
-      if (mounted.current && request === requests.current)
+      const slots = flavor === 'basic' ? await invokeTauri<ProfileSlots>('basic_profile_slots') : null
+      if (mounted.current && request === requests.current) {
         setLocalAccounts(accounts)
+        setProfileSlots(slots)
+      }
     } catch (cause) {
       if (mounted.current && request === requests.current) {
         setLocalAccounts([])
@@ -92,11 +98,13 @@ export function useLocalAccounts() {
       setProvisioning(false)
     }
     window.addEventListener('laap:refresh', refresh)
+    window.addEventListener('laap:billing-changed', refresh)
     window.addEventListener('laap:provisioning', provisioningCancelled)
     return () => {
       mounted.current = false
       requests.current++
       window.removeEventListener('laap:refresh', refresh)
+      window.removeEventListener('laap:billing-changed', refresh)
       window.removeEventListener('laap:provisioning', provisioningCancelled)
       void cancelSandbox().catch((cause) =>
         console.error('Unable to restore Riot sign-in:', String(cause)),
@@ -235,11 +243,12 @@ export function useLocalAccounts() {
     invokeTauri<string | null>('capture_active_session')
   const detectActive = () =>
     invokeTauri<CapturedProfile | null>('detect_active_profile')
-  const startSandbox = async () => {
+  const startSandbox = async (profileId?: string) => {
     const version = ++generation.current
     await run(async (confirmed) => {
       const id = await invokeTauri<string>('start_provisioning_session', {
         confirmed,
+        profileId: profileId ?? null,
       })
       if (!mounted.current || version !== generation.current) {
         await invokeTauri('cancel_provisioning_session', { provisioningId: id })
@@ -293,6 +302,7 @@ export function useLocalAccounts() {
     accounts: localAccounts,
     localAccounts,
     loading,
+    profileSlots,
     error,
     setError,
     provisioning,

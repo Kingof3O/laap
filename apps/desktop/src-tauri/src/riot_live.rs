@@ -1221,6 +1221,10 @@ pub async fn check_account_live_status(
         None
     };
 
+    #[cfg(feature = "basic")]
+    if account_id.is_some() && account.is_none() {
+        return Err("Select an active profile to check its live status.".into());
+    }
     check_account_live_status_with_account(
         &dir,
         account_id.as_deref(),

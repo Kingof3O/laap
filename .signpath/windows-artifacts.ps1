@@ -8,14 +8,13 @@ Set-Location $repo
 $root = Join-Path $repo '.signpath/out'
 $source = if ($Signed) { Join-Path $root 'signed-applications' } else { Join-Path $root 'applications' }
 $editions = @(
-  @{ Name='team'; Product='LAAP Desktop'; FileName='LAAP-Desktop'; Config=@() },
   @{ Name='offline'; Product='LAAP Offline'; FileName='LAAP-Offline'; Config=@('--config','src-tauri/tauri.offline.conf.json') }
 )
 $config = Get-Content 'apps/desktop/src-tauri/tauri.conf.json' -Raw | ConvertFrom-Json
 $version = $config.version
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Signing requires a three-part numeric release version' }
 $offline = Get-Content 'apps/desktop/src-tauri/tauri.offline.conf.json' -Raw | ConvertFrom-Json
-if ($offline.version -ne $version) { throw 'Team and Offline versions differ' }
+if ($offline.version -ne $version) { throw 'Offline and base versions differ' }
 
 function Assert-Version([string]$Actual) {
   if ($Actual -ne $version -and $Actual -ne "$version.0") { throw "Unexpected product version: $Actual; expected $version" }
@@ -50,7 +49,7 @@ if ($Stage -in @('BuildApplications','PrepareApplications')) {
   $first = $null
   foreach ($edition in $editions) {
     if ($Stage -eq 'BuildApplications') {
-      Run-Tauri (@('build','--ci','--no-bundle') + $edition.Config)
+      Run-Tauri (@('build','--ci','--no-bundle') + $edition.Config + @('--','--no-default-features'))
       $app = Join-Path $repo 'apps/desktop/src-tauri/target/release/laap-desktop-core.exe'
     } else {
       $app = Join-Path $root "compiled/$($edition.Name)/laap-desktop-core.exe"
@@ -83,7 +82,7 @@ if ($Stage -in @('BuildApplications','PrepareApplications')) {
 }
 
 if ($Stage -eq 'BundleInstallers') {
-  Assert-FileSet $source @('team/nsis/laap-desktop-core.exe','team/msi/laap-desktop-core.exe','offline/nsis/laap-desktop-core.exe','offline/msi/laap-desktop-core.exe')
+  Assert-FileSet $source @('offline/nsis/laap-desktop-core.exe','offline/msi/laap-desktop-core.exe')
   $first = $null
   $target = Join-Path $repo 'apps/desktop/src-tauri/target/release/laap-desktop-core.exe'
   New-Item (Split-Path $target -Parent) -ItemType Directory -Force | Out-Null
@@ -164,5 +163,5 @@ if ($Stage -eq 'VerifyInstallers') {
     }
   }
   $manifest | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $installerRoot 'manifest.json') -Encoding utf8
-  Write-Output ('Verified four installer packages. SignPath signatures required: '+[bool]$Signed)
+  Write-Output ('Verified two installer packages. SignPath signatures required: '+[bool]$Signed)
 }

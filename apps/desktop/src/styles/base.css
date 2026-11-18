@@ -71,7 +71,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .app-container {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   background: radial-gradient(ellipse at 85% 0%, rgba(168, 155, 217, 0.08), transparent 42%), radial-gradient(ellipse at 15% 0%, rgba(201, 166, 255, 0.07), transparent 40%), var(--bg-canvas);
 }
 
@@ -80,6 +81,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
 }
 
 /* Custom Scrollbar */

@@ -1,4 +1,6 @@
 use super::{crypto::LocalSecretBox, models::LocalAccount};
+#[cfg(feature = "basic")]
+use super::profile_access::{ProfileAccess, Slots};
 use fs2::FileExt;
 use std::{
     fs::{self, OpenOptions},
@@ -13,6 +15,8 @@ static WRITE_LOCK: Mutex<()> = Mutex::new(());
 pub struct LocalAccountStorage {
     storage_dir: PathBuf,
     secret_box: LocalSecretBox,
+    #[cfg(all(test, feature = "basic"))]
+    test_storage: bool,
 }
 impl LocalAccountStorage {
     pub fn new() -> Result<Self, String> {
@@ -30,6 +34,8 @@ impl LocalAccountStorage {
         Ok(Self {
             storage_dir,
             secret_box,
+            #[cfg(all(test, feature = "basic"))]
+            test_storage: false,
         })
     }
     #[cfg(test)]
@@ -37,6 +43,8 @@ impl LocalAccountStorage {
         Self {
             storage_dir,
             secret_box: LocalSecretBox::ephemeral(),
+            #[cfg(feature = "basic")]
+            test_storage: true,
         }
     }
     pub fn default_storage_dir() -> PathBuf {
@@ -100,6 +108,68 @@ impl LocalAccountStorage {
             let mut accounts = self.load_unlocked()?;
             let result = action(&mut accounts)?;
             self.save_unlocked(&accounts)?;
+            Ok(result)
+        })
+    }
+    #[cfg(feature = "basic")]
+    fn read_slots(&self) -> Result<Option<String>, String> {
+        #[cfg(test)]
+        if self.test_storage {
+            return match fs::read_to_string(self.storage_dir.join("profile-slots.v1")) {
+                Ok(value) => Ok(Some(value)),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+                Err(error) => Err(error.to_string()),
+            };
+        }
+        let entry = keyring::Entry::new("com.laap.offline.billing", "profile-slots-v1")
+            .map_err(|error| error.to_string())?;
+        match entry.get_password() {
+            Ok(value) => Ok(Some(value)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
+    #[cfg(feature = "basic")]
+    fn write_slots(&self, encrypted: &str) -> Result<(), String> {
+        #[cfg(test)]
+        if self.test_storage {
+            return self.atomic_write(&self.storage_dir.join("profile-slots.v1"), encrypted.as_bytes());
+        }
+        keyring::Entry::new("com.laap.offline.billing", "profile-slots-v1")
+            .and_then(|entry| entry.set_password(encrypted))
+            .map_err(|error| error.to_string())
+    }
+
+    #[cfg(feature = "basic")]
+    pub(super) fn with_profile_access<T>(
+        &self,
+        mutate_vault: bool,
+        action: impl FnOnce(&mut Vec<LocalAccount>, &mut ProfileAccess) -> Result<T, String>,
+    ) -> Result<T, String> {
+        self.locked(|| {
+            let mut accounts = self.load_unlocked()?;
+            let slots = match self.read_slots()? {
+                Some(text) => {
+                    let (plain, legacy) = self.secret_box.decrypt(&text, "laap-basic-profile-slots-v1")?;
+                    if legacy {
+                        return Err("The Basic profile selection could not be verified.".into());
+                    }
+                    serde_json::from_str::<Slots>(&plain).map_err(|_| "Invalid Basic profile selection.")?
+                }
+                None => Slots::default(),
+            };
+            let mut access = ProfileAccess::new(slots.clone(), crate::billing::entitlement(), &accounts);
+            let result = action(&mut accounts, &mut access)?;
+            if access.slots != slots {
+                let json = serde_json::to_string(&access.slots).map_err(|error| error.to_string())?;
+                let encrypted = self.secret_box.encrypt(&json, "laap-basic-profile-slots-v1")?;
+                // If a vault write fails, any newly assigned missing ID is dropped on the next read.
+                self.write_slots(&encrypted)?;
+            }
+            if mutate_vault {
+                self.save_unlocked(&accounts)?;
+            }
             Ok(result)
         })
     }

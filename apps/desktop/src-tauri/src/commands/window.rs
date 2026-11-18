@@ -41,7 +41,11 @@ pub fn open_external_url(url: String) -> Result<(), String> {
     {
         return Err("External URL is not allowed".to_string());
     }
-    let url = parsed.as_str();
+    open_browser(&parsed)
+}
+
+pub(crate) fn open_browser(url: &reqwest::Url) -> Result<(), String> {
+    let url = url.as_str();
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")

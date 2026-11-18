@@ -27,7 +27,7 @@ export default function StudioApp() {
     })()
   }, [])
   return (
-    <div className="app-container studio-active">
+    <div className="app-container">
       <ThemeBackground theme={theme} />
       <WindowTitleBar>
         <Header onOpenSettings={() => setSettings((open) => !open)} updateAvailable={update.updateAvailable} onOpenUpdates={() => setRelease(true)} />

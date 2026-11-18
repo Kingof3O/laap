@@ -1,4 +1,6 @@
 pub mod commands;
+#[cfg(feature = "basic")]
+mod billing;
 #[cfg(not(feature = "basic"))]
 mod customization;
 #[cfg(not(feature = "studio"))]
@@ -65,6 +67,8 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             product::validate_identifier(&app.config().identifier)?;
+            #[cfg(feature = "basic")]
+            tauri::async_runtime::spawn(billing::refresh_background());
             #[cfg(not(feature = "basic"))]
             app.handle().plugin(tauri_plugin_dialog::init())?;
             #[cfg(not(feature = "basic"))]
@@ -146,8 +150,28 @@ pub fn run() {
             commands::session::detect_active_profile,
             #[cfg(not(feature = "studio"))]
             commands::session::complete_local_provisioning,
-            #[cfg(not(feature = "studio"))]
+            #[cfg(not(any(feature = "basic", feature = "studio")))]
             commands::session::switch_account_session,
+            #[cfg(feature = "basic")]
+            billing::billing_status,
+            #[cfg(feature = "basic")]
+            billing::billing_send_code,
+            #[cfg(feature = "basic")]
+            billing::billing_verify_email,
+            #[cfg(feature = "basic")]
+            billing::billing_activate,
+            #[cfg(feature = "basic")]
+            billing::billing_transfer,
+            #[cfg(feature = "basic")]
+            billing::billing_redeem,
+            #[cfg(feature = "basic")]
+            billing::billing_cancel_checkout,
+            #[cfg(feature = "basic")]
+            billing::billing_open_page,
+            #[cfg(feature = "basic")]
+            commands::local_accounts::basic_profile_slots,
+            #[cfg(feature = "basic")]
+            commands::local_accounts::select_basic_profiles,
             #[cfg(not(feature = "studio"))]
             commands::local_accounts::edit_local_account,
             #[cfg(not(feature = "studio"))]

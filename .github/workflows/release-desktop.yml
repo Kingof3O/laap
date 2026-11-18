@@ -39,11 +39,11 @@ jobs:
         include:
           - platform: windows-latest
             edition: offline
-            args: '--config src-tauri/tauri.offline.conf.json'
+            args: '--config src-tauri/tauri.offline.conf.json -- --no-default-features'
             targets: ''
           - platform: macos-latest
             edition: offline
-            args: '--target universal-apple-darwin --config src-tauri/tauri.offline.conf.json'
+            args: '--target universal-apple-darwin --config src-tauri/tauri.offline.conf.json -- --no-default-features'
             targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
     runs-on: ${{ matrix.platform }}
     defaults:
@@ -81,6 +81,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           LAAP_LIVE_WORKER_URL: ${{ secrets.LAAP_LIVE_WORKER_URL }}
           LAAP_LIVE_WORKER_TOKEN: ${{ secrets.LAAP_LIVE_WORKER_TOKEN }}
+          LAAP_BILLING_ORIGIN: ${{ vars.LAAP_BILLING_ORIGIN }}
+          LAAP_BILLING_PUBLIC_KEY: ${{ vars.LAAP_BILLING_PUBLIC_KEY }}
         with:
           projectPath: apps/desktop
           tagName: ${{ github.ref_name }}
@@ -149,7 +151,7 @@ jobs:
               exit 1
             fi
           done
-          gh release upload "$RELEASE_TAG" verified-windows/team/*.exe verified-windows/team/*.msi verified-windows/offline/*.exe verified-windows/offline/*.msi verified-windows/manifest.json --clobber
+          gh release upload "$RELEASE_TAG" verified-windows/offline/*.exe verified-windows/offline/*.msi verified-windows/manifest.json --clobber
 
   generate-updater-manifests:
     needs: [release, signpath-windows, upload-signpath-windows]

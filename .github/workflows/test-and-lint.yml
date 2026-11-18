@@ -7,6 +7,14 @@ on:
 jobs:
   node:
     runs-on: ubuntu-latest
+    services:
+      billing_db:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: billing-tests
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,6 +24,25 @@ jobs:
       - run: npm ci
       - run: npm run test
       - run: npm run typecheck
+      - name: Verify billing transactions on PostgreSQL
+        env:
+          BILLING_DB: ${{ job.services.billing_db.id }}
+        run: |
+          psql_in_container() { docker exec -i "$BILLING_DB" psql -X -qAt -v ON_ERROR_STOP=1 -U postgres "$@"; }
+          psql_in_container -c 'create role anon; create role authenticated; create role service_role; create schema auth; create table auth.users(id uuid, email text, email_confirmed_at timestamptz);'
+          psql_in_container < billing/supabase.sql
+          psql_in_container < billing/verify.sql
+          psql_in_container -c "select laap_billing_create_gift(gen_random_uuid(), 'race-code', 'month', null);"
+          first=$(mktemp)
+          second=$(mktemp)
+          psql_in_container -c "select laap_billing_redeem(gen_random_uuid(), 'first@example.test', 'race-code');" > "$first" &
+          first_pid=$!
+          psql_in_container -c "select laap_billing_redeem(gen_random_uuid(), 'second@example.test', 'race-code');" > "$second" &
+          second_pid=$!
+          wait "$first_pid"
+          wait "$second_pid"
+          test "$(cat "$first" "$second" | grep -c '"grantId"')" -eq 1
+          test "$(cat "$first" "$second" | grep -c '"error"')" -eq 1
       - run: npm run build
       - run: npm --workspace @laap/desktop run build:offline
       - run: npm --workspace @laap/desktop run test:sorting
@@ -39,9 +66,9 @@ jobs:
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
-      - run: npm --workspace @laap/desktop run build
-      - run: cargo check --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
-      - run: cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - run: npm --workspace @laap/desktop run build:basic
+      - run: cargo check --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --no-default-features --features basic,custom-protocol
+      - run: cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --no-default-features --features basic,custom-protocol
       - if: runner.os == 'Windows'
         run: npx playwright install chromium
       - if: runner.os == 'Windows'

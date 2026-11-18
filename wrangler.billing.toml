@@ -1,0 +1,26 @@
+name = "laap-billing-sandbox"
+main = "apps/api/src/billing-worker.ts"
+compatibility_date = "2026-08-31"
+
+[observability]
+enabled = true
+
+[triggers]
+crons = ["17 3 * * *"]
+
+[vars]
+PADDLE_MODE = "sandbox"
+BILLING_LIVE_ENABLED = "false"
+
+[env.production]
+name = "laap-billing"
+
+[env.production.observability]
+enabled = true
+
+[env.production.triggers]
+crons = ["17 3 * * *"]
+
+[env.production.vars]
+PADDLE_MODE = "live"
+BILLING_LIVE_ENABLED = "false"

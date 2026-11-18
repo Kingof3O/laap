@@ -176,13 +176,17 @@ pub async fn restart_riot_presence(confirmed: Option<bool>) -> Result<(), String
 
 /// Starts a single owned provisioning transaction. No background worker outlives it.
 #[tauri::command]
-pub async fn start_provisioning_session(confirmed: Option<bool>) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || start_provisioning_session_sync(confirmed))
+pub async fn start_provisioning_session(confirmed: Option<bool>, profile_id: Option<String>) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || start_provisioning_session_sync(confirmed, profile_id.as_deref()))
         .await
         .map_err(|error| format!("Native operation failed: {error}"))?
 }
-pub fn start_provisioning_session_sync(confirmed: Option<bool>) -> Result<String, String> {
+pub fn start_provisioning_session_sync(confirmed: Option<bool>, profile_id: Option<&str>) -> Result<String, String> {
     let _operation = crate::riot::operation::acquire()?;
+    #[cfg(feature = "basic")]
+    crate::local_store::LocalStore::new()?.authorize_provisioning(profile_id)?;
+    #[cfg(not(feature = "basic"))]
+    let _ = profile_id;
     let mut lock = provisioner_lock()?;
     if lock.is_some() {
         return Err("A sign-in is already in progress.".into());
@@ -352,6 +356,7 @@ pub fn complete_local_provisioning_sync(
     *lock = None;
     result
 }
+#[cfg(not(feature = "basic"))]
 #[tauri::command]
 pub async fn switch_account_session(
     session_yaml: String,
@@ -364,6 +369,7 @@ pub async fn switch_account_session(
     .await
     .map_err(|error| format!("Native operation failed: {error}"))?
 }
+#[cfg(not(feature = "basic"))]
 pub fn switch_account_session_sync(
     session_yaml: String,
     confirmed: Option<bool>,

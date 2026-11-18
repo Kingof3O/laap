@@ -74,7 +74,48 @@ impl LocalStore {
         }
     }
     pub fn load_accounts(&self) -> Result<Vec<LocalAccount>, String> {
+        #[cfg(feature = "basic")]
+        return self.storage.with_profile_access(false, |accounts, access| {
+            accounts.retain(|account| access.allows(&account.id));
+            Ok(std::mem::take(accounts))
+        });
+        #[cfg(not(feature = "basic"))]
         self.storage.load()
+    }
+    #[cfg(feature = "basic")]
+    pub fn profile_slots(&self) -> Result<super::ProfileSlots, String> {
+        self.storage.with_profile_access(false, |accounts, access| Ok(access.describe(accounts)))
+    }
+    #[cfg(feature = "basic")]
+    pub fn authorize_provisioning(&self, id: Option<&str>) -> Result<(), String> {
+        self.storage.with_profile_access(false, |accounts, access| match id {
+            Some(id) if accounts.iter().any(|account| account.id == id) => access.require(id),
+            Some(_) => Err("Profile not found.".into()),
+            None => access.require_space(),
+        })
+    }
+    #[cfg(feature = "basic")]
+    pub fn select_profiles(&self, ids: Vec<String>) -> Result<super::ProfileSlots, String> {
+        self.storage.with_profile_access(false, |accounts, access| {
+            access.select(ids, accounts)?;
+            Ok(access.describe(accounts))
+        })
+    }
+    fn update_profile<T>(
+        &self,
+        id: &str,
+        action: impl FnOnce(&mut Vec<LocalAccount>) -> Result<T, String>,
+    ) -> Result<T, String> {
+        #[cfg(feature = "basic")]
+        return self.storage.with_profile_access(true, |accounts, access| {
+            access.require(id)?;
+            action(accounts)
+        });
+        #[cfg(not(feature = "basic"))]
+        {
+            let _ = id;
+            self.storage.update(action)
+        }
     }
     pub fn save_accounts(&self, accounts: &[LocalAccount]) -> Result<(), String> {
         self.storage.save(accounts)
@@ -117,7 +158,7 @@ impl LocalStore {
             );
         }
         let detected = detect_details(&session_blob);
-        self.storage.update(|accounts| {
+        let create = |accounts: &mut Vec<LocalAccount>| -> Result<LocalAccount, String> {
             if detected.puuid.as_ref().is_some_and(|id| {
                 accounts
                     .iter()
@@ -143,11 +184,20 @@ impl LocalStore {
             };
             accounts.push(account.clone());
             Ok(account)
-        })
+        };
+        #[cfg(feature = "basic")]
+        return self.storage.with_profile_access(true, |accounts, access| {
+            access.require_space()?;
+            let account = create(accounts)?;
+            access.added(&account.id);
+            Ok(account)
+        });
+        #[cfg(not(feature = "basic"))]
+        self.storage.update(create)
     }
     pub fn edit_profile(&self, id: &str, mut details: ProfileDetails) -> Result<(), String> {
         details.validate()?;
-        self.storage.update(|accounts| {
+        self.update_profile(id, |accounts| {
             let account = accounts
                 .iter_mut()
                 .find(|a| a.id == id)
@@ -180,7 +230,7 @@ impl LocalStore {
             return Err("No reusable saved login found".into());
         }
         let detected = detect_details(&session);
-        self.storage.update(|accounts| {
+        self.update_profile(id, |accounts| {
             if detected.puuid.as_ref().is_some_and(|puuid| accounts.iter().any(|a| a.id != id && a.puuid.as_ref() == Some(puuid))) { return Err("That Riot login belongs to a different saved profile.".into()); }
             let account = accounts.iter_mut().find(|a| a.id == id).ok_or("Profile not found")?;
             if account.puuid.as_ref().zip(detected.puuid.as_ref()).is_some_and(|(a,b)| a != b) { return Err("You signed in to a different Riot account. Sign in to this profile's original account.".into()); }
@@ -189,7 +239,7 @@ impl LocalStore {
         })
     }
     pub fn delete_account(&self, id: &str) -> Result<(), String> {
-        self.storage.update(|accounts| {
+        self.update_profile(id, |accounts| {
             let size = accounts.len();
             accounts.retain(|a| a.id != id);
             if size == accounts.len() {
@@ -206,7 +256,7 @@ impl LocalStore {
         rank: Option<String>,
         icon: Option<(String, u32)>,
     ) -> Result<bool, String> {
-        self.storage.update(|accounts| {
+        self.update_profile(id, |accounts| {
             let Some(account) = accounts.iter_mut().find(|account| account.id == id) else {
                 return Ok(false);
             };

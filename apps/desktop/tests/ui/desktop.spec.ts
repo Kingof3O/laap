@@ -1034,6 +1034,69 @@ test('the selected profile inspector follows roster selection and its real notes
   await expect(details).not.toContainText('Bravo note')
 })
 
+for (const view of ['Grid', 'List']) {
+  test(`${view} roster keeps the toolbar and scroll position during refresh`, async ({ page }) => {
+    await page.setViewportSize({ width: 960, height: 640 })
+    await page.addInitScript(() => {
+      const profiles = Array.from({ length: 40 }, (_, n) => ({
+        id: String(n),
+        name: `Profile ${String(n).padStart(2, '0')}`,
+        region: 'EUW',
+        rank: null,
+        notes: '',
+        favorite: false,
+        session_status: 'saved',
+        has_session: true,
+        created_at: '2026-01-01',
+        last_used_at: null,
+      }))
+      const refresh = { hold: false, finish: undefined as (() => void) | undefined }
+      Object.assign(window, {
+        testRosterRefresh: refresh,
+        __TAURI_INTERNALS__: {
+          invoke: async (command: string) => {
+            if (command !== 'list_local_accounts') return null
+            if (refresh.hold) {
+              await new Promise<void>((resolve) => { refresh.finish = resolve })
+              return profiles.map((profile) => profile.id === '39'
+                ? { ...profile, name: 'Profile 39 updated' }
+                : profile)
+            }
+            return profiles
+          },
+        },
+      })
+    })
+    await page.goto('/')
+    await expect(page.getByText('40 Profiles', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: `${view} View`, exact: true }).click()
+
+    const roster = page.getByRole('main')
+    const getScrollTop = () => roster.evaluate((element) => element.scrollTop)
+    const settings = page.getByRole('button', { name: 'Settings', exact: true })
+    const search = page.getByRole('textbox', { name: 'Search accounts or regions' })
+    await page.mouse.move(250, 440)
+    await page.mouse.wheel(0, 600)
+    await expect.poll(getScrollTop).toBeGreaterThan(0)
+    const scrolledPosition = await getScrollTop()
+    await expect(settings).toBeInViewport({ ratio: 1 })
+    await expect(search).toBeInViewport({ ratio: 1 })
+    await page.getByText('Filters', { exact: true }).click()
+    await page.getByLabel('Filter by region').selectOption('EUW')
+    await page.keyboard.press('Escape')
+
+    const refresh = page.getByRole('button', { name: 'Refresh Accounts' })
+    await page.evaluate(() => { (window as any).testRosterRefresh.hold = true })
+    await refresh.click()
+    await page.waitForFunction(() => typeof (window as any).testRosterRefresh.finish === 'function')
+    await expect(page.getByText('Loading profiles…')).toHaveCount(0)
+    expect(await getScrollTop()).toBe(scrolledPosition)
+    await page.evaluate(() => (window as any).testRosterRefresh.finish())
+    await expect(roster.getByText('Profile 39 updated', { exact: true })).toBeAttached()
+    expect(await getScrollTop()).toBe(scrolledPosition)
+  })
+}
+
 test('background no-op synchronization leaves the roster stable', async ({ page }) => {
   await page.addInitScript(() => {
     const original = window.setInterval.bind(window)

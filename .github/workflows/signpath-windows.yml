@@ -66,12 +66,14 @@ jobs:
           git merge-base --is-ancestor HEAD origin/main
           if ($LASTEXITCODE -ne 0) { throw 'Production signing requires a commit present on main' }
       - run: npm ci --workspace @laap/desktop --include-workspace-root
-      - name: Build both application editions and verify version metadata
+      - name: Build LAAP Offline and verify version metadata
         id: applications
         shell: pwsh
         env:
           LAAP_LIVE_WORKER_URL: ${{ secrets.LAAP_LIVE_WORKER_URL }}
           LAAP_LIVE_WORKER_TOKEN: ${{ secrets.LAAP_LIVE_WORKER_TOKEN }}
+          LAAP_BILLING_ORIGIN: ${{ vars.LAAP_BILLING_ORIGIN }}
+          LAAP_BILLING_PUBLIC_KEY: ${{ vars.LAAP_BILLING_PUBLIC_KEY }}
         run: ./.signpath/windows-artifacts.ps1 -Stage BuildApplications
       - uses: actions/upload-artifact@v4
         id: input-applications

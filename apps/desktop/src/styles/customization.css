@@ -64,9 +64,6 @@
 .customization-workspace > .mode-nav { flex-wrap: wrap; height: auto; }
 .studio-settings { padding: 1.5rem; width: 100%; }
 .studio-settings > .settings-layout { margin-top: 1.25rem; min-height: 30rem; }
-.studio-active { height: 100dvh; min-height: 0; overflow: hidden; }
-.studio-active > .main-viewport { overflow-y: auto; }
-.studio-active > .titlebar { flex: 0 0 auto; }
 
 .studio-theme-background { position: fixed; inset: 0; pointer-events: none; opacity: .14; z-index: 0; }
 .studio-theme-background img, .studio-theme-background video { width: 100%; height: 100%; object-fit: cover; }

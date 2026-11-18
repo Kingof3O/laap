@@ -18,6 +18,8 @@ import { useRiotOperations } from '../../context/RiotOperations'
 import { hasTauri, invokeTauri } from '../../lib/api'
 import { formatLiveMinutes, formatLiveMode } from '../../lib/liveStatus'
 import { sortProfiles, type SortOrder } from '../../lib/sorting'
+import { ProfileSlotPicker } from '../billing/ProfileSlotPicker'
+import type { ProfileSlots } from '../billing/useBilling'
 import type {
   CapturedProfile,
   LiveMatchStatus,
@@ -42,6 +44,7 @@ interface Props {
   onCloseAddModal: () => void
   onOpenAddModal: () => void
   onCountChange?: (count: number) => void
+  onSlotsChange?: (slots: ProfileSlots | null) => void
   onProfilesChanged?: (profiles: {id:string;name:string}[]) => void
   onProfileSwitched?: (id:string) => void
 }
@@ -59,6 +62,7 @@ export function PersonalRosterView({
   onCloseAddModal,
   onOpenAddModal,
   onCountChange,
+  onSlotsChange,
   onProfilesChanged,
   onProfileSwitched,
 }: Props) {
@@ -86,6 +90,7 @@ export function PersonalRosterView({
   )
   const {
     localAccounts,
+    profileSlots,
     syncMessage,
     syncState,
     syncNow,
@@ -106,6 +111,7 @@ export function PersonalRosterView({
     completeSandbox,
     provisioning,
   } = useLocalAccounts()
+  useEffect(() => onSlotsChange?.(profileSlots), [onSlotsChange, profileSlots])
   useEffect(() => { if (!loading && !error) onProfilesChanged?.(localAccounts.map(({id,name}) => ({id,name}))) }, [localAccounts,loading,error,onProfilesChanged])
   const modalOpen = showAddModal || !!refreshTarget
   const close = () => {
@@ -401,7 +407,7 @@ export function PersonalRosterView({
     setPending(details)
     setOperationError(null)
     try {
-      await startSandbox()
+      await startSandbox(refreshTarget?.id)
     } catch (cause) {
       showError(String(cause))
     } finally {
@@ -474,7 +480,13 @@ export function PersonalRosterView({
   ) : null
   return (
     <div>
-      {loading || error ? (
+      {profileSlots && profileSlots.chooseCount > 0 && !error
+        ? <ProfileSlotPicker slots={profileSlots} onChange={loadAccounts} />
+        : null}
+      {profileSlots && profileSlots.lockedCount > 0 && profileSlots.chooseCount === 0 && !error
+        ? <p className="billing-locked-notice">{profileSlots.lockedCount} saved {profileSlots.lockedCount === 1 ? 'profile is' : 'profiles are'} locked on Basic.</p>
+        : null}
+      {(loading && localAccounts.length === 0) || error ? (
         <>
           {syncWidget ? <div className="roster-list-utility roster-list-utility-padded">{syncWidget}</div> : null}
           <AccountLoadState
@@ -486,14 +498,14 @@ export function PersonalRosterView({
       ) : filteredAccounts.length === 0 ? (
         <>
           {syncWidget ? <div className="roster-list-utility roster-list-utility-padded">{syncWidget}</div> : null}
-          <EmptyState
+          {(!profileSlots?.chooseCount || localAccounts.length > 0) && <EmptyState
             isCloud={false}
             searchActive={Boolean(
               searchQuery || selectedRegion !== 'ALL' || selectedRank !== 'all',
             )}
             onAction={onOpenAddModal}
             onQuickImport={() => void detect()}
-          />
+          />}
         </>
       ) : (
         <AccountRosterDisplay

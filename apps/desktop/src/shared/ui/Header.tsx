@@ -4,11 +4,13 @@ import { product } from '../../product/flavors'
 
 export interface HeaderProps {
   navigation?: ReactNode
+  brandLabel?: string
   onRefresh?: () => void
   onOpenSettings: () => void
   riotRunning?: boolean
   operationBusy?: boolean
   presenceControl?: ReactNode
+  billingControl?: ReactNode
   onStopRiot?: () => Promise<void>
   updateAvailable?: boolean
   onOpenUpdates?: () => void
@@ -16,11 +18,13 @@ export interface HeaderProps {
 
 export function Header({
   navigation,  onRefresh,
+  brandLabel = product.name,
   onOpenSettings,
   riotRunning = false,
   operationBusy = false,
   onStopRiot,
   presenceControl,
+  billingControl,
   updateAvailable = false,
   onOpenUpdates,
 }: HeaderProps) {
@@ -33,7 +37,7 @@ export function Header({
           alt="LAAP"
           style={{ height: '24px', width: 'auto', objectFit: 'contain' }}
         />
-        <span className="brand-edition-tag">{product.name}</span>
+        <span className="brand-edition-tag">{brandLabel}</span>
       </div>
 
       {navigation}
@@ -41,6 +45,7 @@ export function Header({
       {/* Header Utilities */}
       <div className="header-utilities">
         {presenceControl}
+        {billingControl}
 
         {updateAvailable ? (
           <button
