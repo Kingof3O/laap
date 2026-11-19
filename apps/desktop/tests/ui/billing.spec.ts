@@ -57,6 +57,7 @@ test('selecting Basic slots preserves locked profiles and redeeming a gift resto
   await expect(page.getByRole('button', { name: 'Select Alpha' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Add Profile', exact: true }).click()
   const billing = page.getByRole('dialog', { name: 'LAAP billing' })
+  await billing.getByRole('button', { name: /Next: Enter Email/ }).click()
   await billing.getByLabel('Billing email').fill('buyer@example.test')
   await billing.getByRole('button', { name: 'Send email code' }).click()
   await expect(billing.getByText('Check your email for a sign-in code.')).toBeVisible()
