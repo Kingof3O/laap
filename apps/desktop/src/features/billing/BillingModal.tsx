@@ -188,16 +188,13 @@ export function BillingModal({ status, onClose, onStatus }: {
         <header className="billing-modal-head">
           <div className="billing-brand-lockup">
             <span className={`billing-brand-mark ${status.pro ? 'is-pro' : ''}`} aria-hidden="true">
-              {status.pro ? <Crown size={20} /> : <Sparkles size={20} />}
+              {status.pro ? <Crown size={19} /> : <Sparkles size={19} />}
             </span>
-            <div className="billing-brand-copy">
-              <span className="billing-eyebrow">LAAP MEMBERSHIP</span>
-              <div className="billing-brand-title">
-                <h2 className="billing-modal-title">LAAP {status.pro ? 'Pro' : 'Membership'}</h2>
-                <span className={status.pro ? 'billing-status-tag is-pro' : 'billing-status-tag'}>
-                  {status.pro ? <><Check size={11} /> PRO ACTIVE</> : 'BASIC EDITION'}
-                </span>
-              </div>
+            <div className="billing-brand-title">
+              <h2 className="billing-modal-title">LAAP {status.pro ? 'Pro' : 'Membership'}</h2>
+              <span className={status.pro ? 'billing-status-tag is-pro' : 'billing-status-tag'}>
+                {status.pro ? <><Check size={11} /> PRO ACTIVE</> : 'BASIC EDITION'}
+              </span>
             </div>
           </div>
           <button
@@ -264,15 +261,9 @@ export function BillingModal({ status, onClose, onStatus }: {
               {/* STEP 1: Plan Selection */}
               {step === 'plans' && (
                 <section className="billing-step-section" aria-label="Select a plan">
-                  {/* Comparison Banner */}
-                  <div className="billing-banner-row">
-                    <div className="billing-banner-info">
-                      <span className="billing-banner-pill basic">Basic: 2 Profiles</span>
-                      <ArrowRight size={13} className="billing-banner-arrow" />
-                      <span className="billing-banner-pill pro"><Crown size={12} /> Pro: Unlimited Profiles</span>
-                    </div>
-                    <span className="billing-banner-note">Instant 1-Click Switching · Local Session Vault</span>
-                  </div>
+                  <p id="billing-modal-description" className="billing-clean-subtitle">
+                    Basic keeps 2 profiles active. Upgrade to Pro to unlock unlimited saved accounts with instant 1-click switching.
+                  </p>
 
                   {/* 3 Colorful Plan Cards */}
                   <div className="billing-cards-grid" role="group" aria-label="Membership plans">
