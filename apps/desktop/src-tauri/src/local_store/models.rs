@@ -18,6 +18,8 @@ pub struct LocalAccount {
     #[serde(default)]
     pub rank: Option<String>,
     #[serde(default)]
+    pub riot_id: Option<String>,
+    #[serde(default)]
     pub notes: String,
     #[serde(default)]
     pub favorite: bool,
@@ -38,6 +40,8 @@ pub struct LocalAccountSummary {
     pub name: String,
     pub region: String,
     pub rank: Option<String>,
+    #[serde(default)]
+    pub riot_id: Option<String>,
     pub notes: String,
     pub favorite: bool,
     pub customization: ProfileCustomization,
@@ -51,11 +55,26 @@ pub struct LocalAccountSummary {
 
 impl From<&LocalAccount> for LocalAccountSummary {
     fn from(account: &LocalAccount) -> Self {
+        let detected = crate::riot::session_format::detect_details(&account.session_blob);
+        let riot_id = account
+            .riot_id
+            .as_ref()
+            .filter(|r| !r.trim().is_empty())
+            .cloned()
+            .or_else(|| {
+                if account.name.contains('#') {
+                    Some(account.name.clone())
+                } else {
+                    detected.name
+                }
+            });
+
         Self {
             id: account.id.clone(),
             name: account.name.clone(),
             region: account.region.clone(),
             rank: account.rank.clone(),
+            riot_id,
             notes: account.notes.clone(),
             favorite: account.favorite,
             customization: account.customization.clone(),

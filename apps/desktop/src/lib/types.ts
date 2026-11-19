@@ -45,6 +45,7 @@ export interface LocalAccountSummary {
   id: string
   name: string
   region: string
+  riot_id?: string | null
   notes: string
   favorite: boolean
   customization?: ProfileCustomization
@@ -60,6 +61,7 @@ export interface LocalAccountFull {
   id: string
   name: string
   region: string
+  riot_id?: string | null
   notes: string
   favorite: boolean
   customization?: ProfileCustomization
@@ -80,6 +82,7 @@ export interface ProfileDetails {
   name: string
   region: string
   rank: string | null
+  riot_id?: string | null
   notes: string
   favorite: boolean
   customization?: ProfileCustomization

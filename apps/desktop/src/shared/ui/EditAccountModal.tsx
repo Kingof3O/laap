@@ -12,6 +12,7 @@ function fromAccount(account: LocalAccountSummary): ProfileDetails {
     name: account.name,
     region: account.region,
     rank: canonicalRank(account.rank) || null,
+    riot_id: account.riot_id ?? (account.name.includes('#') ? account.name : ''),
     notes: account.notes ?? '',
     favorite: account.favorite ?? false,
     customization: { ...emptyCustomization(), ...account.customization },

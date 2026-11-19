@@ -211,6 +211,8 @@ pub fn run() {
             #[cfg(not(feature = "studio"))]
             commands::local_accounts::update_account_rank,
             #[cfg(not(feature = "studio"))]
+            commands::local_accounts::update_account_riot_id,
+            #[cfg(not(feature = "studio"))]
             opgg::fetch_opgg_summoner_stats,
             #[cfg(not(feature = "studio"))]
             tray::active_local_profile,

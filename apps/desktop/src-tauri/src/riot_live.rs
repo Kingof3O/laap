@@ -997,11 +997,14 @@ fn resolve_account_live_identity(
     let legacy_non_uuid_puuid = account.and_then(|acc| sanitize_api_puuid(acc.puuid.as_deref()));
     let known_puuid = cached_api_puuid.or(legacy_non_uuid_puuid);
 
+    let explicit_riot_id = account
+        .and_then(|acc| acc.riot_id.as_deref())
+        .and_then(split_riot_id);
     let session_riot_id = account
         .filter(|acc| !acc.session_blob.trim().is_empty())
         .and_then(|acc| detect_details(&acc.session_blob).name)
         .and_then(|detected| split_riot_id(&detected));
-    let riot_id = split_riot_id(name).or(session_riot_id);
+    let riot_id = split_riot_id(name).or(explicit_riot_id).or(session_riot_id);
 
     if known_puuid.is_none() && riot_id.is_none() {
         let has_local_uuid_only = account
@@ -1583,6 +1586,7 @@ mod tests {
             name: "Main - EUNE".into(),
             region: "EUNE".into(),
             rank: None,
+            riot_id: None,
             notes: String::new(),
             favorite: false,
             puuid: Some("df284845-718a-a75e-22a8-b1e3b2c6086e".into()),

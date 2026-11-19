@@ -40,19 +40,28 @@ export function normalizeOpggRegion(region?: string | null): string {
   return raw
 }
 
-export function getOpggSummonerUrl(name: string, region: string): {
+export function getOpggSummonerUrl(
+  name: string,
+  region: string,
+  explicitRiotId?: string | null,
+): {
   url: string
   slug: string
   summonerName: string
   tagLine: string
   region: string
+  hasTag: boolean
 } {
-  let summonerName = name.trim()
+  const target = (explicitRiotId && explicitRiotId.trim()) || name.trim()
+  let summonerName = target
   let tagLine = region.trim().toUpperCase()
-  if (summonerName.includes('#')) {
-    const parts = summonerName.split('#')
+  let hasTag = false
+
+  if (target.includes('#')) {
+    const parts = target.split('#')
     summonerName = parts[0].trim()
     tagLine = parts.slice(1).join('#').trim() || tagLine
+    hasTag = true
   }
   const opggRegion = normalizeOpggRegion(region)
   const slug = `${encodeURIComponent(summonerName)}-${encodeURIComponent(tagLine)}`
@@ -63,11 +72,16 @@ export function getOpggSummonerUrl(name: string, region: string): {
     summonerName,
     tagLine,
     region: opggRegion,
+    hasTag,
   }
 }
 
 const statsCache = new Map<string, { stats: OpggStats; time: number }>()
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+
+export function clearOpggCache(): void {
+  statsCache.clear()
+}
 
 export function parseOpggMetaDescription(
   metaContent: string,
@@ -129,7 +143,10 @@ export function parseOpggMetaDescription(
     losses,
     winRate,
     formattedRank: canonical,
-    formattedWinRate: `${wins}W - ${losses}L (${winRate}%)`,
+    formattedWinRate:
+      wins + losses === 0
+        ? 'Unranked (0 games)'
+        : `${wins}W - ${losses}L (${winRate}%)`,
     opggUrl: url,
     fetchedAt: Math.floor(Date.now() / 1000),
   }
@@ -138,13 +155,19 @@ export function parseOpggMetaDescription(
 export async function fetchOpggStats(
   name: string,
   region: string,
+  explicitRiotId?: string | null,
+  forceRefresh = false,
 ): Promise<OpggStats | null> {
-  const info = getOpggSummonerUrl(name, region)
+  const info = getOpggSummonerUrl(name, region, explicitRiotId)
   const cacheKey = `${info.region}:${info.summonerName.toLowerCase()}:${info.tagLine.toLowerCase()}`
 
-  const cached = statsCache.get(cacheKey)
-  if (cached && Date.now() - cached.time < CACHE_TTL_MS) {
-    return cached.stats
+  if (forceRefresh) {
+    statsCache.delete(cacheKey)
+  } else {
+    const cached = statsCache.get(cacheKey)
+    if (cached && Date.now() - cached.time < CACHE_TTL_MS) {
+      return cached.stats
+    }
   }
 
   if (isTauriAvailable()) {
@@ -158,8 +181,9 @@ export async function fetchOpggStats(
         statsCache.set(cacheKey, { stats: result, time: Date.now() })
         return result
       }
-    } catch {
-      // Fall through to browser or mock if native invoke fails
+    } catch (e) {
+      // Re-throw error so UI can display specific failure (such as Not Found)
+      throw e
     }
   }
 
@@ -172,7 +196,9 @@ export async function fetchOpggStats(
     })
     if (res.ok) {
       const html = await res.text()
-      const match = html.match(/<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i)
+      const match =
+        html.match(/<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i) ||
+        html.match(/<meta\s+name=["']twitter:description["']\s+content=["']([^"']+)["']/i)
       if (match) {
         const parsed = parseOpggMetaDescription(match[1], info.summonerName, info.tagLine, info.region)
         statsCache.set(cacheKey, { stats: parsed, time: Date.now() })
@@ -191,9 +217,10 @@ export async function autoSyncAccountRank(account: {
   name: string
   region: string
   rank?: string | null
+  riotId?: string | null
 }): Promise<boolean> {
   try {
-    const stats = await fetchOpggStats(account.name, account.region)
+    const stats = await fetchOpggStats(account.name, account.region, account.riotId)
     if (!stats || !stats.formattedRank || stats.formattedRank === 'Unranked') {
       return false
     }
@@ -214,7 +241,7 @@ export async function autoSyncAccountRank(account: {
   return false
 }
 
-export function openOpggProfile(name: string, region: string): Promise<void> {
-  const { url } = getOpggSummonerUrl(name, region)
+export function openOpggProfile(name: string, region: string, riotId?: string | null): Promise<void> {
+  const { url } = getOpggSummonerUrl(name, region, riotId)
   return openExternalUrl(url)
 }

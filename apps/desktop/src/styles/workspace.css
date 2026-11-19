@@ -40,12 +40,163 @@
 .inspector-season-stats { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.07); }
 .inspector-stats-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
 .inspector-stats-header .inspector-label { display: flex; align-items: center; gap: 8px; margin-bottom: 0; }
-.inspector-stats-card { display: flex; align-items: baseline; gap: 8px; padding: 10px 14px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(168, 155, 190, 0.16); border-radius: 10px; font-size: 12.5px; }
+.inspector-stats-header-actions { display: flex; align-items: center; gap: 6px; }
+.btn-stats-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: #d1c4f1;
+  background: rgba(168, 155, 217, 0.12);
+  border: 1px solid rgba(168, 155, 217, 0.28);
+  cursor: pointer;
+  transition: all 140ms ease;
+  flex-shrink: 0;
+}
+.btn-stats-refresh:hover:not(:disabled) {
+  color: #fff;
+  background: rgba(168, 155, 217, 0.22);
+  border-color: rgba(201, 166, 255, 0.5);
+  box-shadow: 0 2px 8px rgba(168, 128, 226, 0.2);
+}
+.btn-stats-refresh:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-opgg-view { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 6px; font-size: 11px; font-weight: 600; color: #d1c4f1; background: rgba(168, 155, 217, 0.12); border: 1px solid rgba(168, 155, 217, 0.28); cursor: pointer; transition: all 140ms ease; white-space: nowrap; flex-shrink: 0; }
+.btn-opgg-view:hover:not(:disabled) { color: #fff; background: rgba(168, 155, 217, 0.22); border-color: rgba(201, 166, 255, 0.5); box-shadow: 0 2px 8px rgba(168, 128, 226, 0.2); }
+.btn-opgg-view:disabled { opacity: 0.45; cursor: not-allowed; }
+.inspector-stats-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(168, 155, 190, 0.16);
+  border-radius: 10px;
+  font-size: 12.5px;
+  min-height: 48px;
+}
+.inspector-stats-content { display: flex; flex-direction: column; width: 100%; gap: 4px; }
+.inspector-stats-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; width: 100%; }
+.inspector-stats-riot-id-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-top: 1px dashed rgba(255, 255, 255, 0.07);
+  padding-top: 5px;
+  margin-top: 2px;
+}
+.inspector-stats-riot-tag {
+  color: #d1c4f1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+}
+.btn-riot-id-edit {
+  background: none;
+  border: none;
+  padding: 0 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--velvet-accent);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 120ms ease;
+}
+.btn-riot-id-edit:hover { color: #fff; text-decoration: underline; }
+.btn-riot-id-edit-subtle {
+  background: rgba(168, 155, 217, 0.1);
+  border: 1px solid rgba(168, 155, 217, 0.25);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #d1c4f1;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.btn-riot-id-edit-subtle:hover { color: #fff; background: rgba(168, 155, 217, 0.2); }
 .inspector-winrate-label { color: var(--text-muted); font-size: 12px; }
 .inspector-winrate-value { color: #f3ebff; font-weight: 650; font-family: var(--font-display, inherit); letter-spacing: -0.01em; white-space: nowrap; }
-.inspector-winrate-value .stats-pulse { color: var(--text-muted); font-style: italic; }
-.btn-opgg-view { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 6px; font-size: 11px; font-weight: 600; color: #d1c4f1; background: rgba(168, 155, 217, 0.12); border: 1px solid rgba(168, 155, 217, 0.28); cursor: pointer; transition: all 140ms ease; white-space: nowrap; flex-shrink: 0; }
-.btn-opgg-view:hover { color: #fff; background: rgba(168, 155, 217, 0.22); border-color: rgba(201, 166, 255, 0.5); box-shadow: 0 2px 8px rgba(168, 128, 226, 0.2); }
+.inspector-winrate-value .stats-pulse, .stats-pulse { color: var(--text-muted); font-style: italic; font-size: 12px; }
+.inspector-unlinked-box, .inspector-stats-loading-box, .inspector-stats-error-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+.inspector-unlinked-label { color: var(--text-muted); font-size: 12px; font-style: italic; }
+.inspector-stats-notfound { color: #e5a4a4; font-size: 12px; font-weight: 550; }
+.btn-link-riot-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #e2d9f7;
+  background: rgba(168, 128, 226, 0.18);
+  border: 1px solid rgba(168, 128, 226, 0.38);
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+.btn-link-riot-id:hover {
+  color: #fff;
+  background: rgba(168, 128, 226, 0.3);
+  border-color: rgba(201, 166, 255, 0.6);
+}
+.inspector-riot-id-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.inspector-riot-id-form input.hextech-input-sm {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 11.5px;
+  flex: 1;
+  background: rgba(16, 12, 26, 0.8);
+}
+.inspector-riot-id-form-actions { display: flex; align-items: center; gap: 4px; }
+.btn-riot-id-save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  color: #fff;
+  background: rgba(124, 77, 255, 0.7);
+  border: 1px solid rgba(168, 128, 226, 0.6);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.btn-riot-id-save:hover:not(:disabled) {
+  background: rgba(144, 97, 255, 0.9);
+}
+.btn-riot-id-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.btn-riot-id-cancel:hover:not(:disabled) {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
 .inspector-notes { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.07); }
 .inspector-notes .inspector-label { display: flex; align-items: center; gap: 8px; }
 .inspector-notes p { color: var(--text-secondary); font-size: 12.5px; line-height: 1.5; margin-top: 8px; overflow-wrap: anywhere; white-space: pre-wrap; }

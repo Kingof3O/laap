@@ -517,6 +517,7 @@ export function PersonalRosterView({
             favorite: acc.favorite,
             region: acc.region,
             rank: acc.rank,
+            riotId: acc.riot_id ?? (acc.name.includes('#') ? acc.name : null),
             notes: acc.notes,
             iconAsset: acc.customization?.icon_asset,
             hasSession: acc.has_session,

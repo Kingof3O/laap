@@ -231,6 +231,7 @@ mod safety_tests {
             name: "Main".into(),
             region: "EUW".into(),
             rank: Some("Gold I".into()),
+            riot_id: None,
             notes: "Custom note".into(),
             favorite: true,
             customization: None,
@@ -282,6 +283,7 @@ mod customization_tests {
             name: "Main".into(),
             region: "SG".into(),
             rank: Some("Silver II".into()),
+            riot_id: None,
             notes: "Do not lose these notes".into(),
             favorite: true,
             customization: Some(ProfileCustomization {
@@ -353,6 +355,7 @@ mod independent_sync_tests {
                     name: "Main".into(),
                     region: "ME".into(),
                     rank: Some("Gold I".into()),
+                    riot_id: None,
                     notes: String::new(),
                     favorite: false,
                     customization: Some(ProfileCustomization {

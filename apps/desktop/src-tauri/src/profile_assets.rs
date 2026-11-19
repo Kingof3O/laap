@@ -401,10 +401,11 @@ fn sync_customizations() -> Result<SyncResult, String> {
         let mut synced_names = Vec::new();
         tauri::async_runtime::block_on(async {
             for acc in rank_sync_accounts {
-                let (name, tag) = if let Some((n, t)) = acc.name.split_once('#') {
+                let summoner_str = acc.riot_id.as_deref().unwrap_or(&acc.name);
+                let (name, tag) = if let Some((n, t)) = summoner_str.split_once('#') {
                     (n.trim(), t.trim())
                 } else {
-                    (acc.name.trim(), acc.region.trim())
+                    (summoner_str.trim(), acc.region.trim())
                 };
                 if let Ok(profile) =
                     crate::opgg::fetch_opgg_summoner(&client, name, tag, &acc.region)

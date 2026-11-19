@@ -26,21 +26,38 @@ pub fn window_close(window: WebviewWindow) -> Result<(), String> {
     window.close().map_err(|e| e.to_string())
 }
 
-/// Opens an external URL in the user's default system browser.
-#[tauri::command]
-pub fn open_external_url(url: String) -> Result<(), String> {
-    let parsed = reqwest::Url::parse(&url).map_err(|_| "Invalid external URL.")?;
-    let mut segments = parsed.path_segments().ok_or("Invalid external URL path.")?;
+pub fn is_allowed_external_url(url: &str) -> bool {
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return false;
+    };
     if parsed.scheme() != "https"
-        || parsed.host_str() != Some("github.com")
         || parsed.port().is_some()
         || !parsed.username().is_empty()
         || parsed.password().is_some()
-        || segments.next() != Some("Kingof3O")
-        || segments.next() != Some("laap")
     {
+        return false;
+    }
+
+    let host = parsed.host_str().unwrap_or_default();
+    let is_github_repo = host == "github.com" && {
+        if let Some(mut segments) = parsed.path_segments() {
+            segments.next() == Some("Kingof3O") && segments.next() == Some("laap")
+        } else {
+            false
+        }
+    };
+    let is_opgg = host == "op.gg" || host == "www.op.gg" || host.ends_with(".op.gg");
+
+    is_github_repo || is_opgg
+}
+
+/// Opens an external URL in the user's default system browser.
+#[tauri::command]
+pub fn open_external_url(url: String) -> Result<(), String> {
+    if !is_allowed_external_url(&url) {
         return Err("External URL is not allowed".to_string());
     }
+    let parsed = reqwest::Url::parse(&url).map_err(|_| "Invalid external URL.")?;
     open_browser(&parsed)
 }
 
@@ -81,5 +98,30 @@ pub(crate) fn open_browser(url: &reqwest::Url) -> Result<(), String> {
             .spawn()
             .map(|_| ())
             .map_err(|e| e.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_allowed_external_url;
+
+    #[test]
+    fn allows_github_laap_repository() {
+        assert!(is_allowed_external_url("https://github.com/Kingof3O/laap"));
+        assert!(is_allowed_external_url("https://github.com/Kingof3O/laap/releases"));
+    }
+
+    #[test]
+    fn allows_opgg_summoner_urls() {
+        assert!(is_allowed_external_url("https://op.gg/lol/summoners/euw/Kingof3O-EUW"));
+        assert!(is_allowed_external_url("https://www.op.gg/lol/summoners/eune/Player-EUNE"));
+    }
+
+    #[test]
+    fn rejects_unauthorized_urls() {
+        assert!(!is_allowed_external_url("http://op.gg/lol/summoners/euw/Kingof3O-EUW"));
+        assert!(!is_allowed_external_url("https://github.com/other/repo"));
+        assert!(!is_allowed_external_url("https://evil.com/fake-opgg"));
+        assert!(!is_allowed_external_url("javascript:alert(1)"));
     }
 }

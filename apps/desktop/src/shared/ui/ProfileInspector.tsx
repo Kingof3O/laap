@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Activity,
+  Check,
   Clock3,
   ExternalLink,
   FileText,
   Globe,
+  Link2,
   Loader2,
   Play,
+  RefreshCw,
   Settings2,
   ShieldCheck,
   Trophy,
@@ -16,7 +19,7 @@ import type { RosterItem } from './AccountRosterDisplay'
 import { ProfileAvatar } from './ProfileAvatar'
 import { RankCrest } from './RankPicker'
 import { formatLiveMatchLabel } from '../../lib/liveStatus'
-import { openExternalUrl } from '../../lib/api'
+import { invokeTauri, isTauriAvailable, openExternalUrl } from '../../lib/api'
 import {
   autoSyncAccountRank,
   fetchOpggStats,
@@ -55,38 +58,58 @@ export function ProfileInspector({
 
   const [stats, setStats] = useState<OpggStats | null>(null)
   const [statsLoading, setStatsLoading] = useState(false)
+  const [statsError, setStatsError] = useState<string | null>(null)
+  const [isEditingRiotId, setIsEditingRiotId] = useState(false)
+  const [riotIdInput, setRiotIdInput] = useState('')
+  const [savingRiotId, setSavingRiotId] = useState(false)
 
   const opggInfo = useMemo(
-    () => getOpggSummonerUrl(account.name, account.region),
-    [account.name, account.region],
+    () => getOpggSummonerUrl(account.name, account.region, account.riotId),
+    [account.name, account.region, account.riotId],
+  )
+
+  const loadStats = useCallback(
+    async (forceRefresh = false) => {
+      // If no # tag and no linked riot ID, don't query a dummy nonexistent summoner
+      if (!opggInfo.hasTag && !account.riotId) {
+        setStats(null)
+        setStatsError(null)
+        setStatsLoading(false)
+        return
+      }
+
+      setStatsLoading(true)
+      setStatsError(null)
+      try {
+        const res = await fetchOpggStats(
+          account.name,
+          account.region,
+          account.riotId,
+          forceRefresh,
+        )
+        setStats(res)
+        if (
+          res?.formattedRank &&
+          res.formattedRank !== 'Unranked' &&
+          res.formattedRank !== account.rank
+        ) {
+          void autoSyncAccountRank(account)
+        }
+      } catch (err: unknown) {
+        setStats(null)
+        setStatsError(err instanceof Error ? err.message : String(err))
+      } finally {
+        setStatsLoading(false)
+      }
+    },
+    [account, opggInfo.hasTag],
   )
 
   useEffect(() => {
-    let cancelled = false
-    setStatsLoading(true)
-    fetchOpggStats(account.name, account.region)
-      .then((res) => {
-        if (!cancelled && res) {
-          setStats(res)
-          if (
-            res.formattedRank &&
-            res.formattedRank !== 'Unranked' &&
-            res.formattedRank !== account.rank
-          ) {
-            void autoSyncAccountRank(account)
-          }
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setStats(null)
-      })
-      .finally(() => {
-        if (!cancelled) setStatsLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [account.id, account.name, account.region, account.rank])
+    setIsEditingRiotId(false)
+    setRiotIdInput(account.riotId || (account.name.includes('#') ? account.name : ''))
+    void loadStats(false)
+  }, [account.id, account.name, account.region, account.riotId, loadStats])
   return (
     <aside
       id="profile-inspector"
@@ -174,29 +197,168 @@ export function ProfileInspector({
           <span className="inspector-label">
             <Trophy size={14} /> Season Stats
           </span>
-          <button
-            type="button"
-            className="btn-opgg-view"
-            onClick={() => void openExternalUrl(opggInfo.url)}
-            aria-label={`View ${account.name} on OP.GG`}
-            title="Open OP.GG profile in browser"
-          >
-            <Globe size={12} />
-            <span>View on OP.GG</span>
-            <ExternalLink size={10} />
-          </button>
+          <div className="inspector-stats-header-actions">
+            <button
+              type="button"
+              className="btn-stats-refresh"
+              onClick={() => void loadStats(true)}
+              disabled={statsLoading || (!opggInfo.hasTag && !account.riotId)}
+              title="Refresh season stats from OP.GG"
+              aria-label="Refresh season stats"
+            >
+              <RefreshCw size={12} className={statsLoading ? 'animate-spin' : ''} />
+            </button>
+            <button
+              type="button"
+              className="btn-opgg-view"
+              onClick={() => void openExternalUrl(opggInfo.url)}
+              aria-label={`View on OP.GG`}
+              title={
+                opggInfo.hasTag || account.riotId
+                  ? `Open ${opggInfo.summonerName}#${opggInfo.tagLine} on OP.GG`
+                  : 'Link a Riot ID to view OP.GG'
+              }
+              disabled={!opggInfo.hasTag && !account.riotId}
+            >
+              <Globe size={12} />
+              <span>View on OP.GG</span>
+              <ExternalLink size={10} />
+            </button>
+          </div>
         </div>
         <div className="inspector-stats-card">
-          <span className="inspector-winrate-label">Win Rate:</span>
-          <strong className="inspector-winrate-value">
-            {statsLoading ? (
-              <span className="stats-pulse">Syncing…</span>
-            ) : stats ? (
-              `${stats.wins}W - ${stats.losses}L (${stats.winRate}%)`
-            ) : (
-              '—'
-            )}
-          </strong>
+          {isEditingRiotId ? (
+            <form
+              className="inspector-riot-id-form"
+              onSubmit={async (e) => {
+                e.preventDefault()
+                const trimmed = riotIdInput.trim()
+                if (!trimmed) return
+                setSavingRiotId(true)
+                try {
+                  if (isTauriAvailable()) {
+                    await invokeTauri('update_account_riot_id', {
+                      id: account.id,
+                      riotId: trimmed,
+                    })
+                  }
+                  setIsEditingRiotId(false)
+                  window.dispatchEvent(new Event('laap:refresh'))
+                  void loadStats(true)
+                } catch {
+                  // Fall through
+                } finally {
+                  setSavingRiotId(false)
+                }
+              }}
+            >
+              <input
+                type="text"
+                className="hextech-input hextech-input-sm"
+                placeholder="Riot ID (e.g. Kingof3O#EUW)"
+                value={riotIdInput}
+                onChange={(e) => setRiotIdInput(e.target.value)}
+                autoFocus
+                disabled={savingRiotId}
+              />
+              <div className="inspector-riot-id-form-actions">
+                <button
+                  type="submit"
+                  className="btn-riot-id-save"
+                  disabled={savingRiotId || !riotIdInput.trim()}
+                  title="Save Riot ID"
+                >
+                  {savingRiotId ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Check size={12} />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className="btn-riot-id-cancel"
+                  onClick={() => setIsEditingRiotId(false)}
+                  disabled={savingRiotId}
+                  title="Cancel"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            </form>
+          ) : !opggInfo.hasTag && !account.riotId ? (
+            <div className="inspector-unlinked-box">
+              <span className="inspector-unlinked-label">
+                No Riot ID linked
+              </span>
+              <button
+                type="button"
+                className="btn-link-riot-id"
+                onClick={() => {
+                  setRiotIdInput('')
+                  setIsEditingRiotId(true)
+                }}
+              >
+                <Link2 size={12} />
+                <span>Link Riot ID</span>
+              </button>
+            </div>
+          ) : statsLoading ? (
+            <div className="inspector-stats-loading-box">
+              <span className="inspector-winrate-label">Win Rate:</span>
+              <span className="stats-pulse">Syncing OP.GG…</span>
+            </div>
+          ) : stats ? (
+            <div className="inspector-stats-content">
+              <div className="inspector-stats-row">
+                <span className="inspector-winrate-label">Win Rate:</span>
+                <strong className="inspector-winrate-value">
+                  {stats.formattedWinRate ||
+                    `${stats.wins}W - ${stats.losses}L (${stats.winRate}%)`}
+                </strong>
+              </div>
+              <div className="inspector-stats-riot-id-row">
+                <span className="inspector-stats-riot-tag">
+                  {opggInfo.summonerName}#{opggInfo.tagLine}
+                </span>
+                <button
+                  type="button"
+                  className="btn-riot-id-edit"
+                  onClick={() => {
+                    setRiotIdInput(
+                      account.riotId ||
+                        (account.name.includes('#') ? account.name : ''),
+                    )
+                    setIsEditingRiotId(true)
+                  }}
+                  title="Change linked Riot ID"
+                >
+                  Edit
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="inspector-stats-error-box">
+              <span className="inspector-winrate-label">Win Rate:</span>
+              <span className="inspector-stats-notfound">
+                {statsError?.toLowerCase().includes('not found')
+                  ? 'Not found on OP.GG'
+                  : 'Unavailable'}
+              </span>
+              <button
+                type="button"
+                className="btn-riot-id-edit-subtle"
+                onClick={() => {
+                  setRiotIdInput(
+                    account.riotId ||
+                      (account.name.includes('#') ? account.name : ''),
+                  )
+                  setIsEditingRiotId(true)
+                }}
+              >
+                Check Riot ID
+              </button>
+            </div>
+          )}
         </div>
       </div>
       {account.notes !== undefined ? (

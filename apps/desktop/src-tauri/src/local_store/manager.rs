@@ -15,6 +15,8 @@ pub struct ProfileDetails {
     pub region: String,
     pub rank: Option<String>,
     #[serde(default)]
+    pub riot_id: Option<String>,
+    #[serde(default)]
     pub notes: String,
     #[serde(default)]
     pub favorite: bool,
@@ -27,6 +29,11 @@ impl ProfileDetails {
         self.region = self.region.trim().to_uppercase();
         self.rank = self
             .rank
+            .take()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        self.riot_id = self
+            .riot_id
             .take()
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty());
@@ -146,6 +153,7 @@ impl LocalStore {
                 name,
                 region,
                 rank,
+                riot_id: None,
                 notes: String::new(),
                 favorite: false,
                 customization: None,
@@ -180,6 +188,7 @@ impl LocalStore {
                 name: details.name,
                 region: details.region,
                 rank: details.rank,
+                riot_id: details.riot_id.or(detected.name),
                 notes: details.notes,
                 favorite: details.favorite,
                 customization: details.customization.unwrap_or_default(),
@@ -211,6 +220,9 @@ impl LocalStore {
                 .ok_or("Profile not found")?;
             account.name = details.name;
             account.region = details.region;
+            if details.riot_id.is_some() {
+                account.riot_id = details.riot_id;
+            }
             let keep_live_rank = account.customization.auto_sync_rank
                 && details
                     .customization
@@ -269,6 +281,26 @@ impl LocalStore {
             };
             if account.rank != new_val {
                 account.rank = new_val;
+                Ok(true)
+            } else {
+                Ok(false)
+            }
+        })
+    }
+
+    pub fn update_riot_id(&self, id: &str, riot_id: &str) -> Result<bool, String> {
+        let clean = riot_id.trim();
+        self.update_profile(id, |accounts| {
+            let Some(account) = accounts.iter_mut().find(|account| account.id == id) else {
+                return Ok(false);
+            };
+            let new_val = if clean.is_empty() {
+                None
+            } else {
+                Some(clean.to_string())
+            };
+            if account.riot_id != new_val {
+                account.riot_id = new_val;
                 Ok(true)
             } else {
                 Ok(false)

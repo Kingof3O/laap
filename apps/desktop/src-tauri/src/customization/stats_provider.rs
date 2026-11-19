@@ -191,6 +191,7 @@ pub async fn opgg_get_summoner_profile(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::opgg::parse_opgg_meta;
     #[test]
     fn regions_do_not_fall_back_to_na() {
         assert_eq!(routing("EUW1").unwrap(), ("europe", "euw1"));

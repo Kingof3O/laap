@@ -59,6 +59,7 @@ pub async fn save_local_account(
     notes: Option<String>,
     favorite: Option<bool>,
     customization: Option<crate::local_store::ProfileCustomization>,
+    riot_id: Option<String>,
 ) -> Result<LocalAccountSummary, String> {
     tauri::async_runtime::spawn_blocking(move || {
         save_local_account_sync(
@@ -69,6 +70,7 @@ pub async fn save_local_account(
             notes,
             favorite,
             customization,
+            riot_id,
         )
     })
     .await
@@ -82,6 +84,7 @@ pub fn save_local_account_sync(
     notes: Option<String>,
     favorite: Option<bool>,
     customization: Option<crate::local_store::ProfileCustomization>,
+    riot_id: Option<String>,
 ) -> Result<LocalAccountSummary, String> {
     let store = LocalStore::new()?;
     let account = store.create_profile(
@@ -89,6 +92,7 @@ pub fn save_local_account_sync(
             name,
             region,
             rank,
+            riot_id,
             notes: notes.unwrap_or_default(),
             favorite: favorite.unwrap_or(false),
             customization,
@@ -152,6 +156,16 @@ pub async fn update_account_rank(id: String, rank: String) -> Result<bool, Strin
     tauri::async_runtime::spawn_blocking(move || {
         let store = LocalStore::new()?;
         store.update_rank(&id, &rank)
+    })
+    .await
+    .map_err(|error| format!("Native operation failed: {error}"))?
+}
+
+#[tauri::command]
+pub async fn update_account_riot_id(id: String, riot_id: String) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let store = LocalStore::new()?;
+        store.update_riot_id(&id, &riot_id)
     })
     .await
     .map_err(|error| format!("Native operation failed: {error}"))?

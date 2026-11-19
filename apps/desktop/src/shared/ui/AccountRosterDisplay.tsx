@@ -11,6 +11,7 @@ export interface RosterItem {
   name: string
   region: string
   rank?: string | null
+  riotId?: string | null
   notes?: string
   iconAsset?: string | null
   hasSession: boolean

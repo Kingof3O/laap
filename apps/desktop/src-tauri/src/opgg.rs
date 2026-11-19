@@ -73,21 +73,27 @@ pub fn parse_opgg_meta(
     tag_line: &str,
     region: &str,
 ) -> Result<SummonerProfile, String> {
-    let content = if let Some(idx) = html.find("name=\"description\"") {
+    let extract_content = |needle: &str| -> Option<&str> {
+        let idx = html.find(needle)?;
         let slice = &html[idx..];
-        let content_idx = slice.find("content=\"").ok_or("Missing description content")?;
-        let rest = &slice[content_idx + 9..];
-        let end_idx = rest.find('"').ok_or("Unclosed description content")?;
-        &rest[..end_idx]
-    } else if let Some(idx) = html.find("name='description'") {
-        let slice = &html[idx..];
-        let content_idx = slice.find("content='").ok_or("Missing description content")?;
-        let rest = &slice[content_idx + 9..];
-        let end_idx = rest.find('\'').ok_or("Unclosed description content")?;
-        &rest[..end_idx]
-    } else {
-        return Err("OP.GG meta description not found".into());
+        let (content_idx, quote_char) = if let Some(i) = slice.find("content=\"") {
+            (i + 9, '"')
+        } else if let Some(i) = slice.find("content='") {
+            (i + 9, '\'')
+        } else {
+            return None;
+        };
+        let rest = &slice[content_idx..];
+        let end_idx = rest.find(quote_char)?;
+        Some(&rest[..end_idx])
     };
+
+    let content = extract_content("name=\"description\"")
+        .or_else(|| extract_content("name='description'"))
+        .or_else(|| extract_content("name=\"twitter:description\""))
+        .or_else(|| extract_content("name='twitter:description'"))
+        .or_else(|| extract_content("property=\"og:description\""))
+        .ok_or_else(|| "OP.GG meta description not found".to_string())?;
 
     let opgg_region = opgg_region_slug(region);
     let opgg_url = format!(
@@ -155,7 +161,11 @@ pub fn parse_opgg_meta(
         format!("{} ({} LP)", tier, lp)
     };
 
-    let formatted_win_rate = format!("{}W - {}L ({}%)", wins, losses, win_rate);
+    let formatted_win_rate = if wins + losses == 0 {
+        "Unranked (0 games)".to_string()
+    } else {
+        format!("{}W - {}L ({}%)", wins, losses, win_rate)
+    };
 
     Ok(SummonerProfile {
         summoner_name: summoner_name.to_string(),
@@ -206,22 +216,9 @@ pub async fn fetch_opgg_summoner(
 
     let status = response.status();
     if status == reqwest::StatusCode::NOT_FOUND {
-        return Ok(SummonerProfile {
-            summoner_name: summoner_name.to_string(),
-            tag_line: tag_line.to_string(),
-            region: region.to_string(),
-            tier: "UNRANKED".to_string(),
-            rank: String::new(),
-            league_points: 0,
-            wins: 0,
-            losses: 0,
-            fetched_at: now(),
-            source: "OP.GG Public Profile".to_string(),
-            win_rate: 0,
-            formatted_rank: "Unranked".to_string(),
-            formatted_win_rate: "0W - 0L (0%)".to_string(),
-            opgg_url: url,
-        });
+        return Err(format!(
+            "Summoner '{summoner_name}#{tag_line}' not found on OP.GG ({opgg_region})"
+        ));
     }
 
     if !status.is_success() {
@@ -245,7 +242,28 @@ pub async fn fetch_opgg_summoner_stats(
         .timeout(std::time::Duration::from_secs(12))
         .build()
         .map_err(|e| e.to_string())?;
-    fetch_opgg_summoner(&client, summoner_name.trim(), tag_line.trim(), &region).await
+
+    let (name, tag) = if let Some((n, t)) = summoner_name.split_once('#') {
+        (
+            n.trim(),
+            if !tag_line.trim().is_empty() {
+                tag_line.trim()
+            } else {
+                t.trim()
+            },
+        )
+    } else {
+        (
+            summoner_name.trim(),
+            if tag_line.trim().is_empty() {
+                region.trim()
+            } else {
+                tag_line.trim()
+            },
+        )
+    };
+
+    fetch_opgg_summoner(&client, name, tag, &region).await
 }
 
 #[cfg(test)]

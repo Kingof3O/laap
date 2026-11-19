@@ -73,6 +73,19 @@ export function ProfileFields({
               placeholder="e.g. My main account"
             />
           </label>
+          <label className="field-block profile-field-wide">
+            <span className="field-label">
+              Riot ID <span className="profile-muted">Optional (e.g. Name#TAG for OP.GG stats)</span>
+            </span>
+            <input
+              className="hextech-input"
+              maxLength={120}
+              disabled={disabled}
+              value={details.riot_id ?? ''}
+              onChange={(e) => onChange({ ...details, riot_id: e.target.value })}
+              placeholder="e.g. Kingof3O#EUW"
+            />
+          </label>
           <div className="field-block">
             <span className="field-label">{regionLabel}</span>
             <RegionSelect
