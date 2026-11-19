@@ -103,7 +103,7 @@ impl ProfileAccess {
         } else {
             locked_count.min(LIMIT - self.slots.active.len())
         };
-        let choices = if choose_count > 0 {
+        let choices = if locked_count > 0 {
             accounts
                 .iter()
                 .filter(|account| !self.allows(&account.id))
@@ -123,6 +123,18 @@ impl ProfileAccess {
             choices,
             choose_count,
         }
+    }
+
+    pub fn replace(&mut self, active_id: &str, locked_id: String, accounts: &[LocalAccount]) -> Result<(), String> {
+        if self.pro || self.slots.active.len() != LIMIT || self.allows(&locked_id)
+            || !accounts.iter().any(|account| account.id == locked_id)
+        {
+            return Err("Choose a locked saved profile to activate on Basic.".into());
+        }
+        let slot = self.slots.active.iter_mut().find(|id| id.as_str() == active_id)
+            .ok_or("That active slot changed. Reload the roster and try again.")?;
+        *slot = locked_id;
+        Ok(())
     }
 
     pub fn select(&mut self, ids: Vec<String>, accounts: &[LocalAccount]) -> Result<(), String> {

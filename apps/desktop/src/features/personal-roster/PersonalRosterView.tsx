@@ -18,7 +18,7 @@ import { useRiotOperations } from '../../context/RiotOperations'
 import { hasTauri, invokeTauri } from '../../lib/api'
 import { formatLiveMinutes, formatLiveMode } from '../../lib/liveStatus'
 import { sortProfiles, type SortOrder } from '../../lib/sorting'
-import { ProfileSlotPicker } from '../billing/ProfileSlotPicker'
+import { ProfileSlotPicker, ReplaceActiveProfile } from '../billing/ProfileSlotPicker'
 import type { ProfileSlots } from '../billing/useBilling'
 import type {
   CapturedProfile,
@@ -484,7 +484,7 @@ export function PersonalRosterView({
         ? <ProfileSlotPicker slots={profileSlots} onChange={loadAccounts} />
         : null}
       {profileSlots && profileSlots.lockedCount > 0 && profileSlots.chooseCount === 0 && !error
-        ? <p className="billing-locked-notice">{profileSlots.lockedCount} saved {profileSlots.lockedCount === 1 ? 'profile is' : 'profiles are'} locked on Basic.</p>
+        ? <ReplaceActiveProfile slots={profileSlots} active={localAccounts} blocked={blocked} onChange={loadAccounts} />
         : null}
       {(loading && localAccounts.length === 0) || error ? (
         <>

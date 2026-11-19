@@ -101,6 +101,13 @@ impl LocalStore {
             Ok(access.describe(accounts))
         })
     }
+    #[cfg(feature = "basic")]
+    pub fn replace_profile(&self, active_id: &str, locked_id: String) -> Result<super::ProfileSlots, String> {
+        self.storage.with_profile_access(false, |accounts, access| {
+            access.replace(active_id, locked_id, accounts)?;
+            Ok(access.describe(accounts))
+        })
+    }
     fn update_profile<T>(
         &self,
         id: &str,

@@ -32,7 +32,7 @@ export function SecuritySettings({ busy = false }: SecuritySettingsProps) {
         />
         <div>
           <div style={{ fontSize: '14px', fontWeight: 600, color: '#FFFFFF' }}>
-            {'Local Vault Encrypted'}
+            {'Saved Riot Logins Encrypted'}
           </div>
           <div
             style={{
@@ -41,7 +41,7 @@ export function SecuritySettings({ busy = false }: SecuritySettingsProps) {
               marginTop: '2px',
             }}
           >
-            {'AES-GCM encrypted local vault. Icons, rank sync and LAAP Presence setup can use the network.'}
+            {'Saved Riot sessions use AES-GCM. Profile names and notes are stored as readable local data.'}
           </div>
         </div>
       </div>

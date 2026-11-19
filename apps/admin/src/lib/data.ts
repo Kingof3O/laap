@@ -1,2 +1,2 @@
 export * from './types'
-export * from './page-meta'
+export { pageMeta } from './page-meta'

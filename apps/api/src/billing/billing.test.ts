@@ -92,11 +92,78 @@ describe('billing Worker', () => {
     expect(tampered.status).toBe(401)
     const stale = signedEvent('transaction.completed', data, Math.floor(Date.now() / 1000) - 300)
     expect((await post('/v1/webhook/paddle', stale.event, { 'Paddle-Signature': stale.signature })).status).toBe(401)
-    const noCharge = signedEvent('transaction.completed', { ...data, payments: [] })
-    expect((await post('/v1/webhook/paddle', noCharge.event, { 'Paddle-Signature': noCharge.signature })).status).toBe(200)
     expect(remote).not.toHaveBeenCalled()
     expect((await post('/v1/webhook/paddle', event, { 'Paddle-Signature': signature })).status).toBe(200)
     expect(remote).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([['6000', true], ['5999', false]])('classifies an approved itemized refund of %s minor units', async (amount, full) => {
+    vi.stubGlobal('fetch', vi.fn(async (input: URL, init: RequestInit) => {
+      if (input.pathname === '/transactions/txn_123') {
+        return reply({ data: { id: 'txn_123', details: { totals: { grand_total: '6000', currency_code: 'USD' } } } })
+      }
+      expect(input.pathname).toBe('/rest/v1/rpc/laap_billing_adjustment')
+      expect(JSON.parse(String(init.body))).toMatchObject({ p_transaction: 'txn_123', p_status: 'approved', p_full: full })
+      return reply(true)
+    }))
+    const { event, signature } = signedEvent('adjustment.updated', {
+      id: 'adj_123', transaction_id: 'txn_123', action: 'refund', status: 'approved', type: 'partial',
+      totals: { total: amount, currency_code: 'USD' },
+    })
+    expect((await post('/v1/webhook/paddle', event, { 'Paddle-Signature': signature })).status).toBe(200)
+  })
+
+  it('queues incomplete deliveries and recovers missed payments from the Paddle feed', async () => {
+    const transaction = {
+      id: 'txn_123', status: 'completed', customer_id: 'ctm_123', subscription_id: 'sub_123',
+      billing_period: { starts_at: '2026-11-01T00:00:00Z', ends_at: '2027-11-01T00:00:00Z' },
+      items: [{ price: { id: 'pri_year' }, quantity: 1 }],
+      payments: [{ status: 'captured', amount: '2000' }],
+    }
+    const incomplete = signedEvent('transaction.completed', { ...transaction, payments: [] })
+    const pending = new Set<string>()
+    const recorded: string[] = []
+    let cursor: string | null = null
+    let queueAvailable = false
+    vi.stubGlobal('fetch', vi.fn(async (input: URL, init: RequestInit) => {
+      const body = init.body ? JSON.parse(String(init.body)) : {}
+      if (input.pathname.endsWith('_queue_payment')) {
+        if (!queueAvailable) return new Response(null, { status: 503 })
+        pending.add(body.p_transaction)
+        return new Response(null, { status: 204 })
+      }
+      if (input.pathname.endsWith('_event_cursor')) {
+        if (body.p_event) cursor = body.p_event
+        return reply(cursor)
+      }
+      if (input.pathname.endsWith('_claim_payments')) return reply([...pending])
+      if (input.pathname.endsWith('_cleanup')) return new Response(null, { status: 204 })
+      if (input.pathname === '/events') {
+        if (cursor) expect(input.searchParams.get('after')).toBe(cursor)
+        return reply({ data: cursor ? [] : [{
+          ...incomplete.event, event_id: 'evt_missed', data: { ...transaction, id: 'txn_missed' },
+        }] })
+      }
+      if (input.pathname === '/transactions/txn_123') return reply({ data: transaction })
+      if (input.pathname.endsWith('_payment')) {
+        expect(body).toMatchObject({ p_subscription: 'sub_123', p_plan: 'yearly' })
+        recorded.push(body.p_transaction)
+        pending.delete(body.p_transaction)
+        return reply(true)
+      }
+      throw new Error(input.pathname)
+    }))
+    const headers = { 'Paddle-Signature': incomplete.signature }
+    expect((await post('/v1/webhook/paddle', incomplete.event, headers)).status).toBe(503)
+    queueAvailable = true
+    expect((await post('/v1/webhook/paddle', incomplete.event, headers)).status).toBe(200)
+    expect([...pending]).toEqual(['txn_123'])
+    expect(recorded).toEqual([])
+    await worker.scheduled(null, env)
+    expect(recorded.sort()).toEqual(['txn_123', 'txn_missed'])
+    expect(cursor).toBe('evt_missed')
+    await worker.scheduled(null, env)
+    expect(recorded).toHaveLength(2)
   })
 
   it('records refunds for unprocessed transactions and ignores failed renewals', async () => {
@@ -114,6 +181,28 @@ describe('billing Worker', () => {
     const refund = signedEvent('adjustment.updated', { id: 'adj_123', transaction_id: 'txn_123', action: 'refund', status: 'approved', type: 'full' })
     expect((await post('/v1/webhook/paddle', refund.event, { 'Paddle-Signature': refund.signature })).status).toBe(200)
     expect(remote).toHaveBeenCalledTimes(1)
+  })
+
+  it('attributes a prorated price change using its single charged recurring line', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: URL, init: RequestInit) => {
+      expect(input.pathname).toBe('/rest/v1/rpc/laap_billing_payment')
+      expect(JSON.parse(String(init.body))).toMatchObject({
+        p_subscription: 'sub_123', p_plan: 'yearly', p_starts: '2026-11-01T00:00:00Z',
+        p_ends: '2027-11-01T00:00:00Z',
+      })
+      return reply(true)
+    }))
+    const { event, signature } = signedEvent('transaction.completed', {
+      id: 'txn_123', status: 'completed', origin: 'subscription_update', customer_id: 'ctm_123',
+      subscription_id: 'sub_123', items: [{ price: { id: 'pri_month' } }, { price: { id: 'pri_year' } }],
+      payments: [{ status: 'captured', amount: '1700' }],
+      details: { line_items: [
+        { price_id: 'pri_month', quantity: 1, totals: { total: '-300' } },
+        { price_id: 'pri_year', quantity: 1, totals: { total: '2000' },
+          proration: { billing_period: { starts_at: '2026-11-01T00:00:00Z', ends_at: '2027-11-01T00:00:00Z' } } },
+      ] },
+    })
+    expect((await post('/v1/webhook/paddle', event, { 'Paddle-Signature': signature })).status).toBe(200)
   })
 
   it('requires one-use signed device proof and signs the actual paid expiry', async () => {
@@ -163,5 +252,27 @@ describe('billing Worker', () => {
     const { code } = await response.json() as { code: string }
     expect(code).toMatch(/^LAAP-[A-Za-z0-9_-]{32}$/)
     expect(savedHash).toBe(await hash(code))
+  })
+
+  it('handles CORS options preflight and provides owner overview', async () => {
+    const preflight = await worker.fetch(new Request(env.BILLING_ORIGIN + '/v1/owner/overview', { method: 'OPTIONS' }), env)
+    expect(preflight.status).toBe(204)
+    expect(preflight.headers.get('Access-Control-Allow-Origin')).toBe('*')
+
+    const remote = vi.fn(async (input: URL) => {
+      if (input.pathname.endsWith('_throttle')) return reply(true)
+      if (input.pathname.endsWith('/user')) return reply(user)
+      if (input.pathname.endsWith('/admin/users')) return reply({ users: [user] })
+      if (input.pathname.endsWith('_gifts')) return reply([])
+      if (input.pathname === '/transactions') return reply({ data: [] })
+      if (input.pathname === '/subscriptions') return reply({ data: [] })
+      throw new Error(input.pathname)
+    })
+    vi.stubGlobal('fetch', remote)
+
+    const overviewRes = await post('/v1/owner/overview', {})
+    expect(overviewRes.status).toBe(200)
+    const overviewData = await overviewRes.json() as { metrics: { totalUsers: number } }
+    expect(overviewData.metrics.totalUsers).toBe(1)
   })
 })

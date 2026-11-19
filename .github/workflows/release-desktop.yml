@@ -19,6 +19,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
+          BILLING_VERIFIED_SHA: ${{ vars.LAAP_BILLING_VERIFIED_SHA }}
         run: |
           if [[ ! "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo 'Release publication requires a version tag.' >&2
@@ -30,6 +31,16 @@ jobs:
             exit 1
           fi
           bash .signpath/assert-draft-release.sh
+          commit=$(git rev-parse HEAD)
+          if [[ "$BILLING_VERIFIED_SHA" != "$commit" ]]; then
+            echo 'Record the completed billing and signed-upgrade acceptance checks for this commit before publication.' >&2
+            exit 1
+          fi
+          successful=$(gh run list --repo "$GH_REPO" --workflow test-and-lint.yml --commit "$commit" --status success --limit 1 --json headSha --jq 'length')
+          if [[ "$successful" != 1 ]]; then
+            echo 'Node, Windows, and macOS CI must pass on this commit before publication.' >&2
+            exit 1
+          fi
 
   release:
     needs: signing-release-guard

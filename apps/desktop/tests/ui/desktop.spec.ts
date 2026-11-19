@@ -15,7 +15,7 @@ test('browser IPC failure is explicit and offline builds make no external reques
   await expect(page.getByText('LAAP Basic', { exact: true })).toBeVisible()
   await expect(page.locator('.roster-card')).toHaveCount(0)
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
-  await expect(page.getByText('Local Vault Encrypted')).toBeVisible()
+  await expect(page.getByText('Saved Riot Logins Encrypted')).toBeVisible()
   await expect(
     page.getByRole('button', { name: /Check for Updates/ }),
   ).toHaveCount(0)
@@ -1345,7 +1345,7 @@ test('live match settings save, Check live displays active match state, and pre-
   await expect
     .poll(() => page.evaluate(() => (window as any).savedLivePayloads.length))
     .toBe(1)
-  await expect(settingsDialog.getByText('Saved in encrypted vault')).toBeVisible()
+  await expect(settingsDialog.getByText('Saved with local encryption')).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(settingsDialog).toHaveCount(0)
 

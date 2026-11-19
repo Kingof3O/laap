@@ -33,6 +33,16 @@ create table if not exists laap_billing.events (
   id text primary key,
   received_at timestamptz not null default now()
 );
+create table if not exists laap_billing.pending_payments (
+  transaction_id text primary key,
+  next_attempt timestamptz not null default now(),
+  attempts integer not null default 0
+);
+create index if not exists billing_pending_due on laap_billing.pending_payments(next_attempt);
+create table if not exists laap_billing.event_cursor (
+  singleton boolean primary key default true check (singleton),
+  event_id text not null
+);
 create table if not exists laap_billing.adjustments (
   id text primary key,
   transaction_id text not null,
@@ -188,9 +198,11 @@ begin
   if exists(select 1 from laap_billing.events where id = p_event) then return true; end if;
   select buyer into purchaser from laap_billing.checkout
     where transaction_id = p_transaction and plan = p_plan;
-  if purchaser is null and p_subscription is not null then
+  if purchaser is null and p_subscription is not null and not exists (
+    select 1 from laap_billing.checkout where transaction_id = p_transaction
+  ) then
     select buyer into purchaser from laap_billing.payments
-      where subscription_id = p_subscription and customer_id = p_customer and plan = p_plan limit 1;
+      where subscription_id = p_subscription and customer_id = p_customer limit 1;
   end if;
   -- An initial payment that arrives after its renewal is retried by Paddle.
   if purchaser is null then return false; end if;
@@ -200,7 +212,52 @@ begin
   insert into laap_billing.payments values(p_transaction, purchaser, p_customer, p_subscription, p_plan, p_starts, p_ends)
     on conflict (transaction_id) do nothing;
   update laap_billing.checkout set closed_at = coalesce(closed_at, now()) where transaction_id = p_transaction;
+  delete from laap_billing.pending_payments where transaction_id = p_transaction;
   return true;
+end;
+$$;
+
+create or replace function public.laap_billing_queue_payment(p_transaction text)
+returns void language sql set search_path = '' as $$
+  insert into laap_billing.pending_payments(transaction_id)
+  select p_transaction where not exists (
+    select 1 from laap_billing.payments where transaction_id = p_transaction
+  ) on conflict do nothing;
+$$;
+
+create or replace function public.laap_billing_claim_payments()
+returns jsonb language sql set search_path = '' as $$
+  with due as (
+    select transaction_id from laap_billing.pending_payments
+    where next_attempt <= now() order by next_attempt, transaction_id limit 8 for update skip locked
+  ), claimed as (
+    update laap_billing.pending_payments p set
+      attempts = p.attempts + 1,
+      next_attempt = now() + make_interval(mins => least(60, (p.attempts + 1) * 5))
+    from due where p.transaction_id = due.transaction_id returning p.transaction_id
+  )
+  select coalesce(jsonb_agg(transaction_id), '[]'::jsonb) from claimed;
+$$;
+
+create or replace function public.laap_billing_no_charge(p_transaction text, p_close_checkout boolean)
+returns void language plpgsql set search_path = '' as $$
+begin
+  if p_close_checkout then
+    update laap_billing.checkout set closed_at = now()
+      where transaction_id = p_transaction and closed_at is null;
+  end if;
+  delete from laap_billing.pending_payments where transaction_id = p_transaction;
+end;
+$$;
+
+create or replace function public.laap_billing_event_cursor(p_event text default null)
+returns text language plpgsql set search_path = '' as $$
+begin
+  if p_event is not null then
+    insert into laap_billing.event_cursor as c(event_id) values(p_event)
+    on conflict (singleton) do update set event_id = greatest(c.event_id collate "C", excluded.event_id collate "C");
+  end if;
+  return (select event_id from laap_billing.event_cursor);
 end;
 $$;
 
@@ -209,7 +266,14 @@ create or replace function public.laap_billing_adjustment(
 ) returns boolean language plpgsql set search_path = '' as $$
 begin
   insert into laap_billing.events(id) values(p_event) on conflict do nothing;
-  if not found then return true; end if;
+  if not found then
+    -- A replay can confirm the full amount of this same approved refund.
+    update laap_billing.adjustments set full_refund = true
+      where p_full and p_action = 'refund' and p_status = 'approved'
+        and id = p_id and transaction_id = p_transaction and occurred_at = p_occurred
+        and action = p_action and status = p_status and not full_refund;
+    return true;
+  end if;
   insert into laap_billing.adjustments as a values(p_id, p_transaction, p_occurred, p_action, p_status, p_full)
     on conflict (id) do update set occurred_at = excluded.occurred_at, status = excluded.status,
       full_refund = excluded.full_refund
@@ -353,6 +417,9 @@ begin
   delete from laap_billing.challenges where expires_at < now();
   delete from laap_billing.throttles where starts_at < now() - interval '2 days';
   delete from laap_billing.transfer_overrides where expires_at < now();
+  delete from laap_billing.pending_payments p where exists (
+    select 1 from laap_billing.payments where transaction_id = p.transaction_id
+  );
 end;
 $$;
 

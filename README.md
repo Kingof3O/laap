@@ -47,8 +47,8 @@ Switch seamlessly between your main, smurfs, and alternate accounts in seconds. 
 
 LAAP does not inject DLLs, read game memory, bypass anti-cheat, unlock paid skins, or automate gameplay. Riot can change its client and policies. LAAP is an independent project and cannot guarantee account outcomes.
 
-### 🔒 Military-Grade Encrypted Vault
-Your session material is protected with **AES-256-GCM** authenticated encryption. Encryption keys are generated randomly and stored directly in your operating system's secure credential store (**Windows Credential Manager** or **macOS Keychain**). Your Riot passwords are never stored in plaintext on disk or transmitted across networks.
+### Encrypted saved Riot logins
+LAAP protects saved Riot sessions with **AES-256-GCM** and keeps the encryption key in Windows Credential Manager or macOS Keychain. Profile names, regions, notes, and other roster metadata are stored as readable local JSON. Riot sign-in happens in the official client.
 
 ### 👻 Stealth LAAP Presence
 Play games in complete stealth. LAAP includes an integrated local proxy that lets you appear **Offline** or set custom presence states in League chat while actively queuing and playing games with friends. Easily toggled from the top header or your system tray.
@@ -71,7 +71,7 @@ Enjoy a native, borderless desktop window with drag support, maximize/restore to
 
 The maintained LAAP app is a local League of Legends account manager. Basic supports two active profiles and works without a billing account. Pro unlocks unlimited profiles on one computer through the same app and updater.
 
-The planned Pro launch prices are $3 monthly, $20 yearly, and $60 lifetime. Checkout availability depends on launch approval and billing configuration. If Pro ends, extra profiles stay in your existing encrypted vault and return when Pro is active again. See the [billing setup and release checks](billing/README.md).
+The planned Pro launch prices are $3 monthly, $20 yearly, and $60 lifetime. Checkout availability depends on launch approval and billing configuration. If Pro ends, extra profiles stay saved locally. Basic users can replace an active profile with another saved profile without deleting either account. See the [billing setup and release checks](billing/README.md).
 
 ---
 

@@ -13,16 +13,19 @@ test('selecting Basic slots preserves locked profiles and redeeming a gift resto
     const slots = () => ({
       pro, canAdd: pro, lockedCount: pro ? 0 : profiles.length - active.length,
       chooseCount: active.length === 0 && !pro ? 2 : 0,
-      choices: active.length === 0 && !pro ? profiles : [],
+      choices: pro ? [] : profiles.filter((profile) => !active.includes(profile.id)),
     })
     Object.assign(window, {
       __TAURI_INTERNALS__: {
-        invoke: async (command: string, args: { ids?: string[]; code?: string }) => {
+        invoke: async (command: string, args: { ids?: string[]; code?: string; activeId?: string; lockedId?: string }) => {
           switch (command) {
             case 'billing_status': return status()
             case 'list_local_accounts': return profiles.filter((profile) => pro || active.includes(profile.id))
             case 'basic_profile_slots': return slots()
             case 'select_basic_profiles': active = args.ids ?? []; return slots()
+            case 'replace_basic_profile':
+              active = active.map((id) => id === args.activeId ? args.lockedId ?? id : id)
+              return slots()
             case 'billing_send_code': return null
             case 'billing_verify_email':
               if (args.code !== '123456') throw 'Invalid email code.'
@@ -46,6 +49,12 @@ test('selecting Basic slots preserves locked profiles and redeeming a gift resto
   await picker.getByRole('button', { name: 'Use selected profiles' }).click()
   await expect(page.getByText('2 Profiles', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Select Bravo' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Change active profiles' }).click()
+  await page.getByLabel('Active profile to replace').selectOption('Alpha')
+  await page.getByLabel('Saved profile to activate').selectOption('Bravo')
+  await page.getByRole('button', { name: 'Replace active profile' }).click()
+  await expect(page.getByRole('button', { name: 'Select Bravo' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Select Alpha' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Add Profile', exact: true }).click()
   const billing = page.getByRole('dialog', { name: 'LAAP billing' })
   await billing.getByLabel('Billing email').fill('buyer@example.test')
@@ -61,5 +70,5 @@ test('selecting Basic slots preserves locked profiles and redeeming a gift resto
   await expect(billing.getByRole('heading', { name: 'LAAP Pro' })).toBeVisible()
   await billing.getByRole('button', { name: 'Close billing' }).click()
   await expect(page.getByText('3 Profiles', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Select Bravo' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Select Alpha' })).toBeVisible()
 })

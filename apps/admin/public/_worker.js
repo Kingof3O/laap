@@ -1,9 +1,9 @@
-const API_ORIGIN = 'https://laap-api.hussiensalah100.workers.dev'
+const API_ORIGIN = 'https://laap-billing-sandbox.hussiensalah100.workers.dev'
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url)
-    if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
+    if (url.pathname === '/v1' || url.pathname.startsWith('/v1/')) {
       const upstream = new URL(`${API_ORIGIN}${url.pathname}${url.search}`)
       const headers = new Headers(request.headers)
       headers.set('x-laap-pages-proxy', '1')

@@ -11,7 +11,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
-    "test": "tsc -b --pretty false"
+    "test": "tsc -b --pretty false",
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "@laap/types": "0.1.0",

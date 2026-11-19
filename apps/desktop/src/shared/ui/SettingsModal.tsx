@@ -133,7 +133,7 @@ export function SettingsModal({
                         color: '#FFFFFF',
                       }}
                     >
-                      {'Local Vault Encrypted'}
+                      {'Saved Riot Logins Encrypted'}
                     </div>
                     <div
                       style={{
@@ -142,7 +142,7 @@ export function SettingsModal({
                         marginTop: '2px',
                       }}
                     >
-                      {'AES-GCM encrypted local vault. Icons, rank sync and LAAP Presence setup can use the network.'}
+                      {'Saved Riot sessions use AES-GCM. Profile names and notes are stored as readable local data.'}
                     </div>
                   </div>
                 </div>

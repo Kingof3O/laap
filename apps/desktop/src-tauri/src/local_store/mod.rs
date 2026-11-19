@@ -174,10 +174,15 @@ mod safety_tests {
         assert!(store.session_for("four").is_err());
         assert!(store.refresh_session("four", "rso_token: sample".into()).is_err());
         assert!(store.select_profiles(vec!["four".into()]).is_err());
-        store.delete_account("one").unwrap();
-        assert_eq!(store.profile_slots().unwrap().choose_count, 1);
-        store.select_profiles(vec!["four".into()]).unwrap();
+        store.replace_profile("one", "four".into()).unwrap();
+        assert!(store.replace_profile("one", "two".into()).is_err());
+        assert!(store.session_for("one").is_err());
         assert!(store.session_for("four").is_ok());
+        assert_eq!(fs::read(&vault).unwrap(), before);
+        store.delete_account("four").unwrap();
+        assert_eq!(store.profile_slots().unwrap().choose_count, 1);
+        store.select_profiles(vec!["one".into()]).unwrap();
+        assert!(store.session_for("one").is_ok());
         assert_eq!(store.profile_slots().unwrap().locked_count, 1);
         let persisted = fs::read_to_string(vault).unwrap();
         assert!(persisted.contains("\"id\": \"two\""));
@@ -214,6 +219,10 @@ mod safety_tests {
         assert!(next.allows("three"));
         assert!(!next.allows("two"));
         assert_eq!(next.describe(&accounts).choose_count, 0);
+        let mut renewed = Entitlement::default();
+        renewed.pro = true;
+        let recovered = ProfileAccess::new(next.slots, renewed, &accounts);
+        assert!(accounts.iter().all(|account| recovered.allows(&account.id)));
     }
     #[test]
     fn refresh_preserves_profile_metadata_and_rejects_wrong_identity() {

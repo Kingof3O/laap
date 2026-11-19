@@ -146,7 +146,7 @@ export function EmptyState({
                 flexShrink: 0,
               }}
             />
-            <span>{isCloud ? 'Device identity' : 'Encrypted local vault'}</span>
+            <span>{isCloud ? 'Device identity' : 'Encrypted Riot logins'}</span>
           </div>
         </div>
       </div>

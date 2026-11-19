@@ -1,23 +1,23 @@
 export const pageMeta = {
   Overview: {
-    eyebrow: 'HOME',
-    title: 'Welcome back.',
-    description: 'See what is ready, what is in use, and what needs attention.',
+    eyebrow: 'BUSINESS & HEALTH',
+    title: 'Operations Overview',
+    description: 'Monitor active subscriptions, revenue metrics, and billing infrastructure health.',
   },
-  'Account pool': {
-    eyebrow: 'ACCOUNTS',
-    title: 'Your accounts.',
-    description: 'See which accounts are ready, in use, or temporarily unavailable.',
+  Customers: {
+    eyebrow: 'MEMBERSHIP & DEVICES',
+    title: 'Customers & Licenses',
+    description: 'Search registered accounts, manage Pro grants, and authorize hardware PC transfer overrides.',
   },
-  Assignments: {
-    eyebrow: 'ACCESS',
-    title: 'Who can use each account.',
-    description: 'Give people access to the accounts they need, and remove it when you are done.',
+  Gifts: {
+    eyebrow: 'CODES & PROMOTIONS',
+    title: 'Gift & Promo Codes',
+    description: 'Generate time-limited or lifetime Pro codes, assign them to recipients, or revoke active codes.',
   },
-  Users: {
-    eyebrow: 'PEOPLE',
-    title: 'Authorized users.',
-    description: 'Add people to LAAP and choose what they are allowed to do.',
+  Audit: {
+    eyebrow: 'TRANSACTIONS & EVENTS',
+    title: 'Audit & Webhooks',
+    description: 'Inspect live Paddle payments, customer checkouts, and security audit records.',
   },
 } as const
 

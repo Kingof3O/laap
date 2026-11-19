@@ -157,7 +157,7 @@ export function LiveStatusSettingsCard({ busy }: LiveStatusSettingsCardProps) {
                 {clearRiotKey
                   ? 'Will be removed on save'
                   : settings.hasRiotApiKey
-                    ? 'Saved in encrypted vault'
+                    ? 'Saved with local encryption'
                     : settings.envRiotKeyPresent
                       ? 'Using RIOT_API_KEY env'
                       : 'Not saved'}

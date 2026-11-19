@@ -172,6 +172,8 @@ pub fn run() {
             commands::local_accounts::basic_profile_slots,
             #[cfg(feature = "basic")]
             commands::local_accounts::select_basic_profiles,
+            #[cfg(feature = "basic")]
+            commands::local_accounts::replace_basic_profile,
             #[cfg(not(feature = "studio"))]
             commands::local_accounts::edit_local_account,
             #[cfg(not(feature = "studio"))]

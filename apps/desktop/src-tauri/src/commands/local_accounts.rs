@@ -26,6 +26,13 @@ pub async fn select_basic_profiles(ids: Vec<String>) -> Result<crate::local_stor
         .await.map_err(|error| error.to_string())?
 }
 
+#[cfg(feature = "basic")]
+#[tauri::command]
+pub async fn replace_basic_profile(active_id: String, locked_id: String) -> Result<crate::local_store::ProfileSlots, String> {
+    tauri::async_runtime::spawn_blocking(move || LocalStore::new()?.replace_profile(&active_id, locked_id))
+        .await.map_err(|error| error.to_string())?
+}
+
 /// Returns the full local account details including its session blob.
 #[tauri::command]
 pub async fn get_local_account(id: String) -> Result<LocalAccount, String> {

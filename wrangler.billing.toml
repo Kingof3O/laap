@@ -6,7 +6,7 @@ compatibility_date = "2026-08-31"
 enabled = true
 
 [triggers]
-crons = ["17 3 * * *"]
+crons = ["*/5 * * * *"]
 
 [vars]
 PADDLE_MODE = "sandbox"
@@ -19,7 +19,7 @@ name = "laap-billing"
 enabled = true
 
 [env.production.triggers]
-crons = ["17 3 * * *"]
+crons = ["*/5 * * * *"]
 
 [env.production.vars]
 PADDLE_MODE = "live"
