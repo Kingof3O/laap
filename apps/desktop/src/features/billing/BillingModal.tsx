@@ -393,78 +393,135 @@ export function BillingModal({ status, onClose, onStatus }: {
                     >
                       <ArrowLeft size={14} /> Back to plans
                     </button>
-                    <div className="billing-plan-pill-mini">
-                      Selected: <strong>{selected.title} Pro ({selected.price})</strong>
+                    <div className="billing-step-indicator">
+                      <span>Step 2 of 2 · Verification</span>
                     </div>
                   </div>
 
-                  <form className="billing-auth-box" onSubmit={(event) => { event.preventDefault(); verify() }}>
-                    <div className="billing-auth-meta">
-                      <h3>{transfer ? 'Transfer PC Activation' : 'Verify Your Email'}</h3>
-                      <p>
-                        {transfer
-                          ? 'Enter a code sent to your billing email to move your license here.'
-                          : 'Enter your billing email to receive a 6-digit verification code.'}
-                      </p>
-                    </div>
-
-                    <div className="billing-input-group">
-                      <label htmlFor="billing-email-input" className="billing-input-label">
-                        <Mail size={13} /> Billing email
-                      </label>
-                      <div className="billing-input-action-row">
-                        <input
-                          id="billing-email-input"
-                          aria-label="Billing email"
-                          type="email"
-                          autoComplete="email"
-                          required
-                          placeholder="name@example.com"
-                          className="billing-text-input"
-                          value={email}
-                          disabled={busy}
-                          onChange={(event) => setEmail(event.target.value)}
-                        />
-                        <button
-                          type="button"
-                          className="billing-btn billing-btn-glass"
-                          disabled={busy || !email.trim()}
-                          onClick={sendCode}
-                        >
-                          Send email code
-                        </button>
+                  <div className="billing-step2-layout">
+                    {/* Left Column: Order / Intent Summary */}
+                    <aside className={`billing-order-summary ${selected.cardTheme}`}>
+                      <div className="billing-order-header">
+                        <span className={`billing-order-badge ${selected.badge?.theme || 'amethyst'}`}>
+                          {transfer ? 'TRANSFER LICENSE' : `${selected.title.toUpperCase()} PRO`}
+                        </span>
+                        <div className="billing-order-price-row">
+                          <span className="billing-order-price">{transfer ? 'Free' : selected.price}</span>
+                          <span className="billing-order-cadence">{transfer ? 'license move' : selected.cadence}</span>
+                        </div>
+                        <p className="billing-order-subtitle">
+                          {transfer ? 'Move existing Pro activation' : selected.highlight}
+                        </p>
                       </div>
-                    </div>
 
-                    <div className="billing-input-group">
-                      <label htmlFor="billing-code-input" className="billing-input-label">
-                        <KeyRound size={13} /> Email code
-                      </label>
-                      <div className="billing-input-action-row">
-                        <input
-                          id="billing-code-input"
-                          aria-label="Email code"
-                          type="text"
-                          autoComplete="one-time-code"
-                          inputMode="numeric"
-                          placeholder="6-digit code"
-                          maxLength={10}
-                          required
-                          className="billing-text-input mono"
-                          value={code}
-                          disabled={busy}
-                          onChange={(event) => setCode(event.target.value)}
-                        />
-                        <button
-                          type="submit"
-                          className="billing-btn billing-btn-primary"
-                          disabled={busy || code.length < 6}
-                        >
-                          {transfer ? 'Confirm transfer' : 'Verify email'}
-                        </button>
+                      <div className="billing-order-features">
+                        <div className="billing-order-feature">
+                          <Check size={12} className="billing-order-check" />
+                          <span>Unlimited saved profiles</span>
+                        </div>
+                        <div className="billing-order-feature">
+                          <Check size={12} className="billing-order-check" />
+                          <span>Instant 1-click Riot switching</span>
+                        </div>
+                        <div className="billing-order-feature">
+                          <Check size={12} className="billing-order-check" />
+                          <span>Offline session vault</span>
+                        </div>
+                        <div className="billing-order-feature">
+                          <Check size={12} className="billing-order-check" />
+                          <span>{transfer ? 'Immediate transfer to this PC' : 'Paddle secure checkout'}</span>
+                        </div>
                       </div>
-                    </div>
-                  </form>
+
+                      <button
+                        type="button"
+                        className="billing-order-change-link"
+                        disabled={busy}
+                        onClick={() => { setStep('plans'); setTransfer(false) }}
+                      >
+                        Change plan
+                      </button>
+                    </aside>
+
+                    {/* Right Column: Verification Form */}
+                    <form className="billing-verify-form" onSubmit={(event) => { event.preventDefault(); verify() }}>
+                      <div className="billing-form-head">
+                        <div className="billing-form-icon">
+                          <Mail size={18} />
+                        </div>
+                        <div>
+                          <h3 className="billing-form-title">{transfer ? 'Transfer PC Activation' : 'Verify Billing Email'}</h3>
+                          <p className="billing-form-desc">
+                            {transfer
+                              ? 'Enter the email used for your Pro license to send a 6-digit move authorization.'
+                              : 'Enter your billing email to receive a 6-digit verification code.'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="billing-input-group">
+                        <label htmlFor="billing-email-input" className="billing-input-label">
+                          <Mail size={13} /> Billing email
+                        </label>
+                        <div className="billing-input-action-row">
+                          <input
+                            id="billing-email-input"
+                            aria-label="Billing email"
+                            type="email"
+                            autoComplete="email"
+                            required
+                            placeholder="name@example.com"
+                            className="billing-text-input"
+                            value={email}
+                            disabled={busy}
+                            onChange={(event) => setEmail(event.target.value)}
+                          />
+                          <button
+                            type="button"
+                            className="billing-btn billing-btn-glass"
+                            disabled={busy || !email.trim()}
+                            onClick={sendCode}
+                          >
+                            Send email code
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="billing-input-group">
+                        <label htmlFor="billing-code-input" className="billing-input-label">
+                          <KeyRound size={13} /> Email code
+                        </label>
+                        <div className="billing-input-action-row">
+                          <input
+                            id="billing-code-input"
+                            aria-label="Email code"
+                            type="text"
+                            autoComplete="one-time-code"
+                            inputMode="numeric"
+                            placeholder="6-digit code"
+                            maxLength={10}
+                            required
+                            className="billing-text-input mono"
+                            value={code}
+                            disabled={busy}
+                            onChange={(event) => setCode(event.target.value)}
+                          />
+                          <button
+                            type="submit"
+                            className="billing-btn billing-btn-primary"
+                            disabled={busy || code.length < 6}
+                          >
+                            {transfer ? 'Confirm transfer' : 'Verify email'}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="billing-verify-foot">
+                        <ShieldCheck size={12} />
+                        <span>No password required · One-time passcode sent directly to your inbox</span>
+                      </div>
+                    </form>
+                  </div>
                 </section>
               )}
 
@@ -480,49 +537,77 @@ export function BillingModal({ status, onClose, onStatus }: {
                     >
                       <ArrowLeft size={14} /> Back to plans
                     </button>
+                    <div className="billing-step-indicator">
+                      <span>Gift & Promo</span>
+                    </div>
                   </div>
 
-                  <form
-                    className="billing-auth-box"
-                    onSubmit={(event) => {
-                      event.preventDefault()
-                      void run(async () => {
-                        onStatus(await invokeTauri<BillingStatus>('billing_redeem', { code: gift }))
-                        setGift('')
-                      })
-                    }}
-                  >
-                    <div className="billing-auth-meta">
-                      <h3>Redeem Gift or Promo Code</h3>
-                      <p>Enter your 32-character code to immediately activate Pro on this PC.</p>
+                  <div className="billing-gift-card">
+                    {/* Glowing Gift Emblem */}
+                    <div className="billing-gift-emblem">
+                      <Gift size={28} />
                     </div>
 
-                    <div className="billing-input-group">
-                      <label htmlFor="billing-gift-input" className="billing-input-label">
-                        <Gift size={13} /> Gift code
-                      </label>
-                      <div className="billing-input-action-row">
-                        <input
-                          id="billing-gift-input"
-                          aria-label="Gift code"
-                          placeholder="LAAP-XXXX-XXXX"
-                          maxLength={48}
-                          required
-                          className="billing-text-input mono uppercase"
-                          value={gift}
-                          disabled={busy}
-                          onChange={(event) => setGift(event.target.value)}
-                        />
-                        <button
-                          type="submit"
-                          className="billing-btn billing-btn-primary"
-                          disabled={busy || !gift.trim()}
-                        >
-                          Redeem gift code
-                        </button>
+                    <div className="billing-gift-header">
+                      <h3 className="billing-gift-title">Redeem Gift or Promo Code</h3>
+                      <p className="billing-gift-desc">
+                        Enter your 32-character code to unlock unlimited profiles and Pro features on this PC immediately.
+                      </p>
+                    </div>
+
+                    <form
+                      className="billing-gift-form"
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        void run(async () => {
+                          onStatus(await invokeTauri<BillingStatus>('billing_redeem', { code: gift }))
+                          setGift('')
+                        })
+                      }}
+                    >
+                      <div className="billing-input-group">
+                        <label htmlFor="billing-gift-input" className="billing-input-label">
+                          <Gift size={13} /> Gift code
+                        </label>
+                        <div className="billing-input-action-row">
+                          <input
+                            id="billing-gift-input"
+                            aria-label="Gift code"
+                            placeholder="LAAP-XXXX-XXXX"
+                            maxLength={48}
+                            required
+                            className="billing-text-input mono uppercase"
+                            value={gift}
+                            disabled={busy}
+                            onChange={(event) => setGift(event.target.value)}
+                          />
+                          <button
+                            type="submit"
+                            className="billing-btn billing-btn-primary"
+                            disabled={busy || !gift.trim()}
+                          >
+                            Redeem gift code
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+
+                    {/* What Pro Unlocks Mini Cards */}
+                    <div className="billing-gift-perks-row">
+                      <div className="billing-gift-perk-pill">
+                        <Check size={11} className="billing-perk-check" />
+                        <span>Unlimited Profiles</span>
+                      </div>
+                      <div className="billing-gift-perk-pill">
+                        <Check size={11} className="billing-perk-check" />
+                        <span>Instant 1-Click Switching</span>
+                      </div>
+                      <div className="billing-gift-perk-pill">
+                        <Check size={11} className="billing-perk-check" />
+                        <span>Local Offline Vault</span>
                       </div>
                     </div>
-                  </form>
+                  </div>
                 </section>
               )}
             </>
