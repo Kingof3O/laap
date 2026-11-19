@@ -37,6 +37,15 @@
 .inspector-details div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 12px; }
 .inspector-details dt { display: flex; align-items: center; gap: 8px; color: var(--text-muted); }
 .inspector-details dd { margin: 0; text-align: right; color: var(--text-primary); overflow-wrap: anywhere; }
+.inspector-season-stats { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.07); }
+.inspector-stats-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
+.inspector-stats-header .inspector-label { display: flex; align-items: center; gap: 8px; margin-bottom: 0; }
+.inspector-stats-card { display: flex; align-items: baseline; gap: 8px; padding: 10px 14px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(168, 155, 190, 0.16); border-radius: 10px; font-size: 12.5px; }
+.inspector-winrate-label { color: var(--text-muted); font-size: 12px; }
+.inspector-winrate-value { color: #f3ebff; font-weight: 650; font-family: var(--font-display, inherit); letter-spacing: -0.01em; white-space: nowrap; }
+.inspector-winrate-value .stats-pulse { color: var(--text-muted); font-style: italic; }
+.btn-opgg-view { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 6px; font-size: 11px; font-weight: 600; color: #d1c4f1; background: rgba(168, 155, 217, 0.12); border: 1px solid rgba(168, 155, 217, 0.28); cursor: pointer; transition: all 140ms ease; white-space: nowrap; flex-shrink: 0; }
+.btn-opgg-view:hover { color: #fff; background: rgba(168, 155, 217, 0.22); border-color: rgba(201, 166, 255, 0.5); box-shadow: 0 2px 8px rgba(168, 128, 226, 0.2); }
 .inspector-notes { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.07); }
 .inspector-notes .inspector-label { display: flex; align-items: center; gap: 8px; }
 .inspector-notes p { color: var(--text-secondary); font-size: 12.5px; line-height: 1.5; margin-top: 8px; overflow-wrap: anywhere; white-space: pre-wrap; }

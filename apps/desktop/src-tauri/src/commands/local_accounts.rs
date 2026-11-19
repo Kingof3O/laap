@@ -146,3 +146,13 @@ pub async fn refresh_local_account(id: String, session_blob: String) -> Result<(
 pub fn refresh_local_account_sync(id: String, session_blob: String) -> Result<(), String> {
     LocalStore::new()?.refresh_session(&id, session_blob)
 }
+
+#[tauri::command]
+pub async fn update_account_rank(id: String, rank: String) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let store = LocalStore::new()?;
+        store.update_rank(&id, &rank)
+    })
+    .await
+    .map_err(|error| format!("Native operation failed: {error}"))?
+}

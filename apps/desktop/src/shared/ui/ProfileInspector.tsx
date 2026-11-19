@@ -1,18 +1,28 @@
-import type { ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Activity,
   Clock3,
+  ExternalLink,
   FileText,
+  Globe,
   Loader2,
   Play,
   Settings2,
   ShieldCheck,
+  Trophy,
   X,
 } from 'lucide-react'
 import type { RosterItem } from './AccountRosterDisplay'
 import { ProfileAvatar } from './ProfileAvatar'
 import { RankCrest } from './RankPicker'
 import { formatLiveMatchLabel } from '../../lib/liveStatus'
+import { openExternalUrl } from '../../lib/api'
+import {
+  autoSyncAccountRank,
+  fetchOpggStats,
+  getOpggSummonerUrl,
+  type OpggStats,
+} from '../../lib/opgg'
 
 export function ProfileInspector({
   account,
@@ -42,6 +52,41 @@ export function ProfileInspector({
         })
       : null
   const sessionReady = account.hasSession && account.status !== 'Leased'
+
+  const [stats, setStats] = useState<OpggStats | null>(null)
+  const [statsLoading, setStatsLoading] = useState(false)
+
+  const opggInfo = useMemo(
+    () => getOpggSummonerUrl(account.name, account.region),
+    [account.name, account.region],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    setStatsLoading(true)
+    fetchOpggStats(account.name, account.region)
+      .then((res) => {
+        if (!cancelled && res) {
+          setStats(res)
+          if (
+            res.formattedRank &&
+            res.formattedRank !== 'Unranked' &&
+            res.formattedRank !== account.rank
+          ) {
+            void autoSyncAccountRank(account)
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setStats(null)
+      })
+      .finally(() => {
+        if (!cancelled) setStatsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [account.id, account.name, account.region, account.rank])
   return (
     <aside
       id="profile-inspector"
@@ -124,6 +169,36 @@ export function ProfileInspector({
           </div>
         ) : null}
       </dl>
+      <div className="inspector-season-stats">
+        <div className="inspector-stats-header">
+          <span className="inspector-label">
+            <Trophy size={14} /> Season Stats
+          </span>
+          <button
+            type="button"
+            className="btn-opgg-view"
+            onClick={() => void openExternalUrl(opggInfo.url)}
+            aria-label={`View ${account.name} on OP.GG`}
+            title="Open OP.GG profile in browser"
+          >
+            <Globe size={12} />
+            <span>View on OP.GG</span>
+            <ExternalLink size={10} />
+          </button>
+        </div>
+        <div className="inspector-stats-card">
+          <span className="inspector-winrate-label">Win Rate:</span>
+          <strong className="inspector-winrate-value">
+            {statsLoading ? (
+              <span className="stats-pulse">Syncing…</span>
+            ) : stats ? (
+              `${stats.wins}W - ${stats.losses}L (${stats.winRate}%)`
+            ) : (
+              '—'
+            )}
+          </strong>
+        </div>
+      </div>
       {account.notes !== undefined ? (
         <div className="inspector-notes">
           <span className="inspector-label">

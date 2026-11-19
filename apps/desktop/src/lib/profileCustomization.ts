@@ -25,23 +25,44 @@ export const RANK_OPTIONS = [
 ]
 export function canonicalRank(rank?: string | null) {
   if (!rank) return ''
+  const trimmed = rank.trim()
   const exact = RANK_OPTIONS.find(
-    (option) => option.toLowerCase() === rank.trim().toLowerCase(),
+    (option) => option.toLowerCase() === trimmed.toLowerCase(),
   )
   if (exact) return exact
-  const match = rank
-    .trim()
-    .match(/^(iron|bronze|silver|gold|platinum|emerald|diamond)\s+([1-4])$/i)
-  return match
-    ? `${RANK_TIERS.find((tier) => tier.toLowerCase() === match[1].toLowerCase())} ${['', 'I', 'II', 'III', 'IV'][Number(match[2])]}`
-    : rank
+  const match = trimmed.match(
+    /^(iron|bronze|silver|gold|platinum|emerald|diamond)\s+([1-4])(?:\s*\(?(\d+\s*LP)\)?)?$/i,
+  )
+  if (match) {
+    const tier = RANK_TIERS.find(
+      (t) => t.toLowerCase() === match[1].toLowerCase(),
+    )
+    const div = ['', 'I', 'II', 'III', 'IV'][Number(match[2])]
+    if (match[3]) {
+      return `${tier} ${div} (${match[3].toUpperCase()})`
+    }
+    return `${tier} ${div}`
+  }
+  const apexMatch = trimmed.match(
+    /^(master|grandmaster|challenger)(?:\s*\(?(\d+\s*LP)\)?)?$/i,
+  )
+  if (apexMatch) {
+    const tier = APEX_TIERS.find(
+      (t) => t.toLowerCase() === apexMatch[1].toLowerCase(),
+    )
+    if (apexMatch[2]) {
+      return `${tier} (${apexMatch[2].toUpperCase()})`
+    }
+    return tier ?? trimmed
+  }
+  return trimmed
 }
 export function rankCrest(rank?: string | null) {
-  const canonical = canonicalRank(rank)
-  if (
-    !RANK_OPTIONS.includes(canonical) &&
-    !RANK_TIERS.some((tier) => tier.toLowerCase() === canonical.toLowerCase())
+  if (!rank) return null
+  const firstWord = rank.trim().split(/\s+/)[0].toLowerCase()
+  const tier = [...RANK_TIERS, ...APEX_TIERS].find(
+    (t) => t.toLowerCase() === firstWord,
   )
-    return null
-  return `/rank-crests/${canonical.split(' ')[0].toLowerCase()}.png`
+  if (!tier) return null
+  return `/rank-crests/${tier.toLowerCase()}.png`
 }

@@ -256,6 +256,26 @@ impl LocalStore {
         })
     }
 
+    pub fn update_rank(&self, id: &str, rank: &str) -> Result<bool, String> {
+        self.update_profile(id, |accounts| {
+            let Some(account) = accounts.iter_mut().find(|account| account.id == id) else {
+                return Ok(false);
+            };
+            let trimmed = rank.trim();
+            let new_val = if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            };
+            if account.rank != new_val {
+                account.rank = new_val;
+                Ok(true)
+            } else {
+                Ok(false)
+            }
+        })
+    }
+
     pub fn apply_customization_sync(
         &self,
         id: &str,

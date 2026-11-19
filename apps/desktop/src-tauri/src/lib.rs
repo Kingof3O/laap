@@ -207,6 +207,8 @@ pub fn run() {
             #[cfg(not(feature = "studio"))]
             commands::local_accounts::launch_local_account,
             #[cfg(not(feature = "studio"))]
+            commands::local_accounts::update_account_rank,
+            #[cfg(not(feature = "studio"))]
             tray::active_local_profile,
             #[cfg(not(feature = "studio"))]
             tray::tray_available,
@@ -440,6 +442,8 @@ pub fn run() {
             customization::discord::rpc_set_presence,
             #[cfg(not(feature = "basic"))]
             customization::stats_provider::opgg_get_summoner_profile,
+            #[cfg(not(feature = "basic"))]
+            customization::stats_provider::fetch_opgg_summoner_stats,
             #[cfg(not(feature = "basic"))]
             customization::ai_assistant::ai_chat,
             #[cfg(not(feature = "basic"))]

@@ -366,8 +366,9 @@ fn sync_customizations() -> Result<SyncResult, String> {
     }
     if accounts
         .iter()
-        .filter(|a| a.customization.auto_sync_icon || a.customization.auto_sync_rank)
+        .filter(|a| a.customization.auto_sync_icon)
         .all(|a| a.puuid.is_none())
+        && !accounts.iter().any(|a| a.customization.auto_sync_rank)
     {
         return Ok(SyncResult {
             message: Some(
@@ -376,12 +377,66 @@ fn sync_customizations() -> Result<SyncResult, String> {
             ..Default::default()
         });
     }
-    let Some(lcu) = lcu_connection()? else {
-        return Ok(SyncResult {
-            message: Some("Waiting for League Client login".into()),
-            ..Default::default()
-        });
+    let lcu_opt = match lcu_connection() {
+        Ok(opt) => opt,
+        Err(_) => None,
     };
+    if lcu_opt.is_none() {
+        let rank_sync_accounts: Vec<_> = accounts
+            .iter()
+            .filter(|a| a.customization.auto_sync_rank)
+            .collect();
+        if rank_sync_accounts.is_empty() {
+            return Ok(SyncResult {
+                message: Some("Waiting for League Client login (icon auto-sync enabled)".into()),
+                ..Default::default()
+            });
+        }
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .map_err(|e| e.to_string())?;
+
+        let mut changed_count = 0;
+        let mut synced_names = Vec::new();
+        tauri::async_runtime::block_on(async {
+            for acc in rank_sync_accounts {
+                let (name, tag) = if let Some((n, t)) = acc.name.split_once('#') {
+                    (n.trim(), t.trim())
+                } else {
+                    (acc.name.trim(), acc.region.trim())
+                };
+                if let Ok(profile) =
+                    crate::customization::stats_provider::fetch_opgg_summoner(&client, name, tag, &acc.region)
+                        .await
+                {
+                    if !profile.formatted_rank.is_empty()
+                        && acc.rank.as_deref() != Some(&profile.formatted_rank)
+                    {
+                        if store.update_rank(&acc.id, &profile.formatted_rank).unwrap_or(false) {
+                            changed_count += 1;
+                            synced_names.push(format!("{}: {}", acc.name, profile.formatted_rank));
+                        }
+                    }
+                }
+            }
+        });
+
+        return Ok(SyncResult {
+            changed: changed_count > 0,
+            account_id: None,
+            state: SyncState::Success,
+            message: Some(if changed_count > 0 {
+                format!(
+                    "Auto-synced live rank & LP from OP.GG: {}",
+                    synced_names.join(", ")
+                )
+            } else {
+                "Live ranks are up to date from OP.GG (no game launch needed).".into()
+            }),
+        });
+    }
+    let lcu = lcu_opt.unwrap();
     let summoner = lcu.get("/lol-summoner/v1/current-summoner")?;
     let puuid = summoner
         .get("puuid")
