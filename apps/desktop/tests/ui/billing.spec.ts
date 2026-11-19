@@ -65,6 +65,7 @@ test('selecting Basic slots preserves locked profiles and redeeming a gift resto
   for (const plan of ['$3 monthly', '$20 yearly', '$60 lifetime']) {
     await expect(billing.getByRole('button', { name: plan, exact: true })).toBeVisible()
   }
+  await billing.getByRole('button', { name: 'Redeem a gift code' }).click()
   await billing.getByLabel('Gift code', { exact: true }).fill('LAAP-test-gift')
   await billing.getByRole('button', { name: 'Redeem gift code' }).click()
   await expect(billing.getByRole('heading', { name: 'LAAP Pro' })).toBeVisible()
