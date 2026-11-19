@@ -407,7 +407,7 @@ fn sync_customizations() -> Result<SyncResult, String> {
                     (acc.name.trim(), acc.region.trim())
                 };
                 if let Ok(profile) =
-                    crate::customization::stats_provider::fetch_opgg_summoner(&client, name, tag, &acc.region)
+                    crate::opgg::fetch_opgg_summoner(&client, name, tag, &acc.region)
                         .await
                 {
                     if !profile.formatted_rank.is_empty()
