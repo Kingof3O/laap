@@ -32,6 +32,7 @@ interface Plan {
   highlight: string
   badge?: { text: string; theme: 'amethyst' | 'gold' | 'cyan' }
   cardTheme: 'monthly' | 'yearly' | 'lifetime'
+  features: string[]
 }
 
 const plans: Plan[] = [
@@ -41,9 +42,14 @@ const plans: Plan[] = [
     title: 'Monthly',
     price: '$3',
     cadence: '/ month',
-    highlight: 'Pay month-to-month, cancel anytime',
+    highlight: 'Flexible month-to-month access',
     badge: { text: 'FLEXIBLE', theme: 'cyan' },
     cardTheme: 'monthly',
+    features: [
+      'Unlimited saved profile vault',
+      'Instant 1-click Riot switching',
+      'Cancel anytime without penalty',
+    ],
   },
   {
     id: 'yearly',
@@ -51,9 +57,15 @@ const plans: Plan[] = [
     title: 'Yearly',
     price: '$20',
     cadence: '/ year',
-    highlight: 'Save 44% ($1.67/mo)',
-    badge: { text: 'POPULAR · SAVE 44%', theme: 'amethyst' },
+    highlight: 'Save 44% ($1.67/mo billed annually)',
+    badge: { text: 'MOST POPULAR · SAVE 44%', theme: 'amethyst' },
     cardTheme: 'yearly',
+    features: [
+      'Unlimited saved profile vault',
+      'Instant 1-click Riot switching',
+      'Priority offline vault storage',
+      'Save 44% vs monthly billing',
+    ],
   },
   {
     id: 'lifetime',
@@ -64,6 +76,13 @@ const plans: Plan[] = [
     highlight: 'Pay once, keep Pro forever',
     badge: { text: 'BEST VALUE', theme: 'gold' },
     cardTheme: 'lifetime',
+    features: [
+      'Unlimited saved profile vault',
+      'Instant 1-click Riot switching',
+      'Priority offline vault storage',
+      'All future updates included',
+      'One payment · No subscription',
+    ],
   },
 ]
 
@@ -176,7 +195,7 @@ export function BillingModal({ status, onClose, onStatus }: {
               <div className="billing-brand-title">
                 <h2 className="billing-modal-title">LAAP {status.pro ? 'Pro' : 'Membership'}</h2>
                 <span className={status.pro ? 'billing-status-tag is-pro' : 'billing-status-tag'}>
-                  {status.pro ? <><Check size={11} /> PRO ACTIVE</> : 'BASIC'}
+                  {status.pro ? <><Check size={11} /> PRO ACTIVE</> : 'BASIC EDITION'}
                 </span>
               </div>
             </div>
@@ -198,7 +217,7 @@ export function BillingModal({ status, onClose, onStatus }: {
           {status.pro ? (
             <section className="billing-pro-hero" aria-label="Your Pro subscription">
               <div className="billing-pro-emblem" aria-hidden="true">
-                <Crown size={32} />
+                <Crown size={36} />
               </div>
               <div className="billing-pro-title">Pro License Active</div>
               <p id="billing-modal-description" className="billing-pro-desc">
@@ -245,9 +264,15 @@ export function BillingModal({ status, onClose, onStatus }: {
               {/* STEP 1: Plan Selection */}
               {step === 'plans' && (
                 <section className="billing-step-section" aria-label="Select a plan">
-                  <p id="billing-modal-description" className="billing-clean-subtitle">
-                    Unlock unlimited profiles, instant account switching, and offline vaults.
-                  </p>
+                  {/* Comparison Banner */}
+                  <div className="billing-banner-row">
+                    <div className="billing-banner-info">
+                      <span className="billing-banner-pill basic">Basic: 2 Profiles</span>
+                      <ArrowRight size={13} className="billing-banner-arrow" />
+                      <span className="billing-banner-pill pro"><Crown size={12} /> Pro: Unlimited Profiles</span>
+                    </div>
+                    <span className="billing-banner-note">Instant 1-Click Switching · Local Session Vault</span>
+                  </div>
 
                   {/* 3 Colorful Plan Cards */}
                   <div className="billing-cards-grid" role="group" aria-label="Membership plans">
@@ -279,70 +304,79 @@ export function BillingModal({ status, onClose, onStatus }: {
                             <span className="billing-card-cadence">{plan.cadence}</span>
                           </div>
                           <span className="billing-card-highlight">{plan.highlight}</span>
+
+                          {/* Feature checklist */}
+                          <div className="billing-card-features">
+                            {plan.features.map((feature, idx) => (
+                              <div key={idx} className="billing-feature-item">
+                                <span className={`billing-feature-check ${plan.cardTheme}`}>
+                                  <Check size={10} strokeWidth={2.5} />
+                                </span>
+                                <span>{feature}</span>
+                              </div>
+                            ))}
+                          </div>
                         </button>
                       )
                     })}
                   </div>
 
-                  {/* Primary Next / Checkout Action */}
-                  <div className="billing-cta-area">
+                  {/* Modern Footer Action Dock */}
+                  <div className="billing-footer-dock">
                     <button
                       type="button"
-                      className="billing-btn billing-btn-cta"
+                      className="billing-btn-cta"
                       disabled={busy}
                       onClick={handleNextFromPlans}
                     >
-                      {status.signedIn
-                        ? `Continue to Checkout (${selected.price})`
-                        : `Next: Enter Email (${selected.price})`}
+                      <span>{status.signedIn ? `Continue to Checkout (${selected.price})` : `Next: Enter Email (${selected.price})`}</span>
                       <ArrowRight size={16} />
                     </button>
-                  </div>
 
-                  {/* Secondary Clean Actions Footer */}
-                  <div className="billing-secondary-bar">
-                    <button
-                      type="button"
-                      className="billing-action-link"
-                      disabled={busy}
-                      onClick={() => setStep('gift')}
-                    >
-                      <Gift size={14} /> Redeem a gift code
-                    </button>
-                    <span className="billing-dot">·</span>
-                    <button
-                      type="button"
-                      className="billing-action-link"
-                      disabled={busy}
-                      onClick={() => {
-                        if (status.signedIn) void activate()
-                        else setStep('email')
-                      }}
-                    >
-                      <Zap size={14} /> Activate Pro
-                    </button>
-                    <span className="billing-dot">·</span>
-                    <button
-                      type="button"
-                      className="billing-action-link"
-                      disabled={busy}
-                      onClick={handleStartTransfer}
-                    >
-                      <Laptop size={14} /> Transfer PC
-                    </button>
-                    {status.signedIn && (
-                      <>
-                        <span className="billing-dot">·</span>
+                    <div className="billing-utility-chips">
+                      <button
+                        type="button"
+                        className="billing-chip-btn"
+                        disabled={busy}
+                        onClick={() => setStep('gift')}
+                      >
+                        <Gift size={13} /> Redeem a gift code
+                      </button>
+                      <button
+                        type="button"
+                        className="billing-chip-btn"
+                        disabled={busy}
+                        onClick={() => {
+                          if (status.signedIn) void activate()
+                          else setStep('email')
+                        }}
+                      >
+                        <Zap size={13} /> Activate Pro
+                      </button>
+                      <button
+                        type="button"
+                        className="billing-chip-btn"
+                        disabled={busy}
+                        onClick={handleStartTransfer}
+                      >
+                        <Laptop size={13} /> Transfer PC
+                      </button>
+                      {status.signedIn && (
                         <button
                           type="button"
-                          className="billing-action-link"
+                          className="billing-chip-btn"
                           disabled={busy}
                           onClick={manage}
                         >
-                          <CreditCard size={14} /> Manage payments
+                          <CreditCard size={13} /> Manage payments
                         </button>
-                      </>
-                    )}
+                      )}
+                    </div>
+
+                    <div className="billing-trust-footnote">
+                      <ShieldCheck size={13} />
+                      <span>Official Paddle Checkout · Local Riot Session Vault</span>
+                    </div>
                   </div>
                 </section>
               )}
@@ -503,8 +537,8 @@ export function BillingModal({ status, onClose, onStatus }: {
                 {error.includes('Close your pending checkout') && status.signedIn && (
                   <button
                     type="button"
-                    className="billing-action-link"
-                    style={{ marginTop: '4px' }}
+                    className="billing-chip-btn"
+                    style={{ marginTop: '6px' }}
                     disabled={busy}
                     onClick={() => void run(async () => {
                       await invokeTauri('billing_cancel_checkout')
