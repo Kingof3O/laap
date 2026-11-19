@@ -7,6 +7,7 @@ import {
   CreditCard,
   Crown,
   Gift,
+  Infinity as InfinityIcon,
   KeyRound,
   Laptop,
   Mail,
@@ -261,9 +262,32 @@ export function BillingModal({ status, onClose, onStatus }: {
               {/* STEP 1: Plan Selection */}
               {step === 'plans' && (
                 <section className="billing-step-section" aria-label="Select a plan">
-                  <p id="billing-modal-description" className="billing-clean-subtitle">
-                    Basic keeps 2 profiles active. Upgrade to Pro to unlock unlimited saved accounts with instant 1-click switching.
-                  </p>
+                  {/* Premium Hero Showcase */}
+                  <div className="billing-showcase-hero">
+                    <div className="billing-showcase-copy">
+                      <span className="billing-showcase-eyebrow">ONE APP · ZERO PROFILE LIMITS</span>
+                      <h3 className="billing-showcase-title">Make room for every account.</h3>
+                      <p id="billing-modal-description" className="billing-showcase-desc">
+                        Basic keeps 2 profiles active. Pro unlocks all your saved accounts with instant 1-click switching and offline vaults.
+                      </p>
+                      <div className="billing-showcase-pills">
+                        <span className="billing-showcase-pill">
+                          <Zap size={11} /> Instant 1-Click Switch
+                        </span>
+                        <span className="billing-showcase-pill">
+                          <ShieldCheck size={11} /> 100% Local Encrypted Vault
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Glowing Infinity Emblem */}
+                    <div className="billing-showcase-badge" aria-hidden="true">
+                      <div className="billing-infinity-glow">
+                        <InfinityIcon size={30} strokeWidth={2.2} />
+                      </div>
+                      <span className="billing-infinity-label">UNLIMITED PROFILES</span>
+                    </div>
+                  </div>
 
                   {/* 3 Colorful Plan Cards */}
                   <div className="billing-cards-grid" role="group" aria-label="Membership plans">
