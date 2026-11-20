@@ -100,8 +100,11 @@ export function UpdatesSettings({
               v{currentVersion}
             </div>
           </div>
-          <span className="brand-edition-tag brand-edition-basic">
-            <span className="brand-edition-name">{editionLabel}</span>
+          <span className="brand-lockup-segmented brand-edition-tag brand-edition-basic">
+            <span className="brand-lockup-icon">
+              <img src="/favicon.webp" alt="LAAP" className="brand-lockup-logo" />
+            </span>
+            <span className="brand-lockup-tier brand-edition-name">Basic</span>
           </span>
         </div>
 

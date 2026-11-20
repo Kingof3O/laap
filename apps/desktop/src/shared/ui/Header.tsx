@@ -32,28 +32,42 @@ export function Header({
   updateAvailable = false,
   onOpenUpdates,
 }: HeaderProps) {
+  const tierName = isPro ? 'Pro' : 'Basic'
+
   return (
     <header className="header-bar" data-tauri-drag-region>
-      {/* Brand Identity & Edition */}
+      {/* Brand Identity & Edition (Option 4C: Icon-Segmented Tag) */}
       <div className="brand-zone" data-tauri-drag-region>
-        <img
-          src="/logo.webp"
-          alt="LAAP"
-          style={{ height: '24px', width: 'auto', objectFit: 'contain' }}
-        />
         {onOpenBilling ? (
           <button
             type="button"
-            className={`brand-edition-tag ${isPro ? 'brand-edition-pro' : 'brand-edition-basic'}`}
+            className={`brand-lockup-segmented brand-edition-tag ${isPro ? 'brand-lockup-pro brand-edition-pro' : 'brand-lockup-basic brand-edition-basic'}`}
             onClick={onOpenBilling}
             title={isPro ? 'LAAP Pro Active — click to manage' : 'LAAP Basic — click to upgrade to Pro'}
-            aria-label={`Edition: ${brandLabel}`}
+            aria-label={`Edition: LAAP ${tierName}`}
           >
-            <span className="brand-edition-name">{brandLabel}</span>
+            <span className="brand-lockup-icon">
+              <img
+                src="/favicon.webp"
+                alt="LAAP"
+                className="brand-lockup-logo"
+              />
+            </span>
+            <span className="brand-lockup-tier brand-edition-name">{tierName}</span>
           </button>
         ) : (
-          <span className={`brand-edition-tag ${isPro ? 'brand-edition-pro' : 'brand-edition-basic'}`}>
-            <span className="brand-edition-name">{brandLabel}</span>
+          <span
+            className={`brand-lockup-segmented brand-edition-tag ${isPro ? 'brand-lockup-pro brand-edition-pro' : 'brand-lockup-basic brand-edition-basic'}`}
+            aria-label={`Edition: LAAP ${tierName}`}
+          >
+            <span className="brand-lockup-icon">
+              <img
+                src="/favicon.webp"
+                alt="LAAP"
+                className="brand-lockup-logo"
+              />
+            </span>
+            <span className="brand-lockup-tier brand-edition-name">{tierName}</span>
           </span>
         )}
       </div>

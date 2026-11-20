@@ -2,7 +2,7 @@
 .search-box { width: 280px; }
 .search-box:focus-within { width: 310px; }
 .search-input { min-width: 0; }
-.titlebar .brand-zone img { height: 24px; }
+.titlebar .brand-zone > img { height: 24px; }
 .titlebar-btn { width: 44px; }
 .studio-viewport { gap: 16px; padding: 20px 24px 24px; }
 .roster-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 20px; align-items: start; width: 100%; }
