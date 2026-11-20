@@ -32,7 +32,7 @@ Featuring a dark-first, refined **Velvet Amethyst** aesthetic, LAAP delivers the
 
 ## Desktop Showcase
 
-![LAAP Desktop Roster and Inspector](docs/assets/desktop-roster-preview.png)
+![LAAP Desktop Roster and Inspector](docs/visual-v2-3/maximized/open-1920-2.png)
 
 *Organized roster with instant launch actions, live competitive rank crests, custom notes, and a retractable profile inspector.*
 
