@@ -59,6 +59,13 @@ Play games in complete stealth. LAAP includes an integrated local proxy that let
 - **Ranks & Crests:** Automatic Solo/Duo rank synchronization and custom summoner icon caching directly from Data Dragon.
 - **Quick Search (`Ctrl+K` / `Cmd+K`):** Instantly filter accounts by summoner name, server region, or competitive tier.
 
+### 🏆 Live OP.GG Season Stats & Rank Sync
+- **Season Win Rate & Record:** Live wins, losses, and win rate percentage (e.g., `136W - 139L (49%)`) without having to start the game.
+- **Background Rank Auto-Sync:** Automatically updates competitive tier, division, and LP in real-time.
+- **1-Click Riot ID Linking:** Directly link any custom profile nickname to its Riot ID (`Name#TAG`) with inline editing and immediate sync.
+- **Manual Cache-Busting Refresh:** On-demand sync button (`↻`) to refresh stats instantly.
+- **Integrated OP.GG Webview Opener:** Open full summoner profile analysis in your default browser with a single click.
+
 ### 🔄 Cryptographic In-App Updates
 LAAP uses the existing signed Offline update channel for both license tiers.
 
