@@ -100,97 +100,89 @@
 }
 
 /* ========================================================================= */
-/* BRAND LOCKUP - OPTION 4C ICON-SEGMENTED TAG                               */
+/* BRAND LOCKUP - BORDERLESS LOGO | TIER (NO CARD, NO BOX BORDER)            */
 /* ========================================================================= */
+.brand-lockup-inline,
 .brand-lockup-segmented,
 .brand-edition-tag {
   all: unset;
   display: inline-flex;
   align-items: center;
-  height: 24px;
-  background: rgba(20, 14, 34, 0.9);
-  border: 1px solid rgba(192, 132, 252, 0.25);
-  border-radius: 6px;
-  overflow: hidden;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  gap: 10px;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
   user-select: none;
   box-sizing: border-box;
 }
 
-.brand-lockup-icon {
-  padding: 0 6px;
-  height: 100%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.04);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+.brand-logo-img,
+.brand-lockup-logo {
+  height: 22px !important;
+  width: auto !important;
+  object-fit: contain;
+  display: block;
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), filter 0.15s ease;
   flex-shrink: 0;
 }
 
-.brand-lockup-logo {
+.brand-divider {
+  width: 1.5px;
   height: 15px;
-  width: 15px;
-  object-fit: contain;
-  display: block;
-  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 1px;
+  flex-shrink: 0;
 }
 
+.brand-tier-label,
 .brand-lockup-tier,
 .brand-edition-name {
-  padding: 0 8px;
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #d8b4fe;
   line-height: 1;
   white-space: nowrap;
+  transition: color 0.15s ease, text-shadow 0.15s ease;
 }
 
+button.brand-lockup-inline,
 button.brand-lockup-segmented,
 button.brand-edition-tag {
   cursor: pointer;
 }
 
-button.brand-lockup-segmented:hover,
-button.brand-edition-tag:hover {
-  background: rgba(32, 22, 54, 0.95);
-  border-color: rgba(192, 132, 252, 0.55);
-  box-shadow: 0 0 12px rgba(168, 85, 247, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  transform: translateY(-1px);
+button.brand-lockup-inline:hover .brand-logo-img,
+button.brand-lockup-segmented:hover .brand-lockup-logo {
+  transform: scale(1.08);
+  filter: drop-shadow(0 0 6px rgba(168, 85, 247, 0.45));
 }
 
+button.brand-lockup-inline:hover .brand-tier-label,
 button.brand-lockup-segmented:hover .brand-lockup-tier,
 button.brand-edition-tag:hover .brand-edition-name {
   color: #ffffff;
+  text-shadow: 0 0 10px rgba(168, 85, 247, 0.6);
 }
 
 /* Pro Tier */
-.brand-lockup-pro,
-.brand-edition-pro {
-  background: rgba(28, 20, 14, 0.9);
-  border-color: rgba(245, 158, 11, 0.35);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
+.brand-lockup-pro .brand-tier-label,
 .brand-lockup-pro .brand-lockup-tier,
 .brand-edition-pro .brand-edition-name {
   color: #fde047;
 }
 
-button.brand-lockup-pro:hover,
-button.brand-edition-pro:hover {
-  background: rgba(44, 30, 18, 0.95);
-  border-color: rgba(251, 191, 36, 0.6);
-  box-shadow: 0 0 12px rgba(245, 158, 11, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+button.brand-lockup-pro:hover .brand-logo-img {
+  filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.45));
 }
 
+button.brand-lockup-pro:hover .brand-tier-label,
 button.brand-lockup-pro:hover .brand-lockup-tier,
 button.brand-edition-pro:hover .brand-edition-name {
   color: #fffbeb;
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
 }
 
 .brand-edition-team {

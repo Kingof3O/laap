@@ -36,38 +36,36 @@ export function Header({
 
   return (
     <header className="header-bar" data-tauri-drag-region>
-      {/* Brand Identity & Edition (Option 4C: Icon-Segmented Tag) */}
+      {/* Brand Identity & Edition (Borderless Logo | Tier) */}
       <div className="brand-zone" data-tauri-drag-region>
         {onOpenBilling ? (
           <button
             type="button"
-            className={`brand-lockup-segmented brand-edition-tag ${isPro ? 'brand-lockup-pro brand-edition-pro' : 'brand-lockup-basic brand-edition-basic'}`}
+            className={`brand-lockup-inline brand-lockup-segmented brand-edition-tag ${isPro ? 'brand-lockup-pro brand-edition-pro' : 'brand-lockup-basic brand-edition-basic'}`}
             onClick={onOpenBilling}
             title={isPro ? 'LAAP Pro Active — click to manage' : 'LAAP Basic — click to upgrade to Pro'}
             aria-label={`Edition: LAAP ${tierName}`}
           >
-            <span className="brand-lockup-icon">
-              <img
-                src="/favicon.webp"
-                alt="LAAP"
-                className="brand-lockup-logo"
-              />
-            </span>
-            <span className="brand-lockup-tier brand-edition-name">{tierName}</span>
+            <img
+              src="/logo.webp"
+              alt="LAAP"
+              className="brand-logo-img brand-lockup-logo"
+            />
+            <span className="brand-divider" aria-hidden="true" />
+            <span className="brand-tier-label brand-lockup-tier brand-edition-name">{tierName}</span>
           </button>
         ) : (
           <span
-            className={`brand-lockup-segmented brand-edition-tag ${isPro ? 'brand-lockup-pro brand-edition-pro' : 'brand-lockup-basic brand-edition-basic'}`}
+            className={`brand-lockup-inline brand-lockup-segmented brand-edition-tag ${isPro ? 'brand-lockup-pro brand-edition-pro' : 'brand-lockup-basic brand-edition-basic'}`}
             aria-label={`Edition: LAAP ${tierName}`}
           >
-            <span className="brand-lockup-icon">
-              <img
-                src="/favicon.webp"
-                alt="LAAP"
-                className="brand-lockup-logo"
-              />
-            </span>
-            <span className="brand-lockup-tier brand-edition-name">{tierName}</span>
+            <img
+              src="/logo.webp"
+              alt="LAAP"
+              className="brand-logo-img brand-lockup-logo"
+            />
+            <span className="brand-divider" aria-hidden="true" />
+            <span className="brand-tier-label brand-lockup-tier brand-edition-name">{tierName}</span>
           </span>
         )}
       </div>
