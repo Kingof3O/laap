@@ -168,36 +168,12 @@ pub fn refresh_local_account_sync(id: String, session_blob: String) -> Result<()
 }
 
 #[tauri::command]
-pub async fn update_account_rank(
+pub async fn apply_opgg_profile(
     id: String,
-    rank: String,
-    game: Option<crate::local_store::Game>,
+    update: crate::local_store::OpggProfileUpdate,
 ) -> Result<bool, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let store = LocalStore::new()?;
-        store.update_rank_for(
-            &id,
-            &rank,
-            game.unwrap_or(crate::local_store::Game::League),
-        )
-    })
-    .await
-    .map_err(|error| format!("Native operation failed: {error}"))?
-}
-
-#[tauri::command]
-pub async fn update_account_avatar(
-    id: String,
-    avatar_url: String,
-    game: Option<crate::local_store::Game>,
-) -> Result<bool, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let store = LocalStore::new()?;
-        store.update_avatar_for(
-            &id,
-            &avatar_url,
-            game.unwrap_or(crate::local_store::Game::League),
-        )
+        LocalStore::new()?.apply_opgg_profile(&id, update)
     })
     .await
     .map_err(|error| format!("Native operation failed: {error}"))?

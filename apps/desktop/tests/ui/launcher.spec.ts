@@ -35,6 +35,7 @@ async function launcherFixture(
       helper: false,
       applied: null as string | null,
       setupFailed: options.setupFailed ?? false,
+      autoLaunch: false,
       bypass: false,
       delayPresence: false,
       calls: [] as { command: string; args: any }[],
@@ -100,6 +101,11 @@ async function launcherFixture(
             },
           ]
         if (command === 'get_launcher_settings') return state.view
+        if (command === 'get_auto_launch') return state.autoLaunch
+        if (command === 'set_auto_launch') {
+          state.autoLaunch = args.enabled
+          return state.autoLaunch
+        }
         if (command === 'initialize_presence') {
           state.view.settings.presence_enabled = true
           return status()
@@ -156,6 +162,38 @@ async function launcherFixture(
     }
   }, options)
 }
+
+test('settings provide startup, recovery, privacy and shareable app information', async ({ page }) => {
+  await launcherFixture(page)
+  await page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', {
+    value: { writeText: async (text: string) => { Reflect.set(window, 'copiedAppInfo', text) } },
+  }))
+  await page.setViewportSize({ width: 960, height: 700 })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  const settings = page.getByRole('dialog', { name: 'Settings', exact: true })
+  const recovery = settings.getByRole('button', { name: 'Clean Active Riot Session & Reset' })
+  await settings.getByRole('tab', { name: 'General', exact: true }).click()
+  const startup = settings.getByRole('checkbox', { name: 'Start LAAP with Windows' })
+  await startup.click()
+  await expect(startup).toBeChecked()
+  await expect(startup).toBeEnabled()
+  await expect(recovery).toHaveCount(0)
+  await settings.getByRole('tab', { name: 'Riot Client', exact: true }).click()
+  await expect(recovery).toHaveCount(0)
+  await settings.getByRole('tab', { name: 'Troubleshooting', exact: true }).click()
+  await expect(recovery).toBeVisible()
+  await settings.getByRole('tab', { name: 'Help & About', exact: true }).click()
+  await settings.getByRole('button', { name: 'Copy edition and version' }).click()
+  await expect(settings.getByRole('status')).toContainText('Edition and version copied.')
+  expect(await page.evaluate(() => Reflect.get(window, 'copiedAppInfo'))).toMatch(/^LAAP Basic · v/)
+  await settings.getByText('Third-party notices', { exact: true }).click()
+  await expect(settings.getByText(/are trademarks of Riot Games/)).toBeVisible()
+  await settings.getByRole('button', { name: 'Privacy & Vault', exact: true }).click()
+  await expect(settings.getByText(/Linked profiles can refresh in the background/)).toBeVisible()
+  await settings.getByRole('tab', { name: 'General', exact: true }).click()
+  await expect(startup).toBeChecked()
+})
 
 test('custom-drive settings remain editable while presence setup is automatic', async ({
   page,

@@ -15,7 +15,8 @@ test('browser IPC failure is explicit and offline builds make no external reques
   await expect(page.locator('.brand-lockup-tier')).toContainText('Basic')
   await expect(page.locator('.roster-card')).toHaveCount(0)
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
-  await expect(page.getByText('Saved Riot Logins Encrypted')).toBeVisible()
+  await page.getByRole('tab', { name: 'Privacy & Vault', exact: true }).click()
+  await expect(page.getByText(/Saved Riot session data is encrypted with AES-GCM/)).toBeVisible()
   await expect(
     page.getByRole('button', { name: /Check for Updates/ }),
   ).toHaveCount(0)
@@ -1051,18 +1052,23 @@ for (const view of ['Grid', 'List']) {
         last_used_at: null,
       }))
       const refresh = { hold: false, finish: undefined as (() => void) | undefined }
+      let heldRefresh: Promise<void> | undefined
       Object.assign(window, {
         testRosterRefresh: refresh,
         __TAURI_INTERNALS__: {
           invoke: async (command: string) => {
             if (command !== 'list_local_accounts') return null
             if (refresh.hold) {
-              await new Promise<void>((resolve) => { refresh.finish = resolve })
-              return profiles.map((profile) => profile.id === '39'
-                ? { ...profile, name: 'Profile 39 updated' }
-                : profile)
+              heldRefresh ??= new Promise<void>((resolve) => {
+                refresh.finish = () => {
+                  profiles[39].name = 'Profile 39 updated'
+                  refresh.hold = false
+                  resolve()
+                }
+              })
+              await heldRefresh
             }
-            return profiles
+            return structuredClone(profiles)
           },
         },
       })
@@ -1131,7 +1137,7 @@ test('toolbar shortcut, region filter, and About branding', async ({ page }) => 
   await expect(page.getByLabel('Filter by region')).toBeVisible()
   await page.getByLabel('Filter by region').selectOption('EUW')
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
-  await page.getByRole('tab', { name: 'About', exact: true }).click()
+  await page.getByRole('tab', { name: 'Help & About', exact: true }).click()
   const about = page.getByLabel('About LAAP')
   await expect(about.getByRole('img', { name: 'LAAP' })).toHaveAttribute('src', '/logo.webp')
   await expect(about).not.toContainText('Created by')
@@ -1328,7 +1334,7 @@ test('live match settings save, Check live displays active match state, and pre-
 
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   const settingsDialog = page.getByRole('dialog')
-  await settingsDialog.getByRole('tab', { name: 'Advanced', exact: true }).click()
+  await settingsDialog.getByRole('tab', { name: 'Troubleshooting', exact: true }).click()
   await settingsDialog.getByRole('button', { name: 'Personal Key' }).click()
   await settingsDialog
     .getByLabel(/Riot Personal API Key/)

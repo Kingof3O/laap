@@ -1,5 +1,6 @@
 import { ProfileAvatar } from './ProfileAvatar'
 import { RankCrest } from './RankPicker'
+import { SeasonRecord } from './SeasonRecord'
 import { ContextMenu, type MenuItem } from './ContextMenu'
 import {
   Activity,
@@ -19,14 +20,15 @@ import {
 import { getRankTierClass } from '../../lib/sorting'
 import { formatLiveMatchLabel, formatLiveMinutes } from '../../lib/liveStatus'
 import { formatLastPlayed } from '../../lib/lastPlayed'
-import { getOpggCachedRank } from '../../lib/opgg'
 import type { Game, LiveStatusBadge } from '../../lib/types'
+import type { OpggStats } from '../../lib/opgg'
 
 export interface AccountCardProps {
   id: string
   name: string
   region: string
   rank?: string | null
+  seasonStats?: Pick<OpggStats, 'wins' | 'losses'> | null
   valorantRank?: string | null
   games?: Game[]
   activeGame?: Game
@@ -67,6 +69,7 @@ export function AccountCard({
   name,
   region,
   rank,
+  seasonStats,
   valorantRank,
   games,
   activeGame = 'league',
@@ -106,9 +109,7 @@ export function AccountCard({
   const isStale = !isCloud && (status === 'Session stale' || status.includes('unknown'))
   const needsSignIn = !hasSession || status === 'Sign in required'
   const targetRiotId = riotId ?? (name.includes('#') ? name : null)
-  const cachedRank = getOpggCachedRank(targetRiotId || name, region, activeGame)
-  const baseRank = activeGame === 'valorant' ? valorantRank : rank
-  const displayRank = (baseRank && baseRank !== 'Unranked') ? baseRank : (cachedRank || baseRank)
+  const displayRank = activeGame === 'valorant' ? valorantRank : rank
   const supportedGames = games && games.length > 0 ? games : ['league']
   const regionAlreadyInName = name.toLocaleLowerCase().includes(region.toLocaleLowerCase())
   const lastPlayedLabel = formatLastPlayed(lastUsedText)
@@ -348,6 +349,7 @@ export function AccountCard({
           </span>
         )}
       </div>
+      {seasonStats ? <SeasonRecord wins={seasonStats.wins} losses={seasonStats.losses} /> : null}
       {liveStatus?.checking ? (
         <div className="card-live-row">
           <span className="card-status-pill card-status-idle">Checking live match…</span>

@@ -5,8 +5,10 @@ import {
 } from "./completeContext";
 import { useStudioTheme, ThemeBackground } from "./themeRuntime";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Layers } from "lucide-react";
 import { customizationBootstrap } from "./api";
 import App from "../../App";
+import { InspectorIconButton } from "../../shared/ui/ProfileInspector";
 const StudioWorkspace = lazy(() => import("./StudioWorkspace"));
 const GameAdapterSettingsPanel = lazy(() =>
   import("./GameAdapterSettingsPanel").then((mod) => ({
@@ -73,16 +75,15 @@ export default function CompleteApp() {
         }
         profileActions={(account) =>
           !account.games || account.games.includes('league') ? (
-            <button
-              className="inspector-edit"
-              type="button"
+            <InspectorIconButton
+              label="Customization presets"
               onClick={() => {
                 selectProfile({ id: account.id, name: account.name });
                 setStudio(true);
               }}
             >
-              Customization presets
-            </button>
+              <Layers size={15} />
+            </InspectorIconButton>
           ) : null
         }
         navigation={

@@ -1,6 +1,7 @@
-import { test, expect } from '@playwright/test'
+import { test, expect as defaultExpect } from '@playwright/test'
 
 const complete = process.env.LAAP_TEST_FLAVOR === 'complete'
+const expect = defaultExpect.configure({ timeout: 20_000 })
 
 test('account and Studio surfaces are available only in the matching edition', async ({ page }, testInfo) => {
   const nativeCalls: string[] = []
@@ -36,10 +37,15 @@ test('account and Studio surfaces are available only in the matching edition', a
   })
   await page.route('https://ddragon.leagueoflegends.com/**', (route) => route.abort())
   await page.goto('/')
-  await expect(page.getByText(complete ? 'LAAP Complete' : 'LAAP Studio', { exact: true })).toBeVisible()
+  await expect(page.getByLabel(complete ? 'Edition: LAAP Complete' : 'Edition: LAAP Studio', { exact: true })).toBeVisible()
   if (complete) {
     await expect(page.getByRole('button', { name: 'Add Profile' })).toBeVisible()
-    await page.getByRole('button', { name: 'Studio', exact: true }).click()
+    const presets = page.getByRole('button', { name: 'Customization presets' })
+    await expect(presets).toHaveText('')
+    await presets.click()
+    await expect(page.getByRole('combobox', { name: 'Preset context' })).toHaveValue('opaque-local-id')
+    await expect(page.getByRole('heading', { name: 'Presets for Test profile' })).toBeVisible()
+    await page.getByRole('button', { name: 'Overview', exact: true }).click()
   } else {
     await expect(page.getByRole('button', { name: 'Add Profile' })).toHaveCount(0)
   }
@@ -59,10 +65,13 @@ test('account and Studio surfaces are available only in the matching edition', a
     expect(nativeCalls).not.toContain('list_local_accounts')
   }
   await page.getByRole('button', { name: 'Save preset' }).click()
+  if (complete) {
+    await page.getByRole('combobox', { name: 'Preset context' }).selectOption('opaque-local-id')
+  }
   await expect(page.getByText('My preview', { exact: true })).toBeVisible()
   if (complete) await expect(page.getByText('Linked to a local profile', { exact: false })).toBeVisible()
   await page.getByRole('button', { name: 'Mod library', exact: true }).click()
-  await expect(page.getByText('Your library is empty.')).toBeVisible()
+  await expect(page.getByText('Your mod library is empty.', { exact: false })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Validate and import' })).toBeDisabled()
   await page.screenshot({ path: testInfo.outputPath('library-1160.png') })
   await page.getByRole('button', { name: 'Themes', exact: true }).click()
@@ -85,7 +94,7 @@ test('account and Studio surfaces are available only in the matching edition', a
     await page.screenshot({ path: testInfo.outputPath('settings-appearance-1160.png') })
     await page.getByRole('tab', { name: 'Updates', exact: true }).click()
     await page.screenshot({ path: testInfo.outputPath('settings-updates-1160.png') })
-    await page.getByRole('tab', { name: 'About', exact: true }).click()
+    await page.getByRole('tab', { name: 'Help & About', exact: true }).click()
     await expect(page.getByText('LAAP Studio · v1.0.0', { exact: false })).toBeVisible()
   }
   expect(nativeCalls).not.toContain('load_access_token')

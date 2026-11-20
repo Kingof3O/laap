@@ -2,6 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   getOpggSummonerUrl,
+  getOpggCachedRank,
+  fetchOpggStats,
   valorantTierToRank,
   parseOpggValorantHtml,
 } from '../src/lib/opgg.ts'
@@ -82,23 +84,26 @@ test('parses valorant RSC HTML fixture', () => {
   )
 })
 
-test('autoSyncAccountRank identity check skips on PUUID mismatch', async () => {
-  const { autoSyncAccountRank } = await import('../src/lib/opgg.ts')
-  // When fetchOpggStats returns null or fails (or PUUID mismatch)
-  const result = await autoSyncAccountRank(
-    {
-      id: 'acc-1',
-      name: 'Player',
-      region: 'NA',
-      puuid: 'saved-puuid-1',
-    },
-    'valorant',
-  )
-  assert.equal(result, false)
+test('only Riot IDs with a name and a single nonempty tag are linked', () => {
+  for (const input of ['Player', 'Player# ', '#NA1', 'Player#NA1#extra']) {
+    assert.equal(getOpggSummonerUrl(input, 'NA', null, 'valorant').hasTag, false)
+  }
+  assert.equal(getOpggSummonerUrl(' Player # NA1 ', 'NA', null, 'valorant').hasTag, true)
 })
 
 test('getOpggCachedRank returns null when unranked or no cache', async () => {
-  const { getOpggCachedRank } = await import('../src/lib/opgg.ts')
   assert.equal(getOpggCachedRank('Nonexistent#NA1', 'NA', 'league'), null)
 })
 
+test('League cache isolates matching Riot IDs on different regions', async (t) => {
+  const fetch = t.mock.method(globalThis, 'fetch', async (url: string) => {
+    const rank = url.includes('/euw/') ? 'Gold 2 50 LP' : 'Silver 1 25 LP'
+    return new Response(`<meta name="description" content="Cache Test / ${rank}">`)
+  })
+
+  await fetchOpggStats('Cache Test#QA', 'EUW')
+  await fetchOpggStats('Cache Test#QA', 'NA')
+  assert.match(getOpggCachedRank('Cache Test#QA', 'EUW') ?? '', /Gold II/)
+  assert.match(getOpggCachedRank('Cache Test#QA', 'NA') ?? '', /Silver I/)
+  assert.equal(fetch.mock.callCount(), 2)
+})

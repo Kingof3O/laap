@@ -29,7 +29,7 @@ export function AdvancedSettings({ onResetRiot, busy }: AdvancedSettingsProps) {
   return (
     <div className="settings-section" aria-label="Advanced Settings">
       <div className="settings-section-header">
-        <h3 className="settings-section-title">Advanced Diagnostics & Recovery</h3>
+        <h3 className="settings-section-title">Troubleshooting</h3>
         <p className="settings-section-desc">
           Diagnostic utilities, session recovery tools, and native client maintenance.
         </p>

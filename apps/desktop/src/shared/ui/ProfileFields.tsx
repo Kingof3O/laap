@@ -23,21 +23,20 @@ export function ProfilePreview({
   } catch {
     // outside provider fallback
   }
-  const activeGame = propActiveGame ?? contextGame
-  const isVal = activeGame === 'valorant'
+  const preferredGame = propActiveGame ?? contextGame
   const supportedGames =
-    details.games && details.games.length > 0 ? details.games : [activeGame]
-  const displayRank = isVal
-    ? (details.valorant_rank ?? details.rank)
-    : (details.rank ?? details.valorant_rank)
+    details.games && details.games.length > 0 ? details.games : [preferredGame]
+  const activeGame = supportedGames.includes(preferredGame) ? preferredGame : supportedGames[0]
+  const isVal = activeGame === 'valorant'
+  const displayRank = isVal ? details.valorant_rank : details.rank
 
   return (
     <div className="profile-preview">
       <div className="profile-preview-avatar">
         <ProfileAvatar
           name={details.name}
-          asset={details.customization?.icon_asset}
-          activeGame={isVal ? 'valorant' : 'league'}
+          asset={isVal ? details.customization?.valorant_icon_asset : details.customization?.icon_asset}
+          activeGame={activeGame}
         />
         {details.favorite ? (
           <Star className="preview-favorite" size={14} fill="currentColor" />

@@ -10,6 +10,17 @@ pub struct LocalStore {
     storage: LocalAccountStorage,
 }
 
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpggProfileUpdate {
+    pub riot_id: String,
+    pub region: String,
+    pub game: Game,
+    pub puuid: Option<String>,
+    pub rank: Option<String>,
+    pub avatar_url: Option<String>,
+}
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct ProfileDetails {
     pub name: String,
@@ -365,35 +376,41 @@ impl LocalStore {
         })
     }
 
-    pub fn update_avatar_for(&self, id: &str, avatar_url: &str, game: Game) -> Result<bool, String> {
+    pub fn apply_opgg_profile(&self, id: &str, update: OpggProfileUpdate) -> Result<bool, String> {
         self.update_profile(id, |accounts| {
             let Some(account) = accounts.iter_mut().find(|account| account.id == id) else {
                 return Ok(false);
             };
-            let trimmed = avatar_url.trim();
-            let new_val = if trimmed.is_empty() {
-                None
-            } else {
-                Some(trimmed.to_string())
-            };
-            let changed = match game {
-                Game::League => {
-                    if account.customization.icon_asset != new_val {
-                        account.customization.icon_asset = new_val;
-                        true
-                    } else {
-                        false
-                    }
+            let current_riot_id = account.riot_id_for_lookup();
+            if !account.supports(update.game)
+                || !account.region.trim().eq_ignore_ascii_case(update.region.trim())
+                || current_riot_id.as_deref().map(str::trim) != Some(update.riot_id.trim())
+                || account.puuid.as_deref().zip(update.puuid.as_deref())
+                    .is_some_and(|(saved, returned)| saved.trim() != returned.trim())
+            {
+                return Ok(false);
+            }
+
+            let mut changed = false;
+            let sync_rank = update.game == Game::League || account.customization.auto_sync_valorant_rank;
+            if let Some(rank) = update.rank.as_deref().map(str::trim).filter(|rank| {
+                sync_rank && !rank.is_empty() && !rank.eq_ignore_ascii_case("unranked")
+            }) {
+                if account.rank_for(update.game) != Some(rank) {
+                    account.set_rank(update.game, Some(rank.to_string()));
+                    changed = true;
                 }
-                Game::Valorant => {
-                    if account.customization.valorant_icon_asset != new_val {
-                        account.customization.valorant_icon_asset = new_val;
-                        true
-                    } else {
-                        false
-                    }
+            }
+            if let Some(url) = update.avatar_url.filter(|url| !url.trim().is_empty()) {
+                let asset = match update.game {
+                    Game::League => &mut account.customization.icon_asset,
+                    Game::Valorant => &mut account.customization.valorant_icon_asset,
+                };
+                if asset.as_ref() != Some(&url) {
+                    *asset = Some(url);
+                    changed = true;
                 }
-            };
+            }
             Ok(changed)
         })
     }

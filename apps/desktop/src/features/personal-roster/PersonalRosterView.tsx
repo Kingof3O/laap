@@ -19,7 +19,7 @@ import { useRiotOperations } from '../../context/RiotOperations'
 import { hasTauri, invokeTauri } from '../../lib/api'
 import { formatLiveMinutes, formatLiveMode } from '../../lib/liveStatus'
 import { sortProfiles, type SortOrder } from '../../lib/sorting'
-import { getOpggCachedAvatar, getOpggCachedRank, fetchOpggStats, autoSyncAccountRank } from '../../lib/opgg'
+import { getOpggCachedAvatar, getOpggCachedRank, getOpggCachedStats, getOpggSummonerUrl, autoSyncAccountRank } from '../../lib/opgg'
 import { ProfileSlotPicker, ReplaceActiveProfile } from '../billing/ProfileSlotPicker'
 import type { ProfileSlots } from '../billing/useBilling'
 import type {
@@ -86,6 +86,8 @@ export function PersonalRosterView({
   const gameContext = useGame()
   const activeGame = propActiveGame ?? gameContext.activeGame
   const setActiveGame = onGameChange ?? gameContext.setActiveGame
+  const [launchScope, activeProfileId, launchGame = 'league'] = operations.activeLaunchKey?.split(':') ?? []
+  const activeLaunchId = launchScope === 'local' && launchGame === activeGame ? activeProfileId : null
   const [busy, setBusy] = useState(false)
   const [operationError, setOperationError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -177,44 +179,59 @@ export function PersonalRosterView({
     if (!modalOpen)
       void cancelSandbox().catch((cause) => showError(String(cause)))
   }, [modalOpen, cancelSandbox])
+  const [opggRevision, setOpggRevision] = useState(0)
+  useEffect(() => {
+    const update = () => setOpggRevision((revision) => revision + 1)
+    window.addEventListener('laap:opgg-updated', update)
+    return () => window.removeEventListener('laap:opgg-updated', update)
+  }, [])
+  const gameAccounts = useMemo(
+    () => localAccounts
+      .filter((account) => (account.games ?? ['league']).includes(activeGame))
+      .map((account) => {
+        const rawRank = activeGame === 'valorant' ? account.valorant_rank : account.rank
+        const riotId = account.riot_id || account.name
+        const effectiveRank = rawRank?.trim() && rawRank.trim().toLowerCase() !== 'unranked'
+          ? rawRank
+          : getOpggCachedRank(riotId, account.region, activeGame) ?? rawRank
+        return {
+          ...account,
+          effectiveRank,
+          rank: activeGame === 'league' ? effectiveRank : account.rank,
+          valorant_rank: activeGame === 'valorant' ? effectiveRank : account.valorant_rank,
+        }
+      }),
+    [localAccounts, activeGame, opggRevision],
+  )
   const rankOptions = useMemo(
     () =>
       [
         ...new Map(
-          localAccounts
-            .filter((a) => a.games?.includes(activeGame) ?? true)
+          gameAccounts
             .flatMap((a) => {
-              const r =
-                activeGame === 'valorant' ? (a.valorant_rank ?? a.rank) : a.rank
+              const r = a.effectiveRank
               return r?.trim()
                 ? [[r.trim().toLowerCase(), r.trim()] as const]
                 : []
             }),
         ).values(),
       ].sort((a, b) => a.localeCompare(b)),
-    [localAccounts, activeGame],
+    [gameAccounts],
   )
   useEffect(
     () => onRankOptionsChange(rankOptions),
     [rankOptions, onRankOptionsChange],
   )
   useEffect(() => {
-    const favCount = localAccounts
-      .filter((a) => a.games?.includes(activeGame) ?? true)
-      .filter((a) => Boolean(a.favorite)).length
+    const favCount = gameAccounts.filter((a) => a.favorite).length
     onFavoriteCountChange?.(favCount)
-  }, [localAccounts, activeGame, onFavoriteCountChange])
+  }, [gameAccounts, onFavoriteCountChange])
   const filteredAccounts = useMemo(
     () =>
       sortProfiles(
-        localAccounts.filter((acc) => {
-          if (!(acc.games?.includes(activeGame) ?? true)) return false
+        gameAccounts.filter((acc) => {
           if (favoritesOnly && !acc.favorite) return false
-          const rank =
-            (activeGame === 'valorant'
-              ? (acc.valorant_rank ?? acc.rank)
-              : acc.rank
-            )?.trim().toLowerCase() ?? ''
+          const rank = acc.effectiveRank?.trim().toLowerCase() ?? ''
           return (
             (selectedRegion === 'ALL' ||
               acc.region.toUpperCase() === selectedRegion) &&
@@ -230,17 +247,20 @@ export function PersonalRosterView({
         sortOrder,
         { activeGame },
       ),
-    [localAccounts, activeGame, selectedRegion, selectedRank, searchQuery, sortOrder, favoritesOnly],
+    [gameAccounts, activeGame, selectedRegion, selectedRank, searchQuery, sortOrder, favoritesOnly],
   )
-  const autoSyncedAccountsRef = useRef<Set<string>>(new Set())
+  const autoSyncedAccountsRef = useRef(new Map<string, string>())
   useEffect(() => {
     for (const acc of localAccounts) {
-      if (!acc.games || acc.games.includes(activeGame)) {
-        const targetRiotId = acc.riot_id ?? (acc.name.includes('#') ? acc.name : null)
-        const currentRank = activeGame === 'valorant' ? acc.valorant_rank : acc.rank
-        const syncKey = `${acc.id}:${activeGame}:${currentRank || ''}`
-        if (!autoSyncedAccountsRef.current.has(syncKey)) {
-          autoSyncedAccountsRef.current.add(syncKey)
+      if ((acc.games ?? ['league']).includes(activeGame)) {
+        const targetRiotId = acc.riot_id || acc.name
+        const info = getOpggSummonerUrl(acc.name, acc.region, targetRiotId, activeGame)
+        const syncKey = `${acc.id}:${activeGame}`
+        const syncTarget = JSON.stringify([info.url, acc.region, acc.customization?.auto_sync_valorant_rank])
+        if (!info.hasTag) {
+          autoSyncedAccountsRef.current.delete(syncKey)
+        } else if (autoSyncedAccountsRef.current.get(syncKey) !== syncTarget) {
+          autoSyncedAccountsRef.current.set(syncKey, syncTarget)
           void autoSyncAccountRank(
             {
               id: acc.id,
@@ -406,6 +426,10 @@ export function PersonalRosterView({
     )
     if (!account) {
       showError('That profile no longer exists. Refresh the roster.')
+      return
+    }
+    if (!(account.games ?? ['league']).includes(activeGame)) {
+      showError('That profile is unavailable for the selected game.')
       return
     }
     if (busy || operations.busy || provisioning) {
@@ -596,7 +620,7 @@ export function PersonalRosterView({
               searchActive={Boolean(
                 searchQuery || selectedRegion !== 'ALL' || selectedRank !== 'all' || favoritesOnly,
               )}
-              hasAnyProfiles={localAccounts.length > 0 && !localAccounts.some((a) => a.games?.includes(activeGame) ?? true)}
+              hasAnyProfiles={localAccounts.length > 0 && gameAccounts.length === 0}
               activeGame={activeGame}
               onSwitchGame={(game) => setActiveGame(game)}
               onAction={onOpenAddModal}
@@ -609,27 +633,24 @@ export function PersonalRosterView({
           profileActions={profileActions}
           toolbarSlot={syncWidget}
           items={filteredAccounts.map((acc) => {
-            const rawRank = activeGame === 'valorant' ? (acc.valorant_rank ?? acc.rank) : acc.rank
             const targetRiotId = acc.riot_id ?? (acc.name.includes('#') ? acc.name : null)
-            const cachedRank = getOpggCachedRank(targetRiotId || acc.name, acc.region, activeGame)
-            const effectiveRank = rawRank && rawRank !== 'Unranked' ? rawRank : (cachedRank || rawRank)
             const cachedAvatar = getOpggCachedAvatar(targetRiotId || acc.name, acc.region, activeGame)
+            const seasonStats = getOpggCachedStats(targetRiotId || acc.name, acc.region, activeGame)
 
             return {
               id: acc.id,
               name: acc.name,
               favorite: acc.favorite,
               region: acc.region,
-              rank: effectiveRank,
-              valorantRank: activeGame === 'valorant' ? effectiveRank : acc.valorant_rank,
+              rank: acc.rank,
+              seasonStats,
+              valorantRank: acc.valorant_rank,
               games: acc.games,
               riotId: targetRiotId,
               notes: acc.notes,
               iconAsset:
                 activeGame === 'valorant'
-                  ? acc.customization?.valorant_icon_asset ||
-                    cachedAvatar ||
-                    acc.customization?.icon_asset
+                  ? cachedAvatar || acc.customization?.valorant_icon_asset
                   : acc.customization?.icon_asset || cachedAvatar,
               hasSession: acc.has_session,
               status:
@@ -655,11 +676,7 @@ export function PersonalRosterView({
           busy={blocked}
           launchingId={launchingId}
           launchStatus={operations.tracking ? operations.launchStatus : null}
-          activeLaunchId={
-            operations.activeLaunchKey?.startsWith('local:')
-              ? operations.activeLaunchKey.slice(6).split(':')[0]
-              : null
-          }
+          activeLaunchId={activeLaunchId}
           failedLaunchId={failedLaunchId}
           onLaunch={(id, game) => void handleLaunch(id, game ?? activeGame)}
           onCheckLive={

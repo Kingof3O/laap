@@ -2,19 +2,20 @@
 /* ACCOUNT ROSTER GRID & CARDS                                               */
 /* ========================================================================= */
 .roster-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  --roster-card-basis: 330px;
+  display: flex;
+  flex-wrap: wrap;
   gap: 16px;
   width: 100%;
 }
 
-/* Single or Two Account Layout */
-.roster-grid-single {
-  grid-template-columns: minmax(300px, 440px);
+.roster-workspace:not(.roster-workspace-full) .roster-grid {
+  --roster-card-basis: 310px;
 }
 
-.roster-grid-double {
-  grid-template-columns: repeat(2, minmax(300px, 440px));
+/* Each wrapped row distributes its remaining space among its own cards. */
+.roster-grid > .roster-card {
+  flex: 1 1 min(100%, var(--roster-card-basis));
 }
 
 .roster-card {

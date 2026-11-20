@@ -4,7 +4,7 @@
   border-radius: var(--radius-lg);
   backdrop-filter: blur(12px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .roster-table {
@@ -152,6 +152,7 @@
   font-size: 13px;
   color: #FFFFFF;
   letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
 }
 
 .table-rank-pill {

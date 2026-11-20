@@ -8,9 +8,11 @@ import {
   ShieldCheck,
   Cpu,
   Info,
+  CreditCard,
 } from 'lucide-react'
 
 export type SettingsCategory =
+  | 'license'
   | 'general'
   | 'appearance'
   | 'riot'
@@ -28,14 +30,15 @@ export interface CategoryItem {
 }
 
 export const SETTINGS_CATEGORIES: CategoryItem[] = [
+  { id: 'license', label: 'License & Billing', icon: CreditCard },
   { id: 'general', label: 'General', icon: Sliders },
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'riot', label: 'Riot Client', icon: FolderSearch },
   { id: 'presence', label: 'Presence', icon: Radio },
   { id: 'updates', label: 'Updates', icon: RefreshCw },
-  { id: 'security', label: 'Security & Vault', icon: ShieldCheck },
-  { id: 'advanced', label: 'Advanced', icon: Cpu },
-  { id: 'about', label: 'About', icon: Info },
+  { id: 'security', label: 'Privacy & Vault', icon: ShieldCheck },
+  { id: 'advanced', label: 'Troubleshooting', icon: Cpu },
+  { id: 'about', label: 'Help & About', icon: Info },
 ]
 
 interface SettingsNavRailProps {

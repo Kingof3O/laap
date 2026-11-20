@@ -92,6 +92,7 @@ export interface Sortable {
   name: string
   rank?: string | null
   valorant_rank?: string | null
+  valorantRank?: string | null
   games?: Game[]
   created_at?: string
   last_used_at?: string | null
@@ -133,8 +134,8 @@ export function sortProfiles<T extends Sortable>(
     }
 
     if (order.startsWith('rank-')) {
-      const rankA = activeGame === 'valorant' ? (a.valorant_rank ?? a.rank) : a.rank
-      const rankB = activeGame === 'valorant' ? (b.valorant_rank ?? b.rank) : b.rank
+      const rankA = activeGame === 'valorant' ? (a.valorant_rank ?? a.valorantRank) : a.rank
+      const rankB = activeGame === 'valorant' ? (b.valorant_rank ?? b.valorantRank) : b.rank
       const left = rankScore(rankA, activeGame),
         right = rankScore(rankB, activeGame)
       if (left === null || right === null)

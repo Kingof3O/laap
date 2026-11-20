@@ -33,6 +33,8 @@ export function Header({
   onOpenUpdates,
 }: HeaderProps) {
   const tierName = isPro ? 'Pro' : 'Basic'
+  const editionName = isPro ? 'LAAP Pro' : brandLabel
+  const editionTag = editionName.replace(/^LAAP\s+/, '')
 
   return (
     <header className="header-bar" data-tauri-drag-region>
@@ -57,7 +59,7 @@ export function Header({
         ) : (
           <span
             className={`brand-lockup-inline brand-lockup-segmented brand-edition-tag ${isPro ? 'brand-lockup-pro brand-edition-pro' : 'brand-lockup-basic brand-edition-basic'}`}
-            aria-label={`Edition: LAAP ${tierName}`}
+            aria-label={`Edition: ${editionName}`}
           >
             <img
               src="/logo.webp"
@@ -65,7 +67,7 @@ export function Header({
               className="brand-logo-img brand-lockup-logo"
             />
             <span className="brand-divider" aria-hidden="true" />
-            <span className="brand-tier-label brand-lockup-tier brand-edition-name">{tierName}</span>
+            <span className="brand-tier-label brand-lockup-tier brand-edition-name">{editionTag}</span>
           </span>
         )}
       </div>

@@ -77,6 +77,20 @@ pub struct LocalAccount {
 }
 
 impl LocalAccount {
+    pub fn riot_id_for_lookup(&self) -> Option<String> {
+        self.riot_id
+            .as_ref()
+            .filter(|id| !id.trim().is_empty())
+            .cloned()
+            .or_else(|| {
+                if self.name.contains('#') {
+                    Some(self.name.clone())
+                } else {
+                    crate::riot::session_format::detect_details(&self.session_blob).name
+                }
+            })
+    }
+
     pub fn rank_for(&self, game: Game) -> Option<&str> {
         match game {
             Game::League => self.rank.as_deref(),
@@ -138,26 +152,12 @@ impl LocalAccountSummary {
 
 impl From<&LocalAccount> for LocalAccountSummary {
     fn from(account: &LocalAccount) -> Self {
-        let detected = crate::riot::session_format::detect_details(&account.session_blob);
-        let riot_id = account
-            .riot_id
-            .as_ref()
-            .filter(|r| !r.trim().is_empty())
-            .cloned()
-            .or_else(|| {
-                if account.name.contains('#') {
-                    Some(account.name.clone())
-                } else {
-                    detected.name
-                }
-            });
-
         Self {
             id: account.id.clone(),
             name: account.name.clone(),
             region: account.region.clone(),
             rank: account.rank.clone(),
-            riot_id,
+            riot_id: account.riot_id_for_lookup(),
             notes: account.notes.clone(),
             favorite: account.favorite,
             customization: account.customization.clone(),

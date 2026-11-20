@@ -347,12 +347,6 @@ button.brand-edition-pro:hover .brand-edition-name {
   gap: 8px;
   flex: 1;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.filter-controls::-webkit-scrollbar {
-  display: none;
 }
 
 .search-box {
@@ -381,6 +375,7 @@ button.brand-edition-pro:hover .brand-edition-name {
 
 .search-input {
   flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
   font-size: 13px;

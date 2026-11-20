@@ -1,5 +1,5 @@
 import { RegionSelect } from './RegionSelect'
-import { Crosshair, LayoutGrid, List, Plus, Search, Swords, X, Star } from 'lucide-react'
+import { LayoutGrid, List, Plus, Search, X, Star } from 'lucide-react'
 import type { SortOrder } from '../../lib/sorting'
 import type { Game, Region, ViewMode } from '../../lib/types'
 
@@ -73,6 +73,7 @@ export function SubNavbar({
             onClick={() => handleGameSwitch('league')}
             aria-pressed={activeGame === 'league'}
             aria-label="League of Legends"
+            title="League of Legends"
           >
             <img
               src="/league-of-legends-icon.webp"
@@ -80,7 +81,6 @@ export function SubNavbar({
               className="game-toggle-icon"
               aria-hidden="true"
             />
-            <span>League</span>
           </button>
           <button
             type="button"
@@ -88,6 +88,7 @@ export function SubNavbar({
             onClick={() => handleGameSwitch('valorant')}
             aria-pressed={activeGame === 'valorant'}
             aria-label="VALORANT"
+            title="VALORANT"
           >
             <img
               src="/valorant-icon.webp"
@@ -95,7 +96,6 @@ export function SubNavbar({
               className="game-toggle-icon"
               aria-hidden="true"
             />
-            <span>VALORANT</span>
           </button>
         </div>
 
@@ -137,7 +137,7 @@ export function SubNavbar({
               fill={favoritesOnly ? '#e5ac59' : 'none'}
               color={favoritesOnly ? '#e5ac59' : 'currentColor'}
             />
-            <span>Starred</span>
+            <span className="star-filter-label">Starred</span>
             {typeof favoriteCount === 'number' && favoriteCount > 0 ? (
               <span className="star-filter-count">{favoriteCount}</span>
             ) : null}
@@ -180,16 +180,16 @@ export function SubNavbar({
             value={sortOrder}
             onChange={(e) => onSortChange(e.target.value as SortOrder)}
           >
-            <option value="name-asc">Sort: Name (A-Z)</option>
-            <option value="name-desc">Sort: Name (Z-A)</option>
-            <option value="favorites-first">Sort: Starred first</option>
-            <option value="rank-desc">Sort: Rank (High to Low)</option>
-            <option value="rank-asc">Sort: Rank (Low to High)</option>
-            <option value="region-asc">Sort: Region (A-Z)</option>
-            <option value="region-desc">Sort: Region (Z-A)</option>
-            <option value="last-played">Sort: Recently played</option>
-            <option value="added-desc">Sort: Recently added</option>
-            <option value="added-asc">Sort: Oldest added</option>
+            <option value="name-asc">Name (A-Z)</option>
+            <option value="name-desc">Name (Z-A)</option>
+            <option value="favorites-first">Starred first</option>
+            <option value="rank-desc">Rank (High to Low)</option>
+            <option value="rank-asc">Rank (Low to High)</option>
+            <option value="region-asc">Region (A-Z)</option>
+            <option value="region-desc">Region (Z-A)</option>
+            <option value="last-played">Recently played</option>
+            <option value="added-desc">Recently added</option>
+            <option value="added-asc">Oldest added</option>
           </select>
         ) : null}
 
@@ -248,6 +248,7 @@ export function SubNavbar({
             className="btn-add-primary"
             onClick={onAddAccount}
             aria-label={addButtonLabel || 'Add Profile'}
+            title={addButtonLabel || 'Add Profile'}
           >
             <Plus size={15} />
             <span>{addButtonLabel || 'Add Profile'}</span>

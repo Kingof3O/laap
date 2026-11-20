@@ -1,31 +1,5 @@
 
-/* Shared polish for navigation, settings summary, and the desktop-wide workspace. */
-.settings-security-summary {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 16px;
-  border: 1px solid rgba(119, 216, 189, .18);
-  border-radius: 12px;
-  background: rgba(119, 216, 189, .045);
-}
-.settings-security-summary > svg { flex-shrink: 0; color: #77d8bd; margin-top: 1px; }
-.settings-security-content { display: grid; gap: 5px; min-width: 0; }
-.settings-security-content strong { font-size: 13px; font-weight: 650; color: var(--text-primary); }
-.settings-security-content p { color: var(--text-secondary); font-size: 12px; line-height: 1.55; }
-.settings-version-strip {
-  margin-top: 8px;
-  padding: 14px 2px 0;
-  border-top: 1px solid var(--polish-stroke);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-}
-.settings-version-strip > div { display: grid; gap: 3px; }
-.settings-version-strip strong { font-size: 12px; font-weight: 650; color: var(--text-primary); }
-.settings-version-strip span { font-size: 11px; color: var(--text-muted); }
-.settings-version-strip .settings-version-number { color: var(--accent-light); font-family: var(--font-mono); font-weight: 650; }
+/* Studio workspace navigation. */
 .studio-page-nav {
   display: flex;
   flex-wrap: wrap;

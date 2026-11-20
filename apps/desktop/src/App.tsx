@@ -86,6 +86,7 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
   } | null>(null)
   useTrayActions(
     launcher,
+    activeGame,
     (id) => {
       onShowAccounts?.()
       setTrayRequest({ id, sequence: Date.now() })
@@ -308,12 +309,18 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
         latestRelease={latestRelease}
         autoCheckOnLaunch={autoCheckOnLaunch}
         onToggleAutoCheck={setAutoCheckOnLaunch}
+        onOpenReleaseNotes={openReleasePage}
         onOpenReleaseModal={() => {
           setShowSettingsModal(false)
           setShowUpdateModal(true)
         }}
         currentVersion={currentVersion}
         advancedSettings={advancedSettings}
+        billingStatus={billing.status}
+        onOpenBilling={() => {
+          setShowSettingsModal(false)
+          setShowBilling(true)
+        }}
       />
 
       {/* Update Available Modal */}

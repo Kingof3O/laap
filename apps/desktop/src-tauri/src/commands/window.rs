@@ -48,7 +48,17 @@ pub fn is_allowed_external_url(url: &str) -> bool {
     };
     let is_opgg = host == "op.gg" || host == "www.op.gg" || host.ends_with(".op.gg");
 
-    is_github_repo || is_opgg
+    let is_configured_help_url = [
+        option_env!("VITE_LAAP_SUPPORT_URL"),
+        option_env!("VITE_LAAP_PRIVACY_URL"),
+        option_env!("VITE_LAAP_TERMS_URL"),
+        option_env!("VITE_LAAP_RELEASE_NOTES_URL"),
+    ]
+    .into_iter()
+    .flatten()
+    .any(|allowed| allowed.trim() == url);
+
+    is_github_repo || is_opgg || is_configured_help_url
 }
 
 /// Opens an external URL in the user's default system browser.

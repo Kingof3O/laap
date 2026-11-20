@@ -3,6 +3,7 @@ import { SETTINGS_CATEGORIES, SettingsNavRail, type SettingsCategory } from '../
 import { AppearanceSettings } from '../../shared/ui/settings/AppearanceSettings'
 import { UpdatesSettings } from '../../shared/ui/settings/UpdatesSettings'
 import { AboutSettings } from '../../shared/ui/settings/AboutSettings'
+import { SecuritySettings } from '../../shared/ui/settings/SecuritySettings'
 import { discord } from './api'
 import { ProviderSettings } from './ProviderSettings'
 import { GameAdapterSettingsPanel } from './GameAdapterSettingsPanel'
@@ -10,7 +11,8 @@ import { useI18n } from '../../context/I18nContext'
 import type { useUpdateChecker } from '../../hooks/useUpdateChecker'
 
 type UpdateController = ReturnType<typeof useUpdateChecker>
-const categories = SETTINGS_CATEGORIES.filter((category) => ['general', 'appearance', 'updates', 'advanced', 'about'].includes(category.id))
+const categories = SETTINGS_CATEGORIES.filter((category) => ['general', 'appearance', 'updates', 'security', 'advanced', 'about'].includes(category.id))
+  .map((category) => category.id === 'advanced' ? { ...category, label: 'Integrations' } : category)
 
 export function StudioSettings({ update, onOpenRelease, onClose }: {
   update: UpdateController
@@ -109,7 +111,7 @@ export function StudioSettings({ update, onOpenRelease, onClose }: {
         />}
 
         {active === 'advanced' && <div className="settings-section">
-          <h3>Integrations & Entitlements</h3>
+          <h3>Integrations</h3>
           <p>Configure optional external integrations and native companions.</p>
 
           {/* Discord Rich Presence */}
@@ -130,13 +132,11 @@ export function StudioSettings({ update, onOpenRelease, onClose }: {
           <ProviderSettings />
           <GameAdapterSettingsPanel />
 
-          <div className="customization-card" style={{ marginTop: '1rem', padding: '1rem', borderRadius: '8px' }}>
-            <strong>Commercial Entitlements & Licensing</strong>
-            <p className="customization-source">Edition: Free Core (Basic is free forever). Paid checkout and commercial activation are GATED pending Riot Developer Portal product review and Merchant of Record onboarding.</p>
-          </div>
         </div>}
 
-        {active === 'about' && <AboutSettings currentVersion={update.currentVersion} />}
+        {active === 'security' && <SecuritySettings />}
+        {active === 'about' && <AboutSettings currentVersion={update.currentVersion}
+          onOpenPrivacy={() => setActive('security')} onOpenRelease={update.openReleasePage} />}
       </div>
     </div>
   </section>

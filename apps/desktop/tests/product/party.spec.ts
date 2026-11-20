@@ -3,16 +3,17 @@ import { test, expect } from '@playwright/test'
 import { createCommunityServer } from '../../../community-api/src/party'
 
 test('two Chromium clients can create, join and leave a party with consent', async ({ page, browser, baseURL }) => {
+  const complete = process.env.LAAP_TEST_FLAVOR === 'complete'
   const relay = createCommunityServer({ origins: new Set([new URL(baseURL!).origin]) })
   const context = await browser.newContext()
   try {
-    relay.server.listen(4171, '127.0.0.1')
+    relay.server.listen(complete ? 4172 : 4171, '127.0.0.1')
     await once(relay.server, 'listening')
     const guest = await context.newPage()
     for (const member of [page, guest]) {
       await member.addInitScript(() => localStorage.setItem('laap_auto_check_updates', 'false'))
       await member.goto(baseURL!)
-      if (process.env.LAAP_TEST_FLAVOR === 'complete') {
+      if (complete) {
         await member.getByRole('button', { name: 'Studio', exact: true }).click()
       }
       await member.getByRole('button', { name: 'Party', exact: true }).click()

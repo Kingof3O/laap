@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react'
 import {
   Activity,
   Check,
   Clock3,
   ExternalLink,
   FileText,
-  Globe,
   Link2,
   Loader2,
+  Pencil,
   Play,
   RefreshCw,
   Settings2,
@@ -18,6 +18,7 @@ import {
 import type { RosterItem } from './AccountRosterDisplay'
 import { ProfileAvatar } from './ProfileAvatar'
 import { RankCrest } from './RankPicker'
+import { SeasonRecord } from './SeasonRecord'
 import { useGame } from '../../context/GameContext'
 import type { Game } from '../../lib/types'
 import { formatLiveMatchLabel } from '../../lib/liveStatus'
@@ -25,14 +26,23 @@ import { invokeTauri, isTauriAvailable, openExternalUrl } from '../../lib/api'
 import {
   autoSyncAccountRank,
   fetchOpggStats,
-  getOpggCachedRank,
   getOpggSummonerUrl,
   type OpggStats,
 } from '../../lib/opgg'
 
+export function InspectorIconButton({
+  label,
+  title = label,
+  type = 'button',
+  ...props
+}: Omit<ComponentProps<'button'>, 'className' | 'aria-label'> & { label: string }) {
+  return <button {...props} className="inspector-icon-btn" type={type} aria-label={label} title={title} />
+}
+
 export function ProfileInspector({
   account,
   activeGame: propActiveGame,
+  isCloud = false,
   busy,
   onClose,
   onEdit,
@@ -43,6 +53,7 @@ export function ProfileInspector({
 }: {
   account: RosterItem
   activeGame?: Game
+  isCloud?: boolean
   busy: boolean
   onClose: () => void
   onEdit?: () => void
@@ -59,10 +70,8 @@ export function ProfileInspector({
   }
   const activeGame = propActiveGame ?? contextGame
   const isVal = activeGame === 'valorant'
-  const cachedRank = getOpggCachedRank(account.riotId || account.name, account.region, activeGame)
-  const baseRank = isVal ? account.valorantRank : account.rank
-  // Never display a League rank while the VALORANT tab is active.
-  const displayRank = (baseRank && baseRank !== 'Unranked') ? baseRank : (cachedRank || baseRank)
+  const displayRank = isVal ? account.valorantRank : account.rank
+  const { name, region, riotId } = account
 
   const added =
     account.createdAt && Number.isFinite(Date.parse(account.createdAt))
@@ -80,16 +89,16 @@ export function ProfileInspector({
   const [isEditingRiotId, setIsEditingRiotId] = useState(false)
   const [riotIdInput, setRiotIdInput] = useState('')
   const [savingRiotId, setSavingRiotId] = useState(false)
+  const [riotIdError, setRiotIdError] = useState<string | null>(null)
 
   const opggInfo = useMemo(
-    () => getOpggSummonerUrl(account.name, account.region, account.riotId, activeGame),
-    [account.name, account.region, account.riotId, activeGame],
+    () => getOpggSummonerUrl(name, region, riotId, activeGame),
+    [name, region, riotId, activeGame],
   )
 
   const loadStats = useCallback(
     async (forceRefresh = false) => {
-      // If no # tag and no linked riot ID, don't query a dummy nonexistent summoner
-      if (!opggInfo.hasTag && !account.riotId) {
+      if (!opggInfo.hasTag) {
         setStats(null)
         setStatsError(null)
         setStatsLoading(false)
@@ -100,9 +109,9 @@ export function ProfileInspector({
       setStatsError(null)
       try {
         const res = await fetchOpggStats(
-          account.name,
-          account.region,
-          account.riotId,
+          name,
+          region,
+          riotId,
           forceRefresh,
           activeGame,
         )
@@ -110,15 +119,7 @@ export function ProfileInspector({
         if (res?.avatarUrl) {
           window.dispatchEvent(new Event('laap:icons-updated'))
         }
-        const resRank =
-          res?.formattedRank || (res as { formatted_rank?: string } | null)?.formatted_rank
-        if (
-          resRank &&
-          resRank !== 'Unranked' &&
-          resRank !== displayRank
-        ) {
-          void autoSyncAccountRank(account, activeGame)
-        }
+        return res
       } catch (err: unknown) {
         setStats(null)
         setStatsError(err instanceof Error ? err.message : String(err))
@@ -126,352 +127,236 @@ export function ProfileInspector({
         setStatsLoading(false)
       }
     },
-    [account, opggInfo.hasTag, activeGame, displayRank],
+    [name, region, riotId, opggInfo.hasTag, activeGame],
   )
 
   useEffect(() => {
     setIsEditingRiotId(false)
     setRiotIdInput(account.riotId || (account.name.includes('#') ? account.name : ''))
     void loadStats(false)
-  }, [account.id, account.name, account.region, account.riotId, loadStats])
+  }, [name, riotId, loadStats])
+  const opggRank = isVal ? stats?.formattedRank : undefined
+  const rank = displayRank || opggRank || 'Unranked'
+  const showOpggRank = Boolean(opggRank && opggRank !== rank)
+  const level = stats?.level
+  const sessionStatus = account.status || (account.hasSession ? 'Login saved' : 'Sign in required')
+  const canCheckLive = !isVal && Boolean(onCheckLive)
+  const riotTag = opggInfo.hasTag ? `${opggInfo.summonerName}#${opggInfo.tagLine}` : null
+  const startRiotIdEdit = () => {
+    setRiotIdInput(riotTag ?? '')
+    setRiotIdError(null)
+    setIsEditingRiotId(true)
+  }
+
   return (
-    <aside
-      id="profile-inspector"
-      className="profile-inspector"
-      aria-label="Selected profile details"
-    >
-      <div className="inspector-top">
-        <div>
-          <span className="inspector-eyebrow">SELECTED ACCOUNT</span>
-          <h2>Account details</h2>
+    <aside id="profile-inspector" className="profile-inspector" aria-label="Selected profile details">
+      <header className="inspector-top">
+        <h2>Account details</h2>
+        <div className="inspector-icon-group">
+          {actions}
+          {onEdit ? (
+            <InspectorIconButton label="Manage profile" onClick={onEdit} disabled={busy}>
+              <Settings2 size={15} />
+            </InspectorIconButton>
+          ) : null}
+          <InspectorIconButton label="Hide account details" onClick={onClose}>
+            <X size={17} />
+          </InspectorIconButton>
         </div>
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={onClose}
-          aria-label="Hide account details"
-        >
-          <X size={18} />
-        </button>
-      </div>
+      </header>
+
       <div className="inspector-profile">
         <div className="inspector-avatar">
           <ProfileAvatar
-            name={account.name}
+            name={name}
             asset={stats?.avatarUrl || account.iconAsset}
             activeGame={activeGame}
             avatarUrl={stats?.avatarUrl}
-            riotId={account.riotId}
-            region={account.region}
+            riotId={riotId}
+            region={region}
           />
         </div>
         <div className="inspector-identity-copy">
-          <strong title={account.name}>{account.name}</strong>
-          <span className="inspector-subtitle">
-            <span className="inspector-region-pill">{account.region}</span>
-            {isVal && (
-              <span className="game-badge game-badge-valo">
-                <img src="/valorant-icon.webp" alt="" className="game-badge-icon" aria-hidden="true" />
-                VALO
-              </span>
-            )}
-            {!isVal && (
-              <span className="game-badge game-badge-league">
-                <img src="/league-of-legends-icon.webp" alt="" className="game-badge-icon" aria-hidden="true" />
-                LEAGUE
-              </span>
-            )}
-            {displayRank ? (
-              <span className="inspector-rank-inline">
-                <RankCrest rank={displayRank} game={isVal ? 'valorant' : 'league'} />
-                {displayRank}
-              </span>
-            ) : (
-              <span>Unranked</span>
-            )}
-          </span>
+          <strong title={name}>{name}</strong>
+          <div className="inspector-subtitle">
+            <span className="inspector-region-pill">{region}</span>
+            <span className={`game-badge ${isVal ? 'game-badge-valo' : 'game-badge-league'}`}>
+              <img src={isVal ? '/valorant-icon.webp' : '/league-of-legends-icon.webp'} alt="" className="game-badge-icon" />
+              {isVal ? 'VALORANT' : 'League'}
+            </span>
+          </div>
         </div>
       </div>
-      <dl className="inspector-details">
+
+      <div className="inspector-rank">
+        <div className="inspector-crest"><RankCrest rank={rank} game={activeGame} /></div>
         <div>
-          <dt>
-            <ShieldCheck size={15} /> Session
-          </dt>
-          <dd>
-            {account.status ||
-              (account.hasSession ? 'Login saved' : 'Sign in required')}
-          </dd>
+          <span className="inspector-meta-label">Rank</span>
+          <strong>{rank}</strong>
         </div>
-        <div>
-          <dt>
-            <Clock3 size={15} /> Last played
-          </dt>
-          <dd>{account.lastUsedText || 'Never played'}</dd>
-        </div>
-        {added ? (
-          <div>
-            <dt>
-              <Clock3 size={15} /> Profile added
-            </dt>
-            <dd>{added}</dd>
+      </div>
+
+      <div className="inspector-session">
+        {(onLaunch && sessionReady) || canCheckLive ? (
+          <div className="inspector-session-actions">
+            {onLaunch && sessionReady ? (
+              <button className="btn-modal-primary inspector-launch-btn" type="button" onClick={onLaunch}
+                disabled={busy} aria-label={`Launch ${name}`}>
+                <Play size={14} fill="currentColor" aria-hidden="true" />
+                {launchLabel === 'Switch' ? 'Switch account' : 'Launch session'}
+              </button>
+            ) : null}
+            {canCheckLive ? (
+              <InspectorIconButton
+                label={`Check live match status for ${name}`}
+                title="Check live match"
+                onClick={onCheckLive}
+                disabled={busy || account.liveStatus?.checking}
+              >
+                {account.liveStatus?.checking ? <Loader2 size={16} className="animate-spin" /> : <Activity size={16} />}
+              </InspectorIconButton>
+            ) : null}
           </div>
         ) : null}
-        {!isVal && (onCheckLive || account.liveStatus) ? (
-          <div>
-            <dt>
-              <Activity size={15} /> Live match
-            </dt>
-            <dd
-              className={
-                account.liveStatus?.inGame
-                  ? 'inspector-live-in-game'
-                  : account.liveStatus && !account.liveStatus.checking
-                    ? 'inspector-live-idle'
-                    : undefined
-              }
-            >
-              {formatLiveMatchLabel(account.liveStatus)}
-            </dd>
-          </div>
-        ) : null}
-      </dl>
-      <div className="inspector-season-stats">
-        <div className="inspector-stats-header">
-          <span className="inspector-label">
-            <Trophy size={14} /> Season Stats
-          </span>
-          <div className="inspector-stats-header-actions">
-            <button
-              type="button"
-              className="btn-stats-refresh"
-              onClick={() => void loadStats(true)}
-              disabled={statsLoading || (!opggInfo.hasTag && !account.riotId)}
+        <div className={`inspector-session-status${sessionReady ? ' inspector-session-ready' : ''}`}>
+          <ShieldCheck size={14} aria-hidden="true" />
+          <span><span className="visually-hidden">Session </span>{sessionStatus}</span>
+        </div>
+      </div>
+
+      <section className="inspector-section" aria-label="Season stats">
+        <div className="inspector-section-heading">
+          <h3><Trophy size={14} aria-hidden="true" /> Season stats</h3>
+          <div className="inspector-icon-group">
+            <InspectorIconButton
+              label="Refresh season stats"
               title="Refresh season stats from OP.GG"
-              aria-label="Refresh season stats"
+              onClick={async () => {
+                const result = await loadStats(true)
+                if (result && !isCloud) await autoSyncAccountRank(account, activeGame)
+              }}
+              disabled={statsLoading || !opggInfo.hasTag}
             >
-              <RefreshCw size={12} className={statsLoading ? 'animate-spin' : ''} />
-            </button>
-            <button
-              type="button"
-              className="btn-opgg-view"
+              <RefreshCw size={14} className={statsLoading ? 'animate-spin' : ''} />
+            </InspectorIconButton>
+            <InspectorIconButton
+              label="View on OP.GG"
+              title={riotTag ? `Open ${riotTag} on OP.GG` : 'Link a Riot ID to view OP.GG'}
               onClick={() => void openExternalUrl(opggInfo.url)}
-              aria-label={`View on OP.GG`}
-              title={
-                opggInfo.hasTag || account.riotId
-                  ? `Open ${opggInfo.summonerName}#${opggInfo.tagLine} on OP.GG`
-                  : 'Link a Riot ID to view OP.GG'
-              }
-              disabled={!opggInfo.hasTag && !account.riotId}
+              disabled={!opggInfo.hasTag}
             >
-              <Globe size={12} />
-              <span>View on OP.GG</span>
-              <ExternalLink size={10} />
-            </button>
+              <ExternalLink size={14} />
+            </InspectorIconButton>
           </div>
         </div>
         <div className="inspector-stats-card">
-          {isEditingRiotId ? (
-            <form
-              className="inspector-riot-id-form"
-              onSubmit={async (e) => {
-                e.preventDefault()
-                const trimmed = riotIdInput.trim()
-                if (!trimmed) return
-                setSavingRiotId(true)
-                try {
-                  if (isTauriAvailable()) {
-                    await invokeTauri('update_account_riot_id', {
-                      id: account.id,
-                      riotId: trimmed,
-                    })
-                  }
-                  setIsEditingRiotId(false)
-                  window.dispatchEvent(new Event('laap:refresh'))
-                  void loadStats(true)
-                } catch {
-                  // Fall through
-                } finally {
-                  setSavingRiotId(false)
-                }
-              }}
-            >
-              <input
-                type="text"
-                className="hextech-input hextech-input-sm"
-                placeholder="Riot ID (e.g. Kingof3O#EUW)"
-                value={riotIdInput}
-                onChange={(e) => setRiotIdInput(e.target.value)}
-                autoFocus
-                disabled={savingRiotId}
-              />
-              <div className="inspector-riot-id-form-actions">
-                <button
-                  type="submit"
-                  className="btn-riot-id-save"
-                  disabled={savingRiotId || !riotIdInput.trim()}
-                  title="Save Riot ID"
-                >
-                  {savingRiotId ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : (
-                    <Check size={12} />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  className="btn-riot-id-cancel"
-                  onClick={() => setIsEditingRiotId(false)}
-                  disabled={savingRiotId}
-                  title="Cancel"
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            </form>
-          ) : !opggInfo.hasTag && !account.riotId ? (
-            <div className="inspector-unlinked-box">
-              <span className="inspector-unlinked-label">
-                No Riot ID linked
-              </span>
-              <button
-                type="button"
-                className="btn-link-riot-id"
-                onClick={() => {
-                  setRiotIdInput('')
-                  setIsEditingRiotId(true)
-                }}
-              >
-                <Link2 size={12} />
-                <span>Link Riot ID</span>
-              </button>
-            </div>
-          ) : statsLoading ? (
-            <div className="inspector-stats-loading-box" aria-label="Loading OP.GG statistics">
-              <div className="inspector-stats-loading-indicator">
-                <Loader2 size={14} className="animate-spin text-accent" />
-                <span className="stats-pulse">Fetching {isVal ? 'VALORANT' : 'League'} stats…</span>
-              </div>
-              <div className="inspector-stats-skeleton">
-                <div className="skeleton-bar skeleton-bar-wide shimmer-load" />
-                <div className="skeleton-bar skeleton-bar-narrow shimmer-load" />
-              </div>
-            </div>
+          {statsLoading ? (
+            <p className="inspector-stat-message" role="status">
+              <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+              Fetching {isVal ? 'VALORANT' : 'League'} stats…
+            </p>
           ) : stats ? (
-            <div className="inspector-stats-content">
-              <div className="inspector-stats-row">
-                <span className="inspector-winrate-label">
-                  {isVal ? 'VALORANT Rank:' : 'Win Rate:'}
-                </span>
-                <strong className="inspector-winrate-value">
-                  {isVal
-                    ? stats.formattedRank || 'Unranked'
-                    : stats.formattedWinRate ||
-                      `${stats.wins}W - ${stats.losses}L (${stats.winRate}%)`}
-                </strong>
-                {isVal && typeof stats.level === 'number' && (
-                  <span className="game-badge game-badge-valo" style={{ marginLeft: 8 }}>
-                    Level {stats.level}
-                  </span>
-                )}
+            isVal ? (
+              <dl className="inspector-season-metrics">
+                {showOpggRank ? (
+                  <div><dt>OP.GG rank</dt><dd>{opggRank}</dd></div>
+                ) : null}
+                {typeof level === 'number' ? (
+                  <div><dt>Account level</dt><dd>{level}</dd></div>
+                ) : !showOpggRank ? (
+                  <div><dt>Competitive rank</dt><dd>{rank}</dd></div>
+                ) : null}
+              </dl>
+            ) : (
+              <SeasonRecord
+                wins={stats.wins}
+                losses={stats.losses}
+                fallback={<p className="inspector-stat-message">{stats.formattedWinRate || 'No ranked games'}</p>}
+              />
+            )
+          ) : riotTag && !isEditingRiotId ? (
+            <p className="inspector-stat-message" role="status">
+              {statsError?.toLowerCase().includes('not found') ? 'Not found on OP.GG' : 'Season stats unavailable'}
+            </p>
+          ) : null}
+          {isEditingRiotId ? (
+            <form className="inspector-riot-id-form" onSubmit={async (event) => {
+              event.preventDefault()
+              const trimmed = riotIdInput.trim()
+              if (!trimmed || !getOpggSummonerUrl(name, region, trimmed, activeGame).hasTag) return
+              setSavingRiotId(true)
+              setRiotIdError(null)
+              try {
+                if (isTauriAvailable()) {
+                  await invokeTauri('update_account_riot_id', { id: account.id, riotId: trimmed })
+                }
+                setIsEditingRiotId(false)
+                window.dispatchEvent(new Event('laap:refresh'))
+              } catch (err) {
+                setRiotIdError(err instanceof Error ? err.message : String(err))
+              } finally {
+                setSavingRiotId(false)
+              }
+            }}>
+              <div className="inspector-riot-id-input">
+                <input
+                  type="text"
+                  className="hextech-input"
+                  aria-label="Riot ID"
+                  placeholder="Name#Tag"
+                  value={riotIdInput}
+                  onChange={(event) => setRiotIdInput(event.target.value)}
+                  autoFocus
+                  disabled={savingRiotId}
+                />
+                <InspectorIconButton label="Save Riot ID" type="submit"
+                  disabled={savingRiotId || !riotIdInput.trim() || !getOpggSummonerUrl(name, region, riotIdInput, activeGame).hasTag}>
+                  {savingRiotId ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                </InspectorIconButton>
+                <InspectorIconButton label="Cancel Riot ID edit" onClick={() => setIsEditingRiotId(false)} disabled={savingRiotId}>
+                  <X size={14} />
+                </InspectorIconButton>
               </div>
-              <div className="inspector-stats-riot-id-row">
-                <span className="inspector-stats-riot-tag">
-                  {opggInfo.summonerName}#{opggInfo.tagLine}
-                </span>
-                <button
-                  type="button"
-                  className="btn-riot-id-edit"
-                  onClick={() => {
-                    setRiotIdInput(
-                      account.riotId ||
-                        (account.name.includes('#') ? account.name : ''),
-                    )
-                    setIsEditingRiotId(true)
-                  }}
-                  title="Change linked Riot ID"
-                >
-                  Edit
-                </button>
-              </div>
-            </div>
+              {riotIdError ? <p className="inspector-stat-error" role="alert">{riotIdError}</p> : null}
+            </form>
           ) : (
-            <div className="inspector-stats-error-box">
-              <span className="inspector-winrate-label">Win Rate:</span>
-              <span className="inspector-stats-notfound">
-                {statsError?.toLowerCase().includes('not found')
-                  ? 'Not found on OP.GG'
-                  : 'Unavailable'}
-              </span>
-              <button
-                type="button"
-                className="btn-riot-id-edit-subtle"
-                onClick={() => {
-                  setRiotIdInput(
-                    account.riotId ||
-                      (account.name.includes('#') ? account.name : ''),
-                  )
-                  setIsEditingRiotId(true)
-                }}
-              >
-                Check Riot ID
-              </button>
+            <div className="inspector-riot-id">
+              <span title={riotTag ?? undefined}>{riotTag ?? 'No Riot ID linked'}</span>
+              <InspectorIconButton label={riotTag ? 'Change linked Riot ID' : 'Link Riot ID'} onClick={startRiotIdEdit}>
+                {riotTag ? <Pencil size={14} /> : <Link2 size={15} />}
+              </InspectorIconButton>
             </div>
           )}
         </div>
-      </div>
-      {account.notes !== undefined ? (
-        <div className="inspector-notes">
-          <span className="inspector-label">
-            <FileText size={14} /> Notes
-          </span>
-          <p>{account.notes || 'No notes added.'}</p>
+      </section>
+
+      <section className="inspector-section" aria-label="Activity">
+        <div className="inspector-section-heading">
+          <h3><Clock3 size={14} aria-hidden="true" /> Activity</h3>
         </div>
+        <dl className="inspector-details">
+          {!isVal && (canCheckLive || account.liveStatus) ? (
+            <div>
+              <dt>Live match</dt>
+              <dd className={account.liveStatus?.inGame ? 'inspector-live-in-game' :
+                account.liveStatus && !account.liveStatus.checking ? 'inspector-live-idle' : undefined}
+                aria-live="polite">
+                {formatLiveMatchLabel(account.liveStatus)}
+              </dd>
+            </div>
+          ) : null}
+          <div><dt>Last played</dt><dd>{account.lastUsedText || 'Never played'}</dd></div>
+          {added ? <div><dt>Profile added</dt><dd>{added}</dd></div> : null}
+        </dl>
+      </section>
+      {account.notes !== undefined ? (
+        <section className="inspector-section inspector-notes" aria-label="Notes">
+          <div className="inspector-section-heading">
+            <h3><FileText size={14} aria-hidden="true" /> Notes</h3>
+          </div>
+          <p>{account.notes || 'No notes added.'}</p>
+        </section>
       ) : null}
-      <div className="inspector-actions">
-        {onLaunch && sessionReady ? (
-          <button
-            className="btn-modal-primary inspector-launch-btn"
-            type="button"
-            onClick={onLaunch}
-            disabled={busy}
-            aria-label={`Launch ${account.name}`}
-          >
-            <Play size={13} fill="currentColor" />
-            <span>
-              {launchLabel === 'Switch' ? 'Switch account' : 'Launch session'}
-            </span>
-          </button>
-        ) : null}
-        {!isVal && onCheckLive ? (
-          <button
-            className="btn-live-check"
-            type="button"
-            onClick={onCheckLive}
-            disabled={busy || account.liveStatus?.checking}
-            aria-label={`Check live match status for ${account.name}`}
-          >
-            {account.liveStatus?.checking ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <Activity size={13} />
-            )}
-            <span>
-              {account.liveStatus?.checking ? 'Checking…' : 'Check live'}
-            </span>
-          </button>
-        ) : null}
-        {onEdit ? (
-          <button
-            className="inspector-edit"
-            type="button"
-            onClick={onEdit}
-            disabled={busy}
-          >
-            <Settings2 size={15} /> Manage profile <span aria-hidden="true">↗</span>
-          </button>
-        ) : null}
-      </div>
-      {actions}
     </aside>
   )
 }

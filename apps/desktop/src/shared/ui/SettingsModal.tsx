@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from 'react'
 import type { LauncherController } from '../../hooks/useLauncher'
 import { LauncherSettingsPanel } from './LauncherSettingsPanel'
-import { product } from '../../product/flavors'
+import { flavor, product } from '../../product/flavors'
 import { useDialog } from '../hooks/useDialog'
-import { RotateCcw, ShieldCheck, X } from 'lucide-react'
+import { X } from 'lucide-react'
+import type { BillingStatus } from '../../features/billing/useBilling'
 import {
   APP_VERSION,
   type GitHubReleaseInfo,
@@ -12,6 +13,7 @@ import {
 } from '../../hooks/useUpdateChecker'
 import {
   SettingsNavRail,
+  SETTINGS_CATEGORIES,
   type SettingsCategory,
 } from './settings/SettingsNavRail'
 import { UpdatesSettings } from './settings/UpdatesSettings'
@@ -19,6 +21,12 @@ import { SecuritySettings } from './settings/SecuritySettings'
 import { AppearanceSettings } from './settings/AppearanceSettings'
 import { AdvancedSettings } from './settings/AdvancedSettings'
 import { AboutSettings } from './settings/AboutSettings'
+import { GeneralSettings } from './settings/GeneralSettings'
+import { LicenseSettings } from './settings/LicenseSettings'
+
+const categories = flavor === 'basic'
+  ? SETTINGS_CATEGORIES
+  : SETTINGS_CATEGORIES.filter(({ id }) => id !== 'license')
 
 export interface SettingsModalProps {
   isOpen: boolean
@@ -38,8 +46,11 @@ export interface SettingsModalProps {
   autoCheckOnLaunch?: boolean
   onToggleAutoCheck?: (enabled: boolean) => void
   onOpenReleaseModal?: () => void
+  onOpenReleaseNotes?: () => void
   currentVersion?: string
   advancedSettings?: ReactNode
+  billingStatus?: BillingStatus | null
+  onOpenBilling?: () => void
 }
 
 export function SettingsModal({
@@ -60,11 +71,15 @@ export function SettingsModal({
   autoCheckOnLaunch = true,
   onToggleAutoCheck,
   onOpenReleaseModal,
+  onOpenReleaseNotes,
   currentVersion = APP_VERSION,
   advancedSettings,
+  billingStatus,
+  onOpenBilling,
 }: SettingsModalProps) {
   const dialogRef = useDialog(isOpen, onClose, busy)
-  const [activeCategory, setActiveCategory] = useState<SettingsCategory>('general')
+  const [activeCategory, setActiveCategory] = useState<SettingsCategory>(categories[0].id)
+  const edition = billingStatus?.pro ? 'Pro' : product.name.replace(/^LAAP /, '')
 
   if (!isOpen) return null
 
@@ -81,10 +96,10 @@ export function SettingsModal({
         <div className="modal-head">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <h2 className="modal-title">Settings</h2>
-            <span className="brand-lockup-inline brand-lockup-segmented brand-edition-tag brand-edition-basic">
+            <span className={`brand-lockup-inline brand-lockup-segmented brand-edition-tag ${billingStatus?.pro ? 'brand-edition-pro' : 'brand-edition-basic'}`}>
               <img src="/logo.webp" alt="LAAP" className="brand-logo-img brand-lockup-logo" style={{ height: '18px', width: 'auto' }} />
               <span className="brand-divider" aria-hidden="true" />
-              <span className="brand-tier-label brand-lockup-tier brand-edition-name">Basic</span>
+              <span className="brand-tier-label brand-lockup-tier brand-edition-name">{edition}</span>
             </span>
           </div>
           <button
@@ -103,54 +118,17 @@ export function SettingsModal({
             activeCategory={activeCategory}
             onSelectCategory={setActiveCategory}
             hasUpdate={updateAvailable}
+            categories={categories}
           />
 
           {/* Right Content Pane */}
           <div className="settings-content-pane settings-body">
+            {activeCategory === 'license' && (
+              <LicenseSettings status={billingStatus} busy={busy} onOpenBilling={onOpenBilling} />
+            )}
+
             {activeCategory === 'general' && (
-              <div className="settings-section">
-                <div className="settings-section-header"><h3 className="settings-section-title">General</h3><p className="settings-section-desc">Manage your local session and account.</p></div>
-
-                {/* Local data status: keep meaning explicit, avoid a hard-coded bright alert box. */}
-                <div className="settings-security-summary">
-                  <ShieldCheck size={21} aria-hidden="true" />
-                  <div className="settings-security-content">
-                    <strong>Saved Riot Logins Encrypted</strong>
-                    <p>Saved Riot sessions use AES-GCM. Profile names and notes remain readable local data.</p>
-                  </div>
-                </div>
-
-                {/* Quick Actions */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <button
-                    type="button"
-                    className="btn-modal-secondary"
-                    onClick={() => void onResetRiot()}
-                    disabled={busy}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      height: '36px',
-                    }}
-                  >
-                    <RotateCcw size={13} />
-                    <span>Clean Active Riot Session & Reset</span>
-                  </button>
-
-
-                </div>
-
-                {/* Lightweight version information, not another full card. */}
-                <div className="settings-version-strip">
-                  <div>
-                    <strong>LAAP Desktop</strong>
-                    <span>Account launcher</span>
-                  </div>
-                  <span className="settings-version-number">v{currentVersion}</span>
-                </div>
-              </div>
+              <GeneralSettings windows={Boolean(launcher?.view?.windows)} busy={busy} />
             )}
 
             {activeCategory === 'appearance' && (
@@ -166,23 +144,6 @@ export function SettingsModal({
                     Launcher controller is currently unavailable.
                   </p>
                 )}
-                <button
-                  type="button"
-                  className="btn-modal-secondary"
-                  onClick={() => void onResetRiot()}
-                  disabled={busy}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    height: '36px',
-                    width: '100%',
-                  }}
-                >
-                  <RotateCcw size={13} />
-                  <span>Clean Active Riot Session & Reset</span>
-                </button>
               </div>
             )}
 
@@ -220,7 +181,7 @@ export function SettingsModal({
             )}
 
             {activeCategory === 'security' && (
-              <SecuritySettings busy={busy} />
+              <SecuritySettings />
             )}
 
             {activeCategory === 'advanced' && (
@@ -231,7 +192,8 @@ export function SettingsModal({
             )}
 
             {activeCategory === 'about' && (
-              <AboutSettings currentVersion={currentVersion} />
+              <AboutSettings edition={`LAAP ${edition}`} currentVersion={currentVersion}
+                onOpenPrivacy={() => setActiveCategory('security')} onOpenRelease={onOpenReleaseNotes} />
             )}
           </div>
         </div>

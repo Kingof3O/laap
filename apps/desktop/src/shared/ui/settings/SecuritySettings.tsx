@@ -1,89 +1,33 @@
-import { ShieldCheck, Lock, Database, FileCheck } from 'lucide-react'
+import { Database, Globe, ShieldCheck } from 'lucide-react'
+import { flavor, product } from '../../../product/flavors'
 
-interface SecuritySettingsProps {
-  busy?: boolean
-}
-
-export function SecuritySettings({ busy = false }: SecuritySettingsProps) {
+export function SecuritySettings() {
   return (
-    <div className="settings-section" aria-label="Security and Vault Settings">
+    <div className="settings-section" aria-label="Privacy and vault settings">
       <div className="settings-section-header">
-        <h3 className="settings-section-title">Security & Local Vault</h3>
-        <p className="settings-section-desc">
-          Cryptographic storage, process sandboxing, and data privacy guarantees.
-        </p>
+        <h3 className="settings-section-title">Privacy &amp; Vault</h3>
+        <p className="settings-section-desc">See what LAAP stores on this computer and when it connects online.</p>
       </div>
-
-      {/* Security Status Card */}
-      <div
-        style={{
-          padding: '14px',
-          background: 'rgba(52, 184, 153, 0.08)',
-          borderRadius: '8px',
-          border: '1px solid rgba(52, 184, 153, 0.25)',
-          display: 'flex',
-          gap: '12px',
-          alignItems: 'center',
-        }}
-      >
-        <ShieldCheck
-          size={24}
-          style={{ color: 'var(--status-ready)', flexShrink: 0 }}
-        />
-        <div>
-          <div style={{ fontSize: '14px', fontWeight: 600, color: '#FFFFFF' }}>
-            {'Saved Riot Logins Encrypted'}
-          </div>
-          <div
-            style={{
-              fontSize: '12px',
-              color: 'var(--text-secondary)',
-              marginTop: '2px',
-            }}
-          >
-            {'Saved Riot sessions use AES-GCM. Profile names and notes are stored as readable local data.'}
-          </div>
+      {product.accounts ? (
+        <div className="settings-card settings-info-card">
+          <div className="settings-card-heading"><ShieldCheck size={17} aria-hidden="true" /><h4>Saved Riot logins</h4></div>
+          <p>Saved Riot session data is encrypted with AES-GCM. Profile names and notes are readable local data.</p>
         </div>
-      </div>
-
-      {/* Technical Specifications */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '12px',
-          marginTop: '12px',
-        }}
-      >
-        <div className="settings-card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent-400)', marginBottom: '6px' }}>
-            <Lock size={15} />
-            <strong style={{ fontSize: '12px' }}>Encryption Standard</strong>
-          </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            AES-256-GCM authenticated cipher with device-bound machine entropy and non-repeating initialization vectors.
-          </div>
+      ) : null}
+      {product.studio ? (
+        <div className="settings-card settings-info-card">
+          <div className="settings-card-heading"><Database size={17} aria-hidden="true" /><h4>Studio data</h4></div>
+          <p>Presets and creator files are stored locally. Community and client integrations have separate controls.</p>
         </div>
-
-        <div className="settings-card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent-400)', marginBottom: '6px' }}>
-            <Database size={15} />
-            <strong style={{ fontSize: '12px' }}>Zero Plaintext Storage</strong>
-          </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            Riot session tokens, cookies, and credentials are encrypted prior to hitting the physical disk.
-          </div>
-        </div>
-
-        <div className="settings-card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-accent-400)', marginBottom: '6px' }}>
-            <FileCheck size={15} />
-            <strong style={{ fontSize: '12px' }}>Network Isolation</strong>
-          </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            {'Offline Edition webview is strictly restricted with connect-src \'none\' CSP. Host network calls are manual and direct only.'}
-          </div>
-        </div>
+      ) : null}
+      <div className="settings-card settings-info-card">
+        <div className="settings-card-heading"><Globe size={17} aria-hidden="true" /><h4>Online services</h4></div>
+        <ul className="settings-service-list">
+          {product.accounts ? <li><strong>OP.GG</strong> uses the profile’s Riot ID and region where applicable to retrieve public stats. Linked profiles can refresh in the background.</li> : null}
+          {flavor === 'basic' ? <li><strong>Billing</strong> connects online for sign-in, payments, and license verification. An active offline license is valid for the period shown under License &amp; Billing.</li> : null}
+          <li><strong>Updates</strong> connect online to check for and download updates. You can change the automatic check preference under Updates.</li>
+          {product.studio ? <li><strong>Studio integrations</strong> connect to community services or enabled providers when used.</li> : null}
+        </ul>
       </div>
     </div>
   )

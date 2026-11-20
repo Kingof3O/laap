@@ -215,7 +215,7 @@ export function AccountListTable({
             const isLeased = isCloud && item.status === 'Leased'
             const isSelected = selectedId === item.id
             const itemGames = item.games && item.games.length > 0 ? item.games : ['league']
-            const displayRank = activeGame === 'valorant' ? (item.valorant_rank ?? item.valorantRank ?? item.rank) : item.rank
+            const displayRank = activeGame === 'valorant' ? (item.valorant_rank ?? item.valorantRank) : item.rank
 
             return (
               <tr

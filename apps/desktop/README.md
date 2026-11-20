@@ -81,3 +81,7 @@ The authoritative handler list is `src-tauri/src/lib.rs`. Frontend invoke argume
 | `device_public_key`, `sign_device_nonce`, `device_platform`, `device_info`        | Device identity                                                          |
 | `load_access_token`, `store_access_token`, `clear_access_token`                   | Native LAAP bearer-token persistence                                     |
 | `open_external_url`                                                               | Validated external browser opening                                       |
+
+### Customer-facing Settings links
+
+Export `VITE_LAAP_SUPPORT_URL`, `VITE_LAAP_PRIVACY_URL`, `VITE_LAAP_TERMS_URL`, and optionally `VITE_LAAP_RELEASE_NOTES_URL` in the release build environment so Vite and Cargo receive the same public HTTPS URLs. Help & About hides unconfigured support and policy links. Without a release-notes override, What's new uses the current updater's release page.

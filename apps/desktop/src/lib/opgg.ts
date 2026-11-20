@@ -128,8 +128,9 @@ export function getOpggSummonerUrl(
   if (target.includes('#')) {
     const parts = target.split('#')
     summonerName = parts[0].trim()
-    tagLine = parts.slice(1).join('#').trim() || tagLine
-    hasTag = true
+    const explicitTag = parts[1]?.trim()
+    hasTag = parts.length === 2 && Boolean(summonerName && explicitTag)
+    if (hasTag) tagLine = explicitTag
   }
   const opggRegion = normalizeOpggRegion(region)
   const slug = `${encodeURIComponent(summonerName)}-${encodeURIComponent(tagLine)}`
@@ -155,6 +156,11 @@ const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour fresh TTL
 const STALE_MAX_AGE_MS = 24 * 60 * 60 * 1000 // 24 hours max persisted cache
 const LOCAL_STORAGE_PREFIX = 'laap:opgg_stats_cache:'
 
+function statsKey({ game, region, summonerName, tagLine }: ReturnType<typeof getOpggSummonerUrl>): string {
+  const riotId = `${summonerName.toLowerCase()}#${tagLine.toLowerCase()}`
+  return game === 'league' ? `opgg:league:${region}:${riotId}` : `opgg:valorant:${riotId}`
+}
+
 interface PersistedStatsEntry {
   stats: OpggStats
   cachedAt: number
@@ -163,8 +169,11 @@ interface PersistedStatsEntry {
 function getLocalStats(cacheKey: string): { stats: OpggStats; isStale: boolean } | null {
   const mem = statsCache.get(cacheKey)
   if (mem) {
-    const isStale = Date.now() - mem.time >= CACHE_TTL_MS
-    return { stats: mem.stats, isStale }
+    const age = Date.now() - mem.time
+    if (age >= 0 && age < STALE_MAX_AGE_MS) {
+      return { stats: mem.stats, isStale: age >= CACHE_TTL_MS }
+    }
+    statsCache.delete(cacheKey)
   }
 
   try {
@@ -173,7 +182,7 @@ function getLocalStats(cacheKey: string): { stats: OpggStats; isStale: boolean }
       const parsed = JSON.parse(raw) as PersistedStatsEntry
       if (parsed && parsed.stats && typeof parsed.cachedAt === 'number') {
         const age = Date.now() - parsed.cachedAt
-        if (age < STALE_MAX_AGE_MS) {
+        if (age >= 0 && age < STALE_MAX_AGE_MS) {
           statsCache.set(cacheKey, { stats: parsed.stats, time: parsed.cachedAt })
           return { stats: parsed.stats, isStale: age >= CACHE_TTL_MS }
         }
@@ -196,17 +205,7 @@ function saveLocalStats(cacheKey: string, stats: OpggStats) {
   } catch {
     // ignore storage errors
   }
-}
-
-function clearLocalStats(cacheKey: string) {
-  statsCache.delete(cacheKey)
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.removeItem(`${LOCAL_STORAGE_PREFIX}${cacheKey}`)
-    }
-  } catch {
-    // ignore storage errors
-  }
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('laap:opgg-updated'))
 }
 
 export function clearOpggCache(): void {
@@ -296,15 +295,21 @@ export function parseOpggMetaDescription(
   }
 }
 
+export function getOpggCachedStats(
+  nameOrRiotId: string,
+  region: string,
+  game: Game,
+): OpggStats | null {
+  const info = getOpggSummonerUrl(nameOrRiotId, region, undefined, game)
+  return info.hasTag ? getLocalStats(statsKey(info))?.stats ?? null : null
+}
+
 export function getOpggCachedAvatar(
   nameOrRiotId: string,
   region: string,
   game: Game = 'valorant',
 ): string | null {
-  const info = getOpggSummonerUrl(nameOrRiotId, region, undefined, game)
-  const cacheKey = `opgg:${game}:${info.summonerName.toLowerCase()}#${info.tagLine.toLowerCase()}`
-  const cached = getLocalStats(cacheKey)
-  const stats = cached?.stats as (OpggStats & { avatar_url?: string }) | undefined
+  const stats = getOpggCachedStats(nameOrRiotId, region, game) as (OpggStats & { avatar_url?: string }) | null
   return stats?.avatarUrl || stats?.avatar_url || null
 }
 
@@ -313,10 +318,7 @@ export function getOpggCachedRank(
   region: string,
   game: Game = 'league',
 ): string | null {
-  const info = getOpggSummonerUrl(nameOrRiotId, region, undefined, game)
-  const cacheKey = `opgg:${game}:${info.summonerName.toLowerCase()}#${info.tagLine.toLowerCase()}`
-  const cached = getLocalStats(cacheKey)
-  const stats = cached?.stats as (OpggStats & { formatted_rank?: string }) | undefined
+  const stats = getOpggCachedStats(nameOrRiotId, region, game) as (OpggStats & { formatted_rank?: string }) | null
   const r = stats?.formattedRank || stats?.formatted_rank
   return r && r !== 'Unranked' ? r : null
 }
@@ -390,45 +392,25 @@ export async function fetchOpggStats(
   game: Game = 'league',
 ): Promise<OpggStats | null> {
   const info = getOpggSummonerUrl(name, region, explicitRiotId, game)
-  const cacheKey = `opgg:${game}:${info.summonerName.toLowerCase()}#${info.tagLine.toLowerCase()}`
-
-  if (forceRefresh) {
-    clearLocalStats(cacheKey)
-  } else {
-    const cached = getLocalStats(cacheKey)
-    if (cached) {
-      if (!cached.isStale) {
-        return cached.stats
-      }
-      // Stale data exists: return immediately and revalidate in background
-      if (!inFlightRequests.has(cacheKey)) {
-        const bgPromise = performFetchOpggStats(info, cacheKey, game)
-          .then((res) => {
-            if (res) saveLocalStats(cacheKey, res)
-            return res
-          })
-          .catch(() => cached.stats)
-          .finally(() => inFlightRequests.delete(cacheKey))
-        inFlightRequests.set(cacheKey, bgPromise)
-      }
-      return cached.stats
-    }
-  }
+  if (!info.hasTag && (game === 'valorant' || explicitRiotId)) return null
+  const cacheKey = statsKey(info)
+  const cached = getLocalStats(cacheKey)
+  if (!forceRefresh && cached && !cached.isStale) return cached.stats
 
   // Deduplicate in-flight network requests
   if (inFlightRequests.has(cacheKey)) {
     return inFlightRequests.get(cacheKey)!
   }
 
-  const reqPromise = performFetchOpggStats(info, cacheKey, game)
+  const reqPromise = performFetchOpggStats(info, game)
     .then((result) => {
-      if (result) {
+      if (result && inFlightRequests.get(cacheKey) === reqPromise) {
         saveLocalStats(cacheKey, result)
       }
       return result
     })
     .finally(() => {
-      inFlightRequests.delete(cacheKey)
+      if (inFlightRequests.get(cacheKey) === reqPromise) inFlightRequests.delete(cacheKey)
     })
 
   inFlightRequests.set(cacheKey, reqPromise)
@@ -437,7 +419,6 @@ export async function fetchOpggStats(
 
 async function performFetchOpggStats(
   info: { summonerName: string; tagLine: string; region: string; url: string },
-  _cacheKey: string,
   game: Game,
 ): Promise<OpggStats | null> {
   if (isTauriAvailable()) {
@@ -522,52 +503,29 @@ export async function autoSyncAccountRank(
     valorant_rank?: string | null
     valorantRank?: string | null
     riotId?: string | null
-    puuid?: string | null
   },
   game: Game = 'league',
 ): Promise<boolean> {
+  const riotId = account.riotId || account.name
+  if (!isTauriAvailable() || !getOpggSummonerUrl(account.name, account.region, riotId, game).hasTag) {
+    return false
+  }
   try {
     const stats = await fetchOpggStats(account.name, account.region, account.riotId, false, game)
-    const formattedRank =
-      stats?.formattedRank || (stats as { formatted_rank?: string } | null)?.formatted_rank
-    if (!stats || !formattedRank || formattedRank === 'Unranked') {
-      return false
-    }
-
-    // Identity check: if both saved profile and OP.GG have a PUUID, they must match
-    if (account.puuid && stats.puuid && account.puuid.trim() !== stats.puuid.trim()) {
-      return false
-    }
-
+    if (!stats) return false
+    const rank = (stats.formattedRank || (stats as { formatted_rank?: string }).formatted_rank)?.trim()
     const currentRank = game === 'valorant'
       ? (account.valorant_rank ?? account.valorantRank)
       : account.rank
-    const avatarUrl =
-      stats.avatarUrl || (stats as { avatar_url?: string } | null)?.avatar_url
-    if (avatarUrl && isTauriAvailable()) {
-      void invokeTauri<boolean>('update_account_avatar', {
-        id: account.id,
-        avatarUrl,
-        game,
-      })
-        .then((updated) => {
-          if (updated) {
-            window.dispatchEvent(new Event('laap:icons-updated'))
-          }
-        })
-        .catch(() => {})
-    }
-    if (currentRank !== formattedRank && isTauriAvailable()) {
-      const updated = await invokeTauri<boolean>('update_account_rank', {
-        id: account.id,
-        rank: formattedRank,
-        game,
-      })
-      if (updated) {
-        window.dispatchEvent(new Event('laap:refresh'))
-        return true
-      }
-    }
+    const avatarUrl = stats.avatarUrl || (stats as { avatar_url?: string }).avatar_url
+    const nextRank = rank && rank.toLowerCase() !== 'unranked' && rank !== currentRank ? rank : undefined
+    if (!nextRank && !avatarUrl) return false
+    const updated = await invokeTauri<boolean>('apply_opgg_profile', {
+      id: account.id,
+      update: { riotId, region: account.region, game, puuid: stats.puuid, rank: nextRank, avatarUrl },
+    })
+    if (updated) window.dispatchEvent(new Event('laap:refresh'))
+    return updated
   } catch {
     // Fail silently without disrupting user experience
   }

@@ -27,7 +27,7 @@
   outline: 2px solid var(--accent-primary);
   outline-offset: 3px;
 }
-:where(.btn-primary, .btn-add-primary, .btn-launch-primary, .btn-modal-primary, .billing-btn-primary):focus-visible {
+:where(.btn-primary, .btn-add-primary, .btn-launch-primary, .btn-modal-primary):focus-visible {
   outline-color: #f5eaff;
 }
 
@@ -61,6 +61,7 @@
 .search-input { width: 100%; font-size: 12.5px; }
 .search-input:focus-visible { outline: none; }
 .game-toggle {
+  flex: none;
   min-height: 40px;
   padding: 3px;
   border-radius: 11px;
@@ -69,11 +70,14 @@
   gap: 3px;
 }
 .game-toggle-btn {
+  width: 34px;
+  justify-content: center;
   min-height: 32px;
   border-radius: 8px;
   font-size: 12px;
-  padding-inline: 13px;
+  padding-inline: 0;
 }
+.game-toggle-icon { width: 20px; height: 20px; }
 .game-toggle-btn-active {
   background: rgba(201, 166, 255, .13);
   color: #f1e4ff;
@@ -94,10 +98,37 @@
   border-radius: 10px;
 }
 .toolbar-sort-select {
-  max-width: none;
-  min-width: 145px;
-  width: auto;
-  flex-shrink: 0;
+  flex: 0 1 180px;
+}
+.toolbar-region-select { flex: 0 1 210px; min-width: 88px; }
+.filter-controls > .rank-filter:not(.toolbar-sort-select) { flex: 0 1 145px; }
+.filter-controls > .rank-filter { min-width: 76px; }
+.filter-controls > .toolbar-sort-select { min-width: 110px; max-width: 190px; }
+.filter-controls .star-filter-btn, .filter-controls .toolbar-reset-btn { flex-shrink: 0; }
+.sub-navbar select {
+  color-scheme: only dark;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sub-navbar select :is(option, optgroup) {
+  background-color: #241d34;
+  color: #f1e4ff;
+}
+@supports (appearance: base-select) and selector(::picker(select)) {
+  .sub-navbar select, .sub-navbar select::picker(select) { appearance: base-select; }
+  .sub-navbar select::picker(select) {
+    background: #241d34;
+    color: #f1e4ff;
+    border: 1px solid var(--polish-stroke-strong);
+    border-radius: 10px;
+    box-shadow: var(--polish-shadow);
+    padding: 4px;
+    max-height: min(360px, 60vh);
+  }
+  .sub-navbar option { padding: 6px 10px; border-radius: 6px; white-space: normal; }
+  .sub-navbar option:is(:hover, :focus-visible, :checked) { background-color: #443359; }
 }
 .header-icon-btn { width: 36px; height: 36px; background: rgba(255,255,255,.025); border-color: var(--polish-stroke); }
 .header-icon-btn:hover { background: var(--polish-accent-soft); }
@@ -122,13 +153,6 @@
 }
 .roster-heading-actions { gap: 10px; }
 .roster-workspace { grid-template-columns: minmax(0, 1fr) minmax(280px, 315px); gap: 20px; }
-.roster-workspace:not(.roster-workspace-full) .roster-grid {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 310px), 1fr));
-  gap: 16px;
-}
-.roster-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 16px; }
-.roster-grid-single { grid-template-columns: minmax(300px, 440px); }
-.roster-grid-double { grid-template-columns: repeat(2, minmax(300px, 440px)); }
 .roster-card {
   gap: 15px;
   min-width: 0;
@@ -221,8 +245,8 @@
 }
 .card-rank { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .card-rank-emblem {
-  width: 37px;
-  height: 37px;
+  width: 50px;
+  height: 50px;
   border-radius: 10px;
   display: grid;
   place-items: center;
@@ -230,7 +254,7 @@
   border: 1px solid rgba(201, 166, 255, .11);
   flex-shrink: 0;
 }
-.card-rank-emblem .rank-crest { width: 31px; height: 31px; object-fit: contain; }
+.card-rank-emblem .rank-crest { width: 44px; height: 44px; object-fit: contain; }
 .card-rank-game-icon { width: 24px; height: 24px; object-fit: contain; }
 .card-rank-copy { display: grid; gap: 3px; min-width: 0; }
 .card-rank-caption { font-size: 10px; line-height: 1; color: #a898b9; letter-spacing: .035em; }
@@ -239,6 +263,25 @@
 .card-status-ready { color: #77d8bd; }
 .card-details-row .card-status-ready { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .card-status-warn { color: #ecc48b; }
+.season-record { display: grid; gap: 7px; }
+.season-record-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: #bcafcb;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.season-record-label strong { color: #eee7fa; font-size: 13px; }
+.season-record-wins { color: #77d8bd; }
+.season-record-bar {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #594265;
+}
+.season-record-bar span { display: block; height: 100%; background: #77d8bd; }
 .card-live-row { margin-top: -5px; min-height: 20px; }
 .card-live-row .card-status-pill { display: inline-flex; align-items: center; gap: 6px; }
 .card-notes { color: #b6aac6; font-size: 11.5px; line-height: 1.45; }
@@ -277,20 +320,7 @@
 .btn-launch-primary:disabled { box-shadow: none; }
 .btn-launch-primary span { overflow: hidden; text-overflow: ellipsis; }
 
-/* Details rail and roster list use the same quiet panels as the cards. */
-.profile-inspector {
-  border-radius: var(--polish-radius);
-  background: linear-gradient(165deg, rgba(35, 28, 49, .98), rgba(22, 18, 32, .98));
-  border-color: var(--polish-stroke);
-  box-shadow: var(--polish-shadow), inset 0 1px rgba(255,255,255,.04);
-  padding: 22px;
-}
-.inspector-top { margin-bottom: 20px; }
-.inspector-top h2 { font-family: var(--font-display); font-size: 19px; }
-.inspector-profile, .inspector-stats-card { border-radius: 12px; border-color: var(--polish-stroke); background: rgba(255,255,255,.025); }
-.inspector-details { border-color: var(--polish-stroke); }
-.inspector-details dt { color: #ad9fbf; }
-.inspector-details dd { color: #eee5f9; }
+/* Match the roster list to the card surfaces. */
 .table-wrapper {
   border-radius: var(--polish-radius);
   background: rgba(28,23,39,.95);
@@ -329,7 +359,7 @@
 .profile-modal .hextech-select,
 .form-field input,
 .hextech-select,
-.billing-text-input {
+.billing-field .hextech-input {
   border-radius: 10px;
   border-color: var(--polish-stroke-strong);
   background-color: rgba(14,11,22,.52);
@@ -337,7 +367,7 @@
 .profile-modal .hextech-input:focus,
 .profile-modal .hextech-select:focus,
 .form-field input:focus,
-.billing-text-input:focus { border-color: rgba(201,166,255,.6); box-shadow: 0 0 0 3px rgba(201,166,255,.085); }
+.billing-field .hextech-input:focus { border-color: rgba(201,166,255,.6); box-shadow: 0 0 0 3px rgba(201,166,255,.085); }
 .btn-modal-secondary, .btn-secondary { border-radius: 10px; border-color: var(--polish-stroke-strong); background: rgba(255,255,255,.035); }
 .btn-modal-primary, .btn-primary, .btn-add-primary { border-radius: 10px; box-shadow: 0 3px 12px rgba(106,68,153,.13); }
 .context-menu-popover, .presence-popover, .sync-compact-panel {
@@ -363,23 +393,36 @@
 .studio-overview-card:hover,
 .studio-feature-card:hover { border-color: rgba(201,166,255,.3); box-shadow: var(--polish-shadow); }
 .customization-workspace :is(input:not([type='checkbox']), textarea, select) { border-radius: 10px; }
-.billing-plan-card { border-radius: 14px; }
-.billing-plan-card:hover { transform: translateY(-2px); }
 
 /* Respect desktop sizes and accessibility preferences. */
 @media (max-width: 1160px) {
+  .sub-navbar, .filter-controls, .view-action-controls { gap: 8px; }
+  .sub-navbar .search-box { min-width: 110px; padding-inline: 8px; }
+  .sub-navbar .search-shortcut, .sub-navbar .star-filter-label,
+  .sub-navbar .toolbar-reset-btn > span { display: none; }
+  .view-action-controls .btn-add-primary { padding-inline: 10px; white-space: nowrap; }
   .studio-viewport { padding: 22px 20px 30px; }
   .roster-workspace { grid-template-columns: minmax(0,1fr) 280px; gap: 15px; }
   .roster-card { padding: 17px; }
   .card-details-row { gap: 8px; }
+  .roster-table :is(th, td) { padding-inline: 8px; }
+  .table-profile-cell, .table-name-row { gap: 6px; }
+  .table-actions-cell { gap: 4px; }
+  .btn-table-play { padding-inline: 10px; }
+}
+@media (max-width: 900px) {
+  .sub-navbar .btn-add-primary > span { display: none; }
+}
+@media (max-width: 780px) {
+  .sub-navbar { overflow-x: auto; }
+  .sub-navbar .filter-controls { flex: none; }
 }
 @media (max-width: 930px) {
   .roster-workspace { grid-template-columns: minmax(0,1fr); }
-  .profile-inspector { min-height: 0; }
   .sub-navbar { padding-inline: 16px; }
 }
 @media (max-width: 700px) {
-  .roster-grid-double, .roster-grid-single, .roster-grid { grid-template-columns: minmax(0,1fr); }
+  .roster-grid > .roster-card { flex-basis: 100%; }
   .card-name { font-size: 14.5px; }
   .card-avatar { height: 50px; width: 50px; }
   .roster-heading { align-items: flex-start; }
@@ -387,7 +430,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .roster-card, .roster-card::before, .btn-launch-primary, .customization-card,
-  .studio-overview-card, .studio-feature-card, .billing-plan-card {
+  .studio-overview-card, .studio-feature-card {
     animation: none !important;
     transition-duration: 0.01ms !important;
     transform: none !important;

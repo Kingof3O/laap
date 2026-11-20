@@ -5,7 +5,7 @@ pub mod models;
 mod profile_access;
 pub mod storage;
 
-pub use manager::{LocalStore, ProfileDetails};
+pub use manager::{LocalStore, OpggProfileUpdate, ProfileDetails};
 pub use models::{
     default_games, Game, LocalAccount, LocalAccountFull, LocalAccountSummary, ProfileCustomization,
 };
@@ -276,6 +276,71 @@ mod safety_tests {
 #[cfg(test)]
 mod customization_tests {
     use super::*;
+
+    #[test]
+    fn opgg_sync_rechecks_profile_identity_and_updates_only_the_requested_game() {
+        let root = std::env::temp_dir().join(format!("laap-opgg-{:032x}", rand::random::<u128>()));
+        let store = LocalStore::with_custom_dir(root.clone());
+        let profile = store
+            .create_profile(
+                ProfileDetails {
+                    name: "Main".into(),
+                    region: "NA".into(),
+                    riot_id: Some("Player#NA1".into()),
+                    rank: Some("Diamond II".into()),
+                    games: vec![Game::League, Game::Valorant],
+                    customization: Some(ProfileCustomization {
+                        auto_sync_valorant_rank: true,
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+                "rso_token: test\nsub: expected-player".into(),
+            )
+            .unwrap();
+        let update = || OpggProfileUpdate {
+            riot_id: "Player#NA1".into(),
+            region: "NA".into(),
+            game: Game::Valorant,
+            puuid: Some("expected-player".into()),
+            rank: Some("Ascendant 1".into()),
+            avatar_url: Some("https://c-valorant-api.op.gg/Assets/PlayerCards/test.png".into()),
+        };
+
+        let mut mismatched = update();
+        mismatched.puuid = Some("different-player".into());
+        assert!(!store.apply_opgg_profile(&profile.id, mismatched).unwrap());
+        let mut old_region = update();
+        old_region.region = "EUW".into();
+        assert!(!store.apply_opgg_profile(&profile.id, old_region).unwrap());
+        assert!(store.apply_opgg_profile(&profile.id, update()).unwrap());
+        assert!(!store.apply_opgg_profile(&profile.id, update()).unwrap());
+
+        let current = store.load_accounts().unwrap().remove(0);
+        assert_eq!(current.rank.as_deref(), Some("Diamond II"));
+        assert_eq!(current.customization.icon_asset, None);
+        assert_eq!(current.valorant_rank.as_deref(), Some("Ascendant 1"));
+        assert_eq!(current.customization.valorant_icon_asset, update().avatar_url);
+        assert!(store.update_riot_id(&profile.id, "New#NA1").unwrap());
+        assert!(!store.apply_opgg_profile(&profile.id, update()).unwrap());
+        store.edit_profile(&profile.id, ProfileDetails {
+            name: "Main".into(),
+            region: "NA".into(),
+            riot_id: Some("New#NA1".into()),
+            rank: Some("Diamond II".into()),
+            games: vec![Game::League, Game::Valorant],
+            valorant_rank: Some("Gold 2".into()),
+            customization: Some(ProfileCustomization::default()),
+            ..Default::default()
+        }).unwrap();
+        let mut opted_out = update();
+        opted_out.riot_id = "New#NA1".into();
+        opted_out.avatar_url = None;
+        assert!(!store.apply_opgg_profile(&profile.id, opted_out).unwrap());
+        assert_eq!(store.load_accounts().unwrap()[0].valorant_rank.as_deref(), Some("Gold 2"));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn sync_requires_matching_identity_and_rechecks_each_opt_in() {
         let path = std::env::temp_dir().join(format!(

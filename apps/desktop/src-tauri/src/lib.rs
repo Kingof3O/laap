@@ -209,11 +209,10 @@ pub fn run() {
             #[cfg(not(feature = "studio"))]
             commands::local_accounts::launch_local_account,
             #[cfg(not(feature = "studio"))]
-            commands::local_accounts::update_account_rank,
+            commands::local_accounts::apply_opgg_profile,
             #[cfg(not(feature = "studio"))]
             commands::local_accounts::update_account_riot_id,
             #[cfg(not(feature = "studio"))]
-            commands::local_accounts::update_account_avatar,
             #[cfg(not(feature = "studio"))]
             opgg::fetch_opgg_summoner_stats,
             #[cfg(not(feature = "studio"))]

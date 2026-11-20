@@ -334,6 +334,41 @@
   border: 1px solid var(--border-subtle);
 }
 
+.settings-plan, .settings-info-card { display: grid; gap: 10px; }
+.settings-card.settings-plan {
+  background: linear-gradient(125deg, rgba(160, 110, 229, .16), var(--bg-surface));
+  border-color: var(--accent-border-subtle);
+}
+.settings-card-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.settings-card-heading svg { color: var(--accent-light); flex: none; }
+.settings-plan h4, .settings-info-card h4, .about-brand h4 { margin: 0; font-size: 14px; }
+.settings-plan p, .settings-info-card p, .settings-service-list, .settings-option-row small {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.settings-plan-actions { display: grid; justify-items: start; gap: 7px; margin-top: 4px; }
+.settings-license-active {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--status-ready-bg);
+  color: #93e1cc;
+  font-size: 11px;
+  font-weight: 700;
+}
+.settings-service-list { display: grid; gap: 8px; padding-inline-start: 17px; }
+.settings-option-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.settings-option-row > span { display: grid; gap: 2px; }
+.settings-option-row input { flex: none; accent-color: var(--velvet-accent); width: 16px; height: 16px; }
+.about-copy-icon { margin-inline-start: auto; flex: none; padding-inline: 8px; }
+.settings-notices summary { font-size: 13px; font-weight: 650; cursor: pointer; }
+.settings-notices pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 12px; }
+@media (max-width: 700px) {
+  .about-brand { flex-wrap: wrap; }
+}
+
 .form-field {
   display: flex;
   flex-direction: column;

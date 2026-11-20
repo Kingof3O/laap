@@ -2,19 +2,20 @@ import { useEffect, useRef } from 'react'
 import { invokeTauri, isTauriAvailable } from '../lib/api'
 import { useRiotOperations } from '../context/RiotOperations'
 import type { LauncherController } from './useLauncher'
-import type { LocalAccountSummary } from '../lib/types'
+import type { Game, LocalAccountSummary } from '../lib/types'
 type TrayIntent =
   | { type: 'open' | 'stop_riot' | 'retry_setup' | 'quit' }
   | { type: 'select_presence'; mode: 'online' | 'offline' }
   | { type: 'switch_account'; id: string }
 export function useTrayActions(
   launcher: LauncherController,
+  activeGame: Game,
   onAccount: (id: string) => void | Promise<void>,
   onError: (message: string) => void,
 ) {
   const operations = useRiotOperations()
-  const current = useRef({ launcher, operations, onAccount, onError })
-  current.current = { launcher, operations, onAccount, onError }
+  const current = useRef({ launcher, operations, activeGame, onAccount, onError })
+  current.current = { launcher, operations, activeGame, onAccount, onError }
   const pending = useRef(false)
   useEffect(() => {
     let disposed = false
@@ -33,18 +34,22 @@ export function useTrayActions(
         const restored = await invokeTauri<string | null>(
           'active_local_profile',
         ).catch(() => null)
+        const game = current.current.activeGame
+        const gameAccounts = accounts.filter((account) => (account.games ?? ['league']).includes(game))
+        const launchKey = operations.activeLaunchKey?.split(':')
+        const activeId = launchKey?.[0] === 'local'
+          ? (launchKey[2] ?? 'league') === game ? launchKey[1] : null
+          : operations.running
+            ? gameAccounts.find((account) => account.id === restored && (account.last_game ?? 'league') === game)?.id
+            : null
         const snapshot = {
-          accounts: accounts.map((a) => ({
+          accounts: gameAccounts.map((a) => ({
             id: a.id,
             name: a.name,
             region: a.region,
             has_session: a.has_session,
           })),
-          active_id: operations.activeLaunchKey?.startsWith('local:')
-            ? operations.activeLaunchKey.slice(6).split(':')[0]
-            : operations.running
-              ? restored
-              : null,
+          active_id: activeId ?? null,
           presence:
             launcher.error ??
             launcher.presence?.message ??

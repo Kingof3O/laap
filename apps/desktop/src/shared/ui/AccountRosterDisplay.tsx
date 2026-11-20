@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
-import { AccountCard } from './AccountCard'
+import { AccountCard, type AccountCardProps } from './AccountCard'
 import { AccountListTable } from './AccountListTable'
 import type { Game, LiveStatusBadge, ViewMode } from '../../lib/types'
 import type { SortOrder } from '../../lib/sorting'
@@ -12,6 +12,7 @@ export interface RosterItem {
   name: string
   region: string
   rank?: string | null
+  seasonStats?: AccountCardProps['seasonStats']
   valorantRank?: string | null
   games?: Game[]
   riotId?: string | null
@@ -104,13 +105,6 @@ export function AccountRosterDisplay({
     return null
   }, [items])
 
-  // Determine appropriate grid container class based on account count (PART 3)
-  const gridLayoutClass = useMemo(() => {
-    if (items.length === 1) return 'roster-grid roster-grid-single'
-    if (items.length === 2) return 'roster-grid roster-grid-double'
-    return 'roster-grid'
-  }, [items.length])
-
   const activeHero = items.find((i) => i.id === selectedId) ?? items[0] ?? null
 
   return (
@@ -165,7 +159,7 @@ export function AccountRosterDisplay({
       ) : null}
       {viewMode === 'grid' ? (
         <div className={detailsOpen && activeHero ? 'roster-workspace' : 'roster-workspace roster-workspace-full'}>
-        <div className={gridLayoutClass} role="region" aria-label="Account Roster">
+        <div className="roster-grid" role="region" aria-label="Account Roster">
           {items.map((item) => {
             const isLaunching = launchingId === item.id
             const isFailed = failedLaunchId === item.id
@@ -180,6 +174,7 @@ export function AccountRosterDisplay({
                 name={item.name}
                 region={item.region}
                 rank={item.rank}
+                seasonStats={item.seasonStats}
                 valorantRank={item.valorantRank}
                 games={item.games}
                 activeGame={activeGame}
@@ -230,8 +225,10 @@ export function AccountRosterDisplay({
         </div>
         {detailsOpen && activeHero ? (
           <ProfileInspector
+            key={JSON.stringify([activeHero.id, activeHero.name, activeHero.riotId, activeHero.region, activeGame])}
             account={activeHero}
             activeGame={activeGame}
+            isCloud={isCloud}
             busy={busy || launchingId === activeHero.id}
             onClose={() => toggleDetails(false)}
             onEdit={onEdit ? () => onEdit(activeHero.id) : undefined}
