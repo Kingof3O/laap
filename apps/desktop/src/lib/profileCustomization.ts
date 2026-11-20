@@ -61,11 +61,32 @@ export function canonicalRank(rank?: string | null) {
 export function rankCrest(rank?: string | null) {
   if (!rank) return null
   const firstWord = rank.trim().split(/\s+/)[0].toLowerCase()
+  if (firstWord === 'unranked') return '/rank-crests/unranked.png'
   const tier = [...RANK_TIERS, ...APEX_TIERS].find(
     (t) => t.toLowerCase() === firstWord,
   )
   if (!tier) return null
   return `/rank-crests/${tier.toLowerCase()}.png`
+}
+
+export function valorantRankCrest(rank?: string | null): string | null {
+  if (!rank) return null
+  const trimmed = rank.trim().toLowerCase()
+  if (trimmed === 'unranked') return '/rank-crests/valorant/unranked.png'
+  if (trimmed === 'radiant') return '/rank-crests/valorant/radiant.png'
+
+  const match = trimmed.match(
+    /^(iron|bronze|silver|gold|platinum|diamond|ascendant|immortal)(?:\s*(?:([1-3])|(iii|ii|i)))?/i,
+  )
+  if (!match) return null
+  const tier = match[1].toLowerCase()
+  const romanMap: Record<string, string> = { i: '1', ii: '2', iii: '3' }
+  const div = match[2] ?? (match[3] ? romanMap[match[3].toLowerCase()] : null)
+
+  if (div) {
+    return `/rank-crests/valorant/${tier}_${div}.png`
+  }
+  return `/rank-crests/valorant/${tier}.png`
 }
 
 export const VALORANT_TIERS = [

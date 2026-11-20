@@ -2,27 +2,43 @@ import { useEffect, useId, useRef, useState } from 'react'
 import {
   RANK_OPTIONS,
   canonicalRank,
+  canonicalValorantRank,
   rankCrest,
+  valorantRankCrest,
 } from '../../lib/profileCustomization'
 export { ValorantRankPicker } from './ValorantRankPicker'
 export function RankCrest({
+  rank,
+  game = 'league',
+  className = '',
+}: {
+  rank?: string | null
+  game?: 'league' | 'valorant'
+  className?: string
+}) {
+  const source = game === 'valorant' ? valorantRankCrest(rank) : rankCrest(rank)
+  const canonical =
+    game === 'valorant' ? canonicalValorantRank(rank) : canonicalRank(rank)
+  return source ? (
+    <img
+      className={`rank-crest ${game === 'valorant' ? 'valorant-rank-crest' : ''} ${className}`}
+      src={source}
+      alt=""
+      aria-hidden="true"
+      title={`${canonical} crest`}
+      draggable={false}
+    />
+  ) : null
+}
+
+export function ValorantRankCrest({
   rank,
   className = '',
 }: {
   rank?: string | null
   className?: string
 }) {
-  const source = rankCrest(rank)
-  return source ? (
-    <img
-      className={`rank-crest ${className}`}
-      src={source}
-      alt=""
-      aria-hidden="true"
-      title={`${canonicalRank(rank)} crest`}
-      draggable={false}
-    />
-  ) : null
+  return <RankCrest rank={rank} game="valorant" className={className} />
 }
 export function RankPicker({
   value,

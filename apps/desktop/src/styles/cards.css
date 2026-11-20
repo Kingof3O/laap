@@ -8,15 +8,15 @@
   width: 100%;
 }
 
-/* Single or Two Account Layout Centering (PART 3) */
+/* Single or Two Account Layout (responsive auto-fit) */
 .roster-grid-single {
-  grid-template-columns: minmax(320px, 440px);
-  justify-content: center;
+  grid-template-columns: minmax(min(100%, 320px), 540px);
+  justify-content: start;
 }
 
 .roster-grid-double {
-  grid-template-columns: repeat(2, minmax(320px, 440px));
-  justify-content: center;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 480px));
+  justify-content: start;
 }
 
 .roster-card {

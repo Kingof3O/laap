@@ -3,6 +3,7 @@ import {
   VALORANT_RANK_OPTIONS,
   canonicalValorantRank,
 } from '../../lib/profileCustomization'
+import { RankCrest } from './RankPicker'
 
 export interface ValorantRankPickerProps {
   value?: string | null
@@ -58,6 +59,7 @@ export function ValorantRankPicker({
   return (
     <div className="rank-picker valorant-rank-picker">
       <div className="rank-picker-control">
+        <RankCrest rank={value} game="valorant" />
         <input
           ref={ref}
           role="combobox"
@@ -139,6 +141,7 @@ export function ValorantRankPicker({
                   choose(rank)
                 }}
               >
+                <RankCrest rank={rank} game="valorant" />
                 <span>{rank}</span>
                 {!VALORANT_RANK_OPTIONS.includes(rank) ? (
                   <small>Previously saved rank</small>

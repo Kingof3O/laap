@@ -70,11 +70,7 @@ export function ProfilePreview({
           )}
           {displayRank ? (
             <span className="profile-preview-rank">
-              {isVal ? (
-                <img src="/valorant-icon.webp" alt="" className="game-badge-icon" aria-hidden="true" />
-              ) : (
-                <RankCrest rank={displayRank} />
-              )}{' '}
+              <RankCrest rank={displayRank} game={isVal ? 'valorant' : 'league'} />{' '}
               {displayRank}
             </span>
           ) : (

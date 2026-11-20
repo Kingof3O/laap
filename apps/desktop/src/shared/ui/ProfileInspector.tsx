@@ -178,7 +178,7 @@ export function ProfileInspector({
             )}
             {displayRank ? (
               <span className="inspector-rank-inline">
-                {!isVal && <RankCrest rank={displayRank} />}
+                <RankCrest rank={displayRank} game={isVal ? 'valorant' : 'league'} />
                 {displayRank}
               </span>
             ) : (

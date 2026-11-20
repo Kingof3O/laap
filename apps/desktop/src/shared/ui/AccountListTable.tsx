@@ -292,16 +292,7 @@ export function AccountListTable({
                       className={`table-rank-pill ${getRankTierClass(displayRank)}`}
                       title={`Rank: ${displayRank}`}
                     >
-                      {activeGame === 'valorant' ? (
-                        <img
-                          src="/valorant-icon.webp"
-                          alt=""
-                          className="game-badge-icon"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <RankCrest rank={displayRank} />
-                      )}{' '}
+                      <RankCrest rank={displayRank} game={activeGame} />{' '}
                       {displayRank}
                     </span>
                   ) : (

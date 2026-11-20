@@ -324,11 +324,7 @@ export function AccountCard({
       <div className="card-details-row">
         <div className="card-rank" title={displayRank ? `Rank: ${displayRank}` : 'Rank not set'}>
           <span className={`card-rank-emblem ${getRankTierClass(displayRank ?? '')}`}>
-            {activeGame === 'valorant' ? (
-              <img src="/valorant-icon.webp" alt="" aria-hidden="true" width={24} height={24} className="card-rank-game-icon" />
-            ) : (
-              <RankCrest rank={displayRank} />
-            )}
+            <RankCrest rank={displayRank || 'Unranked'} game={activeGame} />
           </span>
           <span className="card-rank-copy">
             <span className="card-rank-caption">Rank</span>
@@ -370,7 +366,7 @@ export function AccountCard({
       <div className="card-bottom-row">
         <span className="last-played-text" title={lastUsedText ? `Last played: ${lastUsedText}` : 'Never launched'}>
           <Clock3 size={13} aria-hidden="true" />
-          <span>Last played: {lastPlayedLabel}</span>
+          <span>{lastPlayedLabel === 'Never' ? 'Never launched' : lastPlayedLabel}</span>
         </span>
         <div className="card-actions-group">
           {onEdit ? (
