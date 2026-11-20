@@ -80,7 +80,7 @@ export function SettingsModal({
       >
         <div className="modal-head">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h2 className="modal-title">Launcher Configuration</h2>
+            <h2 className="modal-title">Settings</h2>
             <span className="brand-lockup-inline brand-lockup-segmented brand-edition-tag brand-edition-basic">
               <img src="/logo.webp" alt="LAAP" className="brand-logo-img brand-lockup-logo" style={{ height: '18px', width: 'auto' }} />
               <span className="brand-divider" aria-hidden="true" />
@@ -111,41 +111,12 @@ export function SettingsModal({
               <div className="settings-section">
                 <div className="settings-section-header"><h3 className="settings-section-title">General</h3><p className="settings-section-desc">Manage your local session and account.</p></div>
 
-                {/* Security Status Card */}
-                <div
-                  style={{
-                    padding: '14px',
-                    background: 'rgba(52, 184, 153, 0.08)',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(52, 184, 153, 0.25)',
-                    display: 'flex',
-                    gap: '12px',
-                    alignItems: 'center',
-                  }}
-                >
-                  <ShieldCheck
-                    size={22}
-                    style={{ color: 'var(--status-ready)', flexShrink: 0 }}
-                  />
-                  <div>
-                    <div
-                      style={{
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        color: '#FFFFFF',
-                      }}
-                    >
-                      {'Saved Riot Logins Encrypted'}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: '11px',
-                        color: 'var(--text-muted)',
-                        marginTop: '2px',
-                      }}
-                    >
-                      {'Saved Riot sessions use AES-GCM. Profile names and notes are stored as readable local data.'}
-                    </div>
+                {/* Local data status: keep meaning explicit, avoid a hard-coded bright alert box. */}
+                <div className="settings-security-summary">
+                  <ShieldCheck size={21} aria-hidden="true" />
+                  <div className="settings-security-content">
+                    <strong>Saved Riot logins are encrypted</strong>
+                    <p>Saved Riot sessions use AES-GCM. Profile names and notes remain readable local data.</p>
                   </div>
                 </div>
 
@@ -171,34 +142,13 @@ export function SettingsModal({
 
                 </div>
 
-                {/* About Strip */}
-                <div
-                  style={{
-                    marginTop: '8px',
-                    padding: '10px 14px',
-                    background: 'rgba(255, 255, 255, 0.02)',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border-subtle)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
+                {/* Lightweight version information, not another full card. */}
+                <div className="settings-version-strip">
                   <div>
-                    <div
-                      style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}
-                    >
-                      LAAP Tactical Launcher
-                    </div>
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                      Account launcher
-                    </div>
+                    <strong>LAAP Desktop</strong>
+                    <span>Account launcher</span>
                   </div>
-                  <div
-                    style={{ fontSize: '11px', color: 'var(--color-accent-400)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}
-                  >
-                    v{currentVersion}
-                  </div>
+                  <span className="settings-version-number">v{currentVersion}</span>
                 </div>
               </div>
             )}

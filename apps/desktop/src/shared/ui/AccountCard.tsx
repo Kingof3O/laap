@@ -3,6 +3,8 @@ import { RankCrest } from './RankPicker'
 import { ContextMenu, type MenuItem } from './ContextMenu'
 import {
   Activity,
+  CheckCircle2,
+  Clock3,
   KeyRound,
   Loader2,
   LogIn,
@@ -16,6 +18,7 @@ import {
 } from 'lucide-react'
 import { getRankTierClass } from '../../lib/sorting'
 import { formatLiveMatchLabel, formatLiveMinutes } from '../../lib/liveStatus'
+import { formatLastPlayed } from '../../lib/lastPlayed'
 import type { Game, LiveStatusBadge } from '../../lib/types'
 
 export interface AccountCardProps {
@@ -101,8 +104,10 @@ export function AccountCard({
   const isLeased = isCloud && status === 'Leased'
   const isStale = !isCloud && (status === 'Session stale' || status.includes('unknown'))
   const needsSignIn = !hasSession || status === 'Sign in required'
-  const displayRank = activeGame === 'valorant' ? (valorantRank !== undefined ? valorantRank : rank) : rank
+  const displayRank = activeGame === 'valorant' ? valorantRank : rank
   const supportedGames = games && games.length > 0 ? games : ['league']
+  const regionAlreadyInName = name.toLocaleLowerCase().includes(region.toLocaleLowerCase())
+  const lastPlayedLabel = formatLastPlayed(lastUsedText)
 
   // Context menu actions for secondary capabilities
   const menuItems: MenuItem[] = []
@@ -242,7 +247,7 @@ export function AccountCard({
       className={`roster-card ${isSelected ? 'roster-card-selected' : ''}`}
       onClick={() => onSelect?.()}
     >
-      {/* Top Row: Avatar + Identity + Actions */}
+      {/* Identity is the hero. Game support and session readiness sit below it. */}
       <div className="card-top-row">
         <div className="card-identity">
           <div className="card-avatar">
@@ -253,145 +258,131 @@ export function AccountCard({
               riotId={riotId}
               region={region}
             />
-            <span className="card-region-badge">{region}</span>
           </div>
-
           <div className="card-info">
             <div className="card-name-row">
-              <button type="button" className="card-name" title={name} aria-label={`Select ${name}`} aria-pressed={isSelected} onClick={(event) => { event.stopPropagation(); onSelect?.() }}>
+              <button
+                type="button"
+                className="card-name"
+                title={name}
+                aria-label={`Select ${name}`}
+                aria-pressed={isSelected}
+                onClick={(event) => { event.stopPropagation(); onSelect?.() }}
+              >
                 {name}
               </button>
-              {isRecent ? (
-                <span className="card-recent-badge">Recent</span>
-              ) : null}
-              {supportedGames.length > 0 && (
-                <div className="card-game-badges" aria-label="Supported games">
-                  {supportedGames.includes('league') && (
-                    <span className="game-badge game-badge-league" title="Supports League">
-                      <img src="/league-of-legends-icon.webp" alt="" className="game-badge-icon" aria-hidden="true" />
-                      LEAGUE
-                    </span>
-                  )}
-                  {supportedGames.includes('valorant') && (
-                    <span className="game-badge game-badge-valo" title="Supports VALORANT">
-                      <img src="/valorant-icon.webp" alt="" className="game-badge-icon" aria-hidden="true" />
-                      VALO
-                    </span>
-                  )}
-                </div>
-              )}
+              {isRecent ? <span className="card-recent-badge">Recent</span> : null}
             </div>
-
-            <div className="card-meta-row">
-              {displayRank ? (
-                <span
-                  className={`account-rank-label ${getRankTierClass(displayRank)}`}
-                  title={`Rank: ${displayRank}`}
-                >
-                  {activeGame === 'valorant' ? (
-                    <img
-                      src="/valorant-icon.webp"
-                      alt=""
-                      className="game-badge-icon"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <RankCrest rank={displayRank} />
-                  )}{' '}
-                  {displayRank}
-                </span>
-              ) : null}
-
-              {isLeased ? (
-                <span className="card-status-pill card-status-warn">
-                  In Use
-                </span>
-              ) : needsSignIn ? (
-                <span className="card-status-pill card-status-warn">
-                  Sign In Required
-                </span>
-              ) : isStale ? (
-                <span className="card-status-pill card-status-warn">
-                  {status}
-                </span>
-              ) : (
-                <span className="card-status-pill card-status-ready">
-                  {isCloud ? 'Available' : 'Login Saved'}
-                </span>
-              )}
-
-              {liveStatus?.checking ? (
-                <span className="card-status-pill card-status-idle">
-                  Checking live…
-                </span>
-              ) : liveStatus?.inGame ? (
-                <span
-                  className="card-status-pill card-status-ingame"
-                  title={formatLiveMatchLabel(liveStatus)}
-                >
-                  <Activity size={11} />
-                  {(() => {
-                    const mins = formatLiveMinutes(liveStatus.gameLengthSeconds)
-                    return mins !== null ? `In Match · ${mins}m` : 'In Match'
-                  })()}
-                </span>
-              ) : liveStatus?.inGame === false ? (
-                <span
-                  className="card-status-pill card-status-idle"
-                  title={formatLiveMatchLabel(liveStatus)}
-                >
-                  Not in game
-                </span>
-              ) : null}
+            <div className="card-identity-subtitle">
+              {!regionAlreadyInName ? <span className="card-region-text">{region}</span> : null}
+              <span className="card-game-context">
+                <img
+                  src={activeGame === 'valorant' ? '/valorant-icon.webp' : '/league-of-legends-icon.webp'}
+                  alt=""
+                  aria-hidden="true"
+                />
+                {activeGame === 'valorant' ? 'VALORANT' : 'League of Legends'}
+              </span>
             </div>
           </div>
         </div>
-
-        {onToggleFavorite || isFavorite ? (
-          <button
-            type="button"
-            className={`card-favorite-btn ${isFavorite ? 'card-favorite-btn-active' : ''}`}
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggleFavorite?.()
-            }}
-            title={isFavorite ? 'Favorited' : 'Favorite profile'}
-            aria-label={isFavorite ? 'Favorited profile' : 'Add to favorites'}
-          >
-            <Star size={15} fill={isFavorite ? 'currentColor' : 'none'} />
-          </button>
-        ) : null}
+        <div className="card-top-actions">
+          {supportedGames.length > 1 ? (
+            <div className="card-game-badges" aria-label="Supported games">
+              {supportedGames.includes('league') ? (
+                <span className="game-badge game-badge-league" title="Supports League of Legends">
+                  <img src="/league-of-legends-icon.webp" alt="" aria-hidden="true" className="game-badge-icon" />
+                  <span className="visually-hidden">League of Legends</span>
+                </span>
+              ) : null}
+              {supportedGames.includes('valorant') ? (
+                <span className="game-badge game-badge-valo" title="Supports VALORANT">
+                  <img src="/valorant-icon.webp" alt="" aria-hidden="true" className="game-badge-icon" />
+                  <span className="visually-hidden">VALORANT</span>
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          {onToggleFavorite || isFavorite ? (
+            <button
+              type="button"
+              className={`card-favorite-btn ${isFavorite ? 'card-favorite-btn-active' : ''}`}
+              onClick={(event) => { event.stopPropagation(); onToggleFavorite?.() }}
+              title={isFavorite ? 'Favorited' : 'Favorite profile'}
+              aria-label={isFavorite ? 'Favorited profile' : 'Add to favorites'}
+              aria-pressed={isFavorite}
+            >
+              <Star size={16} fill={isFavorite ? 'currentColor' : 'none'} />
+            </button>
+          ) : null}
+        </div>
       </div>
+
+      <div className="card-details-row">
+        <div className="card-rank" title={displayRank ? `Rank: ${displayRank}` : 'Rank not set'}>
+          <span className={`card-rank-emblem ${getRankTierClass(displayRank ?? '')}`}>
+            {activeGame === 'valorant' ? (
+              <img src="/valorant-icon.webp" alt="" aria-hidden="true" className="card-rank-game-icon" />
+            ) : (
+              <RankCrest rank={displayRank} />
+            )}
+          </span>
+          <span className="card-rank-copy">
+            <span className="card-rank-caption">Rank</span>
+            <span className="card-rank-value">{displayRank || 'Unranked'}</span>
+          </span>
+        </div>
+        {isLeased ? (
+          <span className="card-status-pill card-status-warn">In use</span>
+        ) : needsSignIn ? (
+          <span className="card-status-pill card-status-warn">Sign in required</span>
+        ) : isStale ? (
+          <span className="card-status-pill card-status-warn" title={status}>Session needs attention</span>
+        ) : (
+          <span className="card-status-pill card-status-ready">
+            <CheckCircle2 size={13} aria-hidden="true" />
+            {isCloud ? 'Available' : 'Login saved'}
+          </span>
+        )}
+      </div>
+      {liveStatus?.checking ? (
+        <div className="card-live-row">
+          <span className="card-status-pill card-status-idle">Checking live match…</span>
+        </div>
+      ) : liveStatus?.inGame ? (
+        <div className="card-live-row">
+          <span className="card-status-pill card-status-ingame" title={formatLiveMatchLabel(liveStatus)}>
+            <Activity size={13} aria-hidden="true" />
+            {(() => {
+              const mins = formatLiveMinutes(liveStatus.gameLengthSeconds)
+              return mins !== null ? `In Match · ${mins}m` : 'In Match'
+            })()}
+          </span>
+        </div>
+      ) : null}
 
       {notes ? <p className="account-notes card-notes">{notes}</p> : null}
 
-      {/* Bottom Row: Metadata + Launch / Edit / More Actions */}
+      {/* Secondary actions are visually quiet; launching remains the only CTA. */}
       <div className="card-bottom-row">
-        <span className="last-played-text">
-          {lastUsedText ? `Last played: ${lastUsedText}` : 'Never launched'}
+        <span className="last-played-text" title={lastUsedText ? `Last played: ${lastUsedText}` : 'Never launched'}>
+          <Clock3 size={13} aria-hidden="true" />
+          <span>Last played: {lastPlayedLabel}</span>
         </span>
-
         <div className="card-actions-group">
           {onEdit ? (
             <button
               type="button"
               className="btn-card-action"
-              onClick={(e) => {
-                e.stopPropagation()
-                onEdit()
-              }}
+              onClick={(event) => { event.stopPropagation(); onEdit() }}
               disabled={busy}
               title="Edit Profile"
               aria-label={`Edit ${name}`}
             >
-              <Pencil size={13} />
+              <Pencil size={14} />
             </button>
           ) : null}
-
-          {menuItems.length > 0 ? (
-            <ContextMenu items={menuItems} label={`Options for ${displayName}`} />
-          ) : null}
-
+          {menuItems.length > 0 ? <ContextMenu items={menuItems} label={`Options for ${displayName}`} /> : null}
           <button
             type="button"
             className={`btn-launch-primary ${isLaunching ? 'btn-launch-loading' : ''}`}

@@ -29,7 +29,7 @@ export default function StudioWorkspace({
   const [partySelection, setPartySelection] = useState<{ id: number; name: string } | null>(null)
   return (
     <div className="customization-workspace">
-      <nav className="mode-nav" aria-label="Customization" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+      <nav className="mode-nav studio-page-nav" aria-label="Customization pages">
         <button className="mode-pill" aria-pressed={page === 'home'} onClick={() => setPage('home')}>Overview</button>
         <button className="mode-pill" aria-pressed={page === 'catalog'} onClick={() => { setSelection(null); setPage('catalog') }}>{t('nav.catalog')}</button>
         <button className="mode-pill" aria-pressed={page === 'presets'} onClick={() => setPage('presets')}>{t('nav.presets')}</button>
@@ -43,11 +43,10 @@ export default function StudioWorkspace({
         <button className="mode-pill" aria-pressed={page === 'client'} onClick={() => setPage('client')}>Client</button>
 
         {profiles.length > 0 && onSelectProfile && (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Preset Context:</span>
+          <div className="studio-context-picker">
+            <span>Preset context</span>
             <select
               aria-label="Preset context"
-              style={{ padding: '4px 8px', fontSize: '0.8rem' }}
               value={profile?.id ?? ''}
               onChange={(e) => {
                 const found = profiles.find((p) => p.id === e.target.value)

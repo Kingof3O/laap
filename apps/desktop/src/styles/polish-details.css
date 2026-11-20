@@ -1,0 +1,44 @@
+
+/* Shared polish for navigation, settings summary, and the desktop-wide workspace. */
+.settings-security-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(119, 216, 189, .18);
+  border-radius: 12px;
+  background: rgba(119, 216, 189, .045);
+}
+.settings-security-summary > svg { flex-shrink: 0; color: #77d8bd; margin-top: 1px; }
+.settings-security-content { display: grid; gap: 5px; min-width: 0; }
+.settings-security-content strong { font-size: 13px; font-weight: 650; color: var(--text-primary); }
+.settings-security-content p { color: var(--text-secondary); font-size: 12px; line-height: 1.55; }
+.settings-version-strip {
+  margin-top: 8px;
+  padding: 14px 2px 0;
+  border-top: 1px solid var(--polish-stroke);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.settings-version-strip > div { display: grid; gap: 3px; }
+.settings-version-strip strong { font-size: 12px; font-weight: 650; color: var(--text-primary); }
+.settings-version-strip span { font-size: 11px; color: var(--text-muted); }
+.settings-version-strip .settings-version-number { color: var(--accent-light); font-family: var(--font-mono); font-weight: 650; }
+.studio-page-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  padding: 7px;
+  border: 1px solid var(--polish-stroke);
+  border-radius: 13px;
+  background: rgba(27,22,38,.86);
+}
+.studio-page-nav .mode-pill { border-radius: 8px; }
+.studio-context-picker { display: inline-flex; gap: 9px; align-items: center; margin-left: auto; padding-left: 12px; color: var(--text-secondary); font-size: 12px; }
+.studio-context-picker select { min-height: 34px; padding: 5px 10px; border: 1px solid var(--polish-stroke-strong); border-radius: 9px; background: rgba(16,13,25,.85); }
+@media (max-width: 950px) {
+  .studio-context-picker { margin-left: 0; padding-left: 0; width: 100%; }
+}

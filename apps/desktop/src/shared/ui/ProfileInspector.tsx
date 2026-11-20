@@ -58,9 +58,8 @@ export function ProfileInspector({
   }
   const activeGame = propActiveGame ?? contextGame
   const isVal = activeGame === 'valorant'
-  const displayRank = isVal
-    ? (account.valorantRank || account.rank || null)
-    : (account.rank || null)
+  // Never display a League rank while the VALORANT tab is active.
+  const displayRank = isVal ? account.valorantRank : account.rank
 
   const added =
     account.createdAt && Number.isFinite(Date.parse(account.createdAt))
