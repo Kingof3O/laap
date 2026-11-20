@@ -4,23 +4,27 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SummonerProfile {
+    #[serde(alias = "summoner_name")]
     pub summoner_name: String,
+    #[serde(alias = "tag_line")]
     pub tag_line: String,
     pub region: String,
     pub tier: String,
     pub rank: String,
+    #[serde(alias = "league_points")]
     pub league_points: u32,
     pub wins: u32,
     pub losses: u32,
+    #[serde(alias = "fetched_at")]
     pub fetched_at: u64,
     pub source: String,
-    #[serde(default)]
+    #[serde(default, alias = "win_rate")]
     pub win_rate: u32,
-    #[serde(default)]
+    #[serde(default, alias = "formatted_rank")]
     pub formatted_rank: String,
-    #[serde(default)]
+    #[serde(default, alias = "formatted_win_rate")]
     pub formatted_win_rate: String,
-    #[serde(default)]
+    #[serde(default, alias = "opgg_url")]
     pub opgg_url: String,
     #[serde(default)]
     pub game: Game,
@@ -28,7 +32,7 @@ pub struct SummonerProfile {
     pub level: Option<u32>,
     #[serde(default)]
     pub puuid: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "avatar_url")]
     pub avatar_url: Option<String>,
 }
 

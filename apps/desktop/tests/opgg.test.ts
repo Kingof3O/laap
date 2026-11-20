@@ -97,3 +97,8 @@ test('autoSyncAccountRank identity check skips on PUUID mismatch', async () => {
   assert.equal(result, false)
 })
 
+test('getOpggCachedRank returns null when unranked or no cache', async () => {
+  const { getOpggCachedRank } = await import('../src/lib/opgg.ts')
+  assert.equal(getOpggCachedRank('Nonexistent#NA1', 'NA', 'league'), null)
+})
+

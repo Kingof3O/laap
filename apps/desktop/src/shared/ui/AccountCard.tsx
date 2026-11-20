@@ -19,6 +19,7 @@ import {
 import { getRankTierClass } from '../../lib/sorting'
 import { formatLiveMatchLabel, formatLiveMinutes } from '../../lib/liveStatus'
 import { formatLastPlayed } from '../../lib/lastPlayed'
+import { getOpggCachedRank } from '../../lib/opgg'
 import type { Game, LiveStatusBadge } from '../../lib/types'
 
 export interface AccountCardProps {
@@ -104,7 +105,10 @@ export function AccountCard({
   const isLeased = isCloud && status === 'Leased'
   const isStale = !isCloud && (status === 'Session stale' || status.includes('unknown'))
   const needsSignIn = !hasSession || status === 'Sign in required'
-  const displayRank = activeGame === 'valorant' ? valorantRank : rank
+  const targetRiotId = riotId ?? (name.includes('#') ? name : null)
+  const cachedRank = getOpggCachedRank(targetRiotId || name, region, activeGame)
+  const baseRank = activeGame === 'valorant' ? valorantRank : rank
+  const displayRank = (baseRank && baseRank !== 'Unranked') ? baseRank : (cachedRank || baseRank)
   const supportedGames = games && games.length > 0 ? games : ['league']
   const regionAlreadyInName = name.toLocaleLowerCase().includes(region.toLocaleLowerCase())
   const lastPlayedLabel = formatLastPlayed(lastUsedText)

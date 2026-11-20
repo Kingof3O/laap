@@ -29,7 +29,8 @@ export function ProfileAvatar({
       if (asset && !asset.startsWith('dd-')) return asset
       return undefined
     }
-    return asset
+    const cached = getOpggCachedAvatar(riotId || name, region || 'euw', 'league')
+    return asset || cached
   }, [avatarUrl, activeGame, riotId, name, region, asset])
 
   const [effectiveAsset, setEffectiveAsset] = useState<string | null | undefined>(resolveEffectiveAsset)

@@ -304,7 +304,21 @@ export function getOpggCachedAvatar(
   const info = getOpggSummonerUrl(nameOrRiotId, region, undefined, game)
   const cacheKey = `opgg:${game}:${info.summonerName.toLowerCase()}#${info.tagLine.toLowerCase()}`
   const cached = getLocalStats(cacheKey)
-  return cached?.stats?.avatarUrl || null
+  const stats = cached?.stats as (OpggStats & { avatar_url?: string }) | undefined
+  return stats?.avatarUrl || stats?.avatar_url || null
+}
+
+export function getOpggCachedRank(
+  nameOrRiotId: string,
+  region: string,
+  game: Game = 'league',
+): string | null {
+  const info = getOpggSummonerUrl(nameOrRiotId, region, undefined, game)
+  const cacheKey = `opgg:${game}:${info.summonerName.toLowerCase()}#${info.tagLine.toLowerCase()}`
+  const cached = getLocalStats(cacheKey)
+  const stats = cached?.stats as (OpggStats & { formatted_rank?: string }) | undefined
+  const r = stats?.formattedRank || stats?.formatted_rank
+  return r && r !== 'Unranked' ? r : null
 }
 
 export function parseOpggValorantHtml(
@@ -428,13 +442,44 @@ async function performFetchOpggStats(
 ): Promise<OpggStats | null> {
   if (isTauriAvailable()) {
     try {
-      const result = await invokeTauri<OpggStats>('fetch_opgg_summoner_stats', {
+      const raw = await invokeTauri<Record<string, unknown>>('fetch_opgg_summoner_stats', {
         summonerName: info.summonerName,
         tagLine: info.tagLine,
         region: info.region,
         game,
       })
-      if (result) return result
+      if (raw) {
+        const tier = String(raw.tier ?? '')
+        const rank = String(raw.rank ?? '')
+        const resolvedRank =
+          (typeof raw.formattedRank === 'string' && raw.formattedRank) ||
+          (typeof raw.formatted_rank === 'string' && raw.formatted_rank) ||
+          canonicalRank(tier ? `${tier} ${rank}`.trim() : 'Unranked')
+        const resolvedAvatar =
+          (typeof raw.avatarUrl === 'string' && raw.avatarUrl) ||
+          (typeof raw.avatar_url === 'string' && raw.avatar_url) ||
+          undefined
+        const normalized: OpggStats = {
+          summonerName: String(raw.summonerName ?? raw.summoner_name ?? info.summonerName),
+          tagLine: String(raw.tagLine ?? raw.tag_line ?? info.tagLine),
+          region: String(raw.region ?? info.region),
+          tier,
+          rank,
+          leaguePoints: Number(raw.leaguePoints ?? raw.league_points ?? 0),
+          wins: Number(raw.wins ?? 0),
+          losses: Number(raw.losses ?? 0),
+          winRate: Number(raw.winRate ?? raw.win_rate ?? 0),
+          formattedRank: resolvedRank,
+          formattedWinRate: String(raw.formattedWinRate ?? raw.formatted_win_rate ?? ''),
+          opggUrl: String(raw.opggUrl ?? raw.opgg_url ?? info.url),
+          fetchedAt: Number(raw.fetchedAt ?? raw.fetched_at ?? Math.floor(Date.now() / 1000)),
+          game: (raw.game as Game) ?? game,
+          level: typeof raw.level === 'number' ? raw.level : undefined,
+          puuid: typeof raw.puuid === 'string' ? raw.puuid : undefined,
+          avatarUrl: resolvedAvatar,
+        }
+        return normalized
+      }
     } catch (e) {
       throw e
     }
@@ -483,7 +528,9 @@ export async function autoSyncAccountRank(
 ): Promise<boolean> {
   try {
     const stats = await fetchOpggStats(account.name, account.region, account.riotId, false, game)
-    if (!stats || !stats.formattedRank || stats.formattedRank === 'Unranked') {
+    const formattedRank =
+      stats?.formattedRank || (stats as { formatted_rank?: string } | null)?.formatted_rank
+    if (!stats || !formattedRank || formattedRank === 'Unranked') {
       return false
     }
 
@@ -495,10 +542,12 @@ export async function autoSyncAccountRank(
     const currentRank = game === 'valorant'
       ? (account.valorant_rank ?? account.valorantRank)
       : account.rank
-    if (stats.avatarUrl && isTauriAvailable()) {
+    const avatarUrl =
+      stats.avatarUrl || (stats as { avatar_url?: string } | null)?.avatar_url
+    if (avatarUrl && isTauriAvailable()) {
       void invokeTauri<boolean>('update_account_avatar', {
         id: account.id,
-        avatarUrl: stats.avatarUrl,
+        avatarUrl,
         game,
       })
         .then((updated) => {
@@ -508,10 +557,10 @@ export async function autoSyncAccountRank(
         })
         .catch(() => {})
     }
-    if (currentRank !== stats.formattedRank && isTauriAvailable()) {
+    if (currentRank !== formattedRank && isTauriAvailable()) {
       const updated = await invokeTauri<boolean>('update_account_rank', {
         id: account.id,
-        rank: stats.formattedRank,
+        rank: formattedRank,
         game,
       })
       if (updated) {

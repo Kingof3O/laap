@@ -25,6 +25,7 @@ import { invokeTauri, isTauriAvailable, openExternalUrl } from '../../lib/api'
 import {
   autoSyncAccountRank,
   fetchOpggStats,
+  getOpggCachedRank,
   getOpggSummonerUrl,
   type OpggStats,
 } from '../../lib/opgg'
@@ -58,8 +59,10 @@ export function ProfileInspector({
   }
   const activeGame = propActiveGame ?? contextGame
   const isVal = activeGame === 'valorant'
+  const cachedRank = getOpggCachedRank(account.riotId || account.name, account.region, activeGame)
+  const baseRank = isVal ? account.valorantRank : account.rank
   // Never display a League rank while the VALORANT tab is active.
-  const displayRank = isVal ? account.valorantRank : account.rank
+  const displayRank = (baseRank && baseRank !== 'Unranked') ? baseRank : (cachedRank || baseRank)
 
   const added =
     account.createdAt && Number.isFinite(Date.parse(account.createdAt))
@@ -107,10 +110,12 @@ export function ProfileInspector({
         if (res?.avatarUrl) {
           window.dispatchEvent(new Event('laap:icons-updated'))
         }
+        const resRank =
+          res?.formattedRank || (res as { formatted_rank?: string } | null)?.formatted_rank
         if (
-          res?.formattedRank &&
-          res.formattedRank !== 'Unranked' &&
-          res.formattedRank !== displayRank
+          resRank &&
+          resRank !== 'Unranked' &&
+          resRank !== displayRank
         ) {
           void autoSyncAccountRank(account, activeGame)
         }

@@ -19,7 +19,7 @@ import { useRiotOperations } from '../../context/RiotOperations'
 import { hasTauri, invokeTauri } from '../../lib/api'
 import { formatLiveMinutes, formatLiveMode } from '../../lib/liveStatus'
 import { sortProfiles, type SortOrder } from '../../lib/sorting'
-import { getOpggCachedAvatar, fetchOpggStats, autoSyncAccountRank } from '../../lib/opgg'
+import { getOpggCachedAvatar, getOpggCachedRank, fetchOpggStats, autoSyncAccountRank } from '../../lib/opgg'
 import { ProfileSlotPicker, ReplaceActiveProfile } from '../billing/ProfileSlotPicker'
 import type { ProfileSlots } from '../billing/useBilling'
 import type {
@@ -236,7 +236,9 @@ export function PersonalRosterView({
   useEffect(() => {
     for (const acc of localAccounts) {
       if (!acc.games || acc.games.includes(activeGame)) {
-        const syncKey = `${acc.id}:${activeGame}:${activeGame === 'valorant' ? acc.valorant_rank : acc.rank}`
+        const targetRiotId = acc.riot_id ?? (acc.name.includes('#') ? acc.name : null)
+        const currentRank = activeGame === 'valorant' ? acc.valorant_rank : acc.rank
+        const syncKey = `${acc.id}:${activeGame}:${currentRank || ''}`
         if (!autoSyncedAccountsRef.current.has(syncKey)) {
           autoSyncedAccountsRef.current.add(syncKey)
           void autoSyncAccountRank(
@@ -246,7 +248,7 @@ export function PersonalRosterView({
               region: acc.region,
               rank: acc.rank,
               valorant_rank: acc.valorant_rank,
-              riotId: acc.riot_id,
+              riotId: targetRiotId,
             },
             activeGame,
           )
@@ -606,38 +608,46 @@ export function PersonalRosterView({
         <AccountRosterDisplay
           profileActions={profileActions}
           toolbarSlot={syncWidget}
-          items={filteredAccounts.map((acc) => ({
-            id: acc.id,
-            name: acc.name,
-            favorite: acc.favorite,
-            region: acc.region,
-            rank: activeGame === 'valorant' ? (acc.valorant_rank ?? acc.rank) : acc.rank,
-            valorantRank: acc.valorant_rank,
-            games: acc.games,
-            riotId: acc.riot_id ?? (acc.name.includes('#') ? acc.name : null),
-            notes: acc.notes,
-            iconAsset:
-              activeGame === 'valorant'
-                ? acc.customization?.valorant_icon_asset ||
-                  getOpggCachedAvatar(acc.riot_id || acc.name, acc.region, 'valorant') ||
-                  acc.customization?.icon_asset
-                : acc.customization?.icon_asset,
-            hasSession: acc.has_session,
-            status:
-              acc.session_status === 'missing'
-                ? 'Sign in required'
-                : acc.session_status === 'stale'
-                  ? 'Session stale'
-                  : acc.session_status === 'unknown'
-                    ? 'Login saved · freshness unknown'
-                    : 'Login saved',
-            lastUsedText: acc.last_used_at
-              ? new Date(acc.last_used_at).toLocaleString()
-              : null,
-            rawLastUsed: acc.last_used_at,
-            createdAt: acc.created_at,
-            liveStatus: liveStatusById[acc.id] ?? null,
-          }))}
+          items={filteredAccounts.map((acc) => {
+            const rawRank = activeGame === 'valorant' ? (acc.valorant_rank ?? acc.rank) : acc.rank
+            const targetRiotId = acc.riot_id ?? (acc.name.includes('#') ? acc.name : null)
+            const cachedRank = getOpggCachedRank(targetRiotId || acc.name, acc.region, activeGame)
+            const effectiveRank = rawRank && rawRank !== 'Unranked' ? rawRank : (cachedRank || rawRank)
+            const cachedAvatar = getOpggCachedAvatar(targetRiotId || acc.name, acc.region, activeGame)
+
+            return {
+              id: acc.id,
+              name: acc.name,
+              favorite: acc.favorite,
+              region: acc.region,
+              rank: effectiveRank,
+              valorantRank: activeGame === 'valorant' ? effectiveRank : acc.valorant_rank,
+              games: acc.games,
+              riotId: targetRiotId,
+              notes: acc.notes,
+              iconAsset:
+                activeGame === 'valorant'
+                  ? acc.customization?.valorant_icon_asset ||
+                    cachedAvatar ||
+                    acc.customization?.icon_asset
+                  : acc.customization?.icon_asset || cachedAvatar,
+              hasSession: acc.has_session,
+              status:
+                acc.session_status === 'missing'
+                  ? 'Sign in required'
+                  : acc.session_status === 'stale'
+                    ? 'Session stale'
+                    : acc.session_status === 'unknown'
+                      ? 'Login saved · freshness unknown'
+                      : 'Login saved',
+              lastUsedText: acc.last_used_at
+                ? new Date(acc.last_used_at).toLocaleString()
+                : null,
+              rawLastUsed: acc.last_used_at,
+              createdAt: acc.created_at,
+              liveStatus: liveStatusById[acc.id] ?? null,
+            }
+          })}
           activeGame={activeGame}
           viewMode={viewMode}
           isCloud={false}
