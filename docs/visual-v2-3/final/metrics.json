@@ -1,0 +1,32 @@
+[
+  {
+    "width": 960,
+    "initialRenderMs": 686,
+    "bodyFont": "Manrope, \"Segoe UI\", sans-serif",
+    "headingFont": "Sora, \"Segoe UI\", sans-serif",
+    "manropeLoaded": true,
+    "soraLoaded": true,
+    "scrollWidth": 960,
+    "innerWidth": 960
+  },
+  {
+    "width": 1160,
+    "initialRenderMs": 769,
+    "bodyFont": "Manrope, \"Segoe UI\", sans-serif",
+    "headingFont": "Sora, \"Segoe UI\", sans-serif",
+    "manropeLoaded": true,
+    "soraLoaded": true,
+    "scrollWidth": 1160,
+    "innerWidth": 1160
+  },
+  {
+    "width": 1440,
+    "initialRenderMs": 678,
+    "bodyFont": "Manrope, \"Segoe UI\", sans-serif",
+    "headingFont": "Sora, \"Segoe UI\", sans-serif",
+    "manropeLoaded": true,
+    "soraLoaded": true,
+    "scrollWidth": 1440,
+    "innerWidth": 1440
+  }
+]
