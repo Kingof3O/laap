@@ -41,3 +41,6 @@ apps/desktop/src-tauri/target-v21-package/
 apps/desktop/src-tauri/resources/catalog/*.zip
 apps/desktop/src-tauri/resources/catalog/*.json
 apps/desktop/src-tauri/resources/catalog/*.tmp
+
+# Visual test fixture captures
+docs/visual-*/
