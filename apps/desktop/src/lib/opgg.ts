@@ -475,6 +475,7 @@ export async function autoSyncAccountRank(
     region: string
     rank?: string | null
     valorant_rank?: string | null
+    valorantRank?: string | null
     riotId?: string | null
     puuid?: string | null
   },
@@ -491,7 +492,9 @@ export async function autoSyncAccountRank(
       return false
     }
 
-    const currentRank = game === 'valorant' ? account.valorant_rank : account.rank
+    const currentRank = game === 'valorant'
+      ? (account.valorant_rank ?? account.valorantRank)
+      : account.rank
     if (stats.avatarUrl && isTauriAvailable()) {
       void invokeTauri<boolean>('update_account_avatar', {
         id: account.id,

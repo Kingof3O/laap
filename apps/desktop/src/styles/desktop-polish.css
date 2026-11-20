@@ -127,8 +127,8 @@
   gap: 16px;
 }
 .roster-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 16px; }
-.roster-grid-single { grid-template-columns: minmax(min(100%, 320px), 540px); justify-content: start; }
-.roster-grid-double { grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 480px)); justify-content: start; }
+.roster-grid-single { grid-template-columns: minmax(300px, 440px); }
+.roster-grid-double { grid-template-columns: repeat(2, minmax(300px, 440px)); }
 .roster-card {
   gap: 15px;
   min-width: 0;
@@ -370,15 +370,11 @@
 @media (max-width: 1160px) {
   .studio-viewport { padding: 22px 20px 30px; }
   .roster-workspace { grid-template-columns: minmax(0,1fr) 280px; gap: 15px; }
-  .roster-workspace:not(.roster-workspace-full) .roster-grid,
-  .roster-workspace:not(.roster-workspace-full) .roster-grid-double { grid-template-columns: minmax(0,1fr); }
   .roster-card { padding: 17px; }
   .card-details-row { gap: 8px; }
 }
 @media (max-width: 930px) {
   .roster-workspace { grid-template-columns: minmax(0,1fr); }
-  .roster-workspace:not(.roster-workspace-full) .roster-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%,310px),1fr)); }
-  .roster-grid-double { grid-template-columns: repeat(auto-fit, minmax(min(100%,310px),480px)); }
   .profile-inspector { min-height: 0; }
   .sub-navbar { padding-inline: 16px; }
 }

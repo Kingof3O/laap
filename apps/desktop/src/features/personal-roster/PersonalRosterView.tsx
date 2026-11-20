@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react'
 import { Loader2, RefreshCw } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   EmptyState,
   AccountRosterDisplay,
@@ -19,7 +19,7 @@ import { useRiotOperations } from '../../context/RiotOperations'
 import { hasTauri, invokeTauri } from '../../lib/api'
 import { formatLiveMinutes, formatLiveMode } from '../../lib/liveStatus'
 import { sortProfiles, type SortOrder } from '../../lib/sorting'
-import { getOpggCachedAvatar, fetchOpggStats } from '../../lib/opgg'
+import { getOpggCachedAvatar, fetchOpggStats, autoSyncAccountRank } from '../../lib/opgg'
 import { ProfileSlotPicker, ReplaceActiveProfile } from '../billing/ProfileSlotPicker'
 import type { ProfileSlots } from '../billing/useBilling'
 import type {
@@ -232,19 +232,24 @@ export function PersonalRosterView({
       ),
     [localAccounts, activeGame, selectedRegion, selectedRank, searchQuery, sortOrder, favoritesOnly],
   )
+  const autoSyncedAccountsRef = useRef<Set<string>>(new Set())
   useEffect(() => {
     for (const acc of localAccounts) {
-      const riotId = acc.riot_id ?? (acc.name.includes('#') ? acc.name : null)
-      if (riotId && acc.games?.includes(activeGame)) {
-        const cached = getOpggCachedAvatar(riotId, acc.region, activeGame)
-        if (!cached) {
-          void fetchOpggStats(acc.name, acc.region, acc.riot_id, false, activeGame)
-            .then((stats) => {
-              if (stats?.avatarUrl) {
-                window.dispatchEvent(new Event('laap:icons-updated'))
-              }
-            })
-            .catch(() => {})
+      if (!acc.games || acc.games.includes(activeGame)) {
+        const syncKey = `${acc.id}:${activeGame}:${activeGame === 'valorant' ? acc.valorant_rank : acc.rank}`
+        if (!autoSyncedAccountsRef.current.has(syncKey)) {
+          autoSyncedAccountsRef.current.add(syncKey)
+          void autoSyncAccountRank(
+            {
+              id: acc.id,
+              name: acc.name,
+              region: acc.region,
+              rank: acc.rank,
+              valorant_rank: acc.valorant_rank,
+              riotId: acc.riot_id,
+            },
+            activeGame,
+          )
         }
       }
     }

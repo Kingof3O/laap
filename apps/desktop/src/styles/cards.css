@@ -8,15 +8,13 @@
   width: 100%;
 }
 
-/* Single or Two Account Layout (responsive auto-fit) */
+/* Single or Two Account Layout */
 .roster-grid-single {
-  grid-template-columns: minmax(min(100%, 320px), 540px);
-  justify-content: start;
+  grid-template-columns: minmax(300px, 440px);
 }
 
 .roster-grid-double {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 480px));
-  justify-content: start;
+  grid-template-columns: repeat(2, minmax(300px, 440px));
 }
 
 .roster-card {
