@@ -451,14 +451,15 @@ pub async fn retry_presence() -> Result<PresenceStatus, String> {
         .map_err(|e| e.to_string())?
 }
 pub struct LaunchPlan {
+    game: crate::local_store::Game,
     client: crate::riot::install::ClientLocation,
     identity: Option<crate::presence_identity::ChatIdentity>,
 }
 impl LaunchPlan {
-    pub fn prepare() -> Result<Self, String> {
+    pub fn prepare(game: crate::local_store::Game) -> Result<Self, String> {
         let client = crate::riot::install::discover()?;
-        let settings = launcher_settings::load()?;
-        let identity = if supported() {
+        let identity = if game == crate::local_store::Game::League && supported() {
+            let settings = launcher_settings::load()?;
             if let Err(error) = ensure_ready() {
                 if settings.presence_mode == PresenceMode::Online
                     && ONLINE_BYPASS.load(std::sync::atomic::Ordering::SeqCst)
@@ -473,28 +474,38 @@ impl LaunchPlan {
         } else {
             None
         };
-        Ok(Self { client, identity })
+        Ok(Self {
+            game,
+            client,
+            identity,
+        })
     }
     pub fn launch(self) -> Result<(), String> {
-        if crate::riot::process::is_riot_running() && (self.identity.is_some() || active()) {
-            return Err(
-                "Use Switch Account or Stop Riot before starting a presence-enabled client.".into(),
-            );
+        if self.game == crate::local_store::Game::League {
+            if crate::riot::process::is_riot_running() && (self.identity.is_some() || active()) {
+                return Err(
+                    "Use Switch Account or Stop Riot before starting a presence-enabled client.".into(),
+                );
+            }
+        } else if crate::riot::process::is_riot_running() {
+            return Err("Use Switch Account or Stop Riot before starting the client.".into());
         }
         stop_proxy()?;
-        let mut args: Vec<String> = crate::commands::session::LEAGUE_LAUNCH_ARGS
+        let mut args: Vec<String> = crate::commands::session::launch_args(self.game)
             .iter()
             .map(|arg| (*arg).into())
             .collect();
-        if let Some(identity) = self.identity {
-            let settings = launcher_settings::load()?;
-            let proxy = presence_proxy::start(identity, settings.presence_mode)?;
-            args.push(format!(
-                "--client-config-url=http://127.0.0.1:{}",
-                proxy.config_port
-            ));
-            crate::riot::operation::mark_launch();
-            *ACTIVE.lock().unwrap_or_else(|e| e.into_inner()) = Some(proxy);
+        if self.game == crate::local_store::Game::League {
+            if let Some(identity) = self.identity {
+                let settings = launcher_settings::load()?;
+                let proxy = presence_proxy::start(identity, settings.presence_mode)?;
+                args.push(format!(
+                    "--client-config-url=http://127.0.0.1:{}",
+                    proxy.config_port
+                ));
+                crate::riot::operation::mark_launch();
+                *ACTIVE.lock().unwrap_or_else(|e| e.into_inner()) = Some(proxy);
+            }
         }
         let result = spawn_client(&self.client.path, &args);
         if result.is_err() {

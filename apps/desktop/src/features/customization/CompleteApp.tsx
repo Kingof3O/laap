@@ -71,18 +71,20 @@ export default function CompleteApp() {
             <GameAdapterSettingsPanel />
           </Suspense>
         }
-        profileActions={(account) => (
-          <button
-            className="inspector-edit"
-            type="button"
-            onClick={() => {
-              selectProfile({ id: account.id, name: account.name });
-              setStudio(true);
-            }}
-          >
-            Customization presets
-          </button>
-        )}
+        profileActions={(account) =>
+          !account.games || account.games.includes('league') ? (
+            <button
+              className="inspector-edit"
+              type="button"
+              onClick={() => {
+                selectProfile({ id: account.id, name: account.name });
+                setStudio(true);
+              }}
+            >
+              Customization presets
+            </button>
+          ) : null
+        }
         navigation={
           <nav className="mode-nav" aria-label="Workspace">
             <button
@@ -96,6 +98,14 @@ export default function CompleteApp() {
               className="mode-pill"
               aria-pressed={studio}
               onClick={() => {
+                try {
+                  localStorage.setItem('laap:active-game', 'league')
+                  window.dispatchEvent(
+                    new CustomEvent('laap:game-change', { detail: 'league' }),
+                  )
+                } catch {
+                  // Ignore
+                }
                 selectProfile(undefined);
                 setStudio(true);
               }}

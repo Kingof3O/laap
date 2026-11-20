@@ -1,3 +1,4 @@
+use crate::local_store::models::Game;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -21,6 +22,68 @@ pub struct SummonerProfile {
     pub formatted_win_rate: String,
     #[serde(default)]
     pub opgg_url: String,
+    #[serde(default)]
+    pub game: Game,
+    #[serde(default)]
+    pub level: Option<u32>,
+    #[serde(default)]
+    pub puuid: Option<String>,
+}
+
+impl SummonerProfile {
+    pub fn matches_saved_puuid(&self, saved_puuid: Option<&str>) -> Result<(), String> {
+        verify_puuid_identity(saved_puuid, self.puuid.as_deref())
+    }
+}
+
+pub fn verify_puuid_identity(
+    saved_puuid: Option<&str>,
+    opgg_puuid: Option<&str>,
+) -> Result<(), String> {
+    if let (Some(saved), Some(fetched)) = (saved_puuid, opgg_puuid) {
+        let saved_trimmed = saved.trim();
+        let fetched_trimmed = fetched.trim();
+        if !saved_trimmed.is_empty()
+            && !fetched_trimmed.is_empty()
+            && saved_trimmed != fetched_trimmed
+        {
+            return Err("OP.GG returned a different Riot account; saved rank kept.".to_string());
+        }
+    }
+    Ok(())
+}
+
+pub fn valorant_tier_to_rank(tier: u32) -> &'static str {
+    match tier {
+        0 => "Unranked",
+        1..=2 => "Unranked",
+        3 => "Iron 1",
+        4 => "Iron 2",
+        5 => "Iron 3",
+        6 => "Bronze 1",
+        7 => "Bronze 2",
+        8 => "Bronze 3",
+        9 => "Silver 1",
+        10 => "Silver 2",
+        11 => "Silver 3",
+        12 => "Gold 1",
+        13 => "Gold 2",
+        14 => "Gold 3",
+        15 => "Platinum 1",
+        16 => "Platinum 2",
+        17 => "Platinum 3",
+        18 => "Diamond 1",
+        19 => "Diamond 2",
+        20 => "Diamond 3",
+        21 => "Ascendant 1",
+        22 => "Ascendant 2",
+        23 => "Ascendant 3",
+        24 => "Immortal 1",
+        25 => "Immortal 2",
+        26 => "Immortal 3",
+        27 => "Radiant",
+        _ => "Unranked",
+    }
 }
 
 pub fn now() -> u64 {
@@ -182,6 +245,243 @@ pub fn parse_opgg_meta(
         formatted_rank,
         formatted_win_rate,
         opgg_url,
+        game: Game::League,
+        level: None,
+        puuid: None,
+    })
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ValorantProfileJson {
+    game_name: Option<String>,
+    tag_line: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_opt_u32")]
+    level: Option<u32>,
+    region: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_opt_u32")]
+    competitive_tier: Option<u32>,
+    puuid: Option<String>,
+}
+
+fn deserialize_opt_u32<'de, D>(deserializer: D) -> Result<Option<u32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v: Option<serde_json::Value> = serde::Deserialize::deserialize(deserializer)?;
+    match v {
+        Some(serde_json::Value::Number(n)) => Ok(n.as_u64().map(|v| v as u32)),
+        Some(serde_json::Value::String(s)) => Ok(s.parse::<u32>().ok()),
+        _ => Ok(None),
+    }
+}
+
+fn extract_profile_slice(html: &str) -> Option<ValorantProfileJson> {
+    let bytes = html.as_bytes();
+    let needle = "profile";
+    let mut search_idx = 0;
+
+    while let Some(rel_idx) = html[search_idx..].find(needle) {
+        let p_idx = search_idx + rel_idx;
+        search_idx = p_idx + needle.len();
+
+        let escaped = if p_idx >= 2 && bytes[p_idx - 2] == b'\\' && bytes[p_idx - 1] == b'"' {
+            true
+        } else if p_idx >= 1 && bytes[p_idx - 1] == b'"' {
+            false
+        } else {
+            continue;
+        };
+
+        let end_quote_pos = if escaped {
+            if p_idx + needle.len() + 1 < bytes.len()
+                && bytes[p_idx + needle.len()] == b'\\'
+                && bytes[p_idx + needle.len() + 1] == b'"'
+            {
+                p_idx + needle.len() + 2
+            } else {
+                continue;
+            }
+        } else if p_idx + needle.len() < bytes.len() && bytes[p_idx + needle.len()] == b'"' {
+            p_idx + needle.len() + 1
+        } else {
+            continue;
+        };
+
+        let mut pos = end_quote_pos;
+        while pos < bytes.len()
+            && (bytes[pos] == b' '
+                || bytes[pos] == b'\t'
+                || bytes[pos] == b'\r'
+                || bytes[pos] == b'\n')
+        {
+            pos += 1;
+        }
+        if pos >= bytes.len() || bytes[pos] != b':' {
+            continue;
+        }
+        pos += 1;
+        while pos < bytes.len()
+            && (bytes[pos] == b' '
+                || bytes[pos] == b'\t'
+                || bytes[pos] == b'\r'
+                || bytes[pos] == b'\n')
+        {
+            pos += 1;
+        }
+        if pos >= bytes.len() || bytes[pos] != b'{' {
+            continue;
+        }
+
+        let start_brace_idx = pos;
+        let escaped_quotes = escaped;
+
+        // Scan for matching closing brace
+        let mut depth = 0usize;
+        let mut in_string = false;
+        let mut i = start_brace_idx;
+        let mut end_idx = None;
+
+        while i < bytes.len() {
+            if !in_string {
+                if escaped_quotes && i + 1 < bytes.len() && bytes[i] == b'\\' && bytes[i + 1] == b'"'
+                {
+                    in_string = true;
+                    i += 2;
+                } else if !escaped_quotes && bytes[i] == b'"' {
+                    in_string = true;
+                    i += 1;
+                } else if bytes[i] == b'{' {
+                    depth += 1;
+                    i += 1;
+                } else if bytes[i] == b'}' {
+                    depth -= 1;
+                    if depth == 0 {
+                        end_idx = Some(i + 1);
+                        break;
+                    }
+                    i += 1;
+                } else {
+                    i += 1;
+                }
+            } else {
+                if escaped_quotes {
+                    if i + 1 < bytes.len() && bytes[i] == b'\\' && bytes[i + 1] == b'"' {
+                        let mut slash_count = 0;
+                        let mut k = i;
+                        while k > start_brace_idx && bytes[k - 1] == b'\\' {
+                            slash_count += 1;
+                            k -= 1;
+                        }
+                        if slash_count % 2 == 0 {
+                            in_string = false;
+                        }
+                        i += 2;
+                    } else {
+                        i += 1;
+                    }
+                } else if bytes[i] == b'"' {
+                    let mut slash_count = 0;
+                    let mut k = i;
+                    while k > start_brace_idx && bytes[k - 1] == b'\\' {
+                        slash_count += 1;
+                        k -= 1;
+                    }
+                    if slash_count % 2 == 0 {
+                        in_string = false;
+                    }
+                    i += 1;
+                } else {
+                    i += 1;
+                }
+            }
+        }
+
+        if let Some(end) = end_idx {
+            let slice = &html[start_brace_idx..end];
+            let json_candidate = if escaped_quotes {
+                slice.replace("\\\"", "\"")
+            } else {
+                slice.to_string()
+            };
+            if let Ok(prof) = serde_json::from_str::<ValorantProfileJson>(&json_candidate) {
+                if prof.competitive_tier.is_some()
+                    || prof.game_name.is_some()
+                    || prof.puuid.is_some()
+                    || prof.level.is_some()
+                {
+                    return Some(prof);
+                }
+            }
+        }
+    }
+
+    None
+}
+
+pub fn parse_opgg_valorant_html(
+    html: &str,
+    summoner_name: &str,
+    tag_line: &str,
+    region: &str,
+) -> Result<SummonerProfile, String> {
+    let parsed = extract_profile_slice(html)
+        .or_else(|| {
+            if html.contains("&quot;") {
+                let unent = html.replace("&quot;", "\"");
+                extract_profile_slice(&unent)
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| "OP.GG VALORANT profile not found in page".to_string())?;
+
+    let tier_num = parsed.competitive_tier.unwrap_or(0);
+    let formatted_rank = valorant_tier_to_rank(tier_num).to_string();
+
+    let (tier, rank) = if let Some((t, r)) = formatted_rank.split_once(' ') {
+        (t.to_string(), r.to_string())
+    } else {
+        (formatted_rank.clone(), String::new())
+    };
+
+    let final_name = parsed
+        .game_name
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| summoner_name.to_string());
+    let final_tag = parsed
+        .tag_line
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| tag_line.to_string());
+    let final_region = parsed
+        .region
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| region.to_string());
+
+    let opgg_url = format!(
+        "https://op.gg/valorant/profile/{}-{}",
+        urlencoding_simple(&final_name),
+        urlencoding_simple(&final_tag)
+    );
+
+    Ok(SummonerProfile {
+        summoner_name: final_name,
+        tag_line: final_tag,
+        region: final_region,
+        tier,
+        rank,
+        league_points: 0,
+        wins: 0,
+        losses: 0,
+        fetched_at: now(),
+        source: "OP.GG Public Profile".to_string(),
+        win_rate: 0,
+        formatted_rank,
+        formatted_win_rate: "Unranked (0 games)".to_string(),
+        opgg_url,
+        game: Game::Valorant,
+        level: parsed.level,
+        puuid: parsed.puuid.filter(|s| !s.trim().is_empty()),
     })
 }
 
@@ -190,14 +490,33 @@ pub async fn fetch_opgg_summoner(
     summoner_name: &str,
     tag_line: &str,
     region: &str,
+    game: Game,
 ) -> Result<SummonerProfile, String> {
-    let opgg_region = opgg_region_slug(region);
-    let slug = format!(
-        "{}-{}",
-        urlencoding_simple(summoner_name),
-        urlencoding_simple(tag_line)
-    );
-    let url = format!("https://op.gg/lol/summoners/{}/{}", opgg_region, slug);
+    let (url, opgg_region_display) = match game {
+        Game::League => {
+            let opgg_region = opgg_region_slug(region);
+            let slug = format!(
+                "{}-{}",
+                urlencoding_simple(summoner_name),
+                urlencoding_simple(tag_line)
+            );
+            (
+                format!("https://op.gg/lol/summoners/{}/{}", opgg_region, slug),
+                opgg_region.to_string(),
+            )
+        }
+        Game::Valorant => {
+            let slug = format!(
+                "{}-{}",
+                urlencoding_simple(summoner_name),
+                urlencoding_simple(tag_line)
+            );
+            (
+                format!("https://op.gg/valorant/profile/{}", slug),
+                "valorant".to_string(),
+            )
+        }
+    };
 
     let response = client
         .get(&url)
@@ -217,7 +536,7 @@ pub async fn fetch_opgg_summoner(
     let status = response.status();
     if status == reqwest::StatusCode::NOT_FOUND {
         return Err(format!(
-            "Summoner '{summoner_name}#{tag_line}' not found on OP.GG ({opgg_region})"
+            "Summoner '{summoner_name}#{tag_line}' not found on OP.GG ({opgg_region_display})"
         ));
     }
 
@@ -229,7 +548,11 @@ pub async fn fetch_opgg_summoner(
         .text()
         .await
         .map_err(|e| format!("Failed to read OP.GG body: {e}"))?;
-    parse_opgg_meta(&text, summoner_name, tag_line, region)
+
+    match game {
+        Game::League => parse_opgg_meta(&text, summoner_name, tag_line, region),
+        Game::Valorant => parse_opgg_valorant_html(&text, summoner_name, tag_line, region),
+    }
 }
 
 #[tauri::command]
@@ -237,6 +560,7 @@ pub async fn fetch_opgg_summoner_stats(
     summoner_name: String,
     tag_line: String,
     region: String,
+    game: Option<Game>,
 ) -> Result<SummonerProfile, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(12))
@@ -263,7 +587,14 @@ pub async fn fetch_opgg_summoner_stats(
         )
     };
 
-    fetch_opgg_summoner(&client, name, tag, &region).await
+    fetch_opgg_summoner(
+        &client,
+        name,
+        tag,
+        &region,
+        game.unwrap_or(Game::League),
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -274,6 +605,7 @@ mod tests {
     fn parses_opgg_meta_description() {
         let html = r#"<html><head><meta name="description" content="Kingof3O#EUW / Platinum 2 17 LP / 136Win 139Lose Win rate 49% / Wukong - 115Win 120Lose Win rate 49%"></head></html>"#;
         let p = parse_opgg_meta(html, "Kingof3O", "EUW", "EUW").unwrap();
+        assert_eq!(p.game, Game::League);
         assert_eq!(p.tier, "Platinum");
         assert_eq!(p.rank, "2");
         assert_eq!(p.league_points, 17);
@@ -289,6 +621,7 @@ mod tests {
     fn parses_apex_opgg_meta_description() {
         let html = r#"<html><head><meta name="description" content="Hide on bush#KR1 / Master 831 LP / 448Win 371Lose Win rate 55% / Yone - 31Win"></head></html>"#;
         let p = parse_opgg_meta(html, "Hide on bush", "KR1", "KR").unwrap();
+        assert_eq!(p.game, Game::League);
         assert_eq!(p.tier, "Master");
         assert_eq!(p.league_points, 831);
         assert_eq!(p.wins, 448);
@@ -296,5 +629,152 @@ mod tests {
         assert_eq!(p.win_rate, 55);
         assert_eq!(p.formatted_rank, "Master (831 LP)");
         assert_eq!(p.formatted_win_rate, "448W - 371L (55%)");
+    }
+
+    #[test]
+    fn valorant_tier_mapping_boundaries() {
+        assert_eq!(valorant_tier_to_rank(0), "Unranked");
+        assert_eq!(valorant_tier_to_rank(1), "Unranked");
+        assert_eq!(valorant_tier_to_rank(2), "Unranked");
+        assert_eq!(valorant_tier_to_rank(3), "Iron 1");
+        assert_eq!(valorant_tier_to_rank(4), "Iron 2");
+        assert_eq!(valorant_tier_to_rank(5), "Iron 3");
+        assert_eq!(valorant_tier_to_rank(6), "Bronze 1");
+        assert_eq!(valorant_tier_to_rank(7), "Bronze 2");
+        assert_eq!(valorant_tier_to_rank(8), "Bronze 3");
+        assert_eq!(valorant_tier_to_rank(9), "Silver 1");
+        assert_eq!(valorant_tier_to_rank(10), "Silver 2");
+        assert_eq!(valorant_tier_to_rank(11), "Silver 3");
+        assert_eq!(valorant_tier_to_rank(12), "Gold 1");
+        assert_eq!(valorant_tier_to_rank(13), "Gold 2");
+        assert_eq!(valorant_tier_to_rank(14), "Gold 3");
+        assert_eq!(valorant_tier_to_rank(15), "Platinum 1");
+        assert_eq!(valorant_tier_to_rank(16), "Platinum 2");
+        assert_eq!(valorant_tier_to_rank(17), "Platinum 3");
+        assert_eq!(valorant_tier_to_rank(18), "Diamond 1");
+        assert_eq!(valorant_tier_to_rank(19), "Diamond 2");
+        assert_eq!(valorant_tier_to_rank(20), "Diamond 3");
+        assert_eq!(valorant_tier_to_rank(21), "Ascendant 1");
+        assert_eq!(valorant_tier_to_rank(22), "Ascendant 2");
+        assert_eq!(valorant_tier_to_rank(23), "Ascendant 3");
+        assert_eq!(valorant_tier_to_rank(24), "Immortal 1");
+        assert_eq!(valorant_tier_to_rank(25), "Immortal 2");
+        assert_eq!(valorant_tier_to_rank(26), "Immortal 3");
+        assert_eq!(valorant_tier_to_rank(27), "Radiant");
+        assert_eq!(valorant_tier_to_rank(28), "Unranked");
+        assert_eq!(valorant_tier_to_rank(99), "Unranked");
+    }
+
+    #[test]
+    fn parses_valorant_rsc_html_fixture() {
+        let fixture = r#"
+        <!DOCTYPE html><html><body>
+        <script>
+        self.__next_f.push([1,"7:[\"$\",\"$L8\",null,{\"profile\":{\"gameName\":\"Jett\",\"tagLine\":\"NA1\",\"level\":52,\"region\":\"na\",\"competitiveTier\":21,\"puuid\":\"c7b12d34-5678-90ab-cdef-1234567890ab\"},\"tierHistories\":[]}]"]);
+        </script>
+        </body></html>
+        "#;
+
+        let p = parse_opgg_valorant_html(fixture, "Jett", "NA1", "NA").unwrap();
+        assert_eq!(p.game, Game::Valorant);
+        assert_eq!(p.summoner_name, "Jett");
+        assert_eq!(p.tag_line, "NA1");
+        assert_eq!(p.region, "na");
+        assert_eq!(p.tier, "Ascendant");
+        assert_eq!(p.rank, "1");
+        assert_eq!(p.formatted_rank, "Ascendant 1");
+        assert_eq!(p.league_points, 0);
+        assert_eq!(p.level, Some(52));
+        assert_eq!(
+            p.puuid.as_deref(),
+            Some("c7b12d34-5678-90ab-cdef-1234567890ab")
+        );
+        assert_eq!(p.opgg_url, "https://op.gg/valorant/profile/Jett-NA1");
+    }
+
+    #[test]
+    fn parses_valorant_html_fixture_tier_0() {
+        let fixture = r#"{"profile":{"gameName":"NewPlayer","tagLine":"0000","level":10,"region":"eu","competitiveTier":0,"puuid":"p-0"}}"#;
+        let p = parse_opgg_valorant_html(fixture, "NewPlayer", "0000", "EUW").unwrap();
+        assert_eq!(p.formatted_rank, "Unranked");
+        assert_eq!(p.tier, "Unranked");
+        assert_eq!(p.rank, "");
+        assert_eq!(p.level, Some(10));
+    }
+
+    #[test]
+    fn parses_valorant_html_fixture_tier_3() {
+        let fixture = r#"<script>self.__next_f.push([1,"\"profile\":{\"gameName\":\"IronGuy\",\"tagLine\":\"1234\",\"level\":25,\"region\":\"na\",\"competitiveTier\":3,\"puuid\":\"p-3\"}"])</script>"#;
+        let p = parse_opgg_valorant_html(fixture, "IronGuy", "1234", "NA").unwrap();
+        assert_eq!(p.formatted_rank, "Iron 1");
+        assert_eq!(p.tier, "Iron");
+        assert_eq!(p.rank, "1");
+    }
+
+    #[test]
+    fn parses_valorant_html_fixture_tier_26() {
+        let fixture = r#"{"profile":{"gameName":"ProGuy","tagLine":"KR1","level":210,"region":"kr","competitiveTier":26,"puuid":"p-26"}}"#;
+        let p = parse_opgg_valorant_html(fixture, "ProGuy", "KR1", "KR").unwrap();
+        assert_eq!(p.formatted_rank, "Immortal 3");
+        assert_eq!(p.tier, "Immortal");
+        assert_eq!(p.rank, "3");
+    }
+
+    #[test]
+    fn parses_valorant_html_fixture_tier_27() {
+        let fixture = r#"<script>self.__next_f.push([1,"\"profile\":{\"gameName\":\"RadiantGod\",\"tagLine\":\"VAL\",\"level\":340,\"region\":\"na\",\"competitiveTier\":27,\"puuid\":\"p-27\"}"])</script>"#;
+        let p = parse_opgg_valorant_html(fixture, "RadiantGod", "VAL", "NA").unwrap();
+        assert_eq!(p.formatted_rank, "Radiant");
+        assert_eq!(p.tier, "Radiant");
+        assert_eq!(p.rank, "");
+    }
+
+    #[test]
+    fn parses_valorant_html_fixture_unused_1_and_2() {
+        let fixture1 = r#"{"profile":{"gameName":"Unused1","tagLine":"VAL","level":5,"region":"na","competitiveTier":1,"puuid":"p-1"}}"#;
+        let p1 = parse_opgg_valorant_html(fixture1, "Unused1", "VAL", "NA").unwrap();
+        assert_eq!(p1.formatted_rank, "Unranked");
+
+        let fixture2 = r#"{"profile":{"gameName":"Unused2","tagLine":"VAL","level":5,"region":"na","competitiveTier":2,"puuid":"p-2"}}"#;
+        let p2 = parse_opgg_valorant_html(fixture2, "Unused2", "VAL", "NA").unwrap();
+        assert_eq!(p2.formatted_rank, "Unranked");
+    }
+
+    #[test]
+    fn parses_valorant_html_fixture_unknown_28() {
+        let fixture = r#"{"profile":{"gameName":"FutureTier","tagLine":"VAL","level":100,"region":"na","competitiveTier":28,"puuid":"p-28"}}"#;
+        let p = parse_opgg_valorant_html(fixture, "FutureTier", "VAL", "NA").unwrap();
+        assert_eq!(p.formatted_rank, "Unranked");
+    }
+
+    #[test]
+    fn puuid_identity_check_rules() {
+        // Matching PUUIDs pass
+        assert!(verify_puuid_identity(Some("puuid-xyz"), Some("puuid-xyz")).is_ok());
+
+        // Mismatched PUUIDs fail with specific error
+        let err = verify_puuid_identity(Some("puuid-xyz"), Some("puuid-other")).unwrap_err();
+        assert_eq!(
+            err,
+            "OP.GG returned a different Riot account; saved rank kept."
+        );
+
+        // Missing on either side succeeds
+        assert!(verify_puuid_identity(None, Some("puuid-xyz")).is_ok());
+        assert!(verify_puuid_identity(Some("puuid-xyz"), None).is_ok());
+        assert!(verify_puuid_identity(None, None).is_ok());
+        assert!(verify_puuid_identity(Some(""), Some("puuid-xyz")).is_ok());
+        assert!(verify_puuid_identity(Some("puuid-xyz"), Some("")).is_ok());
+    }
+
+    #[test]
+    fn unparseable_valorant_page_returns_error() {
+        let html = r#"<html><head><meta name="description" content="Search results for Player#NA1"></head><body>Not found</body></html>"#;
+        let res = parse_opgg_valorant_html(html, "Player", "NA1", "NA");
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err(),
+            "OP.GG VALORANT profile not found in page"
+        );
     }
 }

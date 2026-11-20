@@ -10,6 +10,7 @@ pub struct RuntimeSnapshot {
     pub league_client: bool,
     pub league_game: bool,
     pub valorant_game: bool,
+    pub vanguard: bool,
 }
 impl RuntimeSnapshot {
     pub fn active_match(&self) -> bool {
@@ -21,7 +22,9 @@ impl RuntimeSnapshot {
 }
 fn classify_process(name: &str, snapshot: &mut RuntimeSnapshot) {
     let name = name.to_ascii_lowercase();
-    if name.contains("valorant-win64-shipping") {
+    if name.contains("vgc") {
+        snapshot.vanguard = true;
+    } else if name.contains("valorant-win64-shipping") {
         snapshot.valorant_game = true;
     } else if name.contains("riotclientservices")
         || name.contains("riotclientux")
@@ -56,6 +59,18 @@ pub fn guard_match(snapshot: &RuntimeSnapshot, confirmed: bool) -> Result<(), St
 pub fn terminate_riot_processes() -> Result<(), String> {
     stop_riot(false)
 }
+
+pub fn is_stoppable_process(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    // Explicit guard: Vanguard (vgc.exe) is NEVER killed.
+    if lower.contains("vgc") {
+        return false;
+    }
+    let mut snapshot = RuntimeSnapshot::default();
+    classify_process(name, &mut snapshot);
+    snapshot.running()
+}
+
 pub fn stop_riot(confirmed: bool) -> Result<(), String> {
     let system = System::new_all();
     let mut snapshot = RuntimeSnapshot::default();
@@ -67,9 +82,12 @@ pub fn stop_riot(confirmed: bool) -> Result<(), String> {
         .processes()
         .iter()
         .filter_map(|(pid, process)| {
-            let mut snapshot = RuntimeSnapshot::default();
-            classify_process(&process.name().to_string_lossy(), &mut snapshot);
-            snapshot.running().then_some((*pid, process.start_time()))
+            let name = process.name().to_string_lossy();
+            if is_stoppable_process(&name) {
+                Some((*pid, process.start_time()))
+            } else {
+                None
+            }
         })
         .collect();
     for (pid, _) in &targets {
@@ -224,6 +242,20 @@ mod tests {
         classify_process("LeagueClientUx.exe", &mut snapshot);
         assert!(!snapshot.active_match());
         assert!(snapshot.league_client);
+    }
+
+    #[test]
+    fn stop_riot_excludes_vgc_and_vanguard_never_killed() {
+        assert!(!is_stoppable_process("vgc.exe"));
+        assert!(!is_stoppable_process("vgc"));
+        assert!(!is_stoppable_process("C:\\Program Files\\Riot Vanguard\\vgc.exe"));
+        assert!(!is_stoppable_process("vgctray.exe"));
+
+        let mut snapshot = RuntimeSnapshot::default();
+        classify_process("vgc.exe", &mut snapshot);
+        assert!(snapshot.vanguard);
+        assert!(!snapshot.running());
+        assert!(!snapshot.active_match());
     }
 }
 

@@ -1,9 +1,11 @@
 import { RegionSelect } from './RegionSelect'
-import { LayoutGrid, List, Plus, Search, X, Star } from 'lucide-react'
+import { Crosshair, LayoutGrid, List, Plus, Search, Swords, X, Star } from 'lucide-react'
 import type { SortOrder } from '../../lib/sorting'
-import type { Region, ViewMode } from '../../lib/types'
+import type { Game, Region, ViewMode } from '../../lib/types'
 
 export interface SubNavbarProps {
+  activeGame?: Game
+  onGameChange?: (game: Game) => void
   searchQuery: string
   onSearchChange: (query: string) => void
   selectedRegion: Region
@@ -24,6 +26,8 @@ export interface SubNavbarProps {
 }
 
 export function SubNavbar({
+  activeGame = 'league',
+  onGameChange,
   searchQuery,
   onSearchChange,
   selectedRegion,
@@ -45,6 +49,13 @@ export function SubNavbar({
   const isMac = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('mac')
   const shortcutHint = isMac ? '⌘K' : 'Ctrl+K'
 
+  const handleGameSwitch = (game: Game) => {
+    if (activeGame !== game) {
+      onGameChange?.(game)
+      onRankChange?.('all')
+    }
+  }
+
   const hasActiveFilters =
     selectedRegion !== 'ALL' ||
     selectedRank !== 'all' ||
@@ -55,6 +66,39 @@ export function SubNavbar({
     <div className="sub-navbar">
       {/* Search & Filtering Toolbar */}
       <div className="filter-controls">
+        <div className="game-toggle" role="group" aria-label="Active game">
+          <button
+            type="button"
+            className={`game-toggle-btn ${activeGame === 'league' ? 'game-toggle-btn-active' : ''}`}
+            onClick={() => handleGameSwitch('league')}
+            aria-pressed={activeGame === 'league'}
+            aria-label="League of Legends"
+          >
+            <img
+              src="/league-of-legends-icon.webp"
+              alt=""
+              className="game-toggle-icon"
+              aria-hidden="true"
+            />
+            <span>League</span>
+          </button>
+          <button
+            type="button"
+            className={`game-toggle-btn ${activeGame === 'valorant' ? 'game-toggle-btn-active' : ''}`}
+            onClick={() => handleGameSwitch('valorant')}
+            aria-pressed={activeGame === 'valorant'}
+            aria-label="VALORANT"
+          >
+            <img
+              src="/valorant-icon.webp"
+              alt=""
+              className="game-toggle-icon"
+              aria-hidden="true"
+            />
+            <span>VALORANT</span>
+          </button>
+        </div>
+
         <div className="search-box">
           <Search size={15} className="search-icon" />
           <input
@@ -203,9 +247,10 @@ export function SubNavbar({
             type="button"
             className="btn-add-primary"
             onClick={onAddAccount}
+            aria-label={addButtonLabel || 'Add Profile'}
           >
             <Plus size={15} />
-            <span>{addButtonLabel}</span>
+            <span>{addButtonLabel || 'Add Profile'}</span>
           </button>
         ) : null}
       </div>

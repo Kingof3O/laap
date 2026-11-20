@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { AccountCard } from './AccountCard'
 import { AccountListTable } from './AccountListTable'
-import type { LiveStatusBadge, ViewMode } from '../../lib/types'
+import type { Game, LiveStatusBadge, ViewMode } from '../../lib/types'
 import type { SortOrder } from '../../lib/sorting'
 import { PanelRightOpen } from 'lucide-react'
 import { ProfileInspector } from './ProfileInspector'
@@ -12,6 +12,8 @@ export interface RosterItem {
   name: string
   region: string
   rank?: string | null
+  valorantRank?: string | null
+  games?: Game[]
   riotId?: string | null
   notes?: string
   iconAsset?: string | null
@@ -26,6 +28,7 @@ export interface RosterItem {
 
 export interface AccountRosterDisplayProps {
   items: RosterItem[]
+  activeGame?: Game
   viewMode: ViewMode
   isCloud?: boolean
   canManage?: boolean
@@ -37,7 +40,7 @@ export interface AccountRosterDisplayProps {
   launchLabel?: string
   onEdit?: (id: string) => void
   onRefreshSession?: (id: string) => void
-  onLaunch: (id: string) => void
+  onLaunch: (id: string, game?: Game) => void
   onCheckLive?: (id: string) => void
   showLiveMenuAction?: boolean
   onSync?: (id: string) => void
@@ -54,6 +57,7 @@ export interface AccountRosterDisplayProps {
 
 export function AccountRosterDisplay({
   items,
+  activeGame = 'league',
   viewMode,
   isCloud = false,
   canManage = false,
@@ -134,7 +138,11 @@ export function AccountRosterDisplay({
         <div className="roster-heading">
           <div>
             <span className="roster-kicker">
-              {isCloud ? 'SHARED ACCOUNTS' : 'YOUR ACCOUNTS'}
+              {isCloud
+                ? 'SHARED ACCOUNTS'
+                : activeGame === 'valorant'
+                  ? 'YOUR VALORANT ACCOUNTS'
+                  : 'YOUR LEAGUE ACCOUNTS'}
             </span>
             <h1>Choose your next session</h1>
           </div>
@@ -172,6 +180,9 @@ export function AccountRosterDisplay({
                 name={item.name}
                 region={item.region}
                 rank={item.rank}
+                valorantRank={item.valorantRank}
+                games={item.games}
+                activeGame={activeGame}
                 notes={item.notes}
                 iconAsset={item.iconAsset}
                 lastUsedText={item.lastUsedText}
@@ -194,8 +205,8 @@ export function AccountRosterDisplay({
                 onRefreshSession={
                   onRefreshSession ? () => onRefreshSession(item.id) : undefined
                 }
-                onLaunch={() => onLaunch(item.id)}
-                onRetry={() => onLaunch(item.id)}
+                onLaunch={() => onLaunch(item.id, activeGame)}
+                onRetry={() => onLaunch(item.id, activeGame)}
                 onSync={onSync ? () => onSync(item.id) : undefined}
                 onPushToCloud={
                   onPushToCloud ? () => onPushToCloud(item.id) : undefined
@@ -219,11 +230,12 @@ export function AccountRosterDisplay({
         {detailsOpen && activeHero ? (
           <ProfileInspector
             account={activeHero}
+            activeGame={activeGame}
             busy={busy || launchingId === activeHero.id}
             onClose={() => toggleDetails(false)}
             onEdit={onEdit ? () => onEdit(activeHero.id) : undefined}
-            onLaunch={() => onLaunch(activeHero.id)}
-            onCheckLive={onCheckLive ? () => onCheckLive(activeHero.id) : undefined}
+            onLaunch={() => onLaunch(activeHero.id, activeGame)}
+            onCheckLive={activeGame === 'league' && onCheckLive ? () => onCheckLive(activeHero.id) : undefined}
             launchLabel={launchLabel}
             actions={profileActions?.(activeHero)}
           />
@@ -232,6 +244,7 @@ export function AccountRosterDisplay({
       ) : (
         <AccountListTable
           items={items}
+          activeGame={activeGame}
           isCloud={isCloud}
           canManage={canManage}
           busy={busy}
@@ -243,7 +256,7 @@ export function AccountRosterDisplay({
           sortOrder={sortOrder}
           onSortChange={onSortChange}
           onToggleFavorite={onToggleFavorite}
-          onLaunch={onLaunch}
+          onLaunch={(id, game) => onLaunch(id, game ?? activeGame)}
           onEdit={onEdit}
           onRefreshSession={onRefreshSession}
           onSync={onSync}

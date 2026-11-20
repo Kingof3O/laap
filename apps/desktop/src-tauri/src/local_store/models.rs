@@ -1,4 +1,40 @@
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum Game {
+    #[default]
+    League,
+    Valorant,
+}
+
+impl Game {
+    pub const ALL: [Game; 2] = [Game::League, Game::Valorant];
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Game::League => "League",
+            Game::Valorant => "VALORANT",
+        }
+    }
+
+    pub fn launch_product(&self) -> &'static str {
+        match self {
+            Game::League => "league_of_legends",
+            Game::Valorant => "valorant",
+        }
+    }
+
+    pub fn default_rank_label(&self) -> &'static str {
+        "Unranked"
+    }
+}
+
+pub fn default_games() -> Vec<Game> {
+    vec![Game::League]
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct ProfileCustomization {
     pub icon_asset: Option<String>,
@@ -6,9 +42,8 @@ pub struct ProfileCustomization {
     pub icon_id: Option<u32>,
     pub auto_sync_icon: bool,
     pub auto_sync_rank: bool,
+    pub auto_sync_valorant_rank: bool,
 }
-
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct LocalAccount {
@@ -32,7 +67,35 @@ pub struct LocalAccount {
     pub session_blob: String,
     pub created_at: String,
     pub last_used_at: Option<String>,
+    #[serde(default = "default_games")]
+    pub games: Vec<Game>,
+    #[serde(default)]
+    pub valorant_rank: Option<String>,
+    #[serde(default)]
+    pub last_game: Option<Game>,
 }
+
+impl LocalAccount {
+    pub fn rank_for(&self, game: Game) -> Option<&str> {
+        match game {
+            Game::League => self.rank.as_deref(),
+            Game::Valorant => self.valorant_rank.as_deref(),
+        }
+    }
+
+    pub fn supports(&self, game: Game) -> bool {
+        self.games.contains(&game)
+    }
+
+    pub fn set_rank(&mut self, game: Game, rank: Option<String>) {
+        match game {
+            Game::League => self.rank = rank,
+            Game::Valorant => self.valorant_rank = rank,
+        }
+    }
+}
+
+pub type LocalAccountFull = LocalAccount;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalAccountSummary {
@@ -51,6 +114,25 @@ pub struct LocalAccountSummary {
     pub has_puuid: bool,
     pub created_at: String,
     pub last_used_at: Option<String>,
+    #[serde(default = "default_games")]
+    pub games: Vec<Game>,
+    #[serde(default)]
+    pub valorant_rank: Option<String>,
+    #[serde(default)]
+    pub last_game: Option<Game>,
+}
+
+impl LocalAccountSummary {
+    pub fn rank_for(&self, game: Game) -> Option<&str> {
+        match game {
+            Game::League => self.rank.as_deref(),
+            Game::Valorant => self.valorant_rank.as_deref(),
+        }
+    }
+
+    pub fn supports(&self, game: Game) -> bool {
+        self.games.contains(&game)
+    }
 }
 
 impl From<&LocalAccount> for LocalAccountSummary {
@@ -90,13 +172,16 @@ impl From<&LocalAccount> for LocalAccountSummary {
                 .is_some_and(|puuid| !puuid.trim().is_empty()),
             created_at: account.created_at.clone(),
             last_used_at: account.last_used_at.clone(),
+            games: account.games.clone(),
+            valorant_rank: account.valorant_rank.clone(),
+            last_game: account.last_game,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::LocalAccount;
+    use super::*;
 
     #[test]
     fn profiles_saved_before_rank_labels_still_load() {
@@ -111,5 +196,62 @@ mod tests {
         .unwrap();
         assert_eq!(account.rank, None);
         assert_eq!(account.session_blob, "test-session");
+        assert_eq!(account.games, vec![Game::League]);
+        assert_eq!(account.valorant_rank, None);
+        assert_eq!(account.last_game, None);
+        assert_eq!(account.customization.auto_sync_valorant_rank, false);
+    }
+
+    #[test]
+    fn game_enum_serde_and_properties() {
+        assert_eq!(serde_json::to_string(&Game::League).unwrap(), "\"league\"");
+        assert_eq!(serde_json::to_string(&Game::Valorant).unwrap(), "\"valorant\"");
+
+        assert_eq!(serde_json::from_str::<Game>("\"league\"").unwrap(), Game::League);
+        assert_eq!(serde_json::from_str::<Game>("\"valorant\"").unwrap(), Game::Valorant);
+
+        assert_eq!(Game::ALL, [Game::League, Game::Valorant]);
+        assert_eq!(Game::League.label(), "League");
+        assert_eq!(Game::Valorant.label(), "VALORANT");
+        assert_eq!(Game::League.launch_product(), "league_of_legends");
+        assert_eq!(Game::Valorant.launch_product(), "valorant");
+    }
+
+    #[test]
+    fn local_account_rank_helpers_and_support() {
+        let mut account = LocalAccount {
+            id: "test".into(),
+            name: "Test#123".into(),
+            region: "EUW".into(),
+            rank: Some("Diamond I".into()),
+            riot_id: None,
+            notes: String::new(),
+            favorite: false,
+            puuid: None,
+            session_updated_at: None,
+            customization: ProfileCustomization::default(),
+            session_blob: "test".into(),
+            created_at: "now".into(),
+            last_used_at: None,
+            games: vec![Game::League, Game::Valorant],
+            valorant_rank: Some("Ascendant 2".into()),
+            last_game: Some(Game::Valorant),
+        };
+
+        assert!(account.supports(Game::League));
+        assert!(account.supports(Game::Valorant));
+        assert_eq!(account.rank_for(Game::League), Some("Diamond I"));
+        assert_eq!(account.rank_for(Game::Valorant), Some("Ascendant 2"));
+
+        account.set_rank(Game::League, Some("Master".into()));
+        account.set_rank(Game::Valorant, None);
+        assert_eq!(account.rank_for(Game::League), Some("Master"));
+        assert_eq!(account.rank_for(Game::Valorant), None);
+
+        let summary = LocalAccountSummary::from(&account);
+        assert_eq!(summary.games, vec![Game::League, Game::Valorant]);
+        assert_eq!(summary.rank_for(Game::League), Some("Master"));
+        assert_eq!(summary.rank_for(Game::Valorant), None);
+        assert_eq!(summary.last_game, Some(Game::Valorant));
     }
 }

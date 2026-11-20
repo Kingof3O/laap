@@ -7,6 +7,7 @@ import { flavor } from '../../product/flavors'
 import type { ProfileSlots } from '../billing/useBilling'
 import type {
   CapturedProfile,
+  Game,
   LocalAccountFull,
   LocalAccountSummary,
   ProfileDetails,
@@ -211,6 +212,9 @@ export function useLocalAccounts() {
     notes = '',
     favorite = false,
     customization?: ProfileCustomization,
+    riotId?: string | null,
+    games?: Game[],
+    valorantRank?: string | null,
   ) => {
     const saved = await invokeTauri<LocalAccountSummary>('save_local_account', {
       name: name.trim(),
@@ -220,6 +224,9 @@ export function useLocalAccounts() {
       notes,
       favorite,
       customization,
+      riotId: riotId || null,
+      games,
+      valorantRank: valorantRank || null,
     })
     await loadAccounts()
     return saved
@@ -232,10 +239,10 @@ export function useLocalAccounts() {
     await invokeTauri('delete_local_account', { id })
     await loadAccounts()
   }
-  const launchAccount = async (id: string) => {
+  const launchAccount = async (id: string, game?: Game) => {
     await run(
-      (confirmed) => invokeTauri('launch_local_account', { id, confirmed }),
-      { launchKey: `local:${id}` },
+      (confirmed) => invokeTauri('launch_local_account', { id, confirmed, game }),
+      { launchKey: game ? `local:${id}:${game}` : `local:${id}` },
     )
     await loadAccounts()
   }
@@ -243,12 +250,13 @@ export function useLocalAccounts() {
     invokeTauri<string | null>('capture_active_session')
   const detectActive = () =>
     invokeTauri<CapturedProfile | null>('detect_active_profile')
-  const startSandbox = async (profileId?: string) => {
+  const startSandbox = async (profileId?: string, game?: Game) => {
     const version = ++generation.current
     await run(async (confirmed) => {
       const id = await invokeTauri<string>('start_provisioning_session', {
         confirmed,
         profileId: profileId ?? null,
+        game: game ?? null,
       })
       if (!mounted.current || version !== generation.current) {
         await invokeTauri('cancel_provisioning_session', { provisioningId: id })

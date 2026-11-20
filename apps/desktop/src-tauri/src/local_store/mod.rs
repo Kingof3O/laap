@@ -6,7 +6,9 @@ mod profile_access;
 pub mod storage;
 
 pub use manager::{LocalStore, ProfileDetails};
-pub use models::{LocalAccount, LocalAccountSummary, ProfileCustomization};
+pub use models::{
+    default_games, Game, LocalAccount, LocalAccountFull, LocalAccountSummary, ProfileCustomization,
+};
 pub use storage::LocalAccountStorage;
 #[cfg(feature = "basic")]
 pub use profile_access::ProfileSlots;
@@ -235,6 +237,8 @@ mod safety_tests {
             notes: "Custom note".into(),
             favorite: true,
             customization: None,
+            games: default_games(),
+            valorant_rank: None,
         };
         let original = store
             .create_profile(details, "rso_token: old\nsub: player-one".into())
@@ -291,6 +295,8 @@ mod customization_tests {
                 auto_sync_rank: true,
                 ..Default::default()
             }),
+            games: default_games(),
+            valorant_rank: None,
         };
         let profile = store
             .create_profile(
@@ -364,7 +370,10 @@ mod independent_sync_tests {
                         icon_id: None,
                         auto_sync_icon: false,
                         auto_sync_rank: true,
+                        auto_sync_valorant_rank: false,
                     }),
+                    games: default_games(),
+                    valorant_rank: None,
                 },
                 "rso_token: test\nsub: player".into(),
             )

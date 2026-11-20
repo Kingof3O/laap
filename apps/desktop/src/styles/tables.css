@@ -141,6 +141,12 @@
   min-width: 0;
 }
 
+.table-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .table-name {
   font-weight: 600;
   font-size: 13px;
@@ -177,6 +183,7 @@
   background: rgba(168, 128, 226, 0.12);
   border: 1px solid rgba(168, 128, 226, 0.25);
   color: #d1c2ec;
+  white-space: nowrap;
 }
 
 .table-status-pill {
@@ -188,6 +195,7 @@
   padding: 3px 9px;
   border-radius: var(--radius-full);
   border: 1px solid transparent;
+  white-space: nowrap;
 }
 
 .table-status-ready {

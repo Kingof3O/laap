@@ -14,6 +14,7 @@ import { AddAccountModal } from './AddAccountModal'
 import { useLocalAccounts } from './useLocalAccounts'
 import { useProvisioningSandbox } from '../../shared/hooks/useProvisioningSandbox'
 import { useToast } from '../../context/ToastContext'
+import { useGame } from '../../context/GameContext'
 import { useRiotOperations } from '../../context/RiotOperations'
 import { hasTauri, invokeTauri } from '../../lib/api'
 import { formatLiveMinutes, formatLiveMode } from '../../lib/liveStatus'
@@ -22,6 +23,7 @@ import { ProfileSlotPicker, ReplaceActiveProfile } from '../billing/ProfileSlotP
 import type { ProfileSlots } from '../billing/useBilling'
 import type {
   CapturedProfile,
+  Game,
   LiveMatchStatus,
   LiveStatusBadge,
   LiveStatusSettings,
@@ -31,6 +33,8 @@ import type {
   ViewMode,
 } from '../../lib/types'
 interface Props {
+  activeGame?: Game
+  onGameChange?: (game: Game) => void
   trayRequest?: { id: string; sequence: number } | null
   onTrayRequestHandled?: () => void
   searchQuery: string
@@ -53,6 +57,8 @@ interface Props {
   onProfileSwitched?: (id:string) => void
 }
 export function PersonalRosterView({
+  activeGame: propActiveGame,
+  onGameChange,
   trayRequest,
   onTrayRequestHandled,
   searchQuery,
@@ -76,6 +82,9 @@ export function PersonalRosterView({
 }: Props) {
   const { showSuccess, showError } = useToast()
   const operations = useRiotOperations()
+  const gameContext = useGame()
+  const activeGame = propActiveGame ?? gameContext.activeGame
+  const setActiveGame = onGameChange ?? gameContext.setActiveGame
   const [busy, setBusy] = useState(false)
   const [operationError, setOperationError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -140,6 +149,19 @@ export function PersonalRosterView({
         await completeSandbox(pending, refreshTarget?.id)
         close()
         showSuccess(refreshTarget ? 'Saved login refreshed.' : 'Profile saved.')
+        const profileGames: Game[] =
+          pending.games && pending.games.length > 0
+            ? pending.games
+            : ['league']
+        if (!profileGames.includes(activeGame)) {
+          const nextGame: Game = profileGames[0] ?? ('league' as Game)
+          setActiveGame(nextGame)
+          showSuccess(
+            nextGame === 'valorant'
+              ? 'Switched to VALORANT to show this profile.'
+              : 'Switched to League to show this profile.',
+          )
+        }
       } finally {
         setBusy(false)
       }
@@ -158,29 +180,40 @@ export function PersonalRosterView({
     () =>
       [
         ...new Map(
-          localAccounts.flatMap((a) =>
-            a.rank?.trim()
-              ? [[a.rank.trim().toLowerCase(), a.rank.trim()] as const]
-              : [],
-          ),
+          localAccounts
+            .filter((a) => a.games?.includes(activeGame) ?? true)
+            .flatMap((a) => {
+              const r =
+                activeGame === 'valorant' ? (a.valorant_rank ?? a.rank) : a.rank
+              return r?.trim()
+                ? [[r.trim().toLowerCase(), r.trim()] as const]
+                : []
+            }),
         ).values(),
       ].sort((a, b) => a.localeCompare(b)),
-    [localAccounts],
+    [localAccounts, activeGame],
   )
   useEffect(
     () => onRankOptionsChange(rankOptions),
     [rankOptions, onRankOptionsChange],
   )
   useEffect(() => {
-    const favCount = localAccounts.filter((a) => Boolean(a.favorite)).length
+    const favCount = localAccounts
+      .filter((a) => a.games?.includes(activeGame) ?? true)
+      .filter((a) => Boolean(a.favorite)).length
     onFavoriteCountChange?.(favCount)
-  }, [localAccounts, onFavoriteCountChange])
+  }, [localAccounts, activeGame, onFavoriteCountChange])
   const filteredAccounts = useMemo(
     () =>
       sortProfiles(
         localAccounts.filter((acc) => {
+          if (!(acc.games?.includes(activeGame) ?? true)) return false
           if (favoritesOnly && !acc.favorite) return false
-          const rank = acc.rank?.trim().toLowerCase() ?? ''
+          const rank =
+            (activeGame === 'valorant'
+              ? (acc.valorant_rank ?? acc.rank)
+              : acc.rank
+            )?.trim().toLowerCase() ?? ''
           return (
             (selectedRegion === 'ALL' ||
               acc.region.toUpperCase() === selectedRegion) &&
@@ -188,14 +221,15 @@ export function PersonalRosterView({
               (selectedRank === 'unlabeled'
                 ? !rank
                 : selectedRank === `rank:${rank}`)) &&
-            `${acc.name} ${acc.region} ${acc.rank ?? ''} ${acc.notes ?? ''}`
+            `${acc.name} ${acc.region} ${rank} ${acc.notes ?? ''}`
               .toLowerCase()
               .includes(searchQuery.trim().toLowerCase())
           )
         }),
         sortOrder,
+        { activeGame },
       ),
-    [localAccounts, selectedRegion, selectedRank, searchQuery, sortOrder, favoritesOnly],
+    [localAccounts, activeGame, selectedRegion, selectedRank, searchQuery, sortOrder, favoritesOnly],
   )
   useEffect(() => {
     if (!hasTauri) return
@@ -286,7 +320,7 @@ export function PersonalRosterView({
       showError(cause instanceof Error ? cause.message : String(cause))
     }
   }
-  const handleLaunch = async (id: string, skipLiveCheck = false) => {
+  const handleLaunch = async (id: string, game: Game = activeGame, skipLiveCheck = false) => {
     const account = localAccounts.find((a) => a.id === id)
     setBusy(true)
     setLaunchingId(id)
@@ -294,6 +328,7 @@ export function PersonalRosterView({
     try {
       if (
         !skipLiveCheck &&
+        game === 'league' &&
         account &&
         liveSettings?.mode &&
         liveSettings.mode !== 'off' &&
@@ -328,7 +363,7 @@ export function PersonalRosterView({
           )
         }
       }
-      await launchAccount(id)
+      await launchAccount(id, game)
       onProfileSwitched?.(id)
     } catch (cause) {
       setFailedLaunchId(id)
@@ -357,8 +392,8 @@ export function PersonalRosterView({
       setRefreshTarget(account)
       return
     }
-    void handleLaunch(account.id)
-  }, [trayRequest, loading])
+    void handleLaunch(account.id, activeGame)
+  }, [trayRequest, loading, activeGame])
   const detect = async (details?: ProfileDetails) => {
     setBusy(true)
     try {
@@ -406,9 +441,25 @@ export function PersonalRosterView({
         details.notes,
         details.favorite,
         details.customization,
+        details.riot_id ?? null,
+        details.games,
+        details.valorant_rank ?? null,
       )
       close()
       showSuccess('Profile saved.')
+      const profileGames: Game[] =
+        details.games && details.games.length > 0
+          ? details.games
+          : ['league']
+      if (!profileGames.includes(activeGame)) {
+        const nextGame: Game = profileGames[0] ?? ('league' as Game)
+        setActiveGame(nextGame)
+        showSuccess(
+          nextGame === 'valorant'
+            ? 'Switched to VALORANT to show this profile.'
+            : 'Switched to League to show this profile.',
+        )
+      }
     } catch (cause) {
       showError(String(cause))
     } finally {
@@ -420,7 +471,10 @@ export function PersonalRosterView({
     setPending(details)
     setOperationError(null)
     try {
-      await startSandbox(refreshTarget?.id)
+      const selectedGame = details.games?.includes(activeGame)
+        ? activeGame
+        : details.games?.[0] ?? activeGame
+      await startSandbox(refreshTarget?.id, selectedGame)
     } catch (cause) {
       showError(String(cause))
     } finally {
@@ -511,14 +565,19 @@ export function PersonalRosterView({
       ) : filteredAccounts.length === 0 ? (
         <>
           {syncWidget ? <div className="roster-list-utility roster-list-utility-padded">{syncWidget}</div> : null}
-          {(!profileSlots?.chooseCount || localAccounts.length > 0) && <EmptyState
-            isCloud={false}
-            searchActive={Boolean(
-              searchQuery || selectedRegion !== 'ALL' || selectedRank !== 'all',
-            )}
-            onAction={onOpenAddModal}
-            onQuickImport={() => void detect()}
-          />}
+          {(!profileSlots?.chooseCount || localAccounts.length > 0) && (
+            <EmptyState
+              isCloud={false}
+              searchActive={Boolean(
+                searchQuery || selectedRegion !== 'ALL' || selectedRank !== 'all' || favoritesOnly,
+              )}
+              hasAnyProfiles={localAccounts.length > 0 && !localAccounts.some((a) => a.games?.includes(activeGame) ?? true)}
+              activeGame={activeGame}
+              onSwitchGame={(game) => setActiveGame(game)}
+              onAction={onOpenAddModal}
+              onQuickImport={() => void detect()}
+            />
+          )}
         </>
       ) : (
         <AccountRosterDisplay
@@ -529,7 +588,9 @@ export function PersonalRosterView({
             name: acc.name,
             favorite: acc.favorite,
             region: acc.region,
-            rank: acc.rank,
+            rank: activeGame === 'valorant' ? (acc.valorant_rank ?? acc.rank) : acc.rank,
+            valorantRank: acc.valorant_rank,
+            games: acc.games,
             riotId: acc.riot_id ?? (acc.name.includes('#') ? acc.name : null),
             notes: acc.notes,
             iconAsset: acc.customization?.icon_asset,
@@ -549,6 +610,7 @@ export function PersonalRosterView({
             createdAt: acc.created_at,
             liveStatus: liveStatusById[acc.id] ?? null,
           }))}
+          activeGame={activeGame}
           viewMode={viewMode}
           isCloud={false}
           canManage
@@ -557,17 +619,17 @@ export function PersonalRosterView({
           launchStatus={operations.tracking ? operations.launchStatus : null}
           activeLaunchId={
             operations.activeLaunchKey?.startsWith('local:')
-              ? operations.activeLaunchKey.slice(6)
+              ? operations.activeLaunchKey.slice(6).split(':')[0]
               : null
           }
           failedLaunchId={failedLaunchId}
-          onLaunch={(id) => void handleLaunch(id)}
+          onLaunch={(id, game) => void handleLaunch(id, game ?? activeGame)}
           onCheckLive={
-            liveSettings?.mode && liveSettings.mode !== 'off'
+            activeGame === 'league' && liveSettings?.mode && liveSettings.mode !== 'off'
               ? (id) => void handleCheckLive(id)
               : undefined
           }
-          showLiveMenuAction={Boolean(liveSettings?.mode && liveSettings.mode !== 'off')}
+          showLiveMenuAction={Boolean(activeGame === 'league' && liveSettings?.mode && liveSettings.mode !== 'off')}
           launchLabel={operations.running ? 'Switch' : 'Play'}
           onEdit={(id) =>
             setEditTarget(localAccounts.find((a) => a.id === id) ?? null)
@@ -630,7 +692,7 @@ export function PersonalRosterView({
         onConfirm={() => {
           const targetId = liveWarning?.accountId
           setLiveWarning(null)
-          if (targetId) void handleLaunch(targetId, true)
+          if (targetId) void handleLaunch(targetId, activeGame, true)
         }}
       />
     </div>

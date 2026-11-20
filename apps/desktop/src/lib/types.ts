@@ -40,6 +40,8 @@ export interface Account {
   hasSessionBlob?: boolean
 }
 
+export type Game = 'league' | 'valorant'
+
 export interface LocalAccountSummary {
   rank?: string | null
   id: string
@@ -54,6 +56,9 @@ export interface LocalAccountSummary {
   has_puuid?: boolean
   created_at: string
   last_used_at: string | null
+  games: Game[]
+  valorant_rank?: string | null
+  last_game?: Game | null
 }
 
 export interface LocalAccountFull {
@@ -69,6 +74,9 @@ export interface LocalAccountFull {
   session_blob: string
   created_at: string
   last_used_at: string | null
+  games: Game[]
+  valorant_rank?: string | null
+  last_game?: Game | null
 }
 
 export interface ProfileCustomization {
@@ -77,6 +85,7 @@ export interface ProfileCustomization {
   icon_id: number | null
   auto_sync_icon: boolean
   auto_sync_rank: boolean
+  auto_sync_valorant_rank?: boolean
 }
 export interface ProfileDetails {
   name: string
@@ -86,6 +95,8 @@ export interface ProfileDetails {
   notes: string
   favorite: boolean
   customization?: ProfileCustomization
+  games?: Game[]
+  valorant_rank?: string | null
 }
 export interface CapturedProfile {
   session_blob: string

@@ -407,9 +407,14 @@ fn sync_customizations() -> Result<SyncResult, String> {
                 } else {
                     (summoner_str.trim(), acc.region.trim())
                 };
-                if let Ok(profile) =
-                    crate::opgg::fetch_opgg_summoner(&client, name, tag, &acc.region)
-                        .await
+                if let Ok(profile) = crate::opgg::fetch_opgg_summoner(
+                    &client,
+                    name,
+                    tag,
+                    &acc.region,
+                    crate::local_store::Game::League,
+                )
+                .await
                 {
                     if !profile.formatted_rank.is_empty()
                         && acc.rank.as_deref() != Some(&profile.formatted_rank)

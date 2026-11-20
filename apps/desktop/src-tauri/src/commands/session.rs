@@ -1,3 +1,4 @@
+use crate::local_store::Game;
 use crate::riot::{RiotProvisioner, RiotSessionManager};
 use std::sync::Mutex;
 
@@ -5,6 +6,19 @@ pub const LEAGUE_LAUNCH_ARGS: [&str; 2] = [
     "--launch-product=league_of_legends",
     "--launch-patchline=live",
 ];
+
+pub fn launch_args(game: Game) -> [&'static str; 2] {
+    match game {
+        Game::League => [
+            "--launch-product=league_of_legends",
+            "--launch-patchline=live",
+        ],
+        Game::Valorant => [
+            "--launch-product=valorant",
+            "--launch-patchline=live",
+        ],
+    }
+}
 
 pub(super) struct ProvisioningSession {
     pub id: String,
@@ -152,7 +166,7 @@ pub fn launch_riot_client_sync() -> Result<(), String> {
     launch_riot_client_unlocked()
 }
 pub fn launch_riot_client_unlocked() -> Result<(), String> {
-    crate::presence::LaunchPlan::prepare()?.launch()
+    crate::presence::LaunchPlan::prepare(Game::League)?.launch()
 }
 
 #[tauri::command]
@@ -166,7 +180,7 @@ pub async fn restart_riot_presence(confirmed: Option<bool>) -> Result<(), String
         if !crate::launcher_settings::load()?.presence_enabled {
             return Err("Presence is still starting. Please retry in a moment.".into());
         }
-        let plan = crate::presence::LaunchPlan::prepare()?;
+        let plan = crate::presence::LaunchPlan::prepare(Game::League)?;
         crate::riot::process::stop_riot(confirmed.unwrap_or(false))?;
         plan.launch()
     })
@@ -176,12 +190,22 @@ pub async fn restart_riot_presence(confirmed: Option<bool>) -> Result<(), String
 
 /// Starts a single owned provisioning transaction. No background worker outlives it.
 #[tauri::command]
-pub async fn start_provisioning_session(confirmed: Option<bool>, profile_id: Option<String>) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || start_provisioning_session_sync(confirmed, profile_id.as_deref()))
-        .await
-        .map_err(|error| format!("Native operation failed: {error}"))?
+pub async fn start_provisioning_session(
+    confirmed: Option<bool>,
+    profile_id: Option<String>,
+    game: Option<Game>,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        start_provisioning_session_sync(confirmed, profile_id.as_deref(), game)
+    })
+    .await
+    .map_err(|error| format!("Native operation failed: {error}"))?
 }
-pub fn start_provisioning_session_sync(confirmed: Option<bool>, profile_id: Option<&str>) -> Result<String, String> {
+pub fn start_provisioning_session_sync(
+    confirmed: Option<bool>,
+    profile_id: Option<&str>,
+    game: Option<Game>,
+) -> Result<String, String> {
     let _operation = crate::riot::operation::acquire()?;
     #[cfg(feature = "basic")]
     crate::local_store::LocalStore::new()?.authorize_provisioning(profile_id)?;
@@ -192,7 +216,8 @@ pub fn start_provisioning_session_sync(confirmed: Option<bool>, profile_id: Opti
         return Err("A sign-in is already in progress.".into());
     }
     let lease = crate::riot::operation::reserve_signin()?;
-    let launch_plan = crate::presence::LaunchPlan::prepare()?;
+    let selected_game = game.unwrap_or(Game::League);
+    let launch_plan = crate::presence::LaunchPlan::prepare(selected_game)?;
     crate::riot::process::stop_riot(confirmed.unwrap_or(false))?;
     let mut worker = RiotProvisioner::new();
     if let Err(error) = worker.prepare_for_provisioning() {
@@ -362,9 +387,10 @@ pub async fn switch_account_session(
     session_yaml: String,
     confirmed: Option<bool>,
     owner_id: Option<String>,
+    game: Option<Game>,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        switch_account_session_sync(session_yaml, confirmed, owner_id)
+        switch_account_session_sync(session_yaml, confirmed, owner_id, game)
     })
     .await
     .map_err(|error| format!("Native operation failed: {error}"))?
@@ -374,6 +400,7 @@ pub fn switch_account_session_sync(
     session_yaml: String,
     confirmed: Option<bool>,
     owner_id: Option<String>,
+    game: Option<Game>,
 ) -> Result<(), String> {
     let _operation = crate::riot::operation::acquire()?;
     idle()?;
@@ -381,13 +408,20 @@ pub fn switch_account_session_sync(
         &session_yaml,
         confirmed.unwrap_or(false),
         owner_id.as_deref().unwrap_or("external"),
+        game,
     )
 }
-pub fn switch_session_unlocked(session: &str, confirmed: bool, owner: &str) -> Result<(), String> {
+pub fn switch_session_unlocked(
+    session: &str,
+    confirmed: bool,
+    owner: &str,
+    game: Option<Game>,
+) -> Result<(), String> {
+    let selected_game = game.unwrap_or(Game::League);
     if !crate::riot::session_format::has_persisted_session(session) {
         return Err("Sign in required: no reusable saved login.".into());
     }
-    let launch_plan = crate::presence::LaunchPlan::prepare()?;
+    let launch_plan = crate::presence::LaunchPlan::prepare(selected_game)?;
     crate::riot::process::stop_riot(confirmed)?;
     let manager = RiotSessionManager::new();
     manager.inject_session(session)?;
@@ -405,12 +439,23 @@ pub fn switch_session_unlocked(session: &str, confirmed: bool, owner: &str) -> R
         manager.cleanup_session()?;
         return Err(error);
     }
+    if let Some(id) = owner.strip_prefix("local:") {
+        if let Ok(store) = crate::local_store::LocalStore::new() {
+            let _ = store.record_last_game(id, selected_game);
+        }
+    }
     Ok(())
 }
-pub fn launch_local(id: &str, confirmed: bool) -> Result<(), String> {
+pub fn launch_local(id: &str, confirmed: bool, game: Option<Game>) -> Result<(), String> {
     let _operation = crate::riot::operation::acquire()?;
     idle()?;
     let store = crate::local_store::LocalStore::new()?;
-    switch_session_unlocked(&store.session_for(id)?, confirmed, &format!("local:{id}"))?;
-    store.mark_played(id)
+    let selected_game = game.unwrap_or(Game::League);
+    switch_session_unlocked(
+        &store.session_for(id)?,
+        confirmed,
+        &format!("local:{id}"),
+        Some(selected_game),
+    )?;
+    store.record_last_game(id, selected_game)
 }

@@ -859,3 +859,104 @@
 .presence-status-active {
   color: #a4e6c3;
 }
+
+/* Games Selection in Profile Modal */
+.profile-games-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 6px;
+}
+.profile-games-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.profile-game-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.profile-game-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--bg-surface-elevated, #1c1829);
+  border: 1px solid var(--border-subtle, #38314e);
+  color: var(--text-secondary, #b6b0c9);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.profile-game-chip:hover:not(.profile-game-chip-disabled) {
+  border-color: var(--accent-light, #c9aa71);
+  color: var(--text-primary, #f0e6d2);
+}
+.profile-game-chip-selected {
+  background: rgba(201, 170, 113, 0.12);
+  border-color: var(--accent-light, #c9aa71);
+  color: var(--accent-light, #f0e6d2);
+}
+.profile-game-chip-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.profile-game-chip input[type='checkbox'] {
+  accent-color: var(--accent-light, #c9aa71);
+  cursor: inherit;
+}
+.profile-game-chip-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  border-radius: 3px;
+  display: block;
+  flex-shrink: 0;
+}
+.profile-field-warning {
+  color: var(--accent-warning, #f5a623);
+}
+
+/* Game Badges in Cards / Preview */
+.card-game-badges {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.game-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.game-badge-icon {
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+  border-radius: 2px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.game-badge-league {
+  background: rgba(200, 155, 60, 0.18);
+  color: #f0e6d2;
+  border: 1px solid rgba(200, 155, 60, 0.4);
+}
+.game-badge-valo {
+  background: rgba(255, 70, 85, 0.18);
+  color: #ff858d;
+  border: 1px solid rgba(255, 70, 85, 0.4);
+}

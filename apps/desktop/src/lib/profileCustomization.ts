@@ -5,6 +5,7 @@ export const emptyCustomization = (): ProfileCustomization => ({
   icon_id: null,
   auto_sync_icon: false,
   auto_sync_rank: false,
+  auto_sync_valorant_rank: false,
 })
 export const RANK_TIERS = [
   'Iron',
@@ -65,4 +66,47 @@ export function rankCrest(rank?: string | null) {
   )
   if (!tier) return null
   return `/rank-crests/${tier.toLowerCase()}.png`
+}
+
+export const VALORANT_TIERS = [
+  'Iron',
+  'Bronze',
+  'Silver',
+  'Gold',
+  'Platinum',
+  'Diamond',
+  'Ascendant',
+  'Immortal',
+] as const
+
+export const VALORANT_RANK_OPTIONS = [
+  'Unranked',
+  ...VALORANT_TIERS.flatMap((tier) =>
+    ['1', '2', '3'].map((division) => `${tier} ${division}`),
+  ),
+  'Radiant',
+]
+
+export function canonicalValorantRank(rank?: string | null): string {
+  if (!rank) return ''
+  const trimmed = rank.trim()
+  const exact = VALORANT_RANK_OPTIONS.find(
+    (option) => option.toLowerCase() === trimmed.toLowerCase(),
+  )
+  if (exact) return exact
+
+  const match = trimmed.match(
+    /^(iron|bronze|silver|gold|platinum|diamond|ascendant|immortal)\s*(?:([1-3])|(iii|ii|i))$/i,
+  )
+  if (match) {
+    const tier = VALORANT_TIERS.find(
+      (t) => t.toLowerCase() === match[1].toLowerCase(),
+    )
+    const romanMap: Record<string, string> = { i: '1', ii: '2', iii: '3' }
+    const div = match[2] ?? (match[3] ? romanMap[match[3].toLowerCase()] : '1')
+    return `${tier} ${div}`
+  }
+  if (trimmed.toLowerCase() === 'radiant') return 'Radiant'
+  if (trimmed.toLowerCase() === 'unranked') return 'Unranked'
+  return trimmed
 }

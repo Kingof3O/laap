@@ -4,6 +4,7 @@ import {
   canonicalRank,
   rankCrest,
 } from '../../lib/profileCustomization'
+export { ValorantRankPicker } from './ValorantRankPicker'
 export function RankCrest({
   rank,
   className = '',

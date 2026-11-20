@@ -6,6 +6,7 @@ import { Header, SubNavbar, SettingsModal, WindowTitleBar } from './shared/ui'
 import { UpdateModal } from './shared/ui/UpdateModal'
 import { ToastProvider, useToast } from './context/ToastContext'
 import { I18nProvider } from './context/I18nContext'
+import { GameProvider, useGame } from './context/GameContext'
 import { PersonalRosterView } from './features/personal-roster'
 import { useUpdateChecker } from './hooks/useUpdateChecker'
 import { VIEW_MODE_KEY } from './lib/constants'
@@ -33,6 +34,7 @@ interface AppProps {
 }
 
 function AppContent({ background, navigation, studio, advancedSettings, onShowAccounts, profileActions, onProfilesChanged, onProfileSwitched }: AppProps) {
+  const { activeGame, setActiveGame } = useGame()
   const operations = useRiotOperations()
   const launcher = useLauncher()
   const activeOperations = useRef(false)
@@ -90,6 +92,13 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
     },
     showError,
   )
+
+  useEffect(() => {
+    if (activeGame === 'valorant' && studio) {
+      onShowAccounts?.()
+      showError('Studio is available for League of Legends only.')
+    }
+  }, [activeGame, studio, onShowAccounts, showError])
 
   const {
     currentVersion,
@@ -199,7 +208,7 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
         onOpenUpdates={() => setShowUpdateModal(true)}
         onRefresh={() => window.dispatchEvent(new Event('laap:refresh'))}
         onOpenSettings={() => setShowSettingsModal(true)}
-        presenceControl={<PresenceSelect launcher={launcher} operationBusy={operations.busy || operations.provisioning} />}
+        presenceControl={activeGame === 'league' ? <PresenceSelect launcher={launcher} operationBusy={operations.busy || operations.provisioning} /> : undefined}
         billingControl={billing.status?.available ? <button type="button" className="btn-secondary billing-header-button" onClick={() => setShowBilling(true)}>
           {billing.status.pro ? 'Manage Pro' : 'Upgrade'}
         </button> : undefined}
@@ -218,14 +227,18 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
       />
       </WindowTitleBar>
 
-      <PresenceBanner
-        launcher={launcher}
-        operationBusy={operations.busy || operations.provisioning}
-      />
+      {activeGame === 'league' && (
+        <PresenceBanner
+          launcher={launcher}
+          operationBusy={operations.busy || operations.provisioning}
+        />
+      )}
 
       {/* Sub Navigation Bar */}
       {!studio && (
         <SubNavbar
+          activeGame={activeGame}
+          onGameChange={setActiveGame}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           selectedRegion={selectedRegion}
@@ -241,7 +254,7 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
           viewMode={viewMode}
           onViewModeChange={handleViewModeChange}
           onAddAccount={openAddProfile}
-          addButtonLabel="Add Profile"
+          addButtonLabel={activeGame === 'valorant' ? 'Add VALORANT Profile' : 'Add Profile'}
           totalCount={localCount}
         />
       )}
@@ -250,6 +263,8 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
       {studio && <section className="main-viewport" tabIndex={0}>{studio}</section>}
       <main className="main-viewport" tabIndex={0} style={studio ? { display: 'none' } : undefined}>
           <PersonalRosterView
+            activeGame={activeGame}
+            onGameChange={setActiveGame}
             profileActions={profileActions}
             onProfilesChanged={onProfilesChanged}
             onProfileSwitched={onProfileSwitched}
@@ -323,11 +338,13 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
 export default function App(props: AppProps) {
   return (
     <I18nProvider>
-      <ToastProvider>
-        <RiotOperationsProvider>
-          <AppContent {...props} />
-        </RiotOperationsProvider>
-      </ToastProvider>
+      <GameProvider>
+        <ToastProvider>
+          <RiotOperationsProvider>
+            <AppContent {...props} />
+          </RiotOperationsProvider>
+        </ToastProvider>
+      </GameProvider>
     </I18nProvider>
   )
 }

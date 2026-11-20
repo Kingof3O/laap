@@ -17,12 +17,16 @@ import {
   Zap,
 } from 'lucide-react'
 import { getRankTierClass, formatRelativeTime, sortProfiles, type SortOrder } from '../../lib/sorting'
+import type { Game } from '../../lib/types'
 
 export interface TableItem {
   id: string
   name: string
   region: string
   rank?: string | null
+  valorant_rank?: string | null
+  valorantRank?: string | null
+  games?: Game[]
   notes?: string
   iconAsset?: string | null
   hasSession: boolean
@@ -33,6 +37,7 @@ export interface TableItem {
 
 export interface AccountListTableProps {
   items: TableItem[]
+  activeGame?: Game
   selectedId?: string | null
   isCloud?: boolean
   canManage?: boolean
@@ -48,7 +53,7 @@ export interface AccountListTableProps {
   onToggleFavorite?: (id: string) => void
   onEdit?: (id: string) => void
   onRefreshSession?: (id: string) => void
-  onLaunch: (id: string) => void
+  onLaunch: (id: string, game?: Game) => void
   onSync?: (id: string) => void
   onPushToCloud?: (id: string) => void
   onForceRelease?: (id: string) => void
@@ -58,6 +63,7 @@ export interface AccountListTableProps {
 
 export function AccountListTable({
   items,
+  activeGame = 'league',
   selectedId,
   isCloud = false,
   canManage = false,
@@ -132,8 +138,8 @@ export function AccountListTable({
 
   const displayItems = useMemo(() => {
     if (onSortChange) return items
-    return sortProfiles(items, activeSort)
-  }, [items, onSortChange, activeSort])
+    return sortProfiles(items, activeSort, { activeGame })
+  }, [items, onSortChange, activeSort, activeGame])
 
   return (
     <div className="table-wrapper">
@@ -207,6 +213,8 @@ export function AccountListTable({
           {displayItems.map((item) => {
             const isLeased = isCloud && item.status === 'Leased'
             const isSelected = selectedId === item.id
+            const itemGames = item.games && item.games.length > 0 ? item.games : ['league']
+            const displayRank = activeGame === 'valorant' ? (item.valorant_rank ?? item.valorantRank ?? item.rank) : item.rank
 
             return (
               <tr
@@ -246,7 +254,25 @@ export function AccountListTable({
                       <ProfileAvatar name={item.name} asset={item.iconAsset} />
                     </div>
                     <div className="table-profile-details">
-                      <span className="table-name">{item.name}</span>
+                      <div className="table-name-row">
+                        <span className="table-name">{item.name}</span>
+                        {itemGames.length > 0 && (
+                          <div className="table-game-badges" aria-label="Supported games">
+                            {itemGames.includes('league') && (
+                              <span className="game-badge game-badge-league" title="Supports League">
+                                <img src="/league-of-legends-icon.webp" alt="" className="game-badge-icon" aria-hidden="true" />
+                                LEAGUE
+                              </span>
+                            )}
+                            {itemGames.includes('valorant') && (
+                              <span className="game-badge game-badge-valo" title="Supports VALORANT">
+                                <img src="/valorant-icon.webp" alt="" className="game-badge-icon" aria-hidden="true" />
+                                VALO
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       {item.notes ? (
                         <p className="account-notes">{item.notes}</p>
                       ) : null}
@@ -254,12 +280,12 @@ export function AccountListTable({
                   </div>
                 </td>
                 <td>
-                  {item.rank ? (
+                  {displayRank ? (
                     <span
-                      className={`table-rank-pill ${getRankTierClass(item.rank)}`}
-                      title={`Rank: ${item.rank}`}
+                      className={`table-rank-pill ${getRankTierClass(displayRank)}`}
+                      title={`Rank: ${displayRank}`}
                     >
-                      <RankCrest rank={item.rank} /> {item.rank}
+                      <RankCrest rank={displayRank} /> {displayRank}
                     </span>
                   ) : (
                     <span className="table-rank-unranked">Unranked</span>
@@ -342,7 +368,7 @@ export function AccountListTable({
                           borderColor: 'rgba(239, 68, 68, 0.4)',
                           color: '#fca5a5',
                         }}
-                        onClick={() => onLaunch(item.id)}
+                        onClick={() => onLaunch(item.id, activeGame)}
                         disabled={busy}
                       >
                         <RotateCcw size={11} />
@@ -355,7 +381,7 @@ export function AccountListTable({
                         onClick={() =>
                           !item.hasSession && onRefreshSession
                             ? onRefreshSession(item.id)
-                            : onLaunch(item.id)
+                            : onLaunch(item.id, activeGame)
                         }
                         disabled={busy}
                       >

@@ -16,13 +16,16 @@ import {
 } from 'lucide-react'
 import { getRankTierClass } from '../../lib/sorting'
 import { formatLiveMatchLabel, formatLiveMinutes } from '../../lib/liveStatus'
-import type { LiveStatusBadge } from '../../lib/types'
+import type { Game, LiveStatusBadge } from '../../lib/types'
 
 export interface AccountCardProps {
   id: string
   name: string
   region: string
   rank?: string | null
+  valorantRank?: string | null
+  games?: Game[]
+  activeGame?: Game
   notes?: string | null
   iconAsset?: string | null
   lastUsedText?: string | null
@@ -42,8 +45,8 @@ export interface AccountCardProps {
   onSelect?: () => void
   onEdit?: () => void
   onRefreshSession?: () => void
-  onLaunch: () => void
-  onRetry?: () => void
+  onLaunch: (game?: Game) => void
+  onRetry?: (game?: Game) => void
   onSync?: () => void
   onPushToCloud?: () => void
   onForceRelease?: () => void
@@ -59,6 +62,9 @@ export function AccountCard({
   name,
   region,
   rank,
+  valorantRank,
+  games,
+  activeGame = 'league',
   notes,
   iconAsset,
   lastUsedText,
@@ -93,6 +99,8 @@ export function AccountCard({
   const isLeased = isCloud && status === 'Leased'
   const isStale = !isCloud && (status === 'Session stale' || status.includes('unknown'))
   const needsSignIn = !hasSession || status === 'Sign in required'
+  const displayRank = activeGame === 'valorant' ? (valorantRank !== undefined ? valorantRank : rank) : rank
+  const supportedGames = games && games.length > 0 ? games : ['league']
 
   // Context menu actions for secondary capabilities
   const menuItems: MenuItem[] = []
@@ -168,11 +176,11 @@ export function AccountCard({
     if (isLeased) {
       if (canManage && onForceRelease) onForceRelease()
     } else if (launchFailed && onRetry) {
-      onRetry()
+      onRetry(activeGame)
     } else if (!hasSession && onRefreshSession) {
       onRefreshSession()
     } else {
-      onLaunch()
+      onLaunch(activeGame)
     }
   }
 
@@ -248,15 +256,31 @@ export function AccountCard({
               {isRecent ? (
                 <span className="card-recent-badge">Recent</span>
               ) : null}
+              {supportedGames.length > 0 && (
+                <div className="card-game-badges" aria-label="Supported games">
+                  {supportedGames.includes('league') && (
+                    <span className="game-badge game-badge-league" title="Supports League">
+                      <img src="/league-of-legends-icon.webp" alt="" className="game-badge-icon" aria-hidden="true" />
+                      LEAGUE
+                    </span>
+                  )}
+                  {supportedGames.includes('valorant') && (
+                    <span className="game-badge game-badge-valo" title="Supports VALORANT">
+                      <img src="/valorant-icon.webp" alt="" className="game-badge-icon" aria-hidden="true" />
+                      VALO
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="card-meta-row">
-              {rank ? (
+              {displayRank ? (
                 <span
-                  className={`account-rank-label ${getRankTierClass(rank)}`}
-                  title={`Rank: ${rank}`}
+                  className={`account-rank-label ${getRankTierClass(displayRank)}`}
+                  title={`Rank: ${displayRank}`}
                 >
-                  <RankCrest rank={rank} /> {rank}
+                  <RankCrest rank={displayRank} /> {displayRank}
                 </span>
               ) : null}
 

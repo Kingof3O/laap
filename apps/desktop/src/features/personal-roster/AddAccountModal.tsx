@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import { X, Check, LogIn, Zap, ShieldCheck } from 'lucide-react'
+import { X, Check, LogIn, Zap, ShieldCheck, Swords, Crosshair } from 'lucide-react'
 import { useDialog } from '../../shared/hooks/useDialog'
 import { ProfileFields, ProfilePreview } from '../../shared/ui/ProfileFields'
 import { emptyCustomization } from '../../lib/profileCustomization'
+import { useGame } from '../../context/GameContext'
+import { useToast } from '../../context/ToastContext'
 import type {
   CapturedProfile,
+  Game,
   LocalAccountSummary,
   ProfileDetails,
 } from '../../lib/types'
+
 interface Props {
   isOpen: boolean
   onClose: () => void
@@ -24,15 +28,20 @@ interface Props {
   provisioning: boolean
   busy: boolean
 }
+
 type AddMode = 'sign-in' | 'import'
-const emptyDetails = (): ProfileDetails => ({
+
+const emptyDetails = (activeGame: Game = 'league'): ProfileDetails => ({
   name: '',
   region: '',
   rank: null,
+  valorant_rank: null,
+  games: [activeGame],
   notes: '',
   favorite: false,
   customization: emptyCustomization(),
 })
+
 export function AddAccountModal({
   isOpen,
   onClose,
@@ -46,16 +55,23 @@ export function AddAccountModal({
   provisioning,
   busy,
 }: Props) {
-  const [details, setDetails] = useState(emptyDetails),
-    [mode, setMode] = useState<AddMode>('sign-in'),
-    [closing, setClosing] = useState(false),
-    [assetBusy, setAssetBusy] = useState(false),
-    [closeError, setCloseError] = useState<string | null>(null)
+  const { activeGame, setActiveGame } = useGame()
+  const { showSuccess } = useToast()
+
+  const [details, setDetails] = useState<ProfileDetails>(() =>
+    emptyDetails(activeGame),
+  )
+  const [mode, setMode] = useState<AddMode>('sign-in')
+  const [closing, setClosing] = useState(false)
+  const [assetBusy, setAssetBusy] = useState(false)
+  const [closeError, setCloseError] = useState<string | null>(null)
+
   const cancel = useRef(onCancelSandbox)
   cancel.current = onCancelSandbox
+
   useEffect(() => {
     if (!isOpen) {
-      setDetails(emptyDetails())
+      setDetails(emptyDetails(activeGame))
       setMode('sign-in')
       setCloseError(null)
     } else if (refreshTarget) {
@@ -63,6 +79,11 @@ export function AddAccountModal({
         name: refreshTarget.name,
         region: refreshTarget.region,
         rank: refreshTarget.rank ?? null,
+        valorant_rank: refreshTarget.valorant_rank ?? null,
+        games:
+          refreshTarget.games && refreshTarget.games.length > 0
+            ? refreshTarget.games
+            : [activeGame],
         notes: refreshTarget.notes ?? '',
         favorite: refreshTarget.favorite ?? false,
         customization: {
@@ -76,9 +97,16 @@ export function AddAccountModal({
         ...current,
         name: captured.details.name || current.name,
         region: captured.details.region || current.region,
+        games:
+          current.games && current.games.length > 0
+            ? current.games
+            : [activeGame],
       }))
+    } else {
+      setDetails(emptyDetails(activeGame))
     }
-  }, [isOpen, captured, refreshTarget])
+  }, [isOpen, captured, refreshTarget, activeGame])
+
   useEffect(
     () => () => {
       void cancel
@@ -89,6 +117,7 @@ export function AddAccountModal({
     },
     [],
   )
+
   const close = async () => {
     if (busy || closing) return
     setClosing(true)
@@ -101,30 +130,64 @@ export function AddAccountModal({
       setClosing(false)
     }
   }
+
   const ref = useDialog(isOpen, () => void close(), busy || closing)
   if (!isOpen) return null
+
   const disabled = busy || closing || provisioning || assetBusy
-  const prepared = { ...details, name: details.name.trim() }
+  const selectedGames =
+    details.games && details.games.length > 0 ? details.games : [activeGame]
+
+  const prepared: ProfileDetails = {
+    ...details,
+    name: details.name.trim(),
+    games: selectedGames,
+    rank: selectedGames.includes('league')
+      ? details.rank?.trim() || null
+      : null,
+    valorant_rank: selectedGames.includes('valorant')
+      ? details.valorant_rank?.trim() || null
+      : null,
+  }
+
+  const signinGame: Game = selectedGames.includes(activeGame)
+    ? activeGame
+    : selectedGames[0] ?? activeGame
+
   const showModeTabs = !refreshTarget && !captured && !provisioning
   const canSubmitSignIn =
     !disabled &&
     !assetBusy &&
-    (Boolean(refreshTarget) || (Boolean(prepared.name) && Boolean(details.region)))
+    (Boolean(refreshTarget) ||
+      (Boolean(prepared.name) && Boolean(details.region)))
   const canConfirmImport =
     !disabled && !assetBusy && Boolean(prepared.name) && Boolean(details.region)
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (provisioning || closing || busy || assetBusy) return
     if (captured) {
-      if (canConfirmImport) void onConfirmImport(prepared, captured)
+      if (canConfirmImport) {
+        await onConfirmImport(prepared, captured)
+        if (!selectedGames.includes(activeGame)) {
+          const nextGame = selectedGames[0] || 'league'
+          setActiveGame(nextGame)
+          showSuccess(
+            nextGame === 'valorant'
+              ? 'Switched to VALORANT to show this profile.'
+              : 'Switched to League to show this profile.',
+          )
+        }
+      }
       return
     }
     if (mode === 'import' && showModeTabs) {
       void onCaptureActive(prepared)
       return
     }
-    if (canSubmitSignIn) void onStartSandbox(prepared)
+    if (canSubmitSignIn) {
+      void onStartSandbox(prepared)
+    }
   }
 
   return (
@@ -199,7 +262,7 @@ export function AddAccountModal({
           ) : null}
 
           {!showModeTabs || mode === 'sign-in' ? (
-            <ProfilePreview details={details} />
+            <ProfilePreview details={details} activeGame={activeGame} />
           ) : null}
 
           <div className="profile-modal-content">
@@ -221,6 +284,107 @@ export function AddAccountModal({
                     Client, LAAP reads your active session automatically—no need
                     to enter Name or Region before importing.
                   </p>
+
+                  {/* Games Selection for Import Mode */}
+                  <div
+                    className="field-block profile-games-field"
+                    style={{ margin: '14px 0', paddingBottom: '12px' }}
+                  >
+                    <div className="profile-games-header">
+                      <span className="field-label">Games</span>
+                      <span className="field-caption">
+                        The same Riot login works for both games.
+                      </span>
+                    </div>
+                    <div
+                      className="profile-game-chips"
+                      role="group"
+                      aria-label="Supported games"
+                    >
+                      <label
+                        className={`profile-game-chip ${
+                          selectedGames.includes('league')
+                            ? 'profile-game-chip-selected'
+                            : ''
+                        } ${
+                          selectedGames.includes('league') &&
+                          selectedGames.length === 1
+                            ? 'profile-game-chip-disabled'
+                            : ''
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          aria-label="League of Legends"
+                          checked={selectedGames.includes('league')}
+                          disabled={
+                            disabled ||
+                            (selectedGames.includes('league') &&
+                              selectedGames.length === 1)
+                          }
+                          onChange={(e) => {
+                            if (!e.target.checked && selectedGames.length <= 1)
+                              return
+                            const nextGames = e.target.checked
+                              ? [...selectedGames, 'league' as const]
+                              : selectedGames.filter((g) => g !== 'league')
+                            setDetails({ ...details, games: nextGames })
+                          }}
+                        />
+                        <img
+                          src="/league-of-legends-icon.webp"
+                          alt=""
+                          className="profile-game-chip-icon"
+                          aria-hidden="true"
+                        />
+                        <span>League of Legends</span>
+                      </label>
+                      <label
+                        className={`profile-game-chip ${
+                          selectedGames.includes('valorant')
+                            ? 'profile-game-chip-selected'
+                            : ''
+                        } ${
+                          selectedGames.includes('valorant') &&
+                          selectedGames.length === 1
+                            ? 'profile-game-chip-disabled'
+                            : ''
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          aria-label="VALORANT"
+                          checked={selectedGames.includes('valorant')}
+                          disabled={
+                            disabled ||
+                            (selectedGames.includes('valorant') &&
+                              selectedGames.length === 1)
+                          }
+                          onChange={(e) => {
+                            if (!e.target.checked && selectedGames.length <= 1)
+                              return
+                            const nextGames = e.target.checked
+                              ? [...selectedGames, 'valorant' as const]
+                              : selectedGames.filter((g) => g !== 'valorant')
+                            setDetails({ ...details, games: nextGames })
+                          }}
+                        />
+                        <img
+                          src="/valorant-icon.webp"
+                          alt=""
+                          className="profile-game-chip-icon"
+                          aria-hidden="true"
+                        />
+                        <span>VALORANT</span>
+                      </label>
+                    </div>
+                    {selectedGames.length === 1 && (
+                      <p className="field-caption">
+                        At least one game must remain selected.
+                      </p>
+                    )}
+                  </div>
+
                   <ul className="import-session-steps">
                     <li>
                       <ShieldCheck size={14} /> Your Riot ID &amp; region
@@ -252,6 +416,7 @@ export function AddAccountModal({
                 regionLabel="Server Region"
                 rankLabel="Rank (Optional)"
                 onAssetBusy={setAssetBusy}
+                activeGame={activeGame}
               />
             )}
 
@@ -279,7 +444,7 @@ export function AddAccountModal({
             ) : null}
             {provisioning && !operationError ? (
               <p className="profile-information profile-callout" role="status">
-                Waiting for Riot sign-in…{' '}
+                Waiting for Riot sign-in ({signinGame === 'valorant' ? 'VALORANT' : 'League'})…{' '}
                 {busy
                   ? 'Saving and restoring settings…'
                   : 'You can cancel to restore your previous settings.'}

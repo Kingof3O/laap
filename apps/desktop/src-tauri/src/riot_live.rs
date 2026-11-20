@@ -1597,6 +1597,9 @@ mod tests {
             ),
             created_at: "2026-11-14T00:00:00Z".into(),
             last_used_at: None,
+            games: vec![crate::local_store::Game::League],
+            valorant_rank: None,
+            last_game: None,
         };
 
         let first = check_account_live_status_with_account(

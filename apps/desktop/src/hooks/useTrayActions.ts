@@ -41,7 +41,7 @@ export function useTrayActions(
             has_session: a.has_session,
           })),
           active_id: operations.activeLaunchKey?.startsWith('local:')
-            ? operations.activeLaunchKey.slice(6)
+            ? operations.activeLaunchKey.slice(6).split(':')[0]
             : operations.running
               ? restored
               : null,

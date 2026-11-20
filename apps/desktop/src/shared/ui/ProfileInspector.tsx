@@ -18,6 +18,8 @@ import {
 import type { RosterItem } from './AccountRosterDisplay'
 import { ProfileAvatar } from './ProfileAvatar'
 import { RankCrest } from './RankPicker'
+import { useGame } from '../../context/GameContext'
+import type { Game } from '../../lib/types'
 import { formatLiveMatchLabel } from '../../lib/liveStatus'
 import { invokeTauri, isTauriAvailable, openExternalUrl } from '../../lib/api'
 import {
@@ -29,6 +31,7 @@ import {
 
 export function ProfileInspector({
   account,
+  activeGame: propActiveGame,
   busy,
   onClose,
   onEdit,
@@ -38,6 +41,7 @@ export function ProfileInspector({
   actions,
 }: {
   account: RosterItem
+  activeGame?: Game
   busy: boolean
   onClose: () => void
   onEdit?: () => void
@@ -46,6 +50,18 @@ export function ProfileInspector({
   launchLabel?: string
   actions?: ReactNode
 }) {
+  let contextGame: Game = 'league'
+  try {
+    contextGame = useGame().activeGame
+  } catch {
+    // outside provider fallback
+  }
+  const activeGame = propActiveGame ?? contextGame
+  const isVal = activeGame === 'valorant'
+  const displayRank = isVal
+    ? (account.valorantRank || account.rank || null)
+    : (account.rank || null)
+
   const added =
     account.createdAt && Number.isFinite(Date.parse(account.createdAt))
       ? new Date(account.createdAt).toLocaleDateString(undefined, {
@@ -64,8 +80,8 @@ export function ProfileInspector({
   const [savingRiotId, setSavingRiotId] = useState(false)
 
   const opggInfo = useMemo(
-    () => getOpggSummonerUrl(account.name, account.region, account.riotId),
-    [account.name, account.region, account.riotId],
+    () => getOpggSummonerUrl(account.name, account.region, account.riotId, activeGame),
+    [account.name, account.region, account.riotId, activeGame],
   )
 
   const loadStats = useCallback(
@@ -86,14 +102,15 @@ export function ProfileInspector({
           account.region,
           account.riotId,
           forceRefresh,
+          activeGame,
         )
         setStats(res)
         if (
           res?.formattedRank &&
           res.formattedRank !== 'Unranked' &&
-          res.formattedRank !== account.rank
+          res.formattedRank !== displayRank
         ) {
-          void autoSyncAccountRank(account)
+          void autoSyncAccountRank(account, activeGame)
         }
       } catch (err: unknown) {
         setStats(null)
@@ -102,7 +119,7 @@ export function ProfileInspector({
         setStatsLoading(false)
       }
     },
-    [account, opggInfo.hasTag],
+    [account, opggInfo.hasTag, activeGame, displayRank],
   )
 
   useEffect(() => {
@@ -138,10 +155,22 @@ export function ProfileInspector({
           <strong title={account.name}>{account.name}</strong>
           <span className="inspector-subtitle">
             <span className="inspector-region-pill">{account.region}</span>
-            {account.rank ? (
+            {isVal && (
+              <span className="game-badge game-badge-valo">
+                <img src="/valorant-icon.webp" alt="" className="game-badge-icon" aria-hidden="true" />
+                VALO
+              </span>
+            )}
+            {!isVal && (
+              <span className="game-badge game-badge-league">
+                <img src="/league-of-legends-icon.webp" alt="" className="game-badge-icon" aria-hidden="true" />
+                LEAGUE
+              </span>
+            )}
+            {displayRank ? (
               <span className="inspector-rank-inline">
-                <RankCrest rank={account.rank} />
-                {account.rank}
+                {!isVal && <RankCrest rank={displayRank} />}
+                {displayRank}
               </span>
             ) : (
               <span>Unranked</span>
@@ -173,7 +202,7 @@ export function ProfileInspector({
             <dd>{added}</dd>
           </div>
         ) : null}
-        {onCheckLive || account.liveStatus ? (
+        {!isVal && (onCheckLive || account.liveStatus) ? (
           <div>
             <dt>
               <Activity size={15} /> Live match
@@ -310,11 +339,20 @@ export function ProfileInspector({
           ) : stats ? (
             <div className="inspector-stats-content">
               <div className="inspector-stats-row">
-                <span className="inspector-winrate-label">Win Rate:</span>
+                <span className="inspector-winrate-label">
+                  {isVal ? 'VALORANT Rank:' : 'Win Rate:'}
+                </span>
                 <strong className="inspector-winrate-value">
-                  {stats.formattedWinRate ||
-                    `${stats.wins}W - ${stats.losses}L (${stats.winRate}%)`}
+                  {isVal
+                    ? stats.formattedRank || 'Unranked'
+                    : stats.formattedWinRate ||
+                      `${stats.wins}W - ${stats.losses}L (${stats.winRate}%)`}
                 </strong>
+                {isVal && typeof stats.level === 'number' && (
+                  <span className="game-badge game-badge-valo" style={{ marginLeft: 8 }}>
+                    Level {stats.level}
+                  </span>
+                )}
               </div>
               <div className="inspector-stats-riot-id-row">
                 <span className="inspector-stats-riot-tag">
@@ -384,7 +422,7 @@ export function ProfileInspector({
             </span>
           </button>
         ) : null}
-        {onCheckLive ? (
+        {!isVal && onCheckLive ? (
           <button
             className="btn-live-check"
             type="button"

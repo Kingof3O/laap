@@ -342,10 +342,11 @@ button.brand-edition-pro:hover .brand-edition-name {
 
 .filter-controls {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex: 1;
+  min-width: 0;
 }
 
 .search-box {
@@ -357,13 +358,14 @@ button.brand-edition-pro:hover .brand-edition-name {
   border-radius: var(--radius-md);
   padding: 0 12px;
   height: 36px;
-  width: 260px;
+  width: 200px;
+  flex-shrink: 1;
   transition: border-color var(--transition-fast), width var(--transition-fast);
 }
 
 .search-box:focus-within {
   border-color: var(--accent-primary);
-  width: 320px;
+  width: 230px;
 }
 
 .search-icon {
@@ -414,6 +416,55 @@ button.brand-edition-pro:hover .brand-edition-name {
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   padding: 2px;
+}
+
+.game-toggle {
+  display: flex;
+  align-items: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 2px;
+  gap: 2px;
+}
+
+.game-toggle-btn {
+  height: 32px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: transparent;
+  border: 1px solid transparent;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.game-toggle-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  border-radius: 3px;
+  display: block;
+  flex-shrink: 0;
+}
+
+.game-toggle-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.game-toggle-btn-active {
+  background: var(--bg-surface-elevated);
+  color: var(--accent-light);
+  border-color: var(--border-subtle);
+  box-shadow: var(--shadow-xs);
 }
 
 .view-toggle-btn {

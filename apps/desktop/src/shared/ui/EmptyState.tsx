@@ -9,12 +9,16 @@ import {
   Users,
   Zap,
 } from 'lucide-react'
+import type { Game } from '../../lib/types'
 
 export interface EmptyStateProps {
   isCloud?: boolean
   searchActive?: boolean
   onAction?: () => void
   onQuickImport?: () => void
+  activeGame?: Game
+  hasAnyProfiles?: boolean
+  onSwitchGame?: (game: Game) => void
 }
 
 export function EmptyState({
@@ -22,6 +26,9 @@ export function EmptyState({
   searchActive = false,
   onAction,
   onQuickImport,
+  activeGame,
+  hasAnyProfiles = false,
+  onSwitchGame,
 }: EmptyStateProps) {
   if (searchActive) {
     return (
@@ -36,6 +43,8 @@ export function EmptyState({
       </div>
     )
   }
+
+  const isGameEmpty = !isCloud && hasAnyProfiles && Boolean(activeGame)
 
   return (
     <div className="empty-stage-container">
@@ -67,12 +76,20 @@ export function EmptyState({
           <h2 className="empty-state-title">
             {isCloud
               ? 'Shared Accounts is Empty'
-              : 'Your Personal Roster is Empty'}
+              : isGameEmpty
+                ? activeGame === 'valorant'
+                  ? 'No VALORANT profiles yet'
+                  : 'No League profiles yet'
+                : 'Your Personal Roster is Empty'}
           </h2>
           <p className="empty-state-text">
             {isCloud
               ? 'No shared accounts have been added to the pool yet. Publish accounts from your local roster or add cloud accounts.'
-              : 'Add a profile to launch League through the official Riot Client with one click.'}
+              : isGameEmpty
+                ? activeGame === 'valorant'
+                  ? 'Add a profile to launch VALORANT with one click, or switch back to your League roster.'
+                  : 'Add a profile to launch League through the official Riot Client, or switch back to your VALORANT roster.'
+                : 'Add a profile to launch League through the official Riot Client with one click.'}
           </p>
 
           {/* Grounded Action Buttons */}
@@ -85,12 +102,39 @@ export function EmptyState({
               >
                 <Plus size={15} style={{ marginRight: '6px', flexShrink: 0 }} />
                 <span>
-                  {isCloud ? 'Add Shared Account' : 'Register New Profile'}
+                  {isCloud
+                    ? 'Add Shared Account'
+                    : isGameEmpty
+                      ? activeGame === 'valorant'
+                        ? 'Add VALORANT Profile'
+                        : 'Add League Profile'
+                      : 'Register New Profile'}
                 </span>
               </button>
             ) : null}
 
-            {!isCloud && onQuickImport ? (
+            {isGameEmpty && onSwitchGame ? (
+              <button
+                type="button"
+                className="btn-modal-secondary"
+                onClick={() => onSwitchGame(activeGame === 'valorant' ? 'league' : 'valorant')}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <img
+                  src={activeGame === 'valorant' ? '/league-of-legends-icon.webp' : '/valorant-icon.webp'}
+                  alt=""
+                  style={{ width: '16px', height: '16px', objectFit: 'contain', borderRadius: '3px' }}
+                  aria-hidden="true"
+                />
+                <span>
+                  {activeGame === 'valorant'
+                    ? 'Switch to League'
+                    : 'Switch to VALORANT'}
+                </span>
+              </button>
+            ) : null}
+
+            {!isCloud && !isGameEmpty && onQuickImport ? (
               <button
                 type="button"
                 className="btn-modal-secondary"

@@ -60,6 +60,8 @@ pub async fn save_local_account(
     favorite: Option<bool>,
     customization: Option<crate::local_store::ProfileCustomization>,
     riot_id: Option<String>,
+    games: Option<Vec<crate::local_store::Game>>,
+    valorant_rank: Option<String>,
 ) -> Result<LocalAccountSummary, String> {
     tauri::async_runtime::spawn_blocking(move || {
         save_local_account_sync(
@@ -71,6 +73,8 @@ pub async fn save_local_account(
             favorite,
             customization,
             riot_id,
+            games,
+            valorant_rank,
         )
     })
     .await
@@ -85,6 +89,8 @@ pub fn save_local_account_sync(
     favorite: Option<bool>,
     customization: Option<crate::local_store::ProfileCustomization>,
     riot_id: Option<String>,
+    games: Option<Vec<crate::local_store::Game>>,
+    valorant_rank: Option<String>,
 ) -> Result<LocalAccountSummary, String> {
     let store = LocalStore::new()?;
     let account = store.create_profile(
@@ -96,6 +102,8 @@ pub fn save_local_account_sync(
             notes: notes.unwrap_or_default(),
             favorite: favorite.unwrap_or(false),
             customization,
+            games: games.unwrap_or_else(crate::local_store::default_games),
+            valorant_rank,
         },
         session_blob,
     )?;
@@ -116,13 +124,21 @@ pub fn delete_local_account_sync(id: String) -> Result<(), String> {
 
 /// 1-Click Launches an account from the local standalone vault.
 #[tauri::command]
-pub async fn launch_local_account(id: String, confirmed: Option<bool>) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || launch_local_account_sync(id, confirmed))
+pub async fn launch_local_account(
+    id: String,
+    confirmed: Option<bool>,
+    game: Option<crate::local_store::Game>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || launch_local_account_sync(id, confirmed, game))
         .await
         .map_err(|error| format!("Native operation failed: {error}"))?
 }
-pub fn launch_local_account_sync(id: String, confirmed: Option<bool>) -> Result<(), String> {
-    crate::commands::session::launch_local(&id, confirmed.unwrap_or(false))
+pub fn launch_local_account_sync(
+    id: String,
+    confirmed: Option<bool>,
+    game: Option<crate::local_store::Game>,
+) -> Result<(), String> {
+    crate::commands::session::launch_local(&id, confirmed.unwrap_or(false), game)
 }
 
 #[tauri::command]
@@ -152,10 +168,18 @@ pub fn refresh_local_account_sync(id: String, session_blob: String) -> Result<()
 }
 
 #[tauri::command]
-pub async fn update_account_rank(id: String, rank: String) -> Result<bool, String> {
+pub async fn update_account_rank(
+    id: String,
+    rank: String,
+    game: Option<crate::local_store::Game>,
+) -> Result<bool, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let store = LocalStore::new()?;
-        store.update_rank(&id, &rank)
+        store.update_rank_for(
+            &id,
+            &rank,
+            game.unwrap_or(crate::local_store::Game::League),
+        )
     })
     .await
     .map_err(|error| format!("Native operation failed: {error}"))?

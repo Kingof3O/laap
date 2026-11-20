@@ -8,12 +8,14 @@ import {
 } from 'react'
 import { invokeTauri, isTauriAvailable } from '../lib/api'
 import { useDialog } from '../shared/hooks/useDialog'
+import type { Game } from '../lib/types'
 
 export interface RuntimeSnapshot {
   riot_client: boolean
   league_client: boolean
   league_game: boolean
   valorant_game: boolean
+  vanguard?: boolean
 }
 interface Operations {
   busy: boolean
@@ -24,7 +26,7 @@ interface Operations {
   activeLaunchKey: string | null
   run: <T>(
     action: (confirmed: boolean) => Promise<T>,
-    options?: { launchKey: string; allowRelaunch?: boolean },
+    options?: { launchKey: string; allowRelaunch?: boolean; game?: Game },
   ) => Promise<T>
 }
 const Context = createContext<Operations | null>(null)
@@ -89,7 +91,7 @@ export function RiotOperationsProvider({ children }: { children: ReactNode }) {
   }, [])
   const run = async <T,>(
     action: (confirmed: boolean) => Promise<T>,
-    options?: { launchKey: string; allowRelaunch?: boolean },
+    options?: { launchKey: string; allowRelaunch?: boolean; game?: Game },
   ) => {
     if (locked.current)
       throw new Error('Another Riot operation is in progress.')
@@ -139,25 +141,36 @@ export function RiotOperationsProvider({ children }: { children: ReactNode }) {
         activeKey.current = options.launchKey
         setActiveLaunchKey(options.launchKey)
         setTracking(true)
+        const isVal =
+          options.game === 'valorant' || options.launchKey.endsWith(':valorant')
+        const targetLabel = isVal ? 'VALORANT' : 'League Client'
         const deadline = Date.now() + 120000
         let detected = false
         try {
           while (mounted.current && !stopTracking.current) {
             const state = await snapshot()
-            if (state.league_client || state.league_game) {
+            if (
+              isVal
+                ? state.valorant_game
+                : state.league_client || state.league_game
+            ) {
               detected = true
-              setLaunchStatus('League Client detected. Continue in the client.')
+              setLaunchStatus(
+                isVal
+                  ? 'VALORANT detected. Continue in the game.'
+                  : 'League Client detected. Continue in the client.',
+              )
               break
             }
             setLaunchStatus(
               state.riot_client
-                ? 'Riot Client detected · waiting for League Client…'
+                ? `Riot Client detected · waiting for ${targetLabel}…`
                 : 'Waiting for Riot Client to start…',
             )
             if (Date.now() >= deadline) {
               setLaunchStatus(
                 state.riot_client
-                  ? 'Riot Client is running, but League has not appeared. Check Riot for sign-in, updates or errors.'
+                  ? `Riot Client is running, but ${isVal ? 'VALORANT' : 'League'} has not appeared. Check Riot for sign-in, updates or errors.`
                   : 'No Riot Client detected after 2 minutes. Check the client installation and try again.',
               )
               break

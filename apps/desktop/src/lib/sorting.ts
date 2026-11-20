@@ -1,3 +1,5 @@
+import type { Game } from './types'
+
 export type SortOrder =
   | 'name-asc'
   | 'name-desc'
@@ -11,7 +13,8 @@ export type SortOrder =
   | 'status-asc'
   | 'status-desc'
   | 'favorites-first'
-const tiers = [
+
+const leagueTiers = [
   'iron',
   'bronze',
   'silver',
@@ -23,14 +26,28 @@ const tiers = [
   'grandmaster',
   'challenger',
 ]
-export function rankScore(rank?: string | null): number | null {
+
+const valorantTiers = [
+  'unranked',
+  'iron',
+  'bronze',
+  'silver',
+  'gold',
+  'platinum',
+  'diamond',
+  'ascendant',
+  'immortal',
+  'radiant',
+]
+
+export function leagueRankScore(rank?: string | null): number | null {
   const match = rank
     ?.trim()
     .match(
       /^(iron|bronze|silver|gold|platinum|emerald|diamond|master|grandmaster|challenger)(?:\s+(IV|III|II|I|[1-4]))?$/i,
     )
   if (!match) return null
-  const tier = tiers.indexOf(match[1].toLowerCase())
+  const tier = leagueTiers.indexOf(match[1].toLowerCase())
   const division = match[2]?.toUpperCase()
   if (tier >= 7 && division) return null
   const value = division
@@ -40,26 +57,61 @@ export function rankScore(rank?: string | null): number | null {
     : 0
   return tier + value / 10
 }
+
+export function valorantRankScore(rank?: string | null): number | null {
+  if (!rank) return null
+  const trimmed = rank.trim().toLowerCase()
+  if (trimmed === 'unranked') return 0
+  if (trimmed === 'radiant') return 9.0
+
+  const match = trimmed.match(
+    /^(iron|bronze|silver|gold|platinum|diamond|ascendant|immortal)(?:\s+(iii|ii|i|[1-3]))?$/i,
+  )
+  if (!match) return null
+
+  const tier = valorantTiers.indexOf(match[1].toLowerCase())
+  if (tier <= 0) return null
+
+  const division = match[2]?.toUpperCase()
+  const value = division
+    ? ({ '1': 1, '2': 2, '3': 3, I: 1, II: 2, III: 3 }[division] ?? 1)
+    : 1
+
+  return tier + value / 10
+}
+
+export function rankScore(rank?: string | null, game?: Game): number | null {
+  if (game === 'valorant') {
+    return valorantRankScore(rank)
+  }
+  return leagueRankScore(rank)
+}
+
 export interface Sortable {
   id: string
   name: string
   rank?: string | null
+  valorant_rank?: string | null
+  games?: Game[]
   created_at?: string
   last_used_at?: string | null
   favorite?: boolean
   region?: string
   status?: string
 }
+
 const date = (value?: string | null) => {
   const timestamp = value ? Date.parse(value) : 0
   return Number.isFinite(timestamp) ? timestamp : 0
 }
+
 export function sortProfiles<T extends Sortable>(
   profiles: readonly T[],
   order: SortOrder,
-  options?: { pinFavorites?: boolean },
+  options?: { pinFavorites?: boolean; activeGame?: Game },
 ): T[] {
   const pinFavorites = options?.pinFavorites ?? (order === 'favorites-first')
+  const activeGame = options?.activeGame
   return [...profiles].sort((a, b) => {
     if (pinFavorites || order === 'favorites-first') {
       const favA = Boolean(a.favorite)
@@ -81,8 +133,10 @@ export function sortProfiles<T extends Sortable>(
     }
 
     if (order.startsWith('rank-')) {
-      const left = rankScore(a.rank),
-        right = rankScore(b.rank)
+      const rankA = activeGame === 'valorant' ? (a.valorant_rank ?? a.rank) : a.rank
+      const rankB = activeGame === 'valorant' ? (b.valorant_rank ?? b.rank) : b.rank
+      const left = rankScore(rankA, activeGame),
+        right = rankScore(rankB, activeGame)
       if (left === null || right === null)
         return left === right ? name : left === null ? 1 : -1
       return (order === 'rank-desc' ? right - left : left - right) || name
@@ -119,6 +173,9 @@ export function sortProfiles<T extends Sortable>(
 export function getRankTierClass(rank?: string | null): string {
   if (!rank) return ''
   const lower = rank.toLowerCase()
+  if (lower.includes('radiant')) return 'rank-radiant'
+  if (lower.includes('immortal')) return 'rank-immortal'
+  if (lower.includes('ascendant')) return 'rank-ascendant'
   if (lower.includes('challenger')) return 'rank-challenger'
   if (lower.includes('grandmaster')) return 'rank-grandmaster'
   if (lower.includes('master')) return 'rank-master'
@@ -126,6 +183,9 @@ export function getRankTierClass(rank?: string | null): string {
   if (lower.includes('emerald')) return 'rank-emerald'
   if (lower.includes('platinum')) return 'rank-platinum'
   if (lower.includes('gold')) return 'rank-gold'
+  if (lower.includes('silver')) return 'rank-silver'
+  if (lower.includes('bronze')) return 'rank-bronze'
+  if (lower.includes('iron')) return 'rank-iron'
   return ''
 }
 

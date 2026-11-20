@@ -86,6 +86,9 @@ async fn fetch_profile(
         formatted_rank: "Unranked".into(),
         formatted_win_rate: "0W - 0L (0%)".into(),
         opgg_url: String::new(),
+        game: crate::local_store::models::Game::League,
+        level: None,
+        puuid: Some(puuid.to_string()),
     };
     if let Some(e) = entries.iter().find(|v| v["queueType"] == "RANKED_SOLO_5x5") {
         p.tier = e["tier"].as_str().ok_or("Missing ranked tier")?.into();
@@ -169,7 +172,14 @@ pub async fn opgg_get_summoner_profile(
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|e| e.to_string())?;
-    let profile = match fetch_opgg_summoner(&client, name, tag, &region).await {
+    let profile = match fetch_opgg_summoner(
+        &client,
+        name,
+        tag,
+        &region,
+        crate::local_store::models::Game::League,
+    )
+    .await {
         Ok(p) => p,
         Err(_) => {
             let key = provider_support::load(&app, "riot")?;

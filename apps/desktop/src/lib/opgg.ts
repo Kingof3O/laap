@@ -1,5 +1,6 @@
-import { invokeTauri, isTauriAvailable, openExternalUrl } from './api'
-import { canonicalRank } from './profileCustomization'
+import { invokeTauri, isTauriAvailable, openExternalUrl } from './api.ts'
+import { canonicalRank } from './profileCustomization.ts'
+import type { Game } from './types.ts'
 
 export interface OpggStats {
   summonerName: string
@@ -15,6 +16,9 @@ export interface OpggStats {
   formattedWinRate: string
   opggUrl: string
   fetchedAt: number
+  game?: Game
+  level?: number
+  puuid?: string
 }
 
 export function normalizeOpggRegion(region?: string | null): string {
@@ -40,10 +44,72 @@ export function normalizeOpggRegion(region?: string | null): string {
   return raw
 }
 
+export function valorantTierToRank(tier: number): string {
+  switch (tier) {
+    case 0:
+    case 1:
+    case 2:
+      return 'Unranked'
+    case 3:
+      return 'Iron 1'
+    case 4:
+      return 'Iron 2'
+    case 5:
+      return 'Iron 3'
+    case 6:
+      return 'Bronze 1'
+    case 7:
+      return 'Bronze 2'
+    case 8:
+      return 'Bronze 3'
+    case 9:
+      return 'Silver 1'
+    case 10:
+      return 'Silver 2'
+    case 11:
+      return 'Silver 3'
+    case 12:
+      return 'Gold 1'
+    case 13:
+      return 'Gold 2'
+    case 14:
+      return 'Gold 3'
+    case 15:
+      return 'Platinum 1'
+    case 16:
+      return 'Platinum 2'
+    case 17:
+      return 'Platinum 3'
+    case 18:
+      return 'Diamond 1'
+    case 19:
+      return 'Diamond 2'
+    case 20:
+      return 'Diamond 3'
+    case 21:
+      return 'Ascendant 1'
+    case 22:
+      return 'Ascendant 2'
+    case 23:
+      return 'Ascendant 3'
+    case 24:
+      return 'Immortal 1'
+    case 25:
+      return 'Immortal 2'
+    case 26:
+      return 'Immortal 3'
+    case 27:
+      return 'Radiant'
+    default:
+      return 'Unranked'
+  }
+}
+
 export function getOpggSummonerUrl(
   name: string,
   region: string,
   explicitRiotId?: string | null,
+  game: Game = 'league',
 ): {
   url: string
   slug: string
@@ -51,6 +117,7 @@ export function getOpggSummonerUrl(
   tagLine: string
   region: string
   hasTag: boolean
+  game: Game
 } {
   const target = (explicitRiotId && explicitRiotId.trim()) || name.trim()
   let summonerName = target
@@ -65,7 +132,11 @@ export function getOpggSummonerUrl(
   }
   const opggRegion = normalizeOpggRegion(region)
   const slug = `${encodeURIComponent(summonerName)}-${encodeURIComponent(tagLine)}`
-  const url = `https://op.gg/lol/summoners/${opggRegion}/${slug}`
+  const url =
+    game === 'valorant'
+      ? `https://op.gg/valorant/profile/${slug}`
+      : `https://op.gg/lol/summoners/${opggRegion}/${slug}`
+
   return {
     url,
     slug,
@@ -73,6 +144,7 @@ export function getOpggSummonerUrl(
     tagLine,
     region: opggRegion,
     hasTag,
+    game,
   }
 }
 
@@ -123,7 +195,7 @@ export function parseOpggMetaDescription(
     }
   }
 
-  const { url } = getOpggSummonerUrl(`${summonerName}#${tagLine}`, region)
+  const { url } = getOpggSummonerUrl(`${summonerName}#${tagLine}`, region, undefined, 'league')
   const canonical = canonicalRank(
     tier.toLowerCase() === 'unranked'
       ? 'Unranked'
@@ -149,6 +221,62 @@ export function parseOpggMetaDescription(
         : `${wins}W - ${losses}L (${winRate}%)`,
     opggUrl: url,
     fetchedAt: Math.floor(Date.now() / 1000),
+    game: 'league',
+  }
+}
+
+export function parseOpggValorantHtml(
+  html: string,
+  summonerName: string,
+  tagLine: string,
+  region: string,
+): OpggStats | null {
+  const match = html.match(/\\?"profile\\?"\s*:\s*(\{.+?\})/s) || html.match(/"profile"\s*:\s*(\{.+?\})/s)
+  if (!match) return null
+
+  try {
+    let jsonStr = match[1]
+    if (jsonStr.includes('\\"')) {
+      jsonStr = jsonStr.replace(/\\"/g, '"')
+    }
+    const data = JSON.parse(jsonStr) as {
+      gameName?: string
+      tagLine?: string
+      level?: number
+      region?: string
+      competitiveTier?: number
+      puuid?: string
+    }
+
+    const tierNum = typeof data.competitiveTier === 'number' ? data.competitiveTier : 0
+    const formattedRank = valorantTierToRank(tierNum)
+    const spaceIdx = formattedRank.indexOf(' ')
+    const tier = spaceIdx !== -1 ? formattedRank.slice(0, spaceIdx) : formattedRank
+    const rank = spaceIdx !== -1 ? formattedRank.slice(spaceIdx + 1) : ''
+    const finalName = data.gameName || summonerName
+    const finalTag = data.tagLine || tagLine
+    const { url } = getOpggSummonerUrl(`${finalName}#${finalTag}`, region, undefined, 'valorant')
+
+    return {
+      summonerName: finalName,
+      tagLine: finalTag,
+      region: data.region || region,
+      tier,
+      rank,
+      leaguePoints: 0,
+      wins: 0,
+      losses: 0,
+      winRate: 0,
+      formattedRank,
+      formattedWinRate: 'Unranked (0 games)',
+      opggUrl: url,
+      fetchedAt: Math.floor(Date.now() / 1000),
+      game: 'valorant',
+      level: data.level,
+      puuid: data.puuid,
+    }
+  } catch {
+    return null
   }
 }
 
@@ -157,9 +285,10 @@ export async function fetchOpggStats(
   region: string,
   explicitRiotId?: string | null,
   forceRefresh = false,
+  game: Game = 'league',
 ): Promise<OpggStats | null> {
-  const info = getOpggSummonerUrl(name, region, explicitRiotId)
-  const cacheKey = `${info.region}:${info.summonerName.toLowerCase()}:${info.tagLine.toLowerCase()}`
+  const info = getOpggSummonerUrl(name, region, explicitRiotId, game)
+  const cacheKey = `opgg:${game}:${info.summonerName.toLowerCase()}#${info.tagLine.toLowerCase()}`
 
   if (forceRefresh) {
     statsCache.delete(cacheKey)
@@ -176,6 +305,7 @@ export async function fetchOpggStats(
         summonerName: info.summonerName,
         tagLine: info.tagLine,
         region: info.region,
+        game,
       })
       if (result) {
         statsCache.set(cacheKey, { stats: result, time: Date.now() })
@@ -196,13 +326,21 @@ export async function fetchOpggStats(
     })
     if (res.ok) {
       const html = await res.text()
-      const match =
-        html.match(/<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i) ||
-        html.match(/<meta\s+name=["']twitter:description["']\s+content=["']([^"']+)["']/i)
-      if (match) {
-        const parsed = parseOpggMetaDescription(match[1], info.summonerName, info.tagLine, info.region)
-        statsCache.set(cacheKey, { stats: parsed, time: Date.now() })
-        return parsed
+      if (game === 'valorant') {
+        const parsed = parseOpggValorantHtml(html, info.summonerName, info.tagLine, info.region)
+        if (parsed) {
+          statsCache.set(cacheKey, { stats: parsed, time: Date.now() })
+          return parsed
+        }
+      } else {
+        const match =
+          html.match(/<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i) ||
+          html.match(/<meta\s+name=["']twitter:description["']\s+content=["']([^"']+)["']/i)
+        if (match) {
+          const parsed = parseOpggMetaDescription(match[1], info.summonerName, info.tagLine, info.region)
+          statsCache.set(cacheKey, { stats: parsed, time: Date.now() })
+          return parsed
+        }
       }
     }
   } catch {
@@ -212,23 +350,35 @@ export async function fetchOpggStats(
   return null
 }
 
-export async function autoSyncAccountRank(account: {
-  id: string
-  name: string
-  region: string
-  rank?: string | null
-  riotId?: string | null
-}): Promise<boolean> {
+export async function autoSyncAccountRank(
+  account: {
+    id: string
+    name: string
+    region: string
+    rank?: string | null
+    valorant_rank?: string | null
+    riotId?: string | null
+    puuid?: string | null
+  },
+  game: Game = 'league',
+): Promise<boolean> {
   try {
-    const stats = await fetchOpggStats(account.name, account.region, account.riotId)
+    const stats = await fetchOpggStats(account.name, account.region, account.riotId, false, game)
     if (!stats || !stats.formattedRank || stats.formattedRank === 'Unranked') {
       return false
     }
 
-    if (account.rank !== stats.formattedRank && isTauriAvailable()) {
+    // Identity check: if both saved profile and OP.GG have a PUUID, they must match
+    if (account.puuid && stats.puuid && account.puuid.trim() !== stats.puuid.trim()) {
+      return false
+    }
+
+    const currentRank = game === 'valorant' ? account.valorant_rank : account.rank
+    if (currentRank !== stats.formattedRank && isTauriAvailable()) {
       const updated = await invokeTauri<boolean>('update_account_rank', {
         id: account.id,
         rank: stats.formattedRank,
+        game,
       })
       if (updated) {
         window.dispatchEvent(new Event('laap:refresh'))
@@ -241,7 +391,12 @@ export async function autoSyncAccountRank(account: {
   return false
 }
 
-export function openOpggProfile(name: string, region: string, riotId?: string | null): Promise<void> {
-  const { url } = getOpggSummonerUrl(name, region, riotId)
+export function openOpggProfile(
+  name: string,
+  region: string,
+  riotId?: string | null,
+  game: Game = 'league',
+): Promise<void> {
+  const { url } = getOpggSummonerUrl(name, region, riotId, game)
   return openExternalUrl(url)
 }
