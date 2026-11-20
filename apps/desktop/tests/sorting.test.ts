@@ -73,3 +73,30 @@ test('every sorting option orders by its declared field', () => {
   for (const [order, id] of Object.entries(expected))
     assert.equal(sortProfiles(rows, order as keyof typeof expected)[0].id, id, order)
 })
+
+test('starred profiles are pinned first by default and support explicit favorites-first order', () => {
+  const rows = [
+    { id: '1', name: 'Alpha', favorite: false },
+    { id: '2', name: 'Zulu', favorite: true },
+    { id: '3', name: 'Bravo', favorite: false },
+    { id: '4', name: 'Charlie', favorite: true },
+  ]
+  const sorted = sortProfiles(rows, 'name-asc')
+  // Charlie and Zulu are favorites, so they appear first (in name-asc order: Charlie, then Zulu)
+  // followed by Alpha, then Bravo
+  assert.deepEqual(sorted.map((r) => r.id), ['4', '2', '1', '3'])
+
+  const unpinned = sortProfiles(rows, 'name-asc', { pinFavorites: false })
+  assert.deepEqual(unpinned.map((r) => r.id), ['1', '3', '4', '2'])
+})
+
+test('region and status sorting works ascending and descending', () => {
+  const rows = [
+    { id: '1', name: 'First', region: 'NA', status: 'Ready' },
+    { id: '2', name: 'Second', region: 'EUW', status: 'In Use' },
+  ]
+  assert.equal(sortProfiles(rows, 'region-asc')[0].id, '2')
+  assert.equal(sortProfiles(rows, 'region-desc')[0].id, '1')
+  assert.equal(sortProfiles(rows, 'status-asc')[0].id, '2')
+  assert.equal(sortProfiles(rows, 'status-desc')[0].id, '1')
+})

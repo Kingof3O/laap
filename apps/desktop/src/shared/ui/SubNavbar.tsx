@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { RegionSelect } from './RegionSelect'
-import { LayoutGrid, List, Plus, Search, X, SlidersHorizontal } from 'lucide-react'
+import { LayoutGrid, List, Plus, Search, X, SlidersHorizontal, Star } from 'lucide-react'
 import type { SortOrder } from '../../lib/sorting'
 import type { Region, ViewMode } from '../../lib/types'
 
@@ -14,6 +14,9 @@ export interface SubNavbarProps {
   onRankChange?: (rank: string) => void
   sortOrder?: SortOrder
   onSortChange?: (order: SortOrder) => void
+  favoritesOnly?: boolean
+  onFavoritesOnlyChange?: (favOnly: boolean) => void
+  favoriteCount?: number
   viewMode: ViewMode
   onViewModeChange: (mode: ViewMode) => void
   onAddAccount?: () => void
@@ -31,6 +34,9 @@ export function SubNavbar({
   onRankChange,
   sortOrder = 'name-asc',
   onSortChange,
+  favoritesOnly = false,
+  onFavoritesOnlyChange,
+  favoriteCount,
   viewMode,
   onViewModeChange,
   onAddAccount,
@@ -45,6 +51,11 @@ export function SubNavbar({
     document.addEventListener('mousedown', dismiss)
     return () => document.removeEventListener('mousedown', dismiss)
   }, [])
+
+  const activeFilterCount =
+    Number(selectedRegion !== 'ALL') +
+    Number(selectedRank !== 'all') +
+    Number(Boolean(favoritesOnly))
 
   return (
     <div className="sub-navbar">
@@ -74,58 +85,111 @@ export function SubNavbar({
           )}
         </div>
 
-        <details ref={filtersRef} className="filter-menu" onKeyDown={(event) => { if (event.key === 'Escape') { event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus() } }}>
-          <summary><SlidersHorizontal size={15} /> Filters{(selectedRegion !== 'ALL' || selectedRank !== 'all') ? ` (${Number(selectedRegion !== 'ALL') + Number(selectedRank !== 'all')})` : ''}</summary>
-          <div className="filter-menu-content">
-        <div className="toolbar-region-select">
-          <RegionSelect
-            label="Filter by region"
-            includeAll
-            value={selectedRegion}
-            onChange={(region) => onRegionChange(region as Region)}
-          />
-        </div>
-
-        {onRankChange ? (
-          <select
-            className="rank-filter"
-            aria-label="Filter by rank"
-            value={selectedRank}
-            onChange={(e) => onRankChange(e.target.value)}
+        {onFavoritesOnlyChange ? (
+          <button
+            type="button"
+            className={`star-filter-btn ${favoritesOnly ? 'star-filter-active' : ''}`}
+            onClick={() => onFavoritesOnlyChange(!favoritesOnly)}
+            title={favoritesOnly ? 'Showing starred accounts only (click to show all)' : 'Filter to starred accounts'}
+            aria-label="Filter starred accounts"
+            aria-pressed={favoritesOnly}
           >
-            <option value="all">All ranks</option>
-            <option value="unlabeled">No rank set</option>
-            {rankOptions.map((rank) => (
-              <option
-                key={rank.toLowerCase()}
-                value={`rank:${rank.toLowerCase()}`}
-              >
-                {rank}
-              </option>
-            ))}
-          </select>
+            <Star
+              size={14}
+              fill={favoritesOnly ? '#e5ac59' : 'none'}
+              color={favoritesOnly ? '#e5ac59' : 'currentColor'}
+            />
+            <span>Starred</span>
+            {typeof favoriteCount === 'number' && favoriteCount > 0 ? (
+              <span className="star-filter-count">{favoriteCount}</span>
+            ) : null}
+          </button>
         ) : null}
 
-        {onSortChange ? (
-          <label className="sort-control">
-            <span>Sort by</span>
-            <select
-              className="rank-filter"
-              aria-label="Sort by"
-              value={sortOrder}
-              onChange={(e) => onSortChange(e.target.value as SortOrder)}
+        <details ref={filtersRef} className="filter-menu" onKeyDown={(event) => { if (event.key === 'Escape') { event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus() } }}>
+          <summary>
+            <SlidersHorizontal size={15} /> Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+          </summary>
+          <div className="filter-menu-content">
+            <div className="toolbar-region-select">
+              <RegionSelect
+                label="Filter by region"
+                includeAll
+                value={selectedRegion}
+                onChange={(region) => onRegionChange(region as Region)}
+              />
+            </div>
+
+            {onRankChange ? (
+              <select
+                className="rank-filter"
+                aria-label="Filter by rank"
+                value={selectedRank}
+                onChange={(e) => onRankChange(e.target.value)}
+              >
+                <option value="all">All ranks</option>
+                <option value="unlabeled">No rank set</option>
+                {rankOptions.map((rank) => (
+                  <option
+                    key={rank.toLowerCase()}
+                    value={`rank:${rank.toLowerCase()}`}
+                  >
+                    {rank}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+
+            {onFavoritesOnlyChange ? (
+              <label className="filter-starred-toggle">
+                <input
+                  type="checkbox"
+                  checked={Boolean(favoritesOnly)}
+                  onChange={(e) => onFavoritesOnlyChange(e.target.checked)}
+                />
+                <Star
+                  size={13}
+                  fill={favoritesOnly ? '#e5ac59' : 'none'}
+                  color={favoritesOnly ? '#e5ac59' : 'currentColor'}
+                />
+                <span>Show starred accounts only</span>
+              </label>
+            ) : null}
+
+            {onSortChange ? (
+              <label className="sort-control">
+                <span>Sort by</span>
+                <select
+                  className="rank-filter"
+                  aria-label="Sort by"
+                  value={sortOrder}
+                  onChange={(e) => onSortChange(e.target.value as SortOrder)}
+                >
+                  <option value="name-asc">Name (A-Z)</option>
+                  <option value="name-desc">Name (Z-A)</option>
+                  <option value="favorites-first">Starred first</option>
+                  <option value="rank-desc">Rank (High to Low)</option>
+                  <option value="rank-asc">Rank (Low to High)</option>
+                  <option value="region-asc">Region (A-Z)</option>
+                  <option value="region-desc">Region (Z-A)</option>
+                  <option value="last-played">Recently played</option>
+                  <option value="added-desc">Recently added</option>
+                  <option value="added-asc">Oldest added</option>
+                </select>
+              </label>
+            ) : null}
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                onRegionChange('ALL')
+                onRankChange?.('all')
+                onSortChange?.('name-asc')
+                onFavoritesOnlyChange?.(false)
+              }}
             >
-              <option value="name-asc">Name (A-Z)</option>
-              <option value="name-desc">Name (Z-A)</option>
-              <option value="last-played">Recently played</option>
-              <option value="added-desc">Recently added</option>
-              <option value="added-asc">Oldest added</option>
-              <option value="rank-desc">Rank (High to Low)</option>
-              <option value="rank-asc">Rank (Low to High)</option>
-            </select>
-          </label>
-        ) : null}
-            <button type="button" className="btn-secondary" onClick={() => { onRegionChange('ALL'); onRankChange?.('all'); onSortChange?.('name-asc') }}>Clear filters</button>
+              Clear filters
+            </button>
           </div>
         </details>
       </div>

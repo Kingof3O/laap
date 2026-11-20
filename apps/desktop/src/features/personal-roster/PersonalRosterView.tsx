@@ -38,6 +38,10 @@ interface Props {
   selectedRank: string
   onRankOptionsChange: (ranks: string[]) => void
   sortOrder: SortOrder
+  onSortChange?: (order: SortOrder) => void
+  favoritesOnly?: boolean
+  onFavoritesOnlyChange?: (favOnly: boolean) => void
+  onFavoriteCountChange?: (count: number) => void
   viewMode: ViewMode
   profileActions?: ComponentProps<typeof AccountRosterDisplay>['profileActions']
   showAddModal: boolean
@@ -56,6 +60,10 @@ export function PersonalRosterView({
   selectedRank,
   onRankOptionsChange,
   sortOrder,
+  onSortChange,
+  favoritesOnly = false,
+  onFavoritesOnlyChange,
+  onFavoriteCountChange,
   viewMode,
   showAddModal,
   profileActions,
@@ -163,10 +171,15 @@ export function PersonalRosterView({
     () => onRankOptionsChange(rankOptions),
     [rankOptions, onRankOptionsChange],
   )
+  useEffect(() => {
+    const favCount = localAccounts.filter((a) => Boolean(a.favorite)).length
+    onFavoriteCountChange?.(favCount)
+  }, [localAccounts, onFavoriteCountChange])
   const filteredAccounts = useMemo(
     () =>
       sortProfiles(
         localAccounts.filter((acc) => {
+          if (favoritesOnly && !acc.favorite) return false
           const rank = acc.rank?.trim().toLowerCase() ?? ''
           return (
             (selectedRegion === 'ALL' ||
@@ -182,7 +195,7 @@ export function PersonalRosterView({
         }),
         sortOrder,
       ),
-    [localAccounts, selectedRegion, selectedRank, searchQuery, sortOrder],
+    [localAccounts, selectedRegion, selectedRank, searchQuery, sortOrder, favoritesOnly],
   )
   useEffect(() => {
     if (!hasTauri) return
@@ -565,6 +578,8 @@ export function PersonalRosterView({
           }}
           onDelete={(id, name) => setDeleteTarget({ id, name })}
           onToggleFavorite={handleToggleFavorite}
+          sortOrder={sortOrder}
+          onSortChange={onSortChange}
         />
       )}
       {modalOpen ? (

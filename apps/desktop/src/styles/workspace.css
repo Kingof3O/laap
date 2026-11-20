@@ -219,6 +219,56 @@ body { background: #0c0a13; }
 }
 .titlebar { background: rgba(20, 16, 30, 0.94); border-bottom: 1px solid rgba(255, 255, 255, 0.06); box-shadow: none; }
 .sub-navbar { background: rgba(14, 11, 22, 0.72); border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.star-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.star-filter-btn:hover {
+  background: rgba(229, 172, 89, 0.1);
+  border-color: rgba(229, 172, 89, 0.35);
+  color: #e5ac59;
+}
+.star-filter-active {
+  background: rgba(229, 172, 89, 0.15);
+  border-color: rgba(229, 172, 89, 0.5);
+  color: #e5ac59;
+  box-shadow: 0 0 12px rgba(229, 172, 89, 0.15);
+}
+.star-filter-count {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: rgba(229, 172, 89, 0.25);
+  color: #ffdda8;
+}
+.filter-starred-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px 0;
+  user-select: none;
+}
+.filter-starred-toggle:hover {
+  color: #e5ac59;
+}
 .search-box:focus-within { box-shadow: 0 0 0 3px rgba(201, 166, 255,.1); }
 .roster-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .roster-heading h1 { font-size: 20px; line-height: 1.25; letter-spacing: -.03em; font-weight: 600; margin-top: 3px; }

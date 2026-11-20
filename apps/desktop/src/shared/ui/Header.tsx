@@ -5,8 +5,10 @@ import { product } from '../../product/flavors'
 export interface HeaderProps {
   navigation?: ReactNode
   brandLabel?: string
+  isPro?: boolean
   onRefresh?: () => void
   onOpenSettings: () => void
+  onOpenBilling?: () => void
   riotRunning?: boolean
   operationBusy?: boolean
   presenceControl?: ReactNode
@@ -19,7 +21,9 @@ export interface HeaderProps {
 export function Header({
   navigation,  onRefresh,
   brandLabel = product.name,
+  isPro = false,
   onOpenSettings,
+  onOpenBilling,
   riotRunning = false,
   operationBusy = false,
   onStopRiot,
@@ -37,7 +41,23 @@ export function Header({
           alt="LAAP"
           style={{ height: '24px', width: 'auto', objectFit: 'contain' }}
         />
-        <span className="brand-edition-tag">{brandLabel}</span>
+        {onOpenBilling ? (
+          <button
+            type="button"
+            className={`brand-edition-tag ${isPro ? 'brand-edition-pro' : 'brand-edition-basic'}`}
+            onClick={onOpenBilling}
+            title={isPro ? 'LAAP Pro Active — click to manage' : 'LAAP Basic — click to upgrade to Pro'}
+            aria-label={`Edition: ${brandLabel}`}
+          >
+            <span className="brand-edition-dot" />
+            <span className="brand-edition-name">{brandLabel}</span>
+          </button>
+        ) : (
+          <span className={`brand-edition-tag ${isPro ? 'brand-edition-pro' : 'brand-edition-basic'}`}>
+            <span className="brand-edition-dot" />
+            <span className="brand-edition-name">{brandLabel}</span>
+          </span>
+        )}
       </div>
 
       {navigation}

@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { AccountCard } from './AccountCard'
 import { AccountListTable } from './AccountListTable'
 import type { LiveStatusBadge, ViewMode } from '../../lib/types'
+import type { SortOrder } from '../../lib/sorting'
 import { PanelRightOpen } from 'lucide-react'
 import { ProfileInspector } from './ProfileInspector'
 
@@ -47,6 +48,8 @@ export interface AccountRosterDisplayProps {
   onRevokeSession?: (id: string) => void
   onDelete: (id: string, name: string) => void
   onToggleFavorite?: (id: string) => void
+  sortOrder?: SortOrder
+  onSortChange?: (order: SortOrder) => void
 }
 
 export function AccountRosterDisplay({
@@ -73,6 +76,8 @@ export function AccountRosterDisplay({
   onRevokeSession,
   onDelete,
   onToggleFavorite,
+  sortOrder,
+  onSortChange,
 }: AccountRosterDisplayProps) {
   const [selectedId, setSelectedId] = useState<string | null>(items[0]?.id ?? null)
   const [detailsOpen, setDetailsOpen] = useState(() => {
@@ -235,6 +240,9 @@ export function AccountRosterDisplay({
           activeLaunchId={activeLaunchId}
           launchStatus={launchStatus}
           launchLabel={launchLabel}
+          sortOrder={sortOrder}
+          onSortChange={onSortChange}
+          onToggleFavorite={onToggleFavorite}
           onLaunch={onLaunch}
           onEdit={onEdit}
           onRefreshSession={onRefreshSession}

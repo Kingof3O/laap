@@ -1384,3 +1384,71 @@ test('live match settings save, Check live displays active match state, and pre-
     .poll(() => page.evaluate(() => (window as any).launchedIds))
     .toEqual(['acc-live'])
 })
+
+test('table roster allows column sorting, inline starring, and filtering by starred accounts', async ({ page }) => {
+  await page.addInitScript(() => {
+    const accounts = [
+      { id: '1', name: 'Bravo', region: 'NA', rank: 'Gold I', notes: '', favorite: false, session_status: 'saved', has_session: true, created_at: '2026-01-01', last_used_at: null },
+      { id: '2', name: 'Alpha', region: 'EUW', rank: 'Challenger', notes: '', favorite: false, session_status: 'saved', has_session: true, created_at: '2026-01-02', last_used_at: null },
+      { id: '3', name: 'Charlie', region: 'EUNE', rank: 'Iron IV', notes: '', favorite: false, session_status: 'saved', has_session: true, created_at: '2026-01-03', last_used_at: null },
+    ]
+    ;(window as any).__TAURI_INTERNALS__ = {
+      invoke: async (command: string, args: any) => {
+        if (command === 'list_local_accounts') return accounts.map((a) => ({ ...a }))
+        if (command === 'edit_local_account') {
+          const target = accounts.find((a) => a.id === args.id)
+          if (target) {
+            target.favorite = args.details.favorite
+          }
+          return { ...target }
+        }
+        return null
+      },
+    }
+  })
+  await page.goto('/')
+  await expect(page.getByText('3 Profiles')).toBeVisible()
+
+  // Switch to Table / List View
+  await page.getByRole('button', { name: 'List View' }).click()
+  await expect(page.locator('.roster-table')).toBeVisible()
+
+  // Verify names in initial default name-asc order: Alpha, Bravo, Charlie
+  const rows = page.locator('.roster-table tbody tr')
+  await expect(rows.nth(0)).toContainText('Alpha')
+  await expect(rows.nth(1)).toContainText('Bravo')
+  await expect(rows.nth(2)).toContainText('Charlie')
+
+  // Click Rank header to sort by Rank (High to Low: Challenger Alpha, Gold Bravo, Iron Charlie)
+  await page.getByRole('button', { name: 'Sort by Rank' }).click()
+  await expect(rows.nth(0)).toContainText('Alpha')
+  await expect(rows.nth(1)).toContainText('Bravo')
+  await expect(rows.nth(2)).toContainText('Charlie')
+
+  // Click Rank header again to sort Low-to-High: Iron Charlie, Gold Bravo, Challenger Alpha
+  await page.getByRole('button', { name: 'Sort by Rank' }).click()
+  await expect(rows.nth(0)).toContainText('Charlie')
+  await expect(rows.nth(1)).toContainText('Bravo')
+  await expect(rows.nth(2)).toContainText('Alpha')
+
+  // Star Charlie in the table
+  await rows.nth(0).getByRole('button', { name: /Add Charlie to favorites/i }).click()
+
+  // Now Charlie is favorite, so Charlie is pinned first! Even when sorting name-asc:
+  await page.getByRole('button', { name: 'Sort by Name' }).click()
+  await expect(rows.nth(0)).toContainText('Charlie')
+
+  // Test Starred filter button in toolbar:
+  const starFilter = page.getByRole('button', { name: 'Filter starred accounts' })
+  await expect(starFilter).toBeVisible()
+  await expect(starFilter).toContainText('1')
+  await starFilter.click()
+
+  // Only Charlie should be visible now!
+  await expect(rows).toHaveCount(1)
+  await expect(rows.nth(0)).toContainText('Charlie')
+
+  // Toggle off starred filter:
+  await starFilter.click()
+  await expect(rows).toHaveCount(3)
+})

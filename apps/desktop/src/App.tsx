@@ -62,6 +62,8 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
   const [localCount, setLocalCount] = useState(0)
   const [profileSlots, setProfileSlots] = useState<ProfileSlots | null>(null)
   const [showBilling, setShowBilling] = useState(false)
+  const [favoritesOnly, setFavoritesOnly] = useState(false)
+  const [favoriteCount, setFavoriteCount] = useState(0)
   const billing = useBilling()
   const [busy, setBusy] = useState(false)
 
@@ -191,6 +193,8 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
       <Header
         navigation={navigation}
         brandLabel={billing.status?.pro ? 'LAAP Pro' : undefined}
+        isPro={Boolean(billing.status?.pro)}
+        onOpenBilling={billing.status?.available ? () => setShowBilling(true) : undefined}
         updateAvailable={updateAvailable}
         onOpenUpdates={() => setShowUpdateModal(true)}
         onRefresh={() => window.dispatchEvent(new Event('laap:refresh'))}
@@ -231,6 +235,9 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
           onRankChange={setSelectedRank}
           sortOrder={sortOrder}
           onSortChange={setSortOrder}
+          favoritesOnly={favoritesOnly}
+          onFavoritesOnlyChange={setFavoritesOnly}
+          favoriteCount={favoriteCount}
           viewMode={viewMode}
           onViewModeChange={handleViewModeChange}
           onAddAccount={openAddProfile}
@@ -253,6 +260,10 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
             selectedRank={selectedRank}
             onRankOptionsChange={setRankOptions}
             sortOrder={sortOrder}
+            onSortChange={setSortOrder}
+            favoritesOnly={favoritesOnly}
+            onFavoritesOnlyChange={setFavoritesOnly}
+            onFavoriteCountChange={setFavoriteCount}
             viewMode={viewMode}
             showAddModal={showAddModal}
             onCloseAddModal={() => setShowAddModal(false)}

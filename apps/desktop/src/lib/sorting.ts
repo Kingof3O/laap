@@ -6,6 +6,11 @@ export type SortOrder =
   | 'last-played'
   | 'added-desc'
   | 'added-asc'
+  | 'region-asc'
+  | 'region-desc'
+  | 'status-asc'
+  | 'status-desc'
+  | 'favorites-first'
 const tiers = [
   'iron',
   'bronze',
@@ -35,12 +40,15 @@ export function rankScore(rank?: string | null): number | null {
     : 0
   return tier + value / 10
 }
-interface Sortable {
+export interface Sortable {
   id: string
   name: string
   rank?: string | null
   created_at?: string
   last_used_at?: string | null
+  favorite?: boolean
+  region?: string
+  status?: string
 }
 const date = (value?: string | null) => {
   const timestamp = value ? Date.parse(value) : 0
@@ -49,13 +57,29 @@ const date = (value?: string | null) => {
 export function sortProfiles<T extends Sortable>(
   profiles: readonly T[],
   order: SortOrder,
+  options?: { pinFavorites?: boolean },
 ): T[] {
+  const pinFavorites = options?.pinFavorites ?? true
   return [...profiles].sort((a, b) => {
+    if (pinFavorites) {
+      const favA = Boolean(a.favorite)
+      const favB = Boolean(b.favorite)
+      if (favA !== favB) return favA ? -1 : 1
+    }
+
     const name =
       a.name.localeCompare(b.name, undefined, {
         numeric: true,
         sensitivity: 'base',
       }) || a.id.localeCompare(b.id)
+
+    if (order === 'favorites-first') {
+      const favA = Boolean(a.favorite)
+      const favB = Boolean(b.favorite)
+      if (favA !== favB) return favA ? -1 : 1
+      return name
+    }
+
     if (order.startsWith('rank-')) {
       const left = rankScore(a.rank),
         right = rankScore(b.rank)
@@ -63,13 +87,31 @@ export function sortProfiles<T extends Sortable>(
         return left === right ? name : left === null ? 1 : -1
       return (order === 'rank-desc' ? right - left : left - right) || name
     }
+
     if (order === 'name-desc') return -name
+    if (order === 'name-asc') return name
+
+    if (order.startsWith('region-')) {
+      const regA = (a.region ?? '').toUpperCase()
+      const regB = (b.region ?? '').toUpperCase()
+      const regCmp = regA.localeCompare(regB) || name
+      return order === 'region-desc' ? -regCmp : regCmp
+    }
+
+    if (order.startsWith('status-')) {
+      const statA = a.status ?? ''
+      const statB = b.status ?? ''
+      const statCmp = statA.localeCompare(statB) || name
+      return order === 'status-desc' ? -statCmp : statCmp
+    }
+
     if (order === 'last-played')
       return date(b.last_used_at) - date(a.last_used_at) || name
     if (order === 'added-desc')
       return date(b.created_at) - date(a.created_at) || name
     if (order === 'added-asc')
       return date(a.created_at) - date(b.created_at) || name
+
     return name
   })
 }

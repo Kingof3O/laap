@@ -1,6 +1,10 @@
+import { useMemo, useState } from 'react'
 import { ProfileAvatar } from './ProfileAvatar'
 import { RankCrest } from './RankPicker'
 import {
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
   Pencil,
   LogIn,
   KeyRound,
@@ -12,7 +16,7 @@ import {
   UploadCloud,
   Zap,
 } from 'lucide-react'
-import { getRankTierClass, formatRelativeTime } from '../../lib/sorting'
+import { getRankTierClass, formatRelativeTime, sortProfiles, type SortOrder } from '../../lib/sorting'
 
 export interface TableItem {
   id: string
@@ -39,6 +43,9 @@ export interface AccountListTableProps {
   activeLaunchId?: string | null
   launchStatus?: string | null
   launchLabel?: string
+  sortOrder?: SortOrder
+  onSortChange?: (order: SortOrder) => void
+  onToggleFavorite?: (id: string) => void
   onEdit?: (id: string) => void
   onRefreshSession?: (id: string) => void
   onLaunch: (id: string) => void
@@ -61,6 +68,9 @@ export function AccountListTable({
   activeLaunchId,
   launchStatus,
   launchLabel = 'Play',
+  sortOrder,
+  onSortChange,
+  onToggleFavorite,
   onEdit,
   onRefreshSession,
   onLaunch,
@@ -70,20 +80,131 @@ export function AccountListTable({
   onRevokeSession,
   onDelete,
 }: AccountListTableProps) {
+  const [localSort, setLocalSort] = useState<SortOrder>(sortOrder ?? 'name-asc')
+  const activeSort = sortOrder ?? localSort
+
+  const handleSort = (field: 'name' | 'rank' | 'region' | 'status' | 'last-played') => {
+    let nextOrder: SortOrder
+    if (field === 'name') {
+      nextOrder = activeSort === 'name-asc' ? 'name-desc' : 'name-asc'
+    } else if (field === 'rank') {
+      nextOrder = activeSort === 'rank-desc' ? 'rank-asc' : 'rank-desc'
+    } else if (field === 'region') {
+      nextOrder = activeSort === 'region-asc' ? 'region-desc' : 'region-asc'
+    } else if (field === 'status') {
+      nextOrder = activeSort === 'status-asc' ? 'status-desc' : 'status-asc'
+    } else {
+      nextOrder = activeSort === 'last-played' ? 'added-desc' : 'last-played'
+    }
+
+    if (onSortChange) {
+      onSortChange(nextOrder)
+    } else {
+      setLocalSort(nextOrder)
+    }
+  }
+
+  const renderSortIndicator = (field: 'name' | 'rank' | 'region' | 'status' | 'last-played') => {
+    const isCurrent =
+      (field === 'name' && (activeSort === 'name-asc' || activeSort === 'name-desc')) ||
+      (field === 'rank' && (activeSort === 'rank-asc' || activeSort === 'rank-desc')) ||
+      (field === 'region' && (activeSort === 'region-asc' || activeSort === 'region-desc')) ||
+      (field === 'status' && (activeSort === 'status-asc' || activeSort === 'status-desc')) ||
+      (field === 'last-played' && (activeSort === 'last-played' || activeSort === 'added-desc' || activeSort === 'added-asc'))
+
+    if (!isCurrent) {
+      return <ChevronsUpDown size={13} className="table-sort-icon table-sort-idle" aria-hidden="true" />
+    }
+
+    const isAsc =
+      activeSort === 'name-asc' ||
+      activeSort === 'rank-asc' ||
+      activeSort === 'region-asc' ||
+      activeSort === 'status-asc' ||
+      activeSort === 'added-asc'
+
+    return isAsc ? (
+      <ChevronUp size={13} className="table-sort-icon table-sort-active" aria-hidden="true" />
+    ) : (
+      <ChevronDown size={13} className="table-sort-icon table-sort-active" aria-hidden="true" />
+    )
+  }
+
+  const displayItems = useMemo(() => {
+    if (onSortChange) return items
+    return sortProfiles(items, activeSort)
+  }, [items, onSortChange, activeSort])
+
   return (
     <div className="table-wrapper">
       <table className="roster-table">
         <thead>
           <tr>
-            <th>Summoner Profile</th>
-            <th>Region</th>
-            <th>Status</th>
-            <th>Last Activity</th>
+            <th>
+              <button
+                type="button"
+                aria-label="Sort by Name"
+                className={`table-header-btn ${activeSort.startsWith('name-') ? 'is-active' : ''}`}
+                onClick={() => handleSort('name')}
+                title="Sort by Name"
+              >
+                <span>Summoner Profile</span>
+                {renderSortIndicator('name')}
+              </button>
+            </th>
+            <th>
+              <button
+                type="button"
+                aria-label="Sort by Rank"
+                className={`table-header-btn ${activeSort.startsWith('rank-') ? 'is-active' : ''}`}
+                onClick={() => handleSort('rank')}
+                title="Sort by Rank"
+              >
+                <span>Rank</span>
+                {renderSortIndicator('rank')}
+              </button>
+            </th>
+            <th>
+              <button
+                type="button"
+                aria-label="Sort by Region"
+                className={`table-header-btn ${activeSort.startsWith('region-') ? 'is-active' : ''}`}
+                onClick={() => handleSort('region')}
+                title="Sort by Region"
+              >
+                <span>Region</span>
+                {renderSortIndicator('region')}
+              </button>
+            </th>
+            <th>
+              <button
+                type="button"
+                aria-label="Sort by Status"
+                className={`table-header-btn ${activeSort.startsWith('status-') ? 'is-active' : ''}`}
+                onClick={() => handleSort('status')}
+                title="Sort by Status"
+              >
+                <span>Status</span>
+                {renderSortIndicator('status')}
+              </button>
+            </th>
+            <th>
+              <button
+                type="button"
+                aria-label="Sort by Last Activity"
+                className={`table-header-btn ${activeSort === 'last-played' || activeSort.startsWith('added-') ? 'is-active' : ''}`}
+                onClick={() => handleSort('last-played')}
+                title="Sort by Last Activity"
+              >
+                <span>Last Activity</span>
+                {renderSortIndicator('last-played')}
+              </button>
+            </th>
             <th className="table-actions-header">Actions</th>
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => {
+          {displayItems.map((item) => {
             const isLeased = isCloud && item.status === 'Leased'
             const isSelected = selectedId === item.id
 
@@ -91,6 +212,7 @@ export function AccountListTable({
               <tr
                 key={item.id}
                 onClick={() => onSelect?.(item.id)}
+                className={isSelected ? 'is-selected' : undefined}
                 style={{
                   cursor: 'pointer',
                   background: isSelected
@@ -100,24 +222,48 @@ export function AccountListTable({
               >
                 <td>
                   <div className="table-profile-cell">
+                    {onToggleFavorite ? (
+                      <button
+                        type="button"
+                        className={`table-star-btn ${item.favorite ? 'table-star-active' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onToggleFavorite(item.id)
+                        }}
+                        title={item.favorite ? 'Remove from favorites' : 'Add to favorites'}
+                        aria-label={item.favorite ? `Favorited profile ${item.name}` : `Add ${item.name} to favorites`}
+                      >
+                        <Star
+                          size={15}
+                          fill={item.favorite ? '#e5ac59' : 'none'}
+                          color={item.favorite ? '#e5ac59' : 'currentColor'}
+                        />
+                      </button>
+                    ) : item.favorite ? (
+                      <Star size={14} fill="#e5ac59" color="#e5ac59" className="table-favorite" aria-label="Favorite" />
+                    ) : null}
                     <div className="table-avatar">
                       <ProfileAvatar name={item.name} asset={item.iconAsset} />
                     </div>
                     <div className="table-profile-details">
-                      <span className="table-name">{item.name} {item.favorite ? <Star size={13} fill="currentColor" aria-label="Favorite" className="table-favorite" /> : null}</span>
-                      {item.rank ? (
-                        <span
-                          className={`account-rank-label ${getRankTierClass(item.rank)}`}
-                          title={`Rank: ${item.rank}`}
-                        >
-                          <RankCrest rank={item.rank} /> {item.rank}
-                        </span>
-                      ) : null}
+                      <span className="table-name">{item.name}</span>
                       {item.notes ? (
                         <p className="account-notes">{item.notes}</p>
                       ) : null}
                     </div>
                   </div>
+                </td>
+                <td>
+                  {item.rank ? (
+                    <span
+                      className={`table-rank-pill ${getRankTierClass(item.rank)}`}
+                      title={`Rank: ${item.rank}`}
+                    >
+                      <RankCrest rank={item.rank} /> {item.rank}
+                    </span>
+                  ) : (
+                    <span className="table-rank-unranked">Unranked</span>
+                  )}
                 </td>
                 <td>
                   <span className="table-region-badge">{item.region}</span>
