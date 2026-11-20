@@ -19,6 +19,7 @@ export interface OpggStats {
   game?: Game
   level?: number
   puuid?: string
+  avatarUrl?: string
 }
 
 export function normalizeOpggRegion(region?: string | null): string {
@@ -149,10 +150,80 @@ export function getOpggSummonerUrl(
 }
 
 const statsCache = new Map<string, { stats: OpggStats; time: number }>()
-const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+const inFlightRequests = new Map<string, Promise<OpggStats | null>>()
+const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour fresh TTL
+const STALE_MAX_AGE_MS = 24 * 60 * 60 * 1000 // 24 hours max persisted cache
+const LOCAL_STORAGE_PREFIX = 'laap:opgg_stats_cache:'
+
+interface PersistedStatsEntry {
+  stats: OpggStats
+  cachedAt: number
+}
+
+function getLocalStats(cacheKey: string): { stats: OpggStats; isStale: boolean } | null {
+  const mem = statsCache.get(cacheKey)
+  if (mem) {
+    const isStale = Date.now() - mem.time >= CACHE_TTL_MS
+    return { stats: mem.stats, isStale }
+  }
+
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(`${LOCAL_STORAGE_PREFIX}${cacheKey}`) : null
+    if (raw) {
+      const parsed = JSON.parse(raw) as PersistedStatsEntry
+      if (parsed && parsed.stats && typeof parsed.cachedAt === 'number') {
+        const age = Date.now() - parsed.cachedAt
+        if (age < STALE_MAX_AGE_MS) {
+          statsCache.set(cacheKey, { stats: parsed.stats, time: parsed.cachedAt })
+          return { stats: parsed.stats, isStale: age >= CACHE_TTL_MS }
+        }
+      }
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return null
+}
+
+function saveLocalStats(cacheKey: string, stats: OpggStats) {
+  const now = Date.now()
+  statsCache.set(cacheKey, { stats, time: now })
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const entry: PersistedStatsEntry = { stats, cachedAt: now }
+      localStorage.setItem(`${LOCAL_STORAGE_PREFIX}${cacheKey}`, JSON.stringify(entry))
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function clearLocalStats(cacheKey: string) {
+  statsCache.delete(cacheKey)
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(`${LOCAL_STORAGE_PREFIX}${cacheKey}`)
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
 
 export function clearOpggCache(): void {
   statsCache.clear()
+  inFlightRequests.clear()
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const keysToRemove: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (k?.startsWith(LOCAL_STORAGE_PREFIX)) keysToRemove.push(k)
+      }
+      for (const k of keysToRemove) localStorage.removeItem(k)
+    }
+  } catch {
+    // ignore
+  }
 }
 
 export function parseOpggMetaDescription(
@@ -225,6 +296,17 @@ export function parseOpggMetaDescription(
   }
 }
 
+export function getOpggCachedAvatar(
+  nameOrRiotId: string,
+  region: string,
+  game: Game = 'valorant',
+): string | null {
+  const info = getOpggSummonerUrl(nameOrRiotId, region, undefined, game)
+  const cacheKey = `opgg:${game}:${info.summonerName.toLowerCase()}#${info.tagLine.toLowerCase()}`
+  const cached = getLocalStats(cacheKey)
+  return cached?.stats?.avatarUrl || null
+}
+
 export function parseOpggValorantHtml(
   html: string,
   summonerName: string,
@@ -257,6 +339,11 @@ export function parseOpggValorantHtml(
     const finalTag = data.tagLine || tagLine
     const { url } = getOpggSummonerUrl(`${finalName}#${finalTag}`, region, undefined, 'valorant')
 
+    const cardMatch =
+      html.match(/https:\/\/c-valorant-api\.op\.gg\/Assets\/PlayerCards\/[a-zA-Z0-9_\-]+(?:_small)?\.png/i) ||
+      html.match(/https?:\/\/[^"'\s\\]*(?:playercards|player-cards|PlayerCards)[^"'\s\\]*\.(?:png|webp|jpg)/i)
+    const avatarUrl = cardMatch ? cardMatch[0] : undefined
+
     return {
       summonerName: finalName,
       tagLine: finalTag,
@@ -274,6 +361,7 @@ export function parseOpggValorantHtml(
       game: 'valorant',
       level: data.level,
       puuid: data.puuid,
+      avatarUrl,
     }
   } catch {
     return null
@@ -291,14 +379,53 @@ export async function fetchOpggStats(
   const cacheKey = `opgg:${game}:${info.summonerName.toLowerCase()}#${info.tagLine.toLowerCase()}`
 
   if (forceRefresh) {
-    statsCache.delete(cacheKey)
+    clearLocalStats(cacheKey)
   } else {
-    const cached = statsCache.get(cacheKey)
-    if (cached && Date.now() - cached.time < CACHE_TTL_MS) {
+    const cached = getLocalStats(cacheKey)
+    if (cached) {
+      if (!cached.isStale) {
+        return cached.stats
+      }
+      // Stale data exists: return immediately and revalidate in background
+      if (!inFlightRequests.has(cacheKey)) {
+        const bgPromise = performFetchOpggStats(info, cacheKey, game)
+          .then((res) => {
+            if (res) saveLocalStats(cacheKey, res)
+            return res
+          })
+          .catch(() => cached.stats)
+          .finally(() => inFlightRequests.delete(cacheKey))
+        inFlightRequests.set(cacheKey, bgPromise)
+      }
       return cached.stats
     }
   }
 
+  // Deduplicate in-flight network requests
+  if (inFlightRequests.has(cacheKey)) {
+    return inFlightRequests.get(cacheKey)!
+  }
+
+  const reqPromise = performFetchOpggStats(info, cacheKey, game)
+    .then((result) => {
+      if (result) {
+        saveLocalStats(cacheKey, result)
+      }
+      return result
+    })
+    .finally(() => {
+      inFlightRequests.delete(cacheKey)
+    })
+
+  inFlightRequests.set(cacheKey, reqPromise)
+  return reqPromise
+}
+
+async function performFetchOpggStats(
+  info: { summonerName: string; tagLine: string; region: string; url: string },
+  _cacheKey: string,
+  game: Game,
+): Promise<OpggStats | null> {
   if (isTauriAvailable()) {
     try {
       const result = await invokeTauri<OpggStats>('fetch_opgg_summoner_stats', {
@@ -307,12 +434,8 @@ export async function fetchOpggStats(
         region: info.region,
         game,
       })
-      if (result) {
-        statsCache.set(cacheKey, { stats: result, time: Date.now() })
-        return result
-      }
+      if (result) return result
     } catch (e) {
-      // Re-throw error so UI can display specific failure (such as Not Found)
       throw e
     }
   }
@@ -328,18 +451,13 @@ export async function fetchOpggStats(
       const html = await res.text()
       if (game === 'valorant') {
         const parsed = parseOpggValorantHtml(html, info.summonerName, info.tagLine, info.region)
-        if (parsed) {
-          statsCache.set(cacheKey, { stats: parsed, time: Date.now() })
-          return parsed
-        }
+        if (parsed) return parsed
       } else {
         const match =
           html.match(/<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i) ||
           html.match(/<meta\s+name=["']twitter:description["']\s+content=["']([^"']+)["']/i)
         if (match) {
-          const parsed = parseOpggMetaDescription(match[1], info.summonerName, info.tagLine, info.region)
-          statsCache.set(cacheKey, { stats: parsed, time: Date.now() })
-          return parsed
+          return parseOpggMetaDescription(match[1], info.summonerName, info.tagLine, info.region)
         }
       }
     }
@@ -374,6 +492,19 @@ export async function autoSyncAccountRank(
     }
 
     const currentRank = game === 'valorant' ? account.valorant_rank : account.rank
+    if (stats.avatarUrl && isTauriAvailable()) {
+      void invokeTauri<boolean>('update_account_avatar', {
+        id: account.id,
+        avatarUrl: stats.avatarUrl,
+        game,
+      })
+        .then((updated) => {
+          if (updated) {
+            window.dispatchEvent(new Event('laap:icons-updated'))
+          }
+        })
+        .catch(() => {})
+    }
     if (currentRank !== stats.formattedRank && isTauriAvailable()) {
       const updated = await invokeTauri<boolean>('update_account_rank', {
         id: account.id,

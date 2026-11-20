@@ -183,6 +183,7 @@ export function AccountRosterDisplay({
                 valorantRank={item.valorantRank}
                 games={item.games}
                 activeGame={activeGame}
+                riotId={item.riotId}
                 notes={item.notes}
                 iconAsset={item.iconAsset}
                 lastUsedText={item.lastUsedText}

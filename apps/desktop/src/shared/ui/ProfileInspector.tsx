@@ -105,6 +105,9 @@ export function ProfileInspector({
           activeGame,
         )
         setStats(res)
+        if (res?.avatarUrl) {
+          window.dispatchEvent(new Event('laap:icons-updated'))
+        }
         if (
           res?.formattedRank &&
           res.formattedRank !== 'Unranked' &&
@@ -149,7 +152,14 @@ export function ProfileInspector({
       </div>
       <div className="inspector-profile">
         <div className="inspector-avatar">
-          <ProfileAvatar name={account.name} asset={account.iconAsset} />
+          <ProfileAvatar
+            name={account.name}
+            asset={stats?.avatarUrl || account.iconAsset}
+            activeGame={activeGame}
+            avatarUrl={stats?.avatarUrl}
+            riotId={account.riotId}
+            region={account.region}
+          />
         </div>
         <div className="inspector-identity-copy">
           <strong title={account.name}>{account.name}</strong>
@@ -332,9 +342,15 @@ export function ProfileInspector({
               </button>
             </div>
           ) : statsLoading ? (
-            <div className="inspector-stats-loading-box">
-              <span className="inspector-winrate-label">Win Rate:</span>
-              <span className="stats-pulse">Syncing OP.GG…</span>
+            <div className="inspector-stats-loading-box" aria-label="Loading OP.GG statistics">
+              <div className="inspector-stats-loading-indicator">
+                <Loader2 size={14} className="animate-spin text-accent" />
+                <span className="stats-pulse">Fetching {isVal ? 'VALORANT' : 'League'} stats…</span>
+              </div>
+              <div className="inspector-stats-skeleton">
+                <div className="skeleton-bar skeleton-bar-wide shimmer-load" />
+                <div className="skeleton-bar skeleton-bar-narrow shimmer-load" />
+              </div>
             </div>
           ) : stats ? (
             <div className="inspector-stats-content">

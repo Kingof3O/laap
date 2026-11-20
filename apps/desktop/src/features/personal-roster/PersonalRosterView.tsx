@@ -19,6 +19,7 @@ import { useRiotOperations } from '../../context/RiotOperations'
 import { hasTauri, invokeTauri } from '../../lib/api'
 import { formatLiveMinutes, formatLiveMode } from '../../lib/liveStatus'
 import { sortProfiles, type SortOrder } from '../../lib/sorting'
+import { getOpggCachedAvatar, fetchOpggStats } from '../../lib/opgg'
 import { ProfileSlotPicker, ReplaceActiveProfile } from '../billing/ProfileSlotPicker'
 import type { ProfileSlots } from '../billing/useBilling'
 import type {
@@ -231,6 +232,23 @@ export function PersonalRosterView({
       ),
     [localAccounts, activeGame, selectedRegion, selectedRank, searchQuery, sortOrder, favoritesOnly],
   )
+  useEffect(() => {
+    for (const acc of localAccounts) {
+      const riotId = acc.riot_id ?? (acc.name.includes('#') ? acc.name : null)
+      if (riotId && acc.games?.includes(activeGame)) {
+        const cached = getOpggCachedAvatar(riotId, acc.region, activeGame)
+        if (!cached) {
+          void fetchOpggStats(acc.name, acc.region, acc.riot_id, false, activeGame)
+            .then((stats) => {
+              if (stats?.avatarUrl) {
+                window.dispatchEvent(new Event('laap:icons-updated'))
+              }
+            })
+            .catch(() => {})
+        }
+      }
+    }
+  }, [localAccounts, activeGame])
   useEffect(() => {
     if (!hasTauri) return
     let active = true
@@ -593,7 +611,12 @@ export function PersonalRosterView({
             games: acc.games,
             riotId: acc.riot_id ?? (acc.name.includes('#') ? acc.name : null),
             notes: acc.notes,
-            iconAsset: acc.customization?.icon_asset,
+            iconAsset:
+              activeGame === 'valorant'
+                ? acc.customization?.valorant_icon_asset ||
+                  getOpggCachedAvatar(acc.riot_id || acc.name, acc.region, 'valorant') ||
+                  acc.customization?.icon_asset
+                : acc.customization?.icon_asset,
             hasSession: acc.has_session,
             status:
               acc.session_status === 'missing'

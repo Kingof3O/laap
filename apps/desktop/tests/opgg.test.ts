@@ -62,6 +62,7 @@ test('parses valorant RSC HTML fixture', () => {
     <script>
       self.__next_f.push([1,"\"profile\":{\"gameName\":\"Jett\",\"tagLine\":\"NA1\",\"level\":52,\"region\":\"na\",\"competitiveTier\":21,\"puuid\":\"c7b12d34-5678-90ab\"}"]);
     </script>
+    <img src="https://c-valorant-api.op.gg/Assets/PlayerCards/7B240A91-4925-8BB6-7812-60B49543E145_small.png?image=w_128"/>
     </body></html>
   `
   const stats = parseOpggValorantHtml(fixture, 'Jett', 'NA1', 'NA')
@@ -75,6 +76,10 @@ test('parses valorant RSC HTML fixture', () => {
   assert.equal(stats?.level, 52)
   assert.equal(stats?.puuid, 'c7b12d34-5678-90ab')
   assert.equal(stats?.opggUrl, 'https://op.gg/valorant/profile/Jett-NA1')
+  assert.equal(
+    stats?.avatarUrl,
+    'https://c-valorant-api.op.gg/Assets/PlayerCards/7B240A91-4925-8BB6-7812-60B49543E145_small.png',
+  )
 })
 
 test('autoSyncAccountRank identity check skips on PUUID mismatch', async () => {

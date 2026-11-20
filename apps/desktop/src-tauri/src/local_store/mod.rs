@@ -371,6 +371,7 @@ mod independent_sync_tests {
                         auto_sync_icon: false,
                         auto_sync_rank: true,
                         auto_sync_valorant_rank: false,
+                        valorant_icon_asset: None,
                     }),
                     games: default_games(),
                     valorant_rank: None,

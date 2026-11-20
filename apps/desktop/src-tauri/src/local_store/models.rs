@@ -43,6 +43,7 @@ pub struct ProfileCustomization {
     pub auto_sync_icon: bool,
     pub auto_sync_rank: bool,
     pub auto_sync_valorant_rank: bool,
+    pub valorant_icon_asset: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

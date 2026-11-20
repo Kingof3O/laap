@@ -186,6 +186,24 @@ pub async fn update_account_rank(
 }
 
 #[tauri::command]
+pub async fn update_account_avatar(
+    id: String,
+    avatar_url: String,
+    game: Option<crate::local_store::Game>,
+) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let store = LocalStore::new()?;
+        store.update_avatar_for(
+            &id,
+            &avatar_url,
+            game.unwrap_or(crate::local_store::Game::League),
+        )
+    })
+    .await
+    .map_err(|error| format!("Native operation failed: {error}"))?
+}
+
+#[tauri::command]
 pub async fn update_account_riot_id(id: String, riot_id: String) -> Result<bool, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let store = LocalStore::new()?;

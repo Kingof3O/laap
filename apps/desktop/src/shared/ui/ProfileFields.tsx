@@ -37,6 +37,7 @@ export function ProfilePreview({
         <ProfileAvatar
           name={details.name}
           asset={details.customization?.icon_asset}
+          activeGame={isVal ? 'valorant' : 'league'}
         />
         {details.favorite ? (
           <Star className="preview-favorite" size={14} fill="currentColor" />
@@ -54,6 +55,7 @@ export function ProfilePreview({
               className="game-badge game-badge-league"
               title="League of Legends"
             >
+              <img src="/league-of-legends-icon.webp" alt="" className="game-badge-icon" aria-hidden="true" />
               LEAGUE
             </span>
           )}
@@ -62,12 +64,17 @@ export function ProfilePreview({
               className="game-badge game-badge-valo"
               title="VALORANT"
             >
+              <img src="/valorant-icon.webp" alt="" className="game-badge-icon" aria-hidden="true" />
               VALO
             </span>
           )}
           {displayRank ? (
             <span className="profile-preview-rank">
-              {!isVal && <RankCrest rank={displayRank} />}
+              {isVal ? (
+                <img src="/valorant-icon.webp" alt="" className="game-badge-icon" aria-hidden="true" />
+              ) : (
+                <RankCrest rank={displayRank} />
+              )}{' '}
               {displayRank}
             </span>
           ) : (

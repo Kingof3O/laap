@@ -27,6 +27,7 @@ export interface TableItem {
   valorant_rank?: string | null
   valorantRank?: string | null
   games?: Game[]
+  riotId?: string | null
   notes?: string
   iconAsset?: string | null
   hasSession: boolean
@@ -251,7 +252,13 @@ export function AccountListTable({
                       <Star size={14} fill="#e5ac59" color="#e5ac59" className="table-favorite" aria-label="Favorite" />
                     ) : null}
                     <div className="table-avatar">
-                      <ProfileAvatar name={item.name} asset={item.iconAsset} />
+                      <ProfileAvatar
+                        name={item.name}
+                        asset={item.iconAsset}
+                        activeGame={activeGame}
+                        riotId={item.riotId}
+                        region={item.region}
+                      />
                     </div>
                     <div className="table-profile-details">
                       <div className="table-name-row">
@@ -285,7 +292,17 @@ export function AccountListTable({
                       className={`table-rank-pill ${getRankTierClass(displayRank)}`}
                       title={`Rank: ${displayRank}`}
                     >
-                      <RankCrest rank={displayRank} /> {displayRank}
+                      {activeGame === 'valorant' ? (
+                        <img
+                          src="/valorant-icon.webp"
+                          alt=""
+                          className="game-badge-icon"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <RankCrest rank={displayRank} />
+                      )}{' '}
+                      {displayRank}
                     </span>
                   ) : (
                     <span className="table-rank-unranked">Unranked</span>

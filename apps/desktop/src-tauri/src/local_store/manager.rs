@@ -365,6 +365,39 @@ impl LocalStore {
         })
     }
 
+    pub fn update_avatar_for(&self, id: &str, avatar_url: &str, game: Game) -> Result<bool, String> {
+        self.update_profile(id, |accounts| {
+            let Some(account) = accounts.iter_mut().find(|account| account.id == id) else {
+                return Ok(false);
+            };
+            let trimmed = avatar_url.trim();
+            let new_val = if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            };
+            let changed = match game {
+                Game::League => {
+                    if account.customization.icon_asset != new_val {
+                        account.customization.icon_asset = new_val;
+                        true
+                    } else {
+                        false
+                    }
+                }
+                Game::Valorant => {
+                    if account.customization.valorant_icon_asset != new_val {
+                        account.customization.valorant_icon_asset = new_val;
+                        true
+                    } else {
+                        false
+                    }
+                }
+            };
+            Ok(changed)
+        })
+    }
+
     pub fn update_riot_id(&self, id: &str, riot_id: &str) -> Result<bool, String> {
         let clean = riot_id.trim();
         self.update_profile(id, |accounts| {

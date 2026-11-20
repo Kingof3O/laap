@@ -28,6 +28,8 @@ pub struct SummonerProfile {
     pub level: Option<u32>,
     #[serde(default)]
     pub puuid: Option<String>,
+    #[serde(default)]
+    pub avatar_url: Option<String>,
 }
 
 impl SummonerProfile {
@@ -230,6 +232,8 @@ pub fn parse_opgg_meta(
         format!("{}W - {}L ({}%)", wins, losses, win_rate)
     };
 
+    let avatar_url = extract_league_avatar_url(html);
+
     Ok(SummonerProfile {
         summoner_name: summoner_name.to_string(),
         tag_line: tag_line.to_string(),
@@ -248,6 +252,7 @@ pub fn parse_opgg_meta(
         game: Game::League,
         level: None,
         puuid: None,
+        avatar_url,
     })
 }
 
@@ -419,6 +424,49 @@ fn extract_profile_slice(html: &str) -> Option<ValorantProfileJson> {
     None
 }
 
+pub fn extract_valorant_avatar_url(html: &str) -> Option<String> {
+    // 1. Check for OP.GG Assets/PlayerCards/...
+    let needle = "Assets/PlayerCards/";
+    if let Some(pos) = html.find(needle) {
+        let after = &html[pos + needle.len()..];
+        let end_rel = after
+            .find(['"', '\'', '?', ' ', '&', '\\', '<', '>'])
+            .unwrap_or(after.len());
+        let filename = &after[..end_rel];
+        if !filename.is_empty() {
+            return Some(format!(
+                "https://c-valorant-api.op.gg/Assets/PlayerCards/{}",
+                filename
+            ));
+        }
+    }
+    // 2. Generic playercards search
+    if let Some(pos) = html.find("/playercards/") {
+        if let Some(start_rel) = html[..pos].rfind("https://") {
+            let rest = &html[start_rel..];
+            let end_rel = rest
+                .find(['"', '\'', '?', ' ', '&', '\\', '<', '>'])
+                .unwrap_or(rest.len());
+            return Some(rest[..end_rel].to_string());
+        }
+    }
+    None
+}
+
+pub fn extract_league_avatar_url(html: &str) -> Option<String> {
+    let needle = "profile_icons/profileIcon";
+    if let Some(pos) = html.find(needle) {
+        if let Some(start_rel) = html[..pos].rfind("https://") {
+            let rest = &html[start_rel..];
+            let end_rel = rest
+                .find(['"', '\'', '?', ' ', '&', '\\', '<', '>'])
+                .unwrap_or(rest.len());
+            return Some(rest[..end_rel].to_string());
+        }
+    }
+    None
+}
+
 pub fn parse_opgg_valorant_html(
     html: &str,
     summoner_name: &str,
@@ -464,6 +512,8 @@ pub fn parse_opgg_valorant_html(
         urlencoding_simple(&final_tag)
     );
 
+    let avatar_url = extract_valorant_avatar_url(html);
+
     Ok(SummonerProfile {
         summoner_name: final_name,
         tag_line: final_tag,
@@ -482,6 +532,7 @@ pub fn parse_opgg_valorant_html(
         game: Game::Valorant,
         level: parsed.level,
         puuid: parsed.puuid.filter(|s| !s.trim().is_empty()),
+        avatar_url,
     })
 }
 
@@ -603,7 +654,7 @@ mod tests {
 
     #[test]
     fn parses_opgg_meta_description() {
-        let html = r#"<html><head><meta name="description" content="Kingof3O#EUW / Platinum 2 17 LP / 136Win 139Lose Win rate 49% / Wukong - 115Win 120Lose Win rate 49%"></head></html>"#;
+        let html = r#"<html><head><meta name="description" content="Kingof3O#EUW / Platinum 2 17 LP / 136Win 139Lose Win rate 49% / Wukong - 115Win 120Lose Win rate 49%"><img src="https://opgg-static.akamaized.net/meta/images/profile_icons/profileIcon3458.jpg"/></head></html>"#;
         let p = parse_opgg_meta(html, "Kingof3O", "EUW", "EUW").unwrap();
         assert_eq!(p.game, Game::League);
         assert_eq!(p.tier, "Platinum");
@@ -615,6 +666,10 @@ mod tests {
         assert_eq!(p.formatted_rank, "Platinum II (17 LP)");
         assert_eq!(p.formatted_win_rate, "136W - 139L (49%)");
         assert_eq!(p.opgg_url, "https://op.gg/lol/summoners/euw/Kingof3O-EUW");
+        assert_eq!(
+            p.avatar_url.as_deref(),
+            Some("https://opgg-static.akamaized.net/meta/images/profile_icons/profileIcon3458.jpg")
+        );
     }
 
     #[test]
@@ -672,6 +727,7 @@ mod tests {
         <script>
         self.__next_f.push([1,"7:[\"$\",\"$L8\",null,{\"profile\":{\"gameName\":\"Jett\",\"tagLine\":\"NA1\",\"level\":52,\"region\":\"na\",\"competitiveTier\":21,\"puuid\":\"c7b12d34-5678-90ab-cdef-1234567890ab\"},\"tierHistories\":[]}]"]);
         </script>
+        <img src="https://c-valorant-api.op.gg/Assets/PlayerCards/7B240A91-4925-8BB6-7812-60B49543E145_small.png?image=w_128"/>
         </body></html>
         "#;
 
@@ -690,6 +746,10 @@ mod tests {
             Some("c7b12d34-5678-90ab-cdef-1234567890ab")
         );
         assert_eq!(p.opgg_url, "https://op.gg/valorant/profile/Jett-NA1");
+        assert_eq!(
+            p.avatar_url.as_deref(),
+            Some("https://c-valorant-api.op.gg/Assets/PlayerCards/7B240A91-4925-8BB6-7812-60B49543E145_small.png")
+        );
     }
 
     #[test]

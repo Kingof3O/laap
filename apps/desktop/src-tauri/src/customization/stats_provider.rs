@@ -89,6 +89,7 @@ async fn fetch_profile(
         game: crate::local_store::models::Game::League,
         level: None,
         puuid: Some(puuid.to_string()),
+        avatar_url: None,
     };
     if let Some(e) = entries.iter().find(|v| v["queueType"] == "RANKED_SOLO_5x5") {
         p.tier = e["tier"].as_str().ok_or("Missing ranked tier")?.into();

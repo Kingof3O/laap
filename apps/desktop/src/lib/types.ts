@@ -86,6 +86,7 @@ export interface ProfileCustomization {
   auto_sync_icon: boolean
   auto_sync_rank: boolean
   auto_sync_valorant_rank?: boolean
+  valorant_icon_asset?: string | null
 }
 export interface ProfileDetails {
   name: string

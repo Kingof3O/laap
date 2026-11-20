@@ -26,6 +26,7 @@ export interface AccountCardProps {
   valorantRank?: string | null
   games?: Game[]
   activeGame?: Game
+  riotId?: string | null
   notes?: string | null
   iconAsset?: string | null
   lastUsedText?: string | null
@@ -65,6 +66,7 @@ export function AccountCard({
   valorantRank,
   games,
   activeGame = 'league',
+  riotId,
   notes,
   iconAsset,
   lastUsedText,
@@ -202,10 +204,10 @@ export function AccountCard({
   } else if (isLaunching) {
     buttonDisabled = true
     buttonContent = (
-      <>
-        <Loader2 size={13} className="animate-spin" />
+      <span className="btn-launch-loading-content">
+        <Loader2 size={12} className="animate-spin" />
         <span>{launchStatus ? 'Waiting for client…' : 'Preparing…'}</span>
-      </>
+      </span>
     )
   } else if (clientRunning) {
     buttonDisabled = true
@@ -244,7 +246,13 @@ export function AccountCard({
       <div className="card-top-row">
         <div className="card-identity">
           <div className="card-avatar">
-            <ProfileAvatar name={displayName} asset={iconAsset} />
+            <ProfileAvatar
+              name={displayName}
+              asset={iconAsset}
+              activeGame={activeGame}
+              riotId={riotId}
+              region={region}
+            />
             <span className="card-region-badge">{region}</span>
           </div>
 
@@ -280,7 +288,17 @@ export function AccountCard({
                   className={`account-rank-label ${getRankTierClass(displayRank)}`}
                   title={`Rank: ${displayRank}`}
                 >
-                  <RankCrest rank={displayRank} /> {displayRank}
+                  {activeGame === 'valorant' ? (
+                    <img
+                      src="/valorant-icon.webp"
+                      alt=""
+                      className="game-badge-icon"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <RankCrest rank={displayRank} />
+                  )}{' '}
+                  {displayRank}
                 </span>
               ) : null}
 
@@ -376,7 +394,7 @@ export function AccountCard({
 
           <button
             type="button"
-            className="btn-launch-primary"
+            className={`btn-launch-primary ${isLaunching ? 'btn-launch-loading' : ''}`}
             disabled={buttonDisabled}
             onClick={handlePrimaryAction}
           >

@@ -30,9 +30,27 @@ export function rememberIcon(icon: CachedIcon) {
   return icon
 }
 export function peekIcon(asset?: string | null) {
-  return asset ? images.get(asset) : undefined
+  if (!asset) return undefined
+  if (
+    asset.startsWith('http://') ||
+    asset.startsWith('https://') ||
+    asset.startsWith('data:') ||
+    asset.startsWith('/')
+  ) {
+    return asset
+  }
+  return images.get(asset)
 }
 export async function readIcon(asset: string) {
+  if (
+    asset.startsWith('http://') ||
+    asset.startsWith('https://') ||
+    asset.startsWith('data:') ||
+    asset.startsWith('/')
+  ) {
+    images.set(asset, asset)
+    return asset
+  }
   if (images.has(asset)) return images.get(asset)!
   const icon = await invokeTauri<CachedIcon | null>('read_cached_icon', {
     asset,
