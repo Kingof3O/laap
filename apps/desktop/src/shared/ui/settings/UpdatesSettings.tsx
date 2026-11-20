@@ -100,8 +100,8 @@ export function UpdatesSettings({
               v{currentVersion}
             </div>
           </div>
-          <span className="badge-gold">
-            {editionLabel}
+          <span className="brand-edition-tag brand-edition-basic">
+            <span className="brand-edition-name">{editionLabel}</span>
           </span>
         </div>
 

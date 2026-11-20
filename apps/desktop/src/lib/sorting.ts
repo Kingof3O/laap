@@ -59,9 +59,9 @@ export function sortProfiles<T extends Sortable>(
   order: SortOrder,
   options?: { pinFavorites?: boolean },
 ): T[] {
-  const pinFavorites = options?.pinFavorites ?? true
+  const pinFavorites = options?.pinFavorites ?? (order === 'favorites-first')
   return [...profiles].sort((a, b) => {
-    if (pinFavorites) {
+    if (pinFavorites || order === 'favorites-first') {
       const favA = Boolean(a.favorite)
       const favB = Boolean(b.favorite)
       if (favA !== favB) return favA ? -1 : 1

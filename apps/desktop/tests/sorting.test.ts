@@ -74,19 +74,20 @@ test('every sorting option orders by its declared field', () => {
     assert.equal(sortProfiles(rows, order as keyof typeof expected)[0].id, id, order)
 })
 
-test('starred profiles are pinned first by default and support explicit favorites-first order', () => {
+test('starred profiles support explicit favorites-first order and options.pinFavorites', () => {
   const rows = [
     { id: '1', name: 'Alpha', favorite: false },
     { id: '2', name: 'Zulu', favorite: true },
     { id: '3', name: 'Bravo', favorite: false },
     { id: '4', name: 'Charlie', favorite: true },
   ]
-  const sorted = sortProfiles(rows, 'name-asc')
-  // Charlie and Zulu are favorites, so they appear first (in name-asc order: Charlie, then Zulu)
-  // followed by Alpha, then Bravo
-  assert.deepEqual(sorted.map((r) => r.id), ['4', '2', '1', '3'])
+  const favFirst = sortProfiles(rows, 'favorites-first')
+  assert.deepEqual(favFirst.map((r) => r.id), ['4', '2', '1', '3'])
 
-  const unpinned = sortProfiles(rows, 'name-asc', { pinFavorites: false })
+  const pinned = sortProfiles(rows, 'name-asc', { pinFavorites: true })
+  assert.deepEqual(pinned.map((r) => r.id), ['4', '2', '1', '3'])
+
+  const unpinned = sortProfiles(rows, 'name-asc')
   assert.deepEqual(unpinned.map((r) => r.id), ['1', '3', '4', '2'])
 })
 

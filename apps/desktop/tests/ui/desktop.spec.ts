@@ -1081,9 +1081,7 @@ for (const view of ['Grid', 'List']) {
     const scrolledPosition = await getScrollTop()
     await expect(settings).toBeInViewport({ ratio: 1 })
     await expect(search).toBeInViewport({ ratio: 1 })
-    await page.getByText('Filters', { exact: true }).click()
     await page.getByLabel('Filter by region').selectOption('EUW')
-    await page.keyboard.press('Escape')
 
     const refresh = page.getByRole('button', { name: 'Refresh Accounts' })
     await page.evaluate(() => { (window as any).testRosterRefresh.hold = true })
@@ -1125,19 +1123,13 @@ test('background no-op synchronization leaves the roster stable', async ({ page 
   await expect(panel).toHaveClass(/sync-status-success/)
 })
 
-test('toolbar shortcut, filter dismissal, and About branding', async ({ page }) => {
+test('toolbar shortcut, region filter, and About branding', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible()
   await page.keyboard.press('Control+k')
   await expect(page.getByRole('textbox', { name: 'Search accounts or regions' })).toBeFocused()
-  await page.getByText('Filters', { exact: true }).click()
   await expect(page.getByLabel('Filter by region')).toBeVisible()
-  await page.keyboard.press('Escape')
-  await expect(page.getByLabel('Filter by region')).not.toBeVisible()
-  await expect(page.getByText('Filters', { exact: true })).toBeFocused()
-  await page.getByText('Filters', { exact: true }).click()
-  await page.getByRole('textbox', { name: 'Search accounts or regions' }).click()
-  await expect(page.getByLabel('Filter by region')).not.toBeVisible()
+  await page.getByLabel('Filter by region').selectOption('EUW')
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   await page.getByRole('tab', { name: 'About', exact: true }).click()
   const about = page.getByLabel('About LAAP')
@@ -1434,10 +1426,6 @@ test('table roster allows column sorting, inline starring, and filtering by star
   // Star Charlie in the table
   await rows.nth(0).getByRole('button', { name: /Add Charlie to favorites/i }).click()
 
-  // Now Charlie is favorite, so Charlie is pinned first! Even when sorting name-asc:
-  await page.getByRole('button', { name: 'Sort by Name' }).click()
-  await expect(rows.nth(0)).toContainText('Charlie')
-
   // Test Starred filter button in toolbar:
   const starFilter = page.getByRole('button', { name: 'Filter starred accounts' })
   await expect(starFilter).toBeVisible()
@@ -1451,4 +1439,16 @@ test('table roster allows column sorting, inline starring, and filtering by star
   // Toggle off starred filter:
   await starFilter.click()
   await expect(rows).toHaveCount(3)
+
+  // Sort by Name (A-Z)
+  await page.getByRole('button', { name: 'Sort by Name' }).click()
+  await expect(rows.nth(0)).toContainText('Alpha')
+  await expect(rows.nth(1)).toContainText('Bravo')
+  await expect(rows.nth(2)).toContainText('Charlie')
+
+  // Sort by Name (Z-A)
+  await page.getByRole('button', { name: 'Sort by Name' }).click()
+  await expect(rows.nth(0)).toContainText('Charlie')
+  await expect(rows.nth(1)).toContainText('Bravo')
+  await expect(rows.nth(2)).toContainText('Alpha')
 })

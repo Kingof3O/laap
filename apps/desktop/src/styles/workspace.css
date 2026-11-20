@@ -255,19 +255,54 @@ body { background: #0c0a13; }
   background: rgba(229, 172, 89, 0.25);
   color: #ffdda8;
 }
-.filter-starred-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.toolbar-region-select .hextech-select,
+.toolbar-sort-select,
+.filter-controls .rank-filter {
+  height: 34px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-secondary);
+  padding: 0 10px;
   cursor: pointer;
-  padding: 4px 0;
-  user-select: none;
+  transition: all 0.15s ease;
+  outline: none;
 }
-.filter-starred-toggle:hover {
-  color: #e5ac59;
+.toolbar-region-select .hextech-select:hover,
+.toolbar-sort-select:hover,
+.filter-controls .rank-filter:hover {
+  border-color: rgba(168, 128, 226, 0.4);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.07);
+}
+.toolbar-region-select .hextech-select:focus,
+.toolbar-sort-select:focus,
+.filter-controls .rank-filter:focus {
+  border-color: var(--velvet-accent);
+  box-shadow: 0 0 0 2px rgba(201, 166, 255, 0.15);
+}
+.toolbar-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.toolbar-reset-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #ffffff;
 }
 .search-box:focus-within { box-shadow: 0 0 0 3px rgba(201, 166, 255,.1); }
 .roster-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }

@@ -103,22 +103,22 @@
   all: unset;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  border-radius: var(--radius-full);
-  font-family: var(--font-body);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   line-height: 1.2;
-  background: linear-gradient(135deg, rgba(168, 128, 226, 0.14), rgba(90, 50, 150, 0.08));
-  border: 1px solid rgba(190, 150, 255, 0.28);
-  color: #e2d9f7;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  cursor: default;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  user-select: none;
+  background: linear-gradient(180deg, rgba(38, 30, 56, 0.85) 0%, rgba(18, 14, 28, 0.95) 100%);
+  border: 1px solid rgba(168, 128, 226, 0.32);
+  border-left: 3px solid #9c76db;
+  color: #ede6fa;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 2px 6px rgba(0, 0, 0, 0.45);
   box-sizing: border-box;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
 }
 
 button.brand-edition-tag {
@@ -126,32 +126,26 @@ button.brand-edition-tag {
 }
 
 button.brand-edition-tag:hover {
-  background: linear-gradient(135deg, rgba(168, 128, 226, 0.24), rgba(120, 70, 190, 0.16));
-  border-color: rgba(190, 150, 255, 0.55);
+  background: linear-gradient(180deg, rgba(52, 40, 78, 0.95) 0%, rgba(26, 20, 42, 1) 100%);
+  border-color: rgba(201, 166, 255, 0.55);
+  border-left-color: #c9a6ff;
   color: #ffffff;
-  box-shadow: 0 4px 14px rgba(168, 128, 226, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 4px 14px rgba(168, 128, 226, 0.3);
   transform: translateY(-1px);
 }
 
 .brand-edition-pro {
-  background: linear-gradient(135deg, rgba(201, 166, 255, 0.22), rgba(140, 80, 230, 0.14));
-  border-color: rgba(201, 166, 255, 0.45);
-  color: #f5f0ff;
-  box-shadow: 0 0 14px rgba(168, 128, 226, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  background: linear-gradient(180deg, rgba(48, 38, 28, 0.85) 0%, rgba(24, 18, 14, 0.95) 100%);
+  border-color: rgba(229, 172, 89, 0.4);
+  border-left: 3px solid #e5ac59;
+  color: #fff4db;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 2px 8px rgba(229, 172, 89, 0.2);
 }
 
-.brand-edition-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #a880e2;
-  box-shadow: 0 0 5px rgba(168, 128, 226, 0.6);
-  flex-shrink: 0;
-}
-
-.brand-edition-pro .brand-edition-dot {
-  background: #c9a6ff;
-  box-shadow: 0 0 6px rgba(201, 166, 255, 0.85);
+.brand-edition-pro .brand-edition-name {
+  background: linear-gradient(135deg, #fff5dc 0%, #e5ac59 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .brand-edition-name {

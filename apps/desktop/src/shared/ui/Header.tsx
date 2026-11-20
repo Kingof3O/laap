@@ -49,12 +49,10 @@ export function Header({
             title={isPro ? 'LAAP Pro Active — click to manage' : 'LAAP Basic — click to upgrade to Pro'}
             aria-label={`Edition: ${brandLabel}`}
           >
-            <span className="brand-edition-dot" />
             <span className="brand-edition-name">{brandLabel}</span>
           </button>
         ) : (
           <span className={`brand-edition-tag ${isPro ? 'brand-edition-pro' : 'brand-edition-basic'}`}>
-            <span className="brand-edition-dot" />
             <span className="brand-edition-name">{brandLabel}</span>
           </span>
         )}

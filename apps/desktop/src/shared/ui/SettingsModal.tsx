@@ -79,10 +79,10 @@ export function SettingsModal({
         tabIndex={-1}
       >
         <div className="modal-head">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <h2 className="modal-title">Launcher Configuration</h2>
-            <span className="badge-gold" style={{ fontSize: '10px' }}>
-              {product.name}
+            <span className="brand-edition-tag brand-edition-basic">
+              <span className="brand-edition-name">{product.name}</span>
             </span>
           </div>
           <button

@@ -1,6 +1,5 @@
-import { useEffect, useRef } from 'react'
 import { RegionSelect } from './RegionSelect'
-import { LayoutGrid, List, Plus, Search, X, SlidersHorizontal, Star } from 'lucide-react'
+import { LayoutGrid, List, Plus, Search, X, Star } from 'lucide-react'
 import type { SortOrder } from '../../lib/sorting'
 import type { Region, ViewMode } from '../../lib/types'
 
@@ -45,17 +44,12 @@ export function SubNavbar({
 }: SubNavbarProps) {
   const isMac = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('mac')
   const shortcutHint = isMac ? '⌘K' : 'Ctrl+K'
-  const filtersRef = useRef<HTMLDetailsElement>(null)
-  useEffect(() => {
-    const dismiss = (event: MouseEvent) => { if (filtersRef.current?.open && !filtersRef.current.contains(event.target as Node)) filtersRef.current.open = false }
-    document.addEventListener('mousedown', dismiss)
-    return () => document.removeEventListener('mousedown', dismiss)
-  }, [])
 
-  const activeFilterCount =
-    Number(selectedRegion !== 'ALL') +
-    Number(selectedRank !== 'all') +
-    Number(Boolean(favoritesOnly))
+  const hasActiveFilters =
+    selectedRegion !== 'ALL' ||
+    selectedRank !== 'all' ||
+    Boolean(favoritesOnly) ||
+    Boolean(searchQuery.trim())
 
   return (
     <div className="sub-navbar">
@@ -106,92 +100,73 @@ export function SubNavbar({
           </button>
         ) : null}
 
-        <details ref={filtersRef} className="filter-menu" onKeyDown={(event) => { if (event.key === 'Escape') { event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus() } }}>
-          <summary>
-            <SlidersHorizontal size={15} /> Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
-          </summary>
-          <div className="filter-menu-content">
-            <div className="toolbar-region-select">
-              <RegionSelect
-                label="Filter by region"
-                includeAll
-                value={selectedRegion}
-                onChange={(region) => onRegionChange(region as Region)}
-              />
-            </div>
+        <div className="toolbar-region-select">
+          <RegionSelect
+            label="Filter by region"
+            includeAll
+            value={selectedRegion}
+            onChange={(region) => onRegionChange(region as Region)}
+          />
+        </div>
 
-            {onRankChange ? (
-              <select
-                className="rank-filter"
-                aria-label="Filter by rank"
-                value={selectedRank}
-                onChange={(e) => onRankChange(e.target.value)}
+        {onRankChange ? (
+          <select
+            className="rank-filter"
+            aria-label="Filter by rank"
+            value={selectedRank}
+            onChange={(e) => onRankChange(e.target.value)}
+          >
+            <option value="all">All ranks</option>
+            <option value="unlabeled">No rank set</option>
+            {rankOptions.map((rank) => (
+              <option
+                key={rank.toLowerCase()}
+                value={`rank:${rank.toLowerCase()}`}
               >
-                <option value="all">All ranks</option>
-                <option value="unlabeled">No rank set</option>
-                {rankOptions.map((rank) => (
-                  <option
-                    key={rank.toLowerCase()}
-                    value={`rank:${rank.toLowerCase()}`}
-                  >
-                    {rank}
-                  </option>
-                ))}
-              </select>
-            ) : null}
+                {rank}
+              </option>
+            ))}
+          </select>
+        ) : null}
 
-            {onFavoritesOnlyChange ? (
-              <label className="filter-starred-toggle">
-                <input
-                  type="checkbox"
-                  checked={Boolean(favoritesOnly)}
-                  onChange={(e) => onFavoritesOnlyChange(e.target.checked)}
-                />
-                <Star
-                  size={13}
-                  fill={favoritesOnly ? '#e5ac59' : 'none'}
-                  color={favoritesOnly ? '#e5ac59' : 'currentColor'}
-                />
-                <span>Show starred accounts only</span>
-              </label>
-            ) : null}
+        {onSortChange ? (
+          <select
+            className="rank-filter toolbar-sort-select"
+            aria-label="Sort by"
+            value={sortOrder}
+            onChange={(e) => onSortChange(e.target.value as SortOrder)}
+          >
+            <option value="name-asc">Sort: Name (A-Z)</option>
+            <option value="name-desc">Sort: Name (Z-A)</option>
+            <option value="favorites-first">Sort: Starred first</option>
+            <option value="rank-desc">Sort: Rank (High to Low)</option>
+            <option value="rank-asc">Sort: Rank (Low to High)</option>
+            <option value="region-asc">Sort: Region (A-Z)</option>
+            <option value="region-desc">Sort: Region (Z-A)</option>
+            <option value="last-played">Sort: Recently played</option>
+            <option value="added-desc">Sort: Recently added</option>
+            <option value="added-asc">Sort: Oldest added</option>
+          </select>
+        ) : null}
 
-            {onSortChange ? (
-              <label className="sort-control">
-                <span>Sort by</span>
-                <select
-                  className="rank-filter"
-                  aria-label="Sort by"
-                  value={sortOrder}
-                  onChange={(e) => onSortChange(e.target.value as SortOrder)}
-                >
-                  <option value="name-asc">Name (A-Z)</option>
-                  <option value="name-desc">Name (Z-A)</option>
-                  <option value="favorites-first">Starred first</option>
-                  <option value="rank-desc">Rank (High to Low)</option>
-                  <option value="rank-asc">Rank (Low to High)</option>
-                  <option value="region-asc">Region (A-Z)</option>
-                  <option value="region-desc">Region (Z-A)</option>
-                  <option value="last-played">Recently played</option>
-                  <option value="added-desc">Recently added</option>
-                  <option value="added-asc">Oldest added</option>
-                </select>
-              </label>
-            ) : null}
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => {
-                onRegionChange('ALL')
-                onRankChange?.('all')
-                onSortChange?.('name-asc')
-                onFavoritesOnlyChange?.(false)
-              }}
-            >
-              Clear filters
-            </button>
-          </div>
-        </details>
+        {hasActiveFilters ? (
+          <button
+            type="button"
+            className="toolbar-reset-btn"
+            onClick={() => {
+              onRegionChange('ALL')
+              onRankChange?.('all')
+              onSortChange?.('name-asc')
+              onFavoritesOnlyChange?.(false)
+              onSearchChange('')
+            }}
+            title="Reset filters"
+            aria-label="Reset filters"
+          >
+            <X size={12} />
+            <span>Reset</span>
+          </button>
+        ) : null}
       </div>
 
       {/* View Mode & Add Action */}

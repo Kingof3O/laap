@@ -370,7 +370,7 @@ export function AccountListTable({
 
                     {onEdit ? (
                       <button
-                        className="table-icon-btn"
+                        className="table-icon-btn table-icon-btn-edit"
                         aria-label={`Edit ${item.name}`}
                         title="Edit Profile"
                         disabled={busy}
@@ -381,7 +381,7 @@ export function AccountListTable({
                     ) : null}
                     {onRefreshSession ? (
                       <button
-                        className="table-icon-btn"
+                        className="table-icon-btn table-icon-btn-session"
                         aria-label={`Sign in again to ${item.name}`}
                         title="Sign in again"
                         disabled={busy}
@@ -393,7 +393,7 @@ export function AccountListTable({
                     {canManage && isCloud && onSync ? (
                       <button
                         type="button"
-                        className="table-icon-btn"
+                        className="table-icon-btn table-icon-btn-cloud"
                         onClick={() => onSync(item.id)}
                         disabled={busy}
                         title="Sync Session"
@@ -408,7 +408,7 @@ export function AccountListTable({
                     onRevokeSession ? (
                       <button
                         type="button"
-                        className="table-icon-btn"
+                        className="table-icon-btn table-icon-btn-cloud"
                         onClick={() => onRevokeSession(item.id)}
                         disabled={busy}
                         title="Revoke Session Token"
@@ -420,7 +420,7 @@ export function AccountListTable({
                     {canManage && !isCloud && onPushToCloud ? (
                       <button
                         type="button"
-                        className="table-icon-btn"
+                        className="table-icon-btn table-icon-btn-cloud"
                         onClick={() => onPushToCloud(item.id)}
                         disabled={busy}
                         title="Publish to Shared Accounts"
