@@ -280,6 +280,9 @@ export function AccountCard({
                   src={activeGame === 'valorant' ? '/valorant-icon.webp' : '/league-of-legends-icon.webp'}
                   alt=""
                   aria-hidden="true"
+                  width={14}
+                  height={14}
+                  className="card-game-icon"
                 />
                 {activeGame === 'valorant' ? 'VALORANT' : 'League of Legends'}
               </span>
@@ -322,7 +325,7 @@ export function AccountCard({
         <div className="card-rank" title={displayRank ? `Rank: ${displayRank}` : 'Rank not set'}>
           <span className={`card-rank-emblem ${getRankTierClass(displayRank ?? '')}`}>
             {activeGame === 'valorant' ? (
-              <img src="/valorant-icon.webp" alt="" aria-hidden="true" className="card-rank-game-icon" />
+              <img src="/valorant-icon.webp" alt="" aria-hidden="true" width={24} height={24} className="card-rank-game-icon" />
             ) : (
               <RankCrest rank={displayRank} />
             )}

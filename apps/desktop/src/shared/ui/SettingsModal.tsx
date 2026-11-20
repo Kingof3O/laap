@@ -115,7 +115,7 @@ export function SettingsModal({
                 <div className="settings-security-summary">
                   <ShieldCheck size={21} aria-hidden="true" />
                   <div className="settings-security-content">
-                    <strong>Saved Riot logins are encrypted</strong>
+                    <strong>Saved Riot Logins Encrypted</strong>
                     <p>Saved Riot sessions use AES-GCM. Profile names and notes remain readable local data.</p>
                   </div>
                 </div>

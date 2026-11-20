@@ -135,6 +135,31 @@
   margin-top: 2px;
 }
 
+.card-game-context {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-game-context img,
+.card-game-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  flex-shrink: 0;
+  display: block;
+}
+
+.card-rank-game-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  display: block;
+}
+
 .card-game-badges,
 .table-game-badges {
   display: inline-flex;
