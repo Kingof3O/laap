@@ -6,7 +6,7 @@ import child_process from 'node:child_process'
 
 /**
  * Pinned official public key for Minisign / Ed25519 signature verification.
- * Matches apps/desktop/src-tauri/tauri.conf.json and tauri.offline.conf.json
+ * Matches apps/desktop/src-tauri/tauri.conf.json
  */
 export const DEFAULT_UPDATER_PUBKEY =
   'dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVBN0E0RkU3NDhEMUU3RjgKUldUNDU5Rkk1MDk2V3NlVU5UeE9sYmdSQWkxaUJTSWpjdER1QzNmVFpNTmdEanpxMWlhS0Q0NnAK'
@@ -140,22 +140,18 @@ export function parseCliArgs(argv) {
   return args
 }
 
-const UPDATE_EDITION_NAMES = new Set(['team', 'offline', 'studio'])
+const UPDATE_EDITION = 'offline'
 
-function matchesEdition(filename, edition) {
+function isOfflineArtifact(filename) {
   const lower = filename.toLowerCase()
-  const offline = lower.includes('offline')
-  const studio = lower.includes('studio')
-  return edition === 'studio' ? studio && !offline && !lower.includes('desktop')
-    : edition === 'offline' ? offline && !studio
-    : edition === 'team' && !offline && !studio
+  return lower.includes('offline') && !['studio', 'team', 'desktop'].some(marker => lower.includes(marker))
 }
 
 export function generateManifest(options) {
   const {
     version,
     tag,
-    edition,
+    edition = UPDATE_EDITION,
     artifactsDir,
     notes = 'LAAP Desktop release update.',
     repo = 'Kingof3O/laap',
@@ -169,8 +165,8 @@ export function generateManifest(options) {
     throw new Error(`Invalid semver version: ${version}`)
   }
 
-  if (!UPDATE_EDITION_NAMES.has(edition)) {
-    throw new Error(`Invalid edition: ${edition}. Expected team, offline, or studio.`)
+  if (edition !== UPDATE_EDITION) {
+    throw new Error(`Invalid edition: ${edition}. Expected offline.`)
   }
 
   const platforms = {}
@@ -229,7 +225,7 @@ export function generateManifest(options) {
     // Skip .sig and .json files
     if (lower.endsWith('.sig') || lower.endsWith('.json')) continue
 
-    if (!matchesEdition(filename, edition)) continue
+    if (!isOfflineArtifact(filename)) continue
 
     // Windows x86_64 updater bundle (.nsis.zip, .zip, or standalone signed installer .exe)
     if (lower.includes('x64') || lower.includes('x86_64') || lower.endsWith('.exe') || lower.endsWith('.nsis.zip')) {
@@ -287,7 +283,7 @@ export function validateManifest(manifest, options = {}) {
     errors.push(`Manifest version invalid: "${manifest.version}"`)
   }
 
-  if (!UPDATE_EDITION_NAMES.has(manifest.edition)) {
+  if (manifest.edition !== UPDATE_EDITION) {
     errors.push(`Manifest edition invalid: "${manifest.edition}"`)
   }
 
@@ -347,7 +343,7 @@ export function validateManifest(manifest, options = {}) {
       errors.push(`Invalid URL for platform "${key}"`)
       continue
     }
-    if (!matchesEdition(assetFilename, manifest.edition)) {
+    if (!isOfflineArtifact(assetFilename)) {
       errors.push(`Artifact "${assetFilename}" does not match the ${manifest.edition} update channel.`)
       continue
     }
@@ -376,7 +372,7 @@ export function validateManifest(manifest, options = {}) {
 
 /**
  * Validates that an entire release publication is complete, compatible, and cryptographically verified
- * across both Team and Offline editions for all advertised platforms.
+ * for the Offline update channel across all advertised platforms.
  */
 export function validateReleasePublication(options = {}) {
   const {
@@ -385,94 +381,22 @@ export function validateReleasePublication(options = {}) {
     artifactsDir = './dist',
     pubkey = DEFAULT_UPDATER_PUBKEY,
     requireArtifactVerification = true,
-    editions = ['team', 'offline'],
   } = options
 
-  const errors = []
-
-  let teamManifest, offlineManifest, studioManifest
-  if (editions.includes('team')) {
-    try {
-      teamManifest = generateManifest({
-        version,
-        tag,
-        edition: 'team',
-        artifactsDir,
-      })
-    } catch (err) {
-      errors.push(`Team edition manifest generation failed: ${err.message}`)
-    }
+  let offlineManifest
+  try {
+    offlineManifest = generateManifest({ version, tag, artifactsDir })
+  } catch (err) {
+    return { valid: false, errors: [`Offline manifest generation failed: ${err.message}`] }
   }
 
-  if (editions.includes('offline')) {
-    try {
-      offlineManifest = generateManifest({
-        version,
-        tag,
-        edition: 'offline',
-        artifactsDir,
-      })
-    } catch (err) {
-      errors.push(`Offline edition manifest generation failed: ${err.message}`)
-    }
-  }
-
-  if (editions.includes('studio')) {
-    try {
-      studioManifest = generateManifest({
-        version,
-        tag,
-        edition: 'studio',
-        artifactsDir,
-      })
-    } catch (err) {
-      errors.push(`Studio edition manifest generation failed: ${err.message}`)
-    }
-  }
-
-  if (teamManifest) {
-    const teamVal = validateManifest(teamManifest, {
-      artifactsDir,
-      pubkey,
-      requireArtifactVerification,
-      requireAllPlatforms: true,
-    })
-    if (!teamVal.valid) {
-      errors.push(...teamVal.errors.map((e) => `[Team Edition] ${e}`))
-    }
-  }
-
-  if (offlineManifest) {
-    const offlineVal = validateManifest(offlineManifest, {
-      artifactsDir,
-      pubkey,
-      requireArtifactVerification,
-      requireAllPlatforms: true,
-    })
-    if (!offlineVal.valid) {
-      errors.push(...offlineVal.errors.map((e) => `[Offline Edition] ${e}`))
-    }
-  }
-
-  if (studioManifest) {
-    const studioVal = validateManifest(studioManifest, {
-      artifactsDir,
-      pubkey,
-      requireArtifactVerification,
-      requireAllPlatforms: true,
-    })
-    if (!studioVal.valid) {
-      errors.push(...studioVal.errors.map((e) => `[Studio Edition] ${e}`))
-    }
-  }
-
-  return {
-    valid: errors.length === 0,
-    errors,
-    teamManifest,
-    offlineManifest,
-    studioManifest,
-  }
+  const result = validateManifest(offlineManifest, {
+    artifactsDir,
+    pubkey,
+    requireArtifactVerification,
+    requireAllPlatforms: true,
+  })
+  return { ...result, offlineManifest }
 }
 
 // CLI Execution if executed directly
@@ -480,7 +404,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '
   const args = parseCliArgs(process.argv)
   const version = args.version || process.env.RELEASE_VERSION || '1.0.0'
   const tag = args.tag || process.env.RELEASE_TAG || `v${version}`
-  const edition = args.edition || 'team'
+  const edition = args.edition || UPDATE_EDITION
   const artifactsDir = args['artifacts-dir'] || './dist'
   const outputFile = args.output || `./latest-${edition}.json`
   const notes = args.notes || 'LAAP official release update.'
@@ -490,8 +414,9 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '
   const verifyRelease = args['verify-release'] === 'true'
 
   try {
+    if (edition !== UPDATE_EDITION) throw new Error(`Invalid edition: ${edition}. Expected offline.`)
     if (verifyRelease) {
-      console.log(`Verifying full dual-edition release publication readiness for ${tag}...`)
+      console.log(`Verifying Offline release publication readiness for ${tag}...`)
       const pubCheck = validateReleasePublication({
         version,
         tag,
@@ -503,9 +428,8 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '
         console.error('Release publication readiness checks FAILED:\n - ' + pubCheck.errors.join('\n - '))
         process.exit(1)
       }
-      fs.writeFileSync('./latest-team.json', JSON.stringify(pubCheck.teamManifest, null, 2), 'utf8')
-      fs.writeFileSync('./latest-offline.json', JSON.stringify(pubCheck.offlineManifest, null, 2), 'utf8')
-      console.log('Release publication verified! Successfully generated latest-team.json and latest-offline.json')
+      fs.writeFileSync(outputFile, JSON.stringify(pubCheck.offlineManifest, null, 2), 'utf8')
+      console.log('Release publication verified! Successfully generated the Offline update manifest')
       process.exit(0)
     }
 

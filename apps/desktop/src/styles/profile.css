@@ -436,7 +436,7 @@
   color: var(--text-muted);
 }
 .icon-remove:hover {
-  color: var(--status-leased);
+  color: var(--status-warning);
 }
 .visually-hidden {
   position: absolute !important;

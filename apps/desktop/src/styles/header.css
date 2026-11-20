@@ -185,12 +185,6 @@ button.brand-edition-pro:hover .brand-edition-name {
   text-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
 }
 
-.brand-edition-team {
-  background: var(--ambient-blue-bg);
-  border: 1px solid var(--ambient-blue-border);
-  color: var(--ambient-blue-light);
-}
-
 .brand-edition-offline {
   background: var(--accent-surface);
   border: 1px solid var(--accent-border-subtle);

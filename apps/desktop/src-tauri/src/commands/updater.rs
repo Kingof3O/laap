@@ -100,11 +100,7 @@ pub struct TauriUpdateManifest {
     pub platforms: std::collections::HashMap<String, PlatformUpdateInfo>,
 }
 
-pub fn get_app_edition(_app: &AppHandle) -> &'static str {
-    crate::product::update_channel()
-}
-
-pub fn get_target_platform() -> &'static str {
+fn get_target_platform() -> &'static str {
     #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
     {
         "windows-x86_64"
@@ -409,7 +405,6 @@ pub fn verify_ed25519_signature(
 pub fn validate_manifest_edition(
     manifest_edition: Option<&str>,
     download_url: &str,
-    app_edition: &str,
 ) -> Result<(), String> {
     // 1. Mandatory edition metadata enforcement: fail closed on missing, empty, or whitespace-only edition
     let declared = match manifest_edition {
@@ -419,6 +414,7 @@ pub fn validate_manifest_edition(
         }
     };
 
+    let app_edition = crate::product::update_channel();
     if !declared.eq_ignore_ascii_case(app_edition) {
         return Err(format!(
             "Edition isolation violation: Manifest declared edition '{declared}' does not match installed application edition '{app_edition}'"
@@ -426,7 +422,6 @@ pub fn validate_manifest_edition(
     }
 
     // 2. Reliable artifact identity checks on download URL and file basename
-    let _url_lower = download_url.to_lowercase();
     let file_name = download_url
         .split('/')
         .last()
@@ -437,35 +432,8 @@ pub fn validate_manifest_edition(
         return Err("Security violation: Download URL has no valid artifact filename.".to_string());
     }
 
-    // Verify edition naming pattern in artifact identity
-    if app_edition == "studio" {
-        if !file_name.contains("studio") || file_name.contains("offline") || file_name.contains("desktop") {
-            return Err("Artifact identity mismatch: expected a Studio installer.".into());
-        }
-    } else if app_edition == "offline" {
-        if !file_name.contains("offline") || file_name.contains("studio") {
-            return Err(format!(
-                "Artifact identity mismatch: Offline edition cannot install update artifact '{file_name}' lacking 'offline' identity marker."
-            ));
-        }
-        if file_name.contains("desktop") && !file_name.contains("offline") {
-            return Err(format!(
-                "Artifact identity mismatch: Offline edition rejected Team/Desktop artifact '{file_name}'."
-            ));
-        }
-    } else if app_edition == "team" {
-        if file_name.contains("offline") || file_name.contains("studio") {
-            return Err(format!(
-                "Artifact identity mismatch: Team edition cannot install update artifact '{file_name}' containing 'offline' identity marker."
-            ));
-        }
-        if !file_name.contains("desktop") && !file_name.contains("team") && !file_name.contains("laap") {
-            return Err(format!(
-                "Artifact identity mismatch: Team edition update artifact '{file_name}' lacks recognized team identity."
-            ));
-        }
-    } else {
-        return Err(format!("Unrecognized application edition '{app_edition}'."));
+    if !file_name.contains("offline") || file_name.contains("studio") || file_name.contains("team") || file_name.contains("desktop") {
+        return Err(format!("Artifact identity mismatch: expected an Offline update artifact, got '{file_name}'."));
     }
 
     // Verify valid artifact extension for platform
@@ -518,17 +486,11 @@ pub fn get_app_version(app: AppHandle) -> String {
 
 #[tauri::command]
 pub fn get_updater_preflight_status() -> PreflightSafetyStatus {
-    #[cfg(not(feature = "studio"))]
     let provisioning_busy = crate::commands::session::owns_provisioning();
-    #[cfg(feature = "studio")]
-    let provisioning_busy = false;
-    #[cfg(not(feature = "studio"))]
     let (active_match, riot_running) = {
         let snapshot = crate::riot::runtime_snapshot();
         (snapshot.active_match(), snapshot.running())
     };
-    #[cfg(feature = "studio")]
-    let (active_match, riot_running) = (false, false);
 
     let (safe, reason) = if provisioning_busy {
         (
@@ -558,11 +520,6 @@ pub async fn native_install_update(
     app: AppHandle,
     force_close_riot: Option<bool>,
 ) -> Result<InstallUpdateResult, String> {
-    if cfg!(feature = "studio") {
-        return Err("Studio automatic installation awaits a verified signed native upgrade. Use the release page for available downloads.".into());
-    }
-    #[cfg(feature = "studio")]
-    let _ = force_close_riot;
     // 0. Prevent simultaneous launches during update installation transition
     if INSTALL_TRANSITION_ACTIVE
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -617,9 +574,8 @@ pub async fn native_install_update(
     }
 
     // Enforce edition isolation and artifact identity on updater manifest and download URL
-    let app_edition = get_app_edition(&app);
     let declared_edition = update.raw_json.get("edition").and_then(|v| v.as_str());
-    if let Err(e) = validate_manifest_edition(declared_edition, update.download_url.as_str(), app_edition) {
+    if let Err(e) = validate_manifest_edition(declared_edition, update.download_url.as_str()) {
         let _ = app.emit("laap:update-status", "error");
         return Err(e);
     }
@@ -681,23 +637,20 @@ pub async fn native_install_update(
     }
 
     // Re-verify edition isolation immediately before executing installation
-    if let Err(e) = validate_manifest_edition(declared_edition, update.download_url.as_str(), app_edition) {
+    if let Err(e) = validate_manifest_edition(declared_edition, update.download_url.as_str()) {
         let _ = app.emit("laap:update-status", "error");
         return Err(e);
     }
 
     // 6. Cleanup before applying installer: NEVER ignore failures of mandatory safety operations
-    #[cfg(not(feature = "studio"))]
     if force_close_riot.unwrap_or(false) && immediate_preflight.riot_running {
         crate::riot::terminate_riot_processes()
             .map_err(|e| format!("Mandatory safety operation failed: unable to terminate Riot processes before update: {e}"))?;
     }
 
-    #[cfg(not(feature = "studio"))]
     crate::presence::stop_proxy()
         .map_err(|e| format!("Mandatory safety operation failed: unable to stop presence proxy before update: {e}"))?;
 
-    #[cfg(not(feature = "studio"))]
     crate::tray::prepare_quit(true).await
         .map_err(|e| format!("Mandatory safety operation failed: unable to prepare tray quit before update: {e}"))?;
 
@@ -742,20 +695,20 @@ pub async fn check_github_update(
     app: AppHandle,
 ) -> Result<UpdateCheckResult, String> {
     let current_version = app.package_info().version.to_string();
-    let edition = get_app_edition(&app).to_string();
+    let edition = crate::product::update_channel().to_string();
     let platform = get_target_platform().to_string();
 
     // 1. First check official Tauri updater plugin (handles cryptographic signature & official endpoints)
     if let Ok(updater) = app.updater() {
         if let Ok(Some(update)) = updater.check().await {
             let declared_edition = update.raw_json.get("edition").and_then(|v| v.as_str());
-            if validate_manifest_edition(declared_edition, update.download_url.as_str(), &edition).is_ok() {
+            if validate_manifest_edition(declared_edition, update.download_url.as_str()).is_ok() {
                 let remote_ver = update.version.trim_start_matches('v').to_string();
                 let has_update = is_newer(&remote_ver, &current_version);
                 let has_sig = !update.signature.trim().is_empty();
                 return Ok(UpdateCheckResult {
                     has_update,
-                    is_installable: !cfg!(feature = "studio") && has_update && has_sig,
+                    is_installable: has_update && has_sig,
                     current_version: current_version.clone(),
                     latest_version: remote_ver,
                     release_name: format!("Release v{}", update.version),
@@ -777,7 +730,7 @@ pub async fn check_github_update(
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {e}"))?;
 
-    // 2. Try fetching edition-specific update manifest (e.g. latest-team.json or latest-offline.json)
+    // 2. Try fetching the Offline update manifest
     let manifest_url = format!(
         "https://github.com/{}/releases/latest/download/latest-{}.json",
         GITHUB_REPO, edition
@@ -807,16 +760,16 @@ pub async fn check_github_update(
                 };
 
                 let edition_valid = if let Some(ref d_url) = download_url {
-                    validate_manifest_edition(declared_edition, d_url, &edition).is_ok()
+                    validate_manifest_edition(declared_edition, d_url).is_ok()
                 } else {
                     false
                 };
 
                 let has_sig = signature.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false);
-                let is_installable = !cfg!(feature = "studio") && has_update && edition_valid && has_sig && download_url.is_some();
+                let is_installable = has_update && edition_valid && has_sig && download_url.is_some();
 
                 return Ok(UpdateCheckResult {
-                    has_update: has_update && (edition != "studio" || edition_valid),
+                    has_update,
                     is_installable,
                     current_version: current_version.clone(),
                     latest_version: remote_ver,
@@ -889,14 +842,12 @@ pub async fn check_github_update(
     let has_update = is_newer(&remote_version, &current_version);
 
     // Locate edition-matching installer asset
-    let expected_substr = match edition.as_str() { "offline" => "offline", "studio" => "studio", _ => "desktop" };
     let matching_asset = release.assets.iter().find(|a| {
         let lower = a.name.to_lowercase();
-        lower.contains(expected_substr) && (lower.ends_with(".exe") || lower.ends_with(".zip") || lower.ends_with(".dmg") || lower.ends_with(".tar.gz"))
+        lower.contains("offline") && (lower.ends_with(".exe") || lower.ends_with(".zip") || lower.ends_with(".dmg") || lower.ends_with(".tar.gz"))
     });
 
     let download_url = matching_asset.map(|a| a.browser_download_url.clone());
-    let has_update = has_update && (edition != "studio" || matching_asset.is_some());
 
     // Release notification only: ordinary GitHub release assets are NOT verified in-app update payloads
     Ok(UpdateCheckResult {
@@ -964,79 +915,16 @@ mod tests {
     #[test]
     fn test_edition_mismatch_detection() {
         // Matching edition and URL succeeds
-        assert!(validate_manifest_edition(
-            Some("team"),
-            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Desktop-1.0.0-x64-setup.nsis.zip",
-            "team"
-        ).is_ok());
-
-        assert!(validate_manifest_edition(
-            Some("offline"),
-            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Offline-1.0.0-x64-setup.nsis.zip",
-            "offline"
-        ).is_ok());
-
-        // Manifest declared edition mismatch fails
-        assert!(validate_manifest_edition(
-            Some("offline"),
-            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Offline-1.0.0-x64-setup.nsis.zip",
-            "team"
-        ).is_err());
-
-        assert!(validate_manifest_edition(
-            Some("team"),
-            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Desktop-1.0.0-x64-setup.nsis.zip",
-            "offline"
-        ).is_err());
-
-        // Mandatory edition metadata enforcement: None or empty fails closed
-        assert!(validate_manifest_edition(
-            None,
-            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Desktop-1.0.0-x64-setup.nsis.zip",
-            "team"
-        ).is_err());
-
-        assert!(validate_manifest_edition(
-            Some(""),
-            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Desktop-1.0.0-x64-setup.nsis.zip",
-            "team"
-        ).is_err());
-
-        assert!(validate_manifest_edition(
-            Some("   "),
-            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Desktop-1.0.0-x64-setup.nsis.zip",
-            "team"
-        ).is_err());
-
-        // Defense-in-depth URL filename mismatch fails closed
-        assert!(validate_manifest_edition(
-            Some("offline"),
-            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Desktop-1.0.0-x64-setup.nsis.zip",
-            "offline"
-        ).is_err());
-
-        assert!(validate_manifest_edition(
-            Some("team"),
-            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Offline-1.0.0-x64-setup.nsis.zip",
-            "team"
-        ).is_err());
-
-        // Untrusted file extension fails closed
-        assert!(validate_manifest_edition(
-            Some("team"),
-            "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Desktop-1.0.0.sh",
-            "team"
-        ).is_err());
-    }
-
-    #[test]
-    fn studio_installer_cannot_cross_legacy_channels() {
-        let studio = "https://github.com/Kingof3O/laap/releases/download/v2.0.0/LAAP_Studio_2.0.0_x64-setup.exe";
-        let offline = "https://github.com/Kingof3O/laap/releases/download/v2.0.0/LAAP_Offline_2.0.0_x64-setup.exe";
-        assert!(validate_manifest_edition(Some("studio"), studio, "studio").is_ok());
-        assert!(validate_manifest_edition(Some("team"), studio, "team").is_err());
-        assert!(validate_manifest_edition(Some("offline"), studio, "offline").is_err());
-        assert!(validate_manifest_edition(Some("studio"), offline, "studio").is_err());
+        let offline = "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Offline-1.0.0-x64-setup.exe";
+        let team = "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Desktop-1.0.0-x64-setup.exe";
+        let studio = "https://github.com/Kingof3O/laap/releases/download/v1.0.0/LAAP-Studio-1.0.0-x64-setup.exe";
+        assert!(validate_manifest_edition(Some("offline"), offline).is_ok());
+        for edition in [None, Some(""), Some(" "), Some("team"), Some("studio")] {
+            assert!(validate_manifest_edition(edition, offline).is_err());
+        }
+        for url in [team, studio, "https://example.test/LAAP-Offline.sh"] {
+            assert!(validate_manifest_edition(Some("offline"), url).is_err());
+        }
     }
 
     #[test]

@@ -1,1 +1,0 @@
-Generated public Riot Data Dragon snapshots and previews. Run python scripts/build_catalog_seed.py to create the verified first-launch resource packs. Run with --refresh to update their patch. The installer includes these assets only in Studio and Complete. Riot retains its artwork rights.

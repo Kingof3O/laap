@@ -4,7 +4,7 @@
 .search-input { min-width: 0; }
 .titlebar .brand-zone > img { height: 24px; }
 .titlebar-btn { width: 44px; }
-.studio-viewport { gap: 16px; padding: 20px 24px 24px; }
+.roster-viewport { gap: 16px; padding: 20px 24px 24px; }
 .roster-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 20px; align-items: start; width: 100%; }
 .roster-workspace-full { display: block; }
 .roster-card { padding: 18px; min-height: 150px; transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background 160ms ease; }

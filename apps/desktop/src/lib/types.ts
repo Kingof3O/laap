@@ -1,4 +1,3 @@
-export type AppMode = 'local' | 'cloud'
 export type ViewMode = 'grid' | 'list'
 export type Region =
   | 'ALL'
@@ -20,25 +19,6 @@ export type Region =
   | 'PH'
   | 'TH'
   | 'ME'
-
-export interface User {
-  id: string
-  email: string
-  displayName: string
-  role: 'admin' | 'operator'
-  status: string
-}
-
-export interface Account {
-  id: string
-  name: string
-  region: string
-  status: string
-  lastUsed: string
-  level: number
-  accent: string
-  hasSessionBlob?: boolean
-}
 
 export type Game = 'league' | 'valorant'
 

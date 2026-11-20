@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react'
 import {
   Activity,
   Check,
@@ -42,25 +42,21 @@ export function InspectorIconButton({
 export function ProfileInspector({
   account,
   activeGame: propActiveGame,
-  isCloud = false,
   busy,
   onClose,
   onEdit,
   onLaunch,
   onCheckLive,
   launchLabel = 'Launch',
-  actions,
 }: {
   account: RosterItem
   activeGame?: Game
-  isCloud?: boolean
   busy: boolean
   onClose: () => void
   onEdit?: () => void
   onLaunch?: () => void
   onCheckLive?: () => void
   launchLabel?: string
-  actions?: ReactNode
 }) {
   let contextGame: Game = 'league'
   try {
@@ -81,7 +77,7 @@ export function ProfileInspector({
           day: 'numeric',
         })
       : null
-  const sessionReady = account.hasSession && account.status !== 'Leased'
+  const sessionReady = account.hasSession
 
   const [stats, setStats] = useState<OpggStats | null>(null)
   const [statsLoading, setStatsLoading] = useState(false)
@@ -153,7 +149,6 @@ export function ProfileInspector({
       <header className="inspector-top">
         <h2>Account details</h2>
         <div className="inspector-icon-group">
-          {actions}
           {onEdit ? (
             <InspectorIconButton label="Manage profile" onClick={onEdit} disabled={busy}>
               <Settings2 size={15} />
@@ -233,7 +228,7 @@ export function ProfileInspector({
               title="Refresh season stats from OP.GG"
               onClick={async () => {
                 const result = await loadStats(true)
-                if (result && !isCloud) await autoSyncAccountRank(account, activeGame)
+                if (result) await autoSyncAccountRank(account, activeGame)
               }}
               disabled={statsLoading || !opggInfo.hasTag}
             >

@@ -7,9 +7,6 @@ permissions:
   contents: read
 jobs:
   installer-pages:
-    strategy:
-      matrix:
-        edition: [team, offline]
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -23,11 +20,9 @@ jobs:
       - name: Build NSIS installer
         shell: pwsh
         run: |
-          if ('${{ matrix.edition }}' -eq 'offline') {
-            npx --workspace @laap/desktop tauri build --debug --config src-tauri/tauri.offline.conf.json --bundles nsis
-          } else {
-            npx --workspace @laap/desktop tauri build --debug --bundles nsis
-          }
+          $config = Join-Path $env:RUNNER_TEMP 'laap-installer-preview.json'
+          '{"bundle":{"createUpdaterArtifacts":false}}' | Set-Content -LiteralPath $config
+          npx --workspace @laap/desktop tauri build --debug --bundles nsis --config $config
       - name: Capture Welcome and Already Installed pages
         shell: pwsh
         run: |
@@ -37,5 +32,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: windows-installer-pages-${{ matrix.edition }}
+          name: windows-installer-pages-offline
           path: installer-screenshots/*.png

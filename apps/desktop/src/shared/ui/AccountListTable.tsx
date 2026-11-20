@@ -7,14 +7,11 @@ import {
   ChevronsUpDown,
   Pencil,
   LogIn,
-  KeyRound,
   Loader2,
   Play,
   RotateCcw,
   Trash2,
   Star,
-  UploadCloud,
-  Zap,
 } from 'lucide-react'
 import { getRankTierClass, formatRelativeTime, sortProfiles, type SortOrder } from '../../lib/sorting'
 import type { Game } from '../../lib/types'
@@ -40,8 +37,6 @@ export interface AccountListTableProps {
   items: TableItem[]
   activeGame?: Game
   selectedId?: string | null
-  isCloud?: boolean
-  canManage?: boolean
   busy?: boolean
   launchingId?: string | null
   failedLaunchId?: string | null
@@ -55,10 +50,6 @@ export interface AccountListTableProps {
   onEdit?: (id: string) => void
   onRefreshSession?: (id: string) => void
   onLaunch: (id: string, game?: Game) => void
-  onSync?: (id: string) => void
-  onPushToCloud?: (id: string) => void
-  onForceRelease?: (id: string) => void
-  onRevokeSession?: (id: string) => void
   onDelete: (id: string, name: string) => void
 }
 
@@ -66,8 +57,6 @@ export function AccountListTable({
   items,
   activeGame = 'league',
   selectedId,
-  isCloud = false,
-  canManage = false,
   busy = false,
   launchingId,
   failedLaunchId,
@@ -81,10 +70,6 @@ export function AccountListTable({
   onEdit,
   onRefreshSession,
   onLaunch,
-  onSync,
-  onPushToCloud,
-  onForceRelease,
-  onRevokeSession,
   onDelete,
 }: AccountListTableProps) {
   const [localSort, setLocalSort] = useState<SortOrder>(sortOrder ?? 'name-asc')
@@ -212,7 +197,6 @@ export function AccountListTable({
         </thead>
         <tbody>
           {displayItems.map((item) => {
-            const isLeased = isCloud && item.status === 'Leased'
             const isSelected = selectedId === item.id
             const itemGames = item.games && item.games.length > 0 ? item.games : ['league']
             const displayRank = activeGame === 'valorant' ? (item.valorant_rank ?? item.valorantRank) : item.rank
@@ -303,19 +287,15 @@ export function AccountListTable({
                   <span className="table-region-badge">{item.region}</span>
                 </td>
                 <td>
-                  {isLeased ? (
-                    <span className="table-status-pill table-status-warn">
-                      In Use
-                    </span>
-                  ) : item.hasSession ? (
+                  {item.hasSession ? (
                     <span
-                      className={`table-status-pill ${!isCloud && (item.status === 'Session stale' || item.status?.includes('unknown')) ? 'table-status-warn' : 'table-status-ready'}`}
+                      className={`table-status-pill ${(item.status === 'Session stale' || item.status?.includes('unknown')) ? 'table-status-warn' : 'table-status-ready'}`}
                     >
-                      {isCloud ? 'Ready' : item.status}
+                      {item.status}
                     </span>
                   ) : (
                     <span className="table-status-pill table-status-warn">
-                      {isCloud ? 'Needs Sync' : item.status}
+                      {item.status}
                     </span>
                   )}
                 </td>
@@ -330,33 +310,7 @@ export function AccountListTable({
                     className="table-actions-cell"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {isLeased ? (
-                      canManage && onForceRelease ? (
-                        <button
-                          type="button"
-                          className="btn-table-play"
-                          style={{
-                            background: 'rgba(239, 68, 68, 0.2)',
-                            borderColor: 'rgba(239, 68, 68, 0.4)',
-                            color: '#fca5a5',
-                          }}
-                          onClick={() => onForceRelease(item.id)}
-                          disabled={busy}
-                          title="Force Release / Kick active session"
-                        >
-                          <RotateCcw size={11} />
-                          <span>Kick</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="btn-table-play"
-                          disabled
-                        >
-                          <span>In Use</span>
-                        </button>
-                      )
-                    ) : item.id === launchingId ? (
+                    {item.id === launchingId ? (
                       <button type="button" className="btn-table-play" disabled>
                         <Loader2 size={11} className="animate-spin" />
                         <span>
@@ -424,56 +378,15 @@ export function AccountListTable({
                         <LogIn size={13} />
                       </button>
                     ) : null}
-                    {canManage && isCloud && onSync ? (
-                      <button
-                        type="button"
-                        className="table-icon-btn table-icon-btn-cloud"
-                        onClick={() => onSync(item.id)}
-                        disabled={busy}
-                        title="Sync Session"
-                      >
-                        <Zap size={13} />
-                      </button>
-                    ) : null}
-
-                    {canManage &&
-                    isCloud &&
-                    item.hasSession &&
-                    onRevokeSession ? (
-                      <button
-                        type="button"
-                        className="table-icon-btn table-icon-btn-cloud"
-                        onClick={() => onRevokeSession(item.id)}
-                        disabled={busy}
-                        title="Revoke Session Token"
-                      >
-                        <KeyRound size={13} />
-                      </button>
-                    ) : null}
-
-                    {canManage && !isCloud && onPushToCloud ? (
-                      <button
-                        type="button"
-                        className="table-icon-btn table-icon-btn-cloud"
-                        onClick={() => onPushToCloud(item.id)}
-                        disabled={busy}
-                        title="Publish to Shared Accounts"
-                      >
-                        <UploadCloud size={13} />
-                      </button>
-                    ) : null}
-
-                    {canManage ? (
-                      <button
-                        type="button"
-                        className="table-icon-btn table-icon-btn-danger"
-                        onClick={() => onDelete(item.id, item.name)}
-                        disabled={busy}
-                        title="Remove Account"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    ) : null}
+                    <button
+                      type="button"
+                      className="table-icon-btn table-icon-btn-danger"
+                      onClick={() => onDelete(item.id, item.name)}
+                      disabled={busy}
+                      title="Remove Account"
+                    >
+                      <Trash2 size={13} />
+                    </button>
                   </div>
                 </td>
               </tr>

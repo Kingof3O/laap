@@ -49,12 +49,10 @@ jobs:
       matrix:
         include:
           - platform: windows-latest
-            edition: offline
-            args: '--config src-tauri/tauri.offline.conf.json -- --no-default-features'
+            args: ''
             targets: ''
           - platform: macos-latest
-            edition: offline
-            args: '--target universal-apple-darwin --config src-tauri/tauri.offline.conf.json -- --no-default-features'
+            args: '--target universal-apple-darwin'
             targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
     runs-on: ${{ matrix.platform }}
     defaults:
@@ -103,7 +101,7 @@ jobs:
 
             [Code signing policy](https://github.com/Kingof3O/laap/blob/main/CODE_SIGNING.md) · [Privacy policy](https://github.com/Kingof3O/laap/blob/main/PRIVACY.md)
 
-            - **LAAP Offline**: Community Standalone Edition (local Personal Roster, live match status, optional icon downloads, opt-in League Client sync, and Windows/macOS LAAP Presence).
+            - **LAAP Basic and Pro** share one installer for local League of Legends and VALORANT profiles. Pro unlocks unlimited profiles.
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
@@ -112,7 +110,7 @@ jobs:
         if: always() && (runner.os != 'Windows' || vars.SIGNPATH_ENABLED != 'true')
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.platform }}-${{ matrix.edition }}-bundles
+          name: ${{ matrix.platform }}-offline-bundles
           path: |
             apps/desktop/src-tauri/target/release/bundle/msi/*.msi
             apps/desktop/src-tauri/target/release/bundle/nsis/*.exe

@@ -1,15 +1,12 @@
-#[cfg(not(feature = "studio"))]
 pub mod local_accounts;
-#[cfg(not(feature = "studio"))]
 pub mod session;
 pub mod system_utils;
 pub mod updater;
 pub mod window;
 
-#[cfg(not(feature = "studio"))]
 pub use session::launch_riot_client;
 
-#[cfg(all(test, not(feature = "studio")))]
+#[cfg(test)]
 mod tests {
     use super::session::{launch_args, LEAGUE_LAUNCH_ARGS};
     use crate::local_store::Game;

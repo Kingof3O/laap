@@ -83,20 +83,6 @@ pub fn close_riot_client_sync(confirmed: Option<bool>) -> Result<(), String> {
     crate::riot::process::stop_riot(confirmed.unwrap_or(false))
 }
 
-/// Injects the managed Riot session token YAML before launching.
-#[tauri::command]
-pub async fn inject_account_session(session_yaml: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || inject_account_session_sync(session_yaml))
-        .await
-        .map_err(|error| format!("Native operation failed: {error}"))?
-}
-pub fn inject_account_session_sync(session_yaml: String) -> Result<(), String> {
-    let _operation = crate::riot::operation::acquire()?;
-    idle()?;
-    let manager = RiotSessionManager::new();
-    manager.inject_session(&session_yaml)
-}
-
 /// Cleans up the managed Riot session and restores original user settings.
 #[tauri::command]
 pub async fn cleanup_account_session(
@@ -207,10 +193,7 @@ pub fn start_provisioning_session_sync(
     game: Option<Game>,
 ) -> Result<String, String> {
     let _operation = crate::riot::operation::acquire()?;
-    #[cfg(feature = "basic")]
     crate::local_store::LocalStore::new()?.authorize_provisioning(profile_id)?;
-    #[cfg(not(feature = "basic"))]
-    let _ = profile_id;
     let mut lock = provisioner_lock()?;
     if lock.is_some() {
         return Err("A sign-in is already in progress.".into());
@@ -380,36 +363,6 @@ pub fn complete_local_provisioning_sync(
     };
     *lock = None;
     result
-}
-#[cfg(not(feature = "basic"))]
-#[tauri::command]
-pub async fn switch_account_session(
-    session_yaml: String,
-    confirmed: Option<bool>,
-    owner_id: Option<String>,
-    game: Option<Game>,
-) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        switch_account_session_sync(session_yaml, confirmed, owner_id, game)
-    })
-    .await
-    .map_err(|error| format!("Native operation failed: {error}"))?
-}
-#[cfg(not(feature = "basic"))]
-pub fn switch_account_session_sync(
-    session_yaml: String,
-    confirmed: Option<bool>,
-    owner_id: Option<String>,
-    game: Option<Game>,
-) -> Result<(), String> {
-    let _operation = crate::riot::operation::acquire()?;
-    idle()?;
-    switch_session_unlocked(
-        &session_yaml,
-        confirmed.unwrap_or(false),
-        owner_id.as_deref().unwrap_or("external"),
-        game,
-    )
 }
 pub fn switch_session_unlocked(
     session: &str,

@@ -5,7 +5,6 @@ import {
   listenTauriEvent,
   openExternalUrl,
 } from '../lib/api'
-import { flavor } from '../product/flavors'
 import { parseSemver, isNewerVersion } from '../lib/version'
 
 export { parseSemver, isNewerVersion }
@@ -145,7 +144,7 @@ export function useUpdateChecker() {
 
   const checkForUpdates = useCallback(
     async (manual = false): Promise<GitHubReleaseInfo | null> => {
-      if (!hasTauri && flavor === 'basic') {
+      if (!hasTauri) {
         if (manual) {
           throw new Error('Update checks are not available in offline browser mode.')
         }
@@ -158,124 +157,44 @@ export function useUpdateChecker() {
       setInstallError(null)
 
       try {
-        if (hasTauri) {
-          const res = await invokeTauri<NativeUpdateResult>('check_github_update')
-          setLastChecked(new Date())
+        const res = await invokeTauri<NativeUpdateResult>('check_github_update')
+        setLastChecked(new Date())
 
-          const isInstallable =
-            res.is_installable !== undefined
-              ? Boolean(res.is_installable && res.signature && res.download_url)
-              : Boolean(res.signature && res.download_url)
-          const releaseInfo: GitHubReleaseInfo = {
-            tagName: `v${res.latest_version}`,
-            version: res.latest_version,
-            name: res.release_name || `Release v${res.latest_version}`,
-            body: res.release_notes || 'New updates and improvements are available.',
-            htmlUrl: res.html_url || `https://github.com/${GITHUB_REPO}/releases/latest`,
-            publishedAt: res.published_at || new Date().toISOString(),
-            downloadUrl: res.download_url,
-            signature: res.signature,
-            edition: res.edition,
-            platform: res.platform,
-            isInstallable,
-          }
-
-          setLatestRelease(releaseInfo)
-
-          const dismissed = localStorage.getItem(DISMISSED_KEY)
-          if (res.has_update) {
-            if (manual || dismissed !== res.latest_version) {
-              setUpdateAvailable(true)
-              setStatus('available')
-            } else {
-              setUpdateAvailable(false)
-              setStatus('idle')
-            }
-          } else {
-            setUpdateAvailable(false)
-            setStatus('up-to-date')
-          }
-
-          return releaseInfo
+        const isInstallable =
+          res.is_installable !== undefined
+            ? Boolean(res.is_installable && res.signature && res.download_url)
+            : Boolean(res.signature && res.download_url)
+        const releaseInfo: GitHubReleaseInfo = {
+          tagName: `v${res.latest_version}`,
+          version: res.latest_version,
+          name: res.release_name || `Release v${res.latest_version}`,
+          body: res.release_notes || 'New updates and improvements are available.',
+          htmlUrl: res.html_url || `https://github.com/${GITHUB_REPO}/releases/latest`,
+          publishedAt: res.published_at || new Date().toISOString(),
+          downloadUrl: res.download_url,
+          signature: res.signature,
+          edition: res.edition,
+          platform: res.platform,
+          isInstallable,
         }
 
-        // Web preview fallback (Team edition browser environment)
-        const controller = new AbortController()
-        const timeout = window.setTimeout(() => controller.abort(), 10000)
-        try {
-          const res = await fetch(
-            `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
-            {
-              signal: controller.signal,
-              headers: {
-                Accept: 'application/vnd.github.v3+json',
-              },
-            },
-          )
+        setLatestRelease(releaseInfo)
 
-          if (!res.ok) {
-            if (res.status === 404) {
-              setUpdateAvailable(false)
-              setStatus('up-to-date')
-              setLastChecked(new Date())
-              return null
-            }
-            if (res.status === 403) {
-              throw new Error('GitHub API rate limit reached. Try again later.')
-            }
-            throw new Error(`GitHub API error (${res.status})`)
-          }
-
-          const data = (await res.json()) as {
-            tag_name?: string
-            name?: string
-            body?: string
-            html_url?: string
-            published_at?: string
-          }
-
-          setLastChecked(new Date())
-
-          if (!data.tag_name) {
-            setUpdateAvailable(false)
-            setStatus('up-to-date')
-            return null
-          }
-
-          const releaseVersion = data.tag_name.replace(/^v/, '')
-          const releaseInfo: GitHubReleaseInfo = {
-            tagName: data.tag_name,
-            version: releaseVersion,
-            name: data.name || `Release ${data.tag_name}`,
-            body: data.body || 'New updates and improvements are available.',
-            htmlUrl:
-              data.html_url || `https://github.com/${GITHUB_REPO}/releases/latest`,
-            publishedAt: data.published_at || new Date().toISOString(),
-            isInstallable: false,
-          }
-
-          setLatestRelease(releaseInfo)
-
-          const isNew = isNewerVersion(releaseVersion, currentVersion)
-          const dismissed = localStorage.getItem(DISMISSED_KEY)
-
-          if (isNew) {
-            if (manual || dismissed !== releaseVersion) {
-              setUpdateAvailable(true)
-              setStatus('available')
-            } else {
-              setUpdateAvailable(false)
-              setStatus('idle')
-            }
+        const dismissed = localStorage.getItem(DISMISSED_KEY)
+        if (res.has_update) {
+          if (manual || dismissed !== res.latest_version) {
+            setUpdateAvailable(true)
+            setStatus('available')
           } else {
             setUpdateAvailable(false)
-            setStatus('up-to-date')
+            setStatus('idle')
           }
-
-          return releaseInfo
-        } finally {
-          window.clearTimeout(timeout)
+        } else {
+          setUpdateAvailable(false)
+          setStatus('up-to-date')
         }
+
+        return releaseInfo
       } catch (cause) {
         const msg = cause instanceof Error ? cause.message : String(cause)
         setCheckError(msg)
@@ -288,7 +207,7 @@ export function useUpdateChecker() {
         setChecking(false)
       }
     },
-    [currentVersion],
+    [],
   )
 
   const downloadAndInstallUpdate = useCallback(
@@ -355,7 +274,7 @@ export function useUpdateChecker() {
 
   // Auto-check on launch if enabled and not offline-only browser test
   useEffect(() => {
-    if (autoCheckOnLaunch && (hasTauri || flavor !== 'basic')) {
+    if (autoCheckOnLaunch && hasTauri) {
       void checkForUpdates(false)
     }
   }, [autoCheckOnLaunch, checkForUpdates])

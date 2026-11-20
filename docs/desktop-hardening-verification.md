@@ -15,7 +15,7 @@ Three additional Rust regression tests cover an exited child without skipping it
 - Quick import detects name/region/PUUID when available in Riot YAML or local token claims, then presents a review dialog. Missing metadata stays missing until the user supplies it. Token claims are informational, not trusted authentication.
 - Dialog closure/unmount invalidates pending polling results and cancels only its owned provisioning ID. Rust polling never falls back to the active user's login. A private staging snapshot preserves original settings; cancellation restores originals and removes staging. Abandoned snapshots are recoverable on restart.
 - Stop preserves login files. Switch serializes stop, session injection and launch, then updates the existing `last_used_at` timestamp. League and Valorant game processes require explicit exit consent. Windows sends WM_CLOSE before termination fallback; Unix sends SIGTERM. Failure to exit is actionable and prevents injection.
-- Native operation locks protect against overlap inside and between LAAP instances. Provisioning holds a separate cross-process lease. A session owner marker prevents an old cloud cleanup from stopping a newer local session. Slow native IPC commands execute on blocking workers rather than the UI thread.
+- Native operation locks protect against overlap inside and between LAAP instances. Provisioning holds a separate cross-process lease. A session owner marker prevents a stale cleanup from stopping a newer local session. Slow native IPC commands execute on blocking workers rather than the UI thread.
 - Sign in again updates an existing profile's credentials in place, preserving name, region, rank, notes, favorite and creation date. Known PUUID mismatches are rejected. Missing fields in legacy profiles deserialize with defaults.
 - Editing supports all profile metadata. Sorting supports names, competitive rank tier/division, last played and creation date. Arabic/Roman divisions normalize equally; unknown/unranked labels remain last in either direction. Regions are grouped geographically, including SG, TW, VN, PH, TH and ME; previously saved SEA profiles remain supported.
 - Vault operations serialize the entire read/modify/write transaction using process and OS file locks. Temporary filenames are unique; replacements are atomic, including Windows replacement without deleting the destination first. Damaged records are preserved in restricted quarantine files and valid records still load. If no record is readable, the original vault is preserved and a load error is returned.
@@ -27,7 +27,7 @@ Run from the repository root:
 
 ```sh
 npm run build
-npm --workspace @laap/desktop run build:offline
+npm --workspace @laap/desktop run build
 npm run test
 npm --workspace @laap/desktop run test:sorting
 npx playwright install chromium

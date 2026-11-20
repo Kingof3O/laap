@@ -1,7 +1,7 @@
 <div align="center">
   <img src="docs/assets/logo.webp" alt="LAAP — League Account Launcher" width="380" />
   <h1>LAAP Desktop</h1>
-  <p><strong>The modern, secure account manager and stealth presence launcher for League of Legends.</strong></p>
+  <p><strong>The modern, local account manager for League of Legends and VALORANT.</strong></p>
 
   <p>
     <a href="https://github.com/Kingof3O/laap/releases/latest"><img src="https://img.shields.io/github/v/release/Kingof3O/laap?style=flat-square&color=8B5CF6&label=download" alt="Download Release" /></a>
@@ -13,7 +13,6 @@
   <p>
     <a href="https://github.com/Kingof3O/laap/releases/latest"><strong>⬇️ Download Latest Release</strong></a> •
     <a href="#key-features">Key Features</a> •
-    <a href="#how-it-works">How It Works</a> •
     <a href="#basic-and-pro">Basic and Pro</a> •
     <a href="#security--anti-cheat-safety">Security & Safety</a> •
     <a href="#local-development">Development</a>
@@ -24,7 +23,7 @@
 
 ## Overview
 
-**LAAP** (League Account Auto Provisioner) is a native, high-performance desktop launcher engineered for League of Legends players who manage multiple accounts. Built on **Tauri 2**, **Rust**, and **React 19**, LAAP eliminates the friction of logging into smurfs, scrim accounts, and alts—allowing you to switch profiles in a single click without re-entering passwords or solving 2FA challenges every time.
+**LAAP** (League Account Auto Provisioner) is a native, high-performance desktop launcher engineered for League of Legends and VALORANT players who manage multiple accounts. Built on **Tauri 2**, **Rust**, and **React 19**, LAAP eliminates the friction of logging into smurfs, scrim accounts, and alts—allowing you to switch profiles in a single click without re-entering passwords or solving 2FA challenges every time.
 
 Featuring a dark-first, refined **Velvet Amethyst** aesthetic, LAAP delivers the responsiveness and polish of a premier native desktop utility while keeping your credentials cryptographically secured in your hardware vault.
 
@@ -41,7 +40,7 @@ Featuring a dark-first, refined **Velvet Amethyst** aesthetic, LAAP delivers the
 ## Key Features
 
 ### ⚡ 1-Click Fast Account Switching
-Switch seamlessly between your main, smurfs, and alternate accounts in seconds. LAAP securely restores your active Riot Client session handshakes, launches the official client directly into League of Legends, and updates your last-played history without touching game memory.
+Switch seamlessly between your main, smurfs, and alternate accounts in seconds. LAAP securely restores your active Riot Client session handshakes, launches the selected game through the official Riot Client, and updates your last-played history without touching game memory.
 
 ### Game integrity
 
@@ -56,7 +55,7 @@ Play games in complete stealth. LAAP includes an integrated local proxy that let
 ### 📝 Smurf Notes, Favorites & Custom Profiles
 - **Profile Notes:** Add context to your accounts (e.g., *"Duo with Alex"*, *"Mid practice smurf"*, *"D1 MMR"*).
 - **Favorites & Recency:** Star your daily accounts to keep them pinned at the top, with dynamic recency indicators showing where you last played.
-- **Ranks & Crests:** Automatic Solo/Duo rank synchronization and custom summoner icon caching directly from Data Dragon.
+- **Ranks & Crests:** Automatic Solo/Duo rank synchronization and custom summoner icon caching from Data Dragon.
 - **Quick Search (`Ctrl+K` / `Cmd+K`):** Instantly filter accounts by summoner name, server region, or competitive tier.
 
 ### 🏆 Live OP.GG Season Stats & Rank Sync
@@ -76,7 +75,7 @@ Enjoy a native, borderless desktop window with drag support, maximize/restore to
 
 ## Basic and Pro
 
-The maintained LAAP app is a local League of Legends account manager. Basic supports two active profiles and works without a billing account. Pro unlocks unlimited profiles on one computer through the same app and updater.
+LAAP manages local accounts for League of Legends and VALORANT. Basic supports two active profiles and works without a billing account. Pro unlocks unlimited profiles on one computer through the same app and updater.
 
 The planned Pro launch prices are $3 monthly, $20 yearly, and $60 lifetime. Checkout availability depends on launch approval and billing configuration. If Pro ends, extra profiles stay saved locally. Basic users can replace an active profile with another saved profile without deleting either account. See the [billing setup and release checks](billing/README.md).
 
@@ -89,7 +88,7 @@ LAAP was engineered from day one with a strict security boundary:
 1. **No Password Ingestion:** LAAP does not prompt for or harvest Riot account passwords. Instead, you log in normally through the official Riot Client once; LAAP captures the local session token created by Riot.
 2. **Match Protection Guard:** Before switching accounts or shutting down Riot processes, LAAP scans active process trees. If a live League of Legends or Valorant match is in progress, LAAP blocks termination and demands explicit user confirmation to prevent accidental remakes or AFK penalties.
 3. **Hardware Keystore Binding:** Stored tokens are bound to your local OS user account via Windows DPAPI / Keychain. Exporting or moving vault files to another computer cannot decrypt your sessions.
-4. **Transparent Native Code:** The complete native backend is open-source and audited in Rust. See our [Security Model](docs/SECURITY_MODEL.md) and [Native Interaction Verification](docs/ANTI_BAN_VERIFICATION.md).
+4. **Native implementation:** See the [Security Model](docs/SECURITY_MODEL.md) and [Native Interaction Verification](docs/ANTI_BAN_VERIFICATION.md).
 
 ---
 
@@ -108,48 +107,10 @@ Pre-built binaries are available for Windows and macOS on our [Releases Page](ht
 
 ## Local Development
 
-Prerequisites: Node.js 22+, Rust (stable), and Microsoft C++ Build Tools (on Windows).
-
-```bash
-# Clone the repository
-git clone https://github.com/Kingof3O/laap.git
-cd laap
-
-# Install dependencies
-npm ci
-
-# Run Complete (Native Desktop)
-npm --workspace @laap/desktop run tauri dev
-
-# Run Basic (Native Desktop)
-npm --workspace @laap/desktop run tauri:offline
-
-# Run Studio (Native Desktop)
-npm --workspace @laap/desktop run tauri:studio
-
-# Quick Browser UI Preview (Vite)
-npm --workspace @laap/desktop run dev
-npm --workspace @laap/desktop run dev:offline
-```
-
-### Verification & Testing
-```bash
-# Run deterministic updater, sorting, and lease test suites
-npm --workspace @laap/desktop run test:updater
-npm --workspace @laap/desktop run test:sorting
-npm --workspace @laap/desktop run test:lease-exit
-
-# Run Basic Playwright regression suite
-npm --workspace @laap/desktop run test:ui
-
-# Run native Rust unit test suite (48 tests)
-npm --workspace @laap/desktop run test
-```
-
----
+Run `npm ci`, then `npm --workspace @laap/desktop run tauri dev`. See [development and packaging](docs/DEVELOPMENT.md) for requirements, tests, and installer builds.
 
 ## License & Attribution
 
 - **License:** MIT License. See [LICENSE](LICENSE) for details.
-- **Disclaimer:** LAAP is an independent open-source tool and is not endorsed by, affiliated with, or associated with Riot Games, Inc. League of Legends and Riot Games are trademarks or registered trademarks of Riot Games, Inc.
-- **Version History & Changelog:** For technical release notes and patch history, consult [CHANGELOG.md](CHANGELOG.md) and the [V2 Implementation Reports](docs/LAAP_V2_IMPLEMENTATION_REPORT.md).
+- **Disclaimer:** LAAP is an independent desktop app and is not endorsed by, affiliated with, or associated with Riot Games, Inc. League of Legends and Riot Games are trademarks or registered trademarks of Riot Games, Inc.
+- **Version History & Changelog:** For technical release notes and patch history, consult [CHANGELOG.md](CHANGELOG.md).

@@ -7,10 +7,8 @@ import os from 'node:os'
 import child_process from 'node:child_process'
 import {
   generateManifest,
-  validateManifest,
   validateReleasePublication,
   verifyArtifactSignature,
-  parseMinisignPublicKey,
 } from '../../../scripts/generate-update-manifest.mjs'
 
 describe('Isolated Native Windows Upgrade & macOS Verification Test', () => {
@@ -26,7 +24,7 @@ describe('Isolated Native Windows Upgrade & macOS Verification Test', () => {
       assert.equal(fs.readdirSync(clientVaultDir).length, 0, 'Client vault must be empty (no production accounts)')
 
       // 2. Generate isolated test Ed25519 signing keypair for updater
-      const keyGenOut = child_process.execSync(
+      child_process.execSync(
         `npx --workspace @laap/desktop tauri signer generate --force -w "${path.join(sandboxDir, 'test_key')}" -p "isolated-test-pass"`,
         { encoding: 'utf8' }
       )
@@ -39,25 +37,20 @@ describe('Isolated Native Windows Upgrade & macOS Verification Test', () => {
       const privKeyRaw = fs.readFileSync(privKeyPath, 'utf8').trim()
 
       // 3. Construct realistic Windows NSIS installer artifact with genuine MZ PE header
-      const winTeamExe = path.join(releaseAssetsDir, 'LAAP-Desktop-1.1.0-x64-setup.exe')
       const winOfflineExe = path.join(releaseAssetsDir, 'LAAP-Offline-1.1.0-x64-setup.exe')
-      const macTeamTar = path.join(releaseAssetsDir, 'LAAP-Desktop-1.1.0-universal.app.tar.gz')
       const macOfflineTar = path.join(releaseAssetsDir, 'LAAP-Offline-1.1.0-universal.app.tar.gz')
 
       // Write simulated Windows PE executables (starting with 'MZ' DOS header)
       const peHeader = Buffer.from([0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00])
-      const teamExeBytes = Buffer.concat([peHeader, Buffer.from('LAAP Team Edition Windows x64 Executable Payload v1.1.0')])
       const offlineExeBytes = Buffer.concat([peHeader, Buffer.from('LAAP Offline Edition Windows x64 Executable Payload v1.1.0')])
-      fs.writeFileSync(winTeamExe, teamExeBytes)
       fs.writeFileSync(winOfflineExe, offlineExeBytes)
 
       // Write simulated macOS tar.gz (starting with gzip magic bytes 0x1f, 0x8b)
       const gzHeader = Buffer.from([0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00])
-      fs.writeFileSync(macTeamTar, Buffer.concat([gzHeader, Buffer.from('macOS Team payload')]))
       fs.writeFileSync(macOfflineTar, Buffer.concat([gzHeader, Buffer.from('macOS Offline payload')]))
 
       // 4. Sign all artifacts using tauri signer tool and the test private key
-      for (const asset of [winTeamExe, winOfflineExe, macTeamTar, macOfflineTar]) {
+      for (const asset of [winOfflineExe, macOfflineTar]) {
         const signEnv = {
           ...process.env,
           TAURI_SIGNING_PRIVATE_KEY: privKeyRaw,
@@ -70,14 +63,7 @@ describe('Isolated Native Windows Upgrade & macOS Verification Test', () => {
         assert.ok(fs.existsSync(`${asset}.sig`), `Signature file for ${path.basename(asset)} must exist`)
       }
 
-      // 5. Generate and validate manifests for both editions
-      const teamManifest = generateManifest({
-        version: '1.1.0',
-        tag: 'v1.1.0',
-        edition: 'team',
-        artifactsDir: releaseAssetsDir,
-      })
-
+      // 5. Generate and validate manifests for the Offline channel
       const offlineManifest = generateManifest({
         version: '1.1.0',
         tag: 'v1.1.0',
@@ -95,18 +81,17 @@ describe('Isolated Native Windows Upgrade & macOS Verification Test', () => {
       })
       assert.equal(pubCheck.valid, true, `Publication readiness must pass: ${pubCheck.errors.join('; ')}`)
 
-      // 6. Simulate Windows Client Update Check (Team Edition)
-      const clientCurrentVersion = '1.0.0'
-      const clientAppEdition = 'team'
+      // 6. Simulate Windows Client Update Check (Offline channel)
+      const clientAppEdition = 'offline'
       const clientPlatform = 'windows-x86_64'
 
-      assert.equal(teamManifest.edition, clientAppEdition, 'Manifest edition must match client edition')
-      const winTarget = teamManifest.platforms[clientPlatform]
+      assert.equal(offlineManifest.edition, clientAppEdition, 'Manifest edition must match client edition')
+      const winTarget = offlineManifest.platforms[clientPlatform]
       assert.ok(winTarget, 'Windows x86_64 target must exist in manifest')
-      assert.ok(winTarget.url.endsWith('LAAP-Desktop-1.1.0-x64-setup.exe'), 'URL must target team Windows installer')
+      assert.ok(winTarget.url.endsWith('LAAP-Offline-1.1.0-x64-setup.exe'), 'URL must target the Offline Windows installer')
 
       // 7. Verify Windows payload bytes against signature and public key
-      const downloadedBytes = fs.readFileSync(winTeamExe)
+      const downloadedBytes = fs.readFileSync(winOfflineExe)
       assert.equal(downloadedBytes[0], 0x4d, 'Payload must have MZ header (byte 0)')
       assert.equal(downloadedBytes[1], 0x5a, 'Payload must have MZ header (byte 1)')
 
@@ -119,13 +104,7 @@ describe('Isolated Native Windows Upgrade & macOS Verification Test', () => {
       const isTamperedValid = verifyArtifactSignature(tamperedBytes, winTarget.signature, pubKeyRaw)
       assert.equal(isTamperedValid, false, 'Tampered Windows payload must fail cryptographic verification')
 
-      // 9. Cross-edition upgrade attack simulation: Team client trying to install Offline artifact
-      const offlineWinTarget = offlineManifest.platforms['windows-x86_64']
-      const offlineUrl = offlineWinTarget.url.toLowerCase()
-      const isCrossEditionBlocked = clientAppEdition === 'team' && offlineUrl.includes('offline')
-      assert.equal(isCrossEditionBlocked, true, 'Cross-edition update payload must be blocked')
-
-      // 10. Verify isolation: No Riot sessions or account vaults were touched or created
+      // 9. Verify isolation: No Riot sessions or account vaults were touched or created
       assert.equal(fs.readdirSync(clientVaultDir).length, 0, 'No account credentials were touched during upgrade test')
     } finally {
       fs.rmSync(sandboxDir, { recursive: true, force: true })

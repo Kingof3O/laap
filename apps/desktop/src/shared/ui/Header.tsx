@@ -3,7 +3,6 @@ import { ArrowUpCircle, RefreshCw, Settings, Square } from 'lucide-react'
 import { product } from '../../product/flavors'
 
 export interface HeaderProps {
-  navigation?: ReactNode
   brandLabel?: string
   isPro?: boolean
   onRefresh?: () => void
@@ -19,7 +18,7 @@ export interface HeaderProps {
 }
 
 export function Header({
-  navigation,  onRefresh,
+  onRefresh,
   brandLabel = product.name,
   isPro = false,
   onOpenSettings,
@@ -72,7 +71,6 @@ export function Header({
         )}
       </div>
 
-      {navigation}
 
       {/* Header Utilities */}
       <div className="header-utilities">

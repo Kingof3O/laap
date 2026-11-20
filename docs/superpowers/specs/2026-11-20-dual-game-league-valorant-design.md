@@ -511,7 +511,6 @@ future-revival note only.
 
 ### 8.15 Admin app / docs
 
-- The admin app (`apps/admin`) is billing/customers only and is not touched.
 - No API route, validation, or database changes are part of this release.
   Do not update `docs/API.md` for `games`; the API stays League/team-only
   and retired.

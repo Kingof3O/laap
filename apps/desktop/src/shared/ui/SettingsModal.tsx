@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import type { LauncherController } from '../../hooks/useLauncher'
 import { LauncherSettingsPanel } from './LauncherSettingsPanel'
-import { flavor, product } from '../../product/flavors'
+import { product } from '../../product/flavors'
 import { useDialog } from '../hooks/useDialog'
 import { X } from 'lucide-react'
 import type { BillingStatus } from '../../features/billing/useBilling'
@@ -24,10 +24,6 @@ import { AboutSettings } from './settings/AboutSettings'
 import { GeneralSettings } from './settings/GeneralSettings'
 import { LicenseSettings } from './settings/LicenseSettings'
 
-const categories = flavor === 'basic'
-  ? SETTINGS_CATEGORIES
-  : SETTINGS_CATEGORIES.filter(({ id }) => id !== 'license')
-
 export interface SettingsModalProps {
   isOpen: boolean
   onClose: () => void
@@ -48,7 +44,6 @@ export interface SettingsModalProps {
   onOpenReleaseModal?: () => void
   onOpenReleaseNotes?: () => void
   currentVersion?: string
-  advancedSettings?: ReactNode
   billingStatus?: BillingStatus | null
   onOpenBilling?: () => void
 }
@@ -73,12 +68,11 @@ export function SettingsModal({
   onOpenReleaseModal,
   onOpenReleaseNotes,
   currentVersion = APP_VERSION,
-  advancedSettings,
   billingStatus,
   onOpenBilling,
 }: SettingsModalProps) {
   const dialogRef = useDialog(isOpen, onClose, busy)
-  const [activeCategory, setActiveCategory] = useState<SettingsCategory>(categories[0].id)
+  const [activeCategory, setActiveCategory] = useState<SettingsCategory>(SETTINGS_CATEGORIES[0].id)
   const edition = billingStatus?.pro ? 'Pro' : product.name.replace(/^LAAP /, '')
 
   if (!isOpen) return null
@@ -118,7 +112,7 @@ export function SettingsModal({
             activeCategory={activeCategory}
             onSelectCategory={setActiveCategory}
             hasUpdate={updateAvailable}
-            categories={categories}
+            categories={SETTINGS_CATEGORIES}
           />
 
           {/* Right Content Pane */}
@@ -185,10 +179,7 @@ export function SettingsModal({
             )}
 
             {activeCategory === 'advanced' && (
-              <>
-                <AdvancedSettings onResetRiot={onResetRiot} busy={busy} />
-                {advancedSettings}
-              </>
+              <AdvancedSettings onResetRiot={onResetRiot} busy={busy} />
             )}
 
             {activeCategory === 'about' && (

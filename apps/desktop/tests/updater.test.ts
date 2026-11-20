@@ -69,9 +69,6 @@ function validateUpdateManifest(
   if (appEdition === 'offline' && !fileName.includes('offline')) {
     return { valid: false, reason: 'Artifact identity mismatch: offline edition cannot install non-offline artifact' }
   }
-  if (appEdition === 'team' && fileName.includes('offline')) {
-    return { valid: false, reason: 'Artifact identity mismatch: team edition cannot install offline artifact' }
-  }
   const validExts = ['.zip', '.nsis.zip', '.exe', '.msi', '.dmg', '.tar.gz', '.app.tar.gz']
   if (!validExts.some((ext) => fileName.endsWith(ext))) {
     return { valid: false, reason: 'Artifact identity mismatch: untrusted file extension' }
@@ -163,35 +160,24 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
   })
 
   // 2. Edition Enforcement
-  describe('Edition mismatch enforcement (Team vs. Offline)', () => {
+  describe('Offline channel enforcement', () => {
     const validPlatform = 'windows-x86_64'
     const validPlatforms: Record<string, TauriPlatformEntry> = {
       'windows-x86_64': {
-        url: 'https://github.com/Kingof3O/laap/releases/download/v0.4.9/laap_0.4.9_x64-setup.exe',
+        url: 'https://github.com/Kingof3O/laap/releases/download/v0.4.9/LAAP_Offline_0.4.9_x64-setup.exe',
         signature: 'validSignatureBase64==',
       },
     }
 
-    test('accepts matching team edition update', () => {
-      const manifest: TauriManifest = {
-        version: '0.4.9',
-        edition: 'team',
-        platforms: validPlatforms,
-      }
-      const res = validateUpdateManifest(manifest, '0.4.8', 'team', validPlatform)
-      assert.equal(res.valid, true)
-      assert.equal(res.downloadUrl, validPlatforms['windows-x86_64'].url)
-    })
-
-    test('rejects offline edition manifest when running team edition', () => {
+    test('accepts matching Offline update', () => {
       const manifest: TauriManifest = {
         version: '0.4.9',
         edition: 'offline',
         platforms: validPlatforms,
       }
-      const res = validateUpdateManifest(manifest, '0.4.8', 'team', validPlatform)
-      assert.equal(res.valid, false)
-      assert.match(res.reason ?? '', /Edition mismatch/)
+      const res = validateUpdateManifest(manifest, '0.4.8', 'offline', validPlatform)
+      assert.equal(res.valid, true)
+      assert.equal(res.downloadUrl, validPlatforms['windows-x86_64'].url)
     })
 
     test('rejects team edition manifest when running offline edition', () => {
@@ -211,7 +197,7 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
     test('rejects update when target architecture does not match', () => {
       const manifest: TauriManifest = {
         version: '0.4.9',
-        edition: 'team',
+        edition: 'offline',
         platforms: {
           'darwin-aarch64': {
             url: 'https://github.com/Kingof3O/laap/releases/download/v0.4.9/laap.app.tar.gz',
@@ -224,7 +210,7 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
         },
       }
 
-      const res = validateUpdateManifest(manifest, '0.4.8', 'team', 'windows-x86_64')
+      const res = validateUpdateManifest(manifest, '0.4.8', 'offline', 'windows-x86_64')
       assert.equal(res.valid, false)
       assert.match(res.reason ?? '', /No matching platform found/)
     })
@@ -232,7 +218,7 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
     test('rejects insecure HTTP download URLs', () => {
       const manifest: TauriManifest = {
         version: '0.4.9',
-        edition: 'team',
+        edition: 'offline',
         platforms: {
           'windows-x86_64': {
             url: 'http://insecure-cdn.com/laap-installer.exe',
@@ -241,7 +227,7 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
         },
       }
 
-      const res = validateUpdateManifest(manifest, '0.4.8', 'team', 'windows-x86_64')
+      const res = validateUpdateManifest(manifest, '0.4.8', 'offline', 'windows-x86_64')
       assert.equal(res.valid, false)
       assert.match(res.reason ?? '', /HTTPS endpoint/)
     })
@@ -249,16 +235,16 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
     test('rejects missing or empty signature', () => {
       const manifest: TauriManifest = {
         version: '0.4.9',
-        edition: 'team',
+        edition: 'offline',
         platforms: {
           'windows-x86_64': {
-            url: 'https://github.com/Kingof3O/laap/releases/download/v0.4.9/laap_0.4.9_x64-setup.exe',
+            url: 'https://github.com/Kingof3O/laap/releases/download/v0.4.9/LAAP_Offline_0.4.9_x64-setup.exe',
             signature: '   ',
           },
         },
       }
 
-      const res = validateUpdateManifest(manifest, '0.4.8', 'team', 'windows-x86_64')
+      const res = validateUpdateManifest(manifest, '0.4.8', 'offline', 'windows-x86_64')
       assert.equal(res.valid, false)
       assert.match(res.reason ?? '', /signature missing/)
     })
@@ -446,18 +432,18 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
     test('validates correctly structured manifest with Ed25519 signatures', () => {
       const validManifest: TauriManifest = {
         version: '1.0.1',
-        edition: 'team',
+        edition: 'offline',
         notes: 'Security patch and performance enhancements.',
         pub_date: new Date().toISOString(),
         platforms: {
           'windows-x86_64': {
-            url: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Desktop-1.0.1-x64-setup.nsis.zip',
+            url: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Offline-1.0.1-x64-setup.nsis.zip',
             signature: 'dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHNpZ25hdHVyZQpSV1M...64charsignature...',
           },
         },
       }
 
-      const res = validateUpdateManifest(validManifest, '1.0.0', 'team', 'windows-x86_64')
+      const res = validateUpdateManifest(validManifest, '1.0.0', 'offline', 'windows-x86_64')
       assert.equal(res.valid, true)
       assert.equal(res.downloadUrl, validManifest.platforms['windows-x86_64'].url)
     })
@@ -465,7 +451,7 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
     test('rejects manifests attempting downgrade to older version', () => {
       const downgradeManifest: TauriManifest = {
         version: '0.4.8',
-        edition: 'team',
+        edition: 'offline',
         platforms: {
           'windows-x86_64': {
             url: 'https://github.com/Kingof3O/laap/releases/download/v0.4.8/LAAP-Desktop-0.4.8.nsis.zip',
@@ -474,7 +460,7 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
         },
       }
 
-      const res = validateUpdateManifest(downgradeManifest, '1.0.0', 'team', 'windows-x86_64')
+      const res = validateUpdateManifest(downgradeManifest, '1.0.0', 'offline', 'windows-x86_64')
       assert.equal(res.valid, false)
       assert.match(res.reason ?? '', /not newer than current/)
     })
@@ -508,21 +494,10 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
           )
         }
 
-        const teamManifest = generateManifest({
-          version: '1.0.1',
-          tag: 'v1.0.1',
-          edition: 'team',
-          artifactsDir: tempDir,
-        })
-
-        // Verify team manifest never contains offline assets
-        for (const entry of Object.values(teamManifest.platforms)) {
-          assert.equal(
-            (entry as any).url.toLowerCase().includes('offline'),
-            false,
-            'Team manifest must not contain offline assets',
-          )
-        }
+        assert.ok(offlineManifest.platforms['darwin-universal'])
+        assert.throws(() => generateManifest({
+          version: '1.0.1', tag: 'v1.0.1', edition: 'team', artifactsDir: tempDir,
+        }), /Expected offline/)
       } finally {
         fs.rmSync(tempDir, { recursive: true, force: true })
       }
@@ -534,7 +509,7 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
         const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519')
         const rawPub = publicKey.export({ type: 'spki', format: 'der' }).subarray(12)
 
-        const artifactPath = path.join(tempDir, 'LAAP-Desktop-1.0.1-x64-setup.nsis.zip')
+        const artifactPath = path.join(tempDir, 'LAAP-Offline-1.0.1-x64-setup.nsis.zip')
         const artifactContent = Buffer.from('Official genuine binary package')
         fs.writeFileSync(artifactPath, artifactContent)
 
@@ -553,7 +528,7 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
         const manifest = generateManifest({
           version: '1.0.1',
           tag: 'v1.0.1',
-          edition: 'team',
+          edition: 'offline',
           artifactsDir: tempDir,
         })
 
@@ -591,13 +566,13 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
         version: '1.0.1',
         platforms: {
           'windows-x86_64': {
-            url: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Desktop-1.0.1-x64-setup.nsis.zip',
+            url: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Offline-1.0.1-x64-setup.nsis.zip',
             signature: 'validSignature',
           },
         },
       }
 
-      const res = validateUpdateManifest(manifestWithoutEdition, '1.0.0', 'team', 'windows-x86_64')
+      const res = validateUpdateManifest(manifestWithoutEdition, '1.0.0', 'offline', 'windows-x86_64')
       assert.equal(res.valid, false)
       assert.match(res.reason ?? '', /Missing mandatory edition metadata/)
     })
@@ -608,13 +583,13 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
         edition: '   ',
         platforms: {
           'windows-x86_64': {
-            url: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Desktop-1.0.1-x64-setup.nsis.zip',
+            url: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Offline-1.0.1-x64-setup.nsis.zip',
             signature: 'validSignature',
           },
         },
       }
 
-      const res = validateUpdateManifest(emptyEditionManifest, '1.0.0', 'team', 'windows-x86_64')
+      const res = validateUpdateManifest(emptyEditionManifest, '1.0.0', 'offline', 'windows-x86_64')
       assert.equal(res.valid, false)
       assert.match(res.reason ?? '', /Missing mandatory edition metadata/)
     })
@@ -635,35 +610,21 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
       assert.equal(offlineRes.valid, false)
       assert.match(offlineRes.reason ?? '', /Artifact identity mismatch: offline edition/)
 
-      // Team client receiving offline URL
-      const teamManifestWithOfflineUrl: TauriManifest = {
-        version: '1.0.1',
-        edition: 'team',
-        platforms: {
-          'windows-x86_64': {
-            url: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Offline-1.0.1-x64-setup.nsis.zip',
-            signature: 'validSignature',
-          },
-        },
-      }
-      const teamRes = validateUpdateManifest(teamManifestWithOfflineUrl, '1.0.0', 'team', 'windows-x86_64')
-      assert.equal(teamRes.valid, false)
-      assert.match(teamRes.reason ?? '', /Artifact identity mismatch: team edition/)
     })
 
     test('fails closed when artifact download URL has untrusted file extension', () => {
       const untrustedExtensionManifest: TauriManifest = {
         version: '1.0.1',
-        edition: 'team',
+        edition: 'offline',
         platforms: {
           'windows-x86_64': {
-            url: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Desktop-1.0.1.sh',
+            url: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Offline-1.0.1.sh',
             signature: 'validSignature',
           },
         },
       }
 
-      const res = validateUpdateManifest(untrustedExtensionManifest, '1.0.0', 'team', 'windows-x86_64')
+      const res = validateUpdateManifest(untrustedExtensionManifest, '1.0.0', 'offline', 'windows-x86_64')
       assert.equal(res.valid, false)
       assert.match(res.reason ?? '', /untrusted file extension/)
     })
@@ -765,8 +726,8 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
         html_url: 'https://github.com/Kingof3O/laap/releases/tag/v1.0.1',
         assets: [
           {
-            name: 'LAAP-Desktop-1.0.1-x64-setup.exe',
-            browser_download_url: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Desktop-1.0.1-x64-setup.exe',
+            name: 'LAAP-Offline-1.0.1-x64-setup.exe',
+            browser_download_url: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Offline-1.0.1-x64-setup.exe',
           },
         ],
       }
@@ -790,7 +751,7 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
         has_update: true,
         is_installable: true,
         latest_version: '1.0.1',
-        download_url: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Desktop-1.0.1-x64-setup.nsis.zip',
+        download_url: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Offline-1.0.1-x64-setup.nsis.zip',
         signature: 'dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHNpZ25hdHVyZQ...',
       }
 
@@ -817,7 +778,7 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
       const ordinaryRelease = {
         isInstallable: false,
         signature: null,
-        downloadUrl: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Desktop-1.0.1-x64-setup.exe',
+        downloadUrl: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Offline-1.0.1-x64-setup.exe',
       }
       const ordinaryCTA = resolveModalCTA(ordinaryRelease)
       assert.equal(ordinaryCTA.actionType, 'manual-download')
@@ -826,7 +787,7 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
       const verifiedRelease = {
         isInstallable: true,
         signature: 'validSignature',
-        downloadUrl: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Desktop-1.0.1-x64-setup.nsis.zip',
+        downloadUrl: 'https://github.com/Kingof3O/laap/releases/download/v1.0.1/LAAP-Offline-1.0.1-x64-setup.nsis.zip',
       }
       const verifiedCTA = resolveModalCTA(verifiedRelease)
       assert.equal(verifiedCTA.actionType, 'auto-install')
@@ -835,8 +796,8 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
   })
 
   // 11. Complete Dual-Edition Release Publication Flow (Requirement 3 & 4)
-  describe('Complete dual-edition release publication flow and advertised platform coverage', () => {
-    test('validateReleasePublication passes when both editions have complete manifests for all advertised platforms', () => {
+  describe('Offline release publication and advertised platform coverage', () => {
+    test('validateReleasePublication passes with a complete Offline manifest for all advertised platforms', () => {
       const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'laap-full-release-'))
       try {
         const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519')
@@ -856,9 +817,6 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
           fs.writeFileSync(`${filePath}.sig`, sigStr)
         }
 
-        // Team edition: Windows + macOS
-        createSignedAsset('LAAP-Desktop-1.0.1-x64-setup.nsis.zip', 'Team Windows NSIS zip')
-        createSignedAsset('LAAP-Desktop-1.0.1.app.tar.gz', 'Team macOS Tar Gz')
 
         // Offline edition: Windows + macOS
         createSignedAsset('LAAP-Offline-1.0.1-x64-setup.nsis.zip', 'Offline Windows NSIS zip')
@@ -873,59 +831,9 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
         })
 
         assert.equal(releaseCheck.valid, true, `Expected valid full release: ${releaseCheck.errors.join(', ')}`)
-        assert.ok(releaseCheck.teamManifest)
         assert.ok(releaseCheck.offlineManifest)
-        assert.ok(releaseCheck.teamManifest?.platforms['windows-x86_64'])
-        assert.ok(releaseCheck.teamManifest?.platforms['darwin-universal'])
         assert.ok(releaseCheck.offlineManifest?.platforms['windows-x86_64'])
         assert.ok(releaseCheck.offlineManifest?.platforms['darwin-universal'])
-      } finally {
-        fs.rmSync(tempDir, { recursive: true, force: true })
-      }
-    })
-
-    test('validateReleasePublication passes for three editions when studio is included', () => {
-      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'laap-three-editions-release-'))
-      try {
-        const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519')
-        const rawPub = publicKey.export({ type: 'spki', format: 'der' }).subarray(12)
-
-        function createSignedAsset(name: string, contentStr: string) {
-          const filePath = path.join(tempDir, name)
-          const content = Buffer.from(contentStr)
-          fs.writeFileSync(filePath, content)
-
-          const sig = crypto.sign(null, content, privateKey).toString('base64')
-          fs.writeFileSync(`${filePath}.sig`, sig)
-        }
-
-        // Team edition
-        createSignedAsset('LAAP-Desktop-1.0.1-x64-setup.nsis.zip', 'Team Windows NSIS zip')
-        createSignedAsset('LAAP-Desktop-1.0.1.app.tar.gz', 'Team macOS Tar Gz')
-
-        // Offline edition
-        createSignedAsset('LAAP-Offline-1.0.1-x64-setup.nsis.zip', 'Offline Windows NSIS zip')
-        createSignedAsset('LAAP-Offline-1.0.1.app.tar.gz', 'Offline macOS Tar Gz')
-
-        // Studio edition
-        createSignedAsset('LAAP-Studio-1.0.1-x64-setup.nsis.zip', 'Studio Windows NSIS zip')
-        createSignedAsset('LAAP-Studio-1.0.1.app.tar.gz', 'Studio macOS Tar Gz')
-
-        const releaseCheck = validateReleasePublication({
-          version: '1.0.1',
-          tag: 'v1.0.1',
-          artifactsDir: tempDir,
-          pubkey: rawPub,
-          requireArtifactVerification: true,
-          editions: ['team', 'offline', 'studio'],
-        })
-
-        assert.equal(releaseCheck.valid, true, `Expected valid three-edition release: ${releaseCheck.errors.join(', ')}`)
-        assert.ok(releaseCheck.teamManifest)
-        assert.ok(releaseCheck.offlineManifest)
-        assert.ok(releaseCheck.studioManifest)
-        assert.ok(releaseCheck.studioManifest?.platforms['windows-x86_64'])
-        assert.ok(releaseCheck.studioManifest?.platforms['darwin-universal'])
       } finally {
         fs.rmSync(tempDir, { recursive: true, force: true })
       }
@@ -951,9 +859,6 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
           fs.writeFileSync(`${filePath}.sig`, sigStr)
         }
 
-        // Team has both
-        createSignedAsset('LAAP-Desktop-1.0.1-x64-setup.nsis.zip', 'Team Windows NSIS zip')
-        createSignedAsset('LAAP-Desktop-1.0.1.app.tar.gz', 'Team macOS Tar Gz')
 
         // Offline ONLY has macOS (Windows missing!)
         createSignedAsset('LAAP-Offline-1.0.1.app.tar.gz', 'Offline macOS Tar Gz')
@@ -984,14 +889,14 @@ describe('LAAP V2 Update Engine Deterministic Tests', () => {
 
         // Create unsigned SignPath-like installer without .sig file
         fs.writeFileSync(
-          path.join(tempDir, 'LAAP-Desktop-1.0.1-x64-setup.exe'),
+          path.join(tempDir, 'LAAP-Offline-1.0.1-x64-setup.exe'),
           Buffer.from('Authenticode signed installer without Tauri updater sig'),
         )
 
         const manifest = generateManifest({
           version: '1.0.1',
           tag: 'v1.0.1',
-          edition: 'team',
+          edition: 'offline',
           artifactsDir: tempDir,
           sign: false, // no signing
         })

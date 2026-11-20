@@ -133,19 +133,14 @@ impl LocalStore {
         }
     }
     pub fn load_accounts(&self) -> Result<Vec<LocalAccount>, String> {
-        #[cfg(feature = "basic")]
-        return self.storage.with_profile_access(false, |accounts, access| {
+        self.storage.with_profile_access(false, |accounts, access| {
             accounts.retain(|account| access.allows(&account.id));
             Ok(std::mem::take(accounts))
-        });
-        #[cfg(not(feature = "basic"))]
-        self.storage.load()
+        })
     }
-    #[cfg(feature = "basic")]
     pub fn profile_slots(&self) -> Result<super::ProfileSlots, String> {
         self.storage.with_profile_access(false, |accounts, access| Ok(access.describe(accounts)))
     }
-    #[cfg(feature = "basic")]
     pub fn authorize_provisioning(&self, id: Option<&str>) -> Result<(), String> {
         self.storage.with_profile_access(false, |accounts, access| match id {
             Some(id) if accounts.iter().any(|account| account.id == id) => access.require(id),
@@ -153,14 +148,12 @@ impl LocalStore {
             None => access.require_space(),
         })
     }
-    #[cfg(feature = "basic")]
     pub fn select_profiles(&self, ids: Vec<String>) -> Result<super::ProfileSlots, String> {
         self.storage.with_profile_access(false, |accounts, access| {
             access.select(ids, accounts)?;
             Ok(access.describe(accounts))
         })
     }
-    #[cfg(feature = "basic")]
     pub fn replace_profile(&self, active_id: &str, locked_id: String) -> Result<super::ProfileSlots, String> {
         self.storage.with_profile_access(false, |accounts, access| {
             access.replace(active_id, locked_id, accounts)?;
@@ -172,16 +165,10 @@ impl LocalStore {
         id: &str,
         action: impl FnOnce(&mut Vec<LocalAccount>) -> Result<T, String>,
     ) -> Result<T, String> {
-        #[cfg(feature = "basic")]
-        return self.storage.with_profile_access(true, |accounts, access| {
+        self.storage.with_profile_access(true, |accounts, access| {
             access.require(id)?;
             action(accounts)
-        });
-        #[cfg(not(feature = "basic"))]
-        {
-            let _ = id;
-            self.storage.update(action)
-        }
+        })
     }
     pub fn save_accounts(&self, accounts: &[LocalAccount]) -> Result<(), String> {
         self.storage.save(accounts)
@@ -258,15 +245,12 @@ impl LocalStore {
             accounts.push(account.clone());
             Ok(account)
         };
-        #[cfg(feature = "basic")]
-        return self.storage.with_profile_access(true, |accounts, access| {
+        self.storage.with_profile_access(true, |accounts, access| {
             access.require_space()?;
             let account = create(accounts)?;
             access.added(&account.id);
             Ok(account)
-        });
-        #[cfg(not(feature = "basic"))]
-        self.storage.update(create)
+        })
     }
     pub fn edit_profile(&self, id: &str, mut details: ProfileDetails) -> Result<(), String> {
         details.validate()?;

@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Copy, ExternalLink, FileText, ShieldCheck } from 'lucide-react'
 import { product } from '../../../product/flavors'
 import { openExternalUrl } from '../../../lib/api'
-import symphoniaLicense from '../../../../../../docs/third-party/SYMPHONIA-MPL-2.0.txt?raw'
 
 function releaseLink(value?: string) {
   if (!value) return null
@@ -77,12 +76,6 @@ export function AboutSettings({
       <details className="settings-card settings-info-card settings-notices">
         <summary>Third-party notices</summary>
         <p>League of Legends, VALORANT, and Riot Games are trademarks of Riot Games, Inc.</p>
-        {product.studio ? (
-          <details>
-            <summary>Symphonia 0.5.5 · MPL 2.0</summary>
-            <pre>{symphoniaLicense}</pre>
-          </details>
-        ) : null}
       </details>
       <p className="about-disclaimer">LAAP is not endorsed, affiliated with, or certified by Riot Games.</p>
     </div>

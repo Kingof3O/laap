@@ -39,9 +39,6 @@
   --status-info-bg: rgba(168, 155, 217, 0.10);
   --status-info-border: rgba(168, 155, 217, 0.30);
 
-  --status-leased: #E5AC59;
-  --status-leased-bg: rgba(229, 172, 89, 0.10);
-  --status-leased-border: rgba(229, 172, 89, 0.30);
 
   /* Borders & Separation (Clean, subtle, structural) */
   --border-subtle: rgba(255, 255, 255, 0.06);

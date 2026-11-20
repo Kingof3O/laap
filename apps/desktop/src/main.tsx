@@ -1,12 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { lazy, Suspense } from 'react'
-
-const App = import.meta.env.MODE === 'studio'
-  ? lazy(() => import('./features/customization/StudioApp'))
-  : import.meta.env.MODE === 'offline' || import.meta.env.MODE === 'basic'
-    ? lazy(() => import('./App'))
-    : lazy(() => import('./features/customization/CompleteApp'))
+import App from './App'
 import { ErrorBoundary } from './shared/ui/ErrorBoundary'
 import { I18nProvider } from './context/I18nContext'
 import './index.css'
@@ -19,7 +13,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       <I18nProvider>
-        <Suspense fallback={null}><App /></Suspense>
+        <App />
       </I18nProvider>
     </ErrorBoundary>
   </StrictMode>,

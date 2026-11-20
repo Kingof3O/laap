@@ -26,7 +26,7 @@ SignPath holds the signing key. No certificate private key belongs in the reposi
 
 ## Privacy and third-party components
 
-See the [Privacy policy](PRIVACY.md) for local Riot sessions, optional icon/rank sync, LAAP Team services, updates, and presence networking. The installed app does not send user data to SignPath. Signing submits only compiled LAAP artifacts and public build/repository metadata.
+See the [Privacy policy](PRIVACY.md) for local Riot sessions, optional icon/rank sync, Pro billing, updates, and presence networking. The installed app does not send user data to SignPath. Signing submits only compiled LAAP artifacts and public build/repository metadata.
 
 Riot rank-crest images are bundled with the desktop app; downloaded summoner icons are Riot artwork. These assets are not claimed to be covered by LAAP's MIT license. Microsoft WebView2 is a platform runtime. The presence compatibility certificate is maintained by a separate project. These components, session-file orchestration, the local LCU TLS exception, and the presence proxy must be disclosed to SignPath for eligibility review. Approval must not be assumed from the MIT license alone.
 

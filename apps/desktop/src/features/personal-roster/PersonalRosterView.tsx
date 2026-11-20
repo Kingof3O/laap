@@ -1,4 +1,3 @@
-import type { ComponentProps } from 'react'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -48,14 +47,11 @@ interface Props {
   onFavoritesOnlyChange?: (favOnly: boolean) => void
   onFavoriteCountChange?: (count: number) => void
   viewMode: ViewMode
-  profileActions?: ComponentProps<typeof AccountRosterDisplay>['profileActions']
   showAddModal: boolean
   onCloseAddModal: () => void
   onOpenAddModal: () => void
   onCountChange?: (count: number) => void
   onSlotsChange?: (slots: ProfileSlots | null) => void
-  onProfilesChanged?: (profiles: {id:string;name:string}[]) => void
-  onProfileSwitched?: (id:string) => void
 }
 export function PersonalRosterView({
   activeGame: propActiveGame,
@@ -73,13 +69,10 @@ export function PersonalRosterView({
   onFavoriteCountChange,
   viewMode,
   showAddModal,
-  profileActions,
   onCloseAddModal,
   onOpenAddModal,
   onCountChange,
   onSlotsChange,
-  onProfilesChanged,
-  onProfileSwitched,
 }: Props) {
   const { showSuccess, showError } = useToast()
   const operations = useRiotOperations()
@@ -132,7 +125,6 @@ export function PersonalRosterView({
     provisioning,
   } = useLocalAccounts()
   useEffect(() => onSlotsChange?.(profileSlots), [onSlotsChange, profileSlots])
-  useEffect(() => { if (!loading && !error) onProfilesChanged?.(localAccounts.map(({id,name}) => ({id,name}))) }, [localAccounts,loading,error,onProfilesChanged])
   const modalOpen = showAddModal || !!refreshTarget
   const close = () => {
     onCloseAddModal()
@@ -409,7 +401,6 @@ export function PersonalRosterView({
         }
       }
       await launchAccount(id, game)
-      onProfileSwitched?.(id)
     } catch (cause) {
       setFailedLaunchId(id)
       showError(String(cause))
@@ -616,7 +607,6 @@ export function PersonalRosterView({
           {syncWidget ? <div className="roster-list-utility roster-list-utility-padded">{syncWidget}</div> : null}
           {(!profileSlots?.chooseCount || localAccounts.length > 0) && (
             <EmptyState
-              isCloud={false}
               searchActive={Boolean(
                 searchQuery || selectedRegion !== 'ALL' || selectedRank !== 'all' || favoritesOnly,
               )}
@@ -630,7 +620,6 @@ export function PersonalRosterView({
         </>
       ) : (
         <AccountRosterDisplay
-          profileActions={profileActions}
           toolbarSlot={syncWidget}
           items={filteredAccounts.map((acc) => {
             const targetRiotId = acc.riot_id ?? (acc.name.includes('#') ? acc.name : null)
@@ -671,8 +660,6 @@ export function PersonalRosterView({
           })}
           activeGame={activeGame}
           viewMode={viewMode}
-          isCloud={false}
-          canManage
           busy={blocked}
           launchingId={launchingId}
           launchStatus={operations.tracking ? operations.launchStatus : null}

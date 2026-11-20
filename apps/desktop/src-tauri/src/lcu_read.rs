@@ -112,24 +112,4 @@ impl LcuConnection {
             .map_err(|_| "League client has no active login yet".to_string())?;
         Self::read_json(response)
     }
-
-    /// Best-effort PATCH to LCU (used for champ select skin selection). Local loopback only.
-    pub(crate) fn patch(
-        &self,
-        path: &str,
-        body: &serde_json::Value,
-    ) -> Result<serde_json::Value, String> {
-        let response = self
-            .client
-            .patch(format!("https://127.0.0.1:{}{path}", self.port))
-            .basic_auth("riot", Some(self.password.as_str()))
-            .json(body)
-            .send()
-            .map_err(|_| "League client is not ready yet".to_string())?;
-        // Some endpoints return 204/empty on success; treat non-2xx as soft failure.
-        if !response.status().is_success() {
-            return Err(format!("League client rejected request ({})", response.status()));
-        }
-        Self::read_json(response)
-    }
 }

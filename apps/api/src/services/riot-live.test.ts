@@ -1,42 +1,19 @@
-import { mkdtemp, rm } from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
-import { createApp, type AppHandle } from '../server.js'
+import { describe, expect, it } from 'vitest'
 import { signRiotProxyRequest } from '../http/riot-proxy-auth.js'
 import { createRiotWorker } from '../riot-worker.js'
 import { RiotLiveTracker, resolveRiotRouting } from './riot-live.js'
 
-const tempDirs: string[] = []
-const apps: AppHandle[] = []
+const env = {
+  RIOT_API_KEY: 'fixture-riot-key-1234',
+  LAAP_RIOT_PROXY_TOKEN: 'proxy-secret-token-xyz',
+}
 
-afterEach(async () => {
-  await Promise.all(apps.splice(0).map((app) => app.close()))
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
-})
-
-async function bootRiotProxyApp(options: {
-  riotApiKey?: string
-  riotProxyToken?: string
-  tracker?: RiotLiveTracker
-}) {
-  const dataDir = await mkdtemp(path.join(os.tmpdir(), 'laap-riot-proxy-'))
-  tempDirs.push(dataDir)
-  const app = await createApp({
-    dataDir,
-    nodeEnv: 'development',
-    storageDriver: 'local',
-    reaperEnabled: false,
-    logRequests: false,
-    riotApiKey: options.riotApiKey ?? 'fixture-riot-key-1234',
-    riotProxyToken: options.riotProxyToken ?? 'proxy-secret-token-xyz',
-    riotLiveTracker: options.tracker,
-  })
-  apps.push(app)
-  await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', () => resolve()))
-  const address = app.server.address()
-  if (!address || typeof address === 'string') throw new Error('Expected TCP port')
-  return { baseUrl: `http://127.0.0.1:${address.port}` }
+function bootRiotProxy(tracker?: RiotLiveTracker) {
+  const worker = createRiotWorker(tracker)
+  return (init: RequestInit) => worker.fetch(
+    new Request('https://laap-api.example.workers.dev/api/riot/live-status', init),
+    env,
+  )
 }
 
 describe('Riot live game proxy & tracker', () => {
@@ -48,8 +25,8 @@ describe('Riot live game proxy & tracker', () => {
   })
 
   it('rejects unauthenticated requests to /api/riot/live-status', async () => {
-    const { baseUrl } = await bootRiotProxyApp({})
-    const response = await fetch(`${baseUrl}/api/riot/live-status`, {
+    const request = bootRiotProxy()
+    const response = await request({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ region: 'EUW', gameName: 'Main', tagLine: 'EUW' }),
@@ -91,14 +68,14 @@ describe('Riot live game proxy & tracker', () => {
       return new Response('Unexpected route', { status: 500 })
     }, () => now)
 
-    const { baseUrl } = await bootRiotProxyApp({ tracker })
+    const request = bootRiotProxy(tracker)
 
     const headers = {
       'Content-Type': 'application/json',
       'X-Laap-Riot-Token': 'proxy-secret-token-xyz',
     }
 
-    const first = await fetch(`${baseUrl}/api/riot/live-status`, {
+    const first = await request({
       method: 'POST',
       headers,
       body: JSON.stringify({ region: 'EUW', gameName: 'Kingof3O', tagLine: 'EUW' }),
@@ -119,7 +96,7 @@ describe('Riot live game proxy & tracker', () => {
 
     // Repeat call within 45s serves cache without calling Riot upstream
     now += 10_000
-    const second = await fetch(`${baseUrl}/api/riot/live-status`, {
+    const second = await request({
       method: 'POST',
       headers,
       body: JSON.stringify({ region: 'EUW', gameName: 'Kingof3O', tagLine: 'EUW' }),
@@ -132,7 +109,7 @@ describe('Riot live game proxy & tracker', () => {
     // After cache expiry, PUUID remains cached so only spectator-v5 is called
     matchActive = false
     now += 50_000
-    const third = await fetch(`${baseUrl}/api/riot/live-status`, {
+    const third = await request({
       method: 'POST',
       headers,
       body: JSON.stringify({ region: 'EUW', gameName: 'Kingof3O', tagLine: 'EUW' }),
@@ -155,13 +132,13 @@ describe('Riot live game proxy & tracker', () => {
       })
     }, () => now)
 
-    const { baseUrl } = await bootRiotProxyApp({ tracker })
+    const request = bootRiotProxy(tracker)
     const headers = {
       'Content-Type': 'application/json',
       Authorization: 'Bearer proxy-secret-token-xyz',
     }
 
-    const res1 = await fetch(`${baseUrl}/api/riot/live-status`, {
+    const res1 = await request({
       method: 'POST',
       headers,
       body: JSON.stringify({ region: 'NA', puuid: 'puuid-na-001' }),
@@ -171,7 +148,7 @@ describe('Riot live game proxy & tracker', () => {
     expect(upstreamCalls).toBe(1)
 
     now += 3_000
-    const res2 = await fetch(`${baseUrl}/api/riot/live-status`, {
+    const res2 = await request({
       method: 'POST',
       headers,
       body: JSON.stringify({ region: 'NA', puuid: 'puuid-na-001' }),

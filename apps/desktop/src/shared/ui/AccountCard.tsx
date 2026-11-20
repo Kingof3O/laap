@@ -14,8 +14,6 @@ import {
   RotateCcw,
   Star,
   Trash2,
-  UploadCloud,
-  Zap,
 } from 'lucide-react'
 import { getRankTierClass } from '../../lib/sorting'
 import { formatLiveMatchLabel, formatLiveMinutes } from '../../lib/liveStatus'
@@ -41,8 +39,6 @@ export interface AccountCardProps {
   isSelected?: boolean
   isFavorite?: boolean
   isRecent?: boolean
-  isCloud?: boolean
-  canManage?: boolean
   busy?: boolean
   clientRunning?: boolean
   launchStatus?: string | null
@@ -55,9 +51,6 @@ export interface AccountCardProps {
   onLaunch: (game?: Game) => void
   onRetry?: (game?: Game) => void
   onSync?: () => void
-  onPushToCloud?: () => void
-  onForceRelease?: () => void
-  onRevokeSession?: () => void
   onDelete: () => void
   onToggleFavorite?: () => void
   onCheckLive?: () => void
@@ -82,8 +75,6 @@ export function AccountCard({
   isSelected = false,
   isFavorite = false,
   isRecent = false,
-  isCloud = false,
-  canManage = false,
   busy = false,
   clientRunning = false,
   launchStatus,
@@ -96,17 +87,13 @@ export function AccountCard({
   onLaunch,
   onRetry,
   onSync,
-  onPushToCloud,
-  onForceRelease,
-  onRevokeSession,
   onDelete,
   onToggleFavorite,
   onCheckLive,
   showLiveMenuAction = false,
   liveStatus,
 }: AccountCardProps) {
-  const isLeased = isCloud && status === 'Leased'
-  const isStale = !isCloud && (status === 'Session stale' || status.includes('unknown'))
+  const isStale = (status === 'Session stale' || status.includes('unknown'))
   const needsSignIn = !hasSession || status === 'Sign in required'
   const targetRiotId = riotId ?? (name.includes('#') ? name : null)
   const displayRank = activeGame === 'valorant' ? valorantRank : rank
@@ -135,59 +122,26 @@ export function AccountCard({
     })
   }
 
-  if (onSync && (!isCloud || canManage)) {
+  if (onSync) {
     menuItems.push({
       id: 'sync',
-      label: isCloud ? 'Sync Session' : 'Sync Icon & Rank',
+      label: 'Sync Icon & Rank',
       icon: <RotateCcw size={14} />,
       onClick: onSync,
     })
   }
 
-  if (onPushToCloud) {
-    menuItems.push({
-      id: 'push',
-      label: 'Publish to Shared Accounts',
-      icon: <UploadCloud size={14} />,
-      onClick: onPushToCloud,
-    })
-  }
-
-  if (onForceRelease && canManage && isLeased) {
-    menuItems.push({
-      id: 'force-release',
-      label: 'Force Release Lease',
-      icon: <Zap size={14} />,
-      danger: true,
-      onClick: onForceRelease,
-    })
-  }
-
-  if (onRevokeSession && canManage && hasSession) {
-    menuItems.push({
-      id: 'revoke',
-      label: 'Revoke Cloud Session',
-      icon: <Trash2 size={14} />,
-      danger: true,
-      onClick: onRevokeSession,
-    })
-  }
-
-  if (!isCloud || canManage) {
-    menuItems.push({
-      id: 'delete',
-      label: isCloud ? 'Delete Account' : 'Remove Profile',
-      icon: <Trash2 size={14} />,
-      danger: true,
-      onClick: onDelete,
-    })
-  }
+  menuItems.push({
+    id: 'delete',
+    label: 'Remove Profile',
+    icon: <Trash2 size={14} />,
+    danger: true,
+    onClick: onDelete,
+  })
 
   const handlePrimaryAction = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (isLeased) {
-      if (canManage && onForceRelease) onForceRelease()
-    } else if (launchFailed && onRetry) {
+    if (launchFailed && onRetry) {
       onRetry(activeGame)
     } else if (!hasSession && onRefreshSession) {
       onRefreshSession()
@@ -196,22 +150,10 @@ export function AccountCard({
     }
   }
 
-  // Determine button contents and state according to precise desktop process conditions
-  let buttonContent: React.ReactNode = null
-  let buttonDisabled = busy || (isCloud && isLeased && !(canManage && onForceRelease))
+  let buttonContent: React.ReactNode
+  let buttonDisabled = busy
 
-  if (isLeased) {
-    if (canManage && onForceRelease) {
-      buttonContent = (
-        <>
-          <RotateCcw size={13} />
-          <span>Force Release</span>
-        </>
-      )
-    } else {
-      buttonContent = <span>In Use</span>
-    }
-  } else if (isLaunching) {
+  if (isLaunching) {
     buttonDisabled = true
     buttonContent = (
       <span className="btn-launch-loading-content">
@@ -336,16 +278,14 @@ export function AccountCard({
             <span className="card-rank-value">{displayRank || 'Unranked'}</span>
           </span>
         </div>
-        {isLeased ? (
-          <span className="card-status-pill card-status-warn">In use</span>
-        ) : needsSignIn ? (
+        {needsSignIn ? (
           <span className="card-status-pill card-status-warn">Sign in required</span>
         ) : isStale ? (
           <span className="card-status-pill card-status-warn" title={status}>Session needs attention</span>
         ) : (
           <span className="card-status-pill card-status-ready">
             <CheckCircle2 size={13} aria-hidden="true" />
-            {isCloud ? 'Available' : 'Login saved'}
+            Login saved
           </span>
         )}
       </div>

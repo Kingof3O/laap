@@ -7,5 +7,5 @@ enabled = true
 
 [vars]
 NODE_ENV = "production"
-ALLOWED_ORIGIN = "https://laap-control-center.pages.dev,http://tauri.localhost,https://tauri.localhost,tauri://localhost"
+ALLOWED_ORIGIN = "http://tauri.localhost,https://tauri.localhost,tauri://localhost"
 CF_WORKER = "1"

@@ -1,10 +1,5 @@
 # Security and storage model
 
-> The [three-edition implementation report](LAAP_THREE_EDITION_IMPLEMENTATION.md) documents the current desktop command boundaries and the separate Community API. References to Team below describe the historical product.
-
-
-Checked against LAAP V2 source. This describes implementation boundaries, not a security certification.
-
 ## Local profiles
 
 LAAP does not accept Riot passwords. It captures session YAML produced by the official Riot Client. That material grants account access and should be treated as a secret.
@@ -21,28 +16,11 @@ Local uploads are validated, cropped/resized, and converted to PNG without origi
 
 Optional League Client sync reads ephemeral local credentials from its process arguments or nearby lockfile. Requests are read-only GETs to `https://127.0.0.1:<port>`, with proxies and redirects disabled. A self-signed certificate exception is scoped to that loopback client. Credentials are not logged, persisted, or sent to Data Dragon. Saved PUUID and opt-in flags are rechecked before writes; icon and rank sync are independent.
 
-### Update Checking Architecture (V2)
+### Updates and Pro
 
-In LAAP V2, update verification is handled via the native command `check_github_update`:
-- **Isolation:** The check executes entirely within the native Rust host process using `reqwest` with system certificates and rustls.
-- **Content Security Policy Compliance:** In Offline Edition, the webview CSP strictly enforces `connect-src 'none'`. Native host execution ensures that the webview sandbox is never compromised and no browser `fetch()` calls occur.
-- **Zero Telemetry:** The request queries solely `https://api.github.com/repos/Kingof3O/laap/releases/latest` with an `Accept: application/vnd.github.v3+json` header. No user credentials, account identifiers, machine fingerprints, or telemetry payloads are transmitted.
+The native updater checks GitHub for releases and verifies eligible Offline artifacts against the pinned update key. Installation checks for live matches and active provisioning before applying updates. The desktop webview enforces `connect-src 'none'`.
 
-Offline Edition webview CSP:
-
-```text
-default-src 'self'; img-src 'self' data: asset: http://asset.localhost; connect-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'
-```
-
-The CSP applies to the webview, not native Rust clients. Offline Edition can still make explicit Data Dragon downloads, opted-in local LCU connections, and native update checks. It must not be advertised as unconditional zero network traffic.
-
-## LAAP authentication and leases
-
-LAAP user passwords are hashed server-side. Browser authentication uses HttpOnly cookies; production cookies are Secure and SameSite=Lax. Trusted Tauri origins receive bearer tokens, optionally persisted in the OS keychain. Login sessions last 15 minutes or seven days when remembered. Logout clears the browser cookie/native stored token; the API does not revoke an already-issued JWT server-side.
-
-Ed25519 private keys stay in the OS keychain. The lease route verifies a signed `timestamp:accountId` challenge when nonce, signature, and device ID are supplied. The accepted timestamp skew is five minutes. Unsigned requests are also supported by the current route; service checks still enforce device authorization, account availability, and assignment/admin access. Timestamp checking is not a one-time replay cache.
-
-Shared session blobs are encrypted at rest with an application vault key. Authorized lease owners receive decrypted session material over the API. Server-side roles and PostgreSQL lease constraints enforce access and single-active claims. Heartbeats and stale-session reaping handle abandoned leases. Audit records support operational review; no cryptographic tamper-evidence guarantee is implemented.
+The billing Worker handles licensing, checkout, gifts, and device transfers. Pro access is cached locally as a signed lease bound to the installation. See [billing setup](../billing/README.md) and the [privacy policy](../PRIVACY.md).
 
 ## Native interaction boundary
 

@@ -298,20 +298,6 @@
   transform: translateY(-1px);
 }
 
-.table-icon-btn-cloud {
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.08);
-  border-color: rgba(56, 189, 248, 0.22);
-}
-
-.table-icon-btn-cloud:hover {
-  background: rgba(56, 189, 248, 0.25);
-  border-color: rgba(56, 189, 248, 0.5);
-  color: #f0f9ff;
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
-  transform: translateY(-1px);
-}
-
 .table-icon-btn-danger {
   color: #f87171;
   background: rgba(239, 68, 68, 0.08);

@@ -1,18 +1,14 @@
 import {
   Gamepad2,
-  HardDrive,
   KeyRound,
   Play,
   Plus,
   ShieldCheck,
-  Sparkles,
-  Users,
   Zap,
 } from 'lucide-react'
 import type { Game } from '../../lib/types'
 
 export interface EmptyStateProps {
-  isCloud?: boolean
   searchActive?: boolean
   onAction?: () => void
   onQuickImport?: () => void
@@ -22,7 +18,6 @@ export interface EmptyStateProps {
 }
 
 export function EmptyState({
-  isCloud = false,
   searchActive = false,
   onAction,
   onQuickImport,
@@ -44,7 +39,7 @@ export function EmptyState({
     )
   }
 
-  const isGameEmpty = !isCloud && hasAnyProfiles && Boolean(activeGame)
+  const isGameEmpty = hasAnyProfiles && Boolean(activeGame)
 
   return (
     <div className="empty-stage-container">
@@ -74,18 +69,14 @@ export function EmptyState({
 
         <div className="empty-content-block">
           <h2 className="empty-state-title">
-            {isCloud
-              ? 'Shared Accounts is Empty'
-              : isGameEmpty
+            {isGameEmpty
                 ? activeGame === 'valorant'
                   ? 'No VALORANT profiles yet'
                   : 'No League profiles yet'
                 : 'Your Personal Roster is Empty'}
           </h2>
           <p className="empty-state-text">
-            {isCloud
-              ? 'No shared accounts have been added to the pool yet. Publish accounts from your local roster or add cloud accounts.'
-              : isGameEmpty
+            {isGameEmpty
                 ? activeGame === 'valorant'
                   ? 'Add a profile to launch VALORANT with one click, or switch back to your League roster.'
                   : 'Add a profile to launch League through the official Riot Client, or switch back to your VALORANT roster.'
@@ -102,9 +93,7 @@ export function EmptyState({
               >
                 <Plus size={15} style={{ marginRight: '6px', flexShrink: 0 }} />
                 <span>
-                  {isCloud
-                    ? 'Add Shared Account'
-                    : isGameEmpty
+                  {isGameEmpty
                       ? activeGame === 'valorant'
                         ? 'Add VALORANT Profile'
                         : 'Add League Profile'
@@ -134,7 +123,7 @@ export function EmptyState({
               </button>
             ) : null}
 
-            {!isCloud && !isGameEmpty && onQuickImport ? (
+            {!isGameEmpty && onQuickImport ? (
               <button
                 type="button"
                 className="btn-modal-secondary"
@@ -190,7 +179,7 @@ export function EmptyState({
                 flexShrink: 0,
               }}
             />
-            <span>{isCloud ? 'Device identity' : 'Encrypted Riot logins'}</span>
+            <span>Encrypted Riot logins</span>
           </div>
         </div>
       </div>

@@ -31,8 +31,6 @@ export interface AccountRosterDisplayProps {
   items: RosterItem[]
   activeGame?: Game
   viewMode: ViewMode
-  isCloud?: boolean
-  canManage?: boolean
   busy?: boolean
   launchingId?: string | null
   failedLaunchId?: string | null
@@ -45,11 +43,7 @@ export interface AccountRosterDisplayProps {
   onCheckLive?: (id: string) => void
   showLiveMenuAction?: boolean
   onSync?: (id: string) => void
-  profileActions?: (account: RosterItem) => ReactNode
   toolbarSlot?: ReactNode
-  onPushToCloud?: (id: string) => void
-  onForceRelease?: (id: string) => void
-  onRevokeSession?: (id: string) => void
   onDelete: (id: string, name: string) => void
   onToggleFavorite?: (id: string) => void
   sortOrder?: SortOrder
@@ -60,8 +54,6 @@ export function AccountRosterDisplay({
   items,
   activeGame = 'league',
   viewMode,
-  isCloud = false,
-  canManage = false,
   busy = false,
   launchingId,
   failedLaunchId,
@@ -74,11 +66,7 @@ export function AccountRosterDisplay({
   onCheckLive,
   showLiveMenuAction = false,
   onSync,
-  onPushToCloud,
-  profileActions,
   toolbarSlot,
-  onForceRelease,
-  onRevokeSession,
   onDelete,
   onToggleFavorite,
   sortOrder,
@@ -108,7 +96,7 @@ export function AccountRosterDisplay({
   const activeHero = items.find((i) => i.id === selectedId) ?? items[0] ?? null
 
   return (
-    <div className="studio-viewport">
+    <div className="roster-viewport">
       {activeHero?.notes ? (
         <span
           className="hero-notes"
@@ -132,11 +120,7 @@ export function AccountRosterDisplay({
         <div className="roster-heading">
           <div>
             <span className="roster-kicker">
-              {isCloud
-                ? 'SHARED ACCOUNTS'
-                : activeGame === 'valorant'
-                  ? 'YOUR VALORANT ACCOUNTS'
-                  : 'YOUR LEAGUE ACCOUNTS'}
+              {activeGame === 'valorant' ? 'YOUR VALORANT ACCOUNTS' : 'YOUR LEAGUE ACCOUNTS'}
             </span>
             <h1>Choose your next session</h1>
           </div>
@@ -188,8 +172,6 @@ export function AccountRosterDisplay({
                 isSelected={isSelected}
                 isFavorite={item.favorite}
                 isRecent={isRecent}
-                isCloud={isCloud}
-                canManage={canManage}
                 busy={busy}
                 clientRunning={item.id === activeLaunchId}
                 launchStatus={isActive ? launchStatus : null}
@@ -204,15 +186,6 @@ export function AccountRosterDisplay({
                 onLaunch={() => onLaunch(item.id, activeGame)}
                 onRetry={() => onLaunch(item.id, activeGame)}
                 onSync={onSync ? () => onSync(item.id) : undefined}
-                onPushToCloud={
-                  onPushToCloud ? () => onPushToCloud(item.id) : undefined
-                }
-                onForceRelease={
-                  onForceRelease ? () => onForceRelease(item.id) : undefined
-                }
-                onRevokeSession={
-                  onRevokeSession ? () => onRevokeSession(item.id) : undefined
-                }
                 onDelete={() => onDelete(item.id, item.name)}
                 onToggleFavorite={
                   onToggleFavorite ? () => onToggleFavorite(item.id) : undefined
@@ -228,14 +201,12 @@ export function AccountRosterDisplay({
             key={JSON.stringify([activeHero.id, activeHero.name, activeHero.riotId, activeHero.region, activeGame])}
             account={activeHero}
             activeGame={activeGame}
-            isCloud={isCloud}
             busy={busy || launchingId === activeHero.id}
             onClose={() => toggleDetails(false)}
             onEdit={onEdit ? () => onEdit(activeHero.id) : undefined}
             onLaunch={() => onLaunch(activeHero.id, activeGame)}
             onCheckLive={activeGame === 'league' && onCheckLive ? () => onCheckLive(activeHero.id) : undefined}
             launchLabel={launchLabel}
-            actions={profileActions?.(activeHero)}
           />
         ) : null}
         </div>
@@ -243,8 +214,6 @@ export function AccountRosterDisplay({
         <AccountListTable
           items={items}
           activeGame={activeGame}
-          isCloud={isCloud}
-          canManage={canManage}
           busy={busy}
           launchingId={launchingId}
           failedLaunchId={failedLaunchId}
@@ -257,10 +226,6 @@ export function AccountRosterDisplay({
           onLaunch={(id, game) => onLaunch(id, game ?? activeGame)}
           onEdit={onEdit}
           onRefreshSession={onRefreshSession}
-          onSync={onSync}
-          onPushToCloud={onPushToCloud}
-          onForceRelease={onForceRelease}
-          onRevokeSession={onRevokeSession}
           onDelete={onDelete}
         />
       )}

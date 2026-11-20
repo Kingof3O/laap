@@ -1,5 +1,5 @@
 /* ==========================================================================
-   LAAP ESPORTS DESKTOP STUDIO DESIGN SYSTEM
+   LAAP DESKTOP DESIGN SYSTEM
    Master modular entrypoint.
    ========================================================================== */
 
@@ -7,7 +7,7 @@
 @import './styles/base.css';
 @import './styles/header.css';
 @import './styles/cards.css';
-@import './styles/studio.css';
+@import './styles/roster.css';
 @import './styles/tables.css';
 @import './styles/modals.css';
 @import './styles/toasts.css';
@@ -16,5 +16,4 @@
 
 @import './styles/workspace.css';
 @import './styles/billing.css';
-@import './styles/polish-details.css';
 @import './styles/desktop-polish.css';

@@ -1,5 +1,4 @@
 use super::{crypto::LocalSecretBox, models::LocalAccount};
-#[cfg(feature = "basic")]
 use super::profile_access::{ProfileAccess, Slots};
 use fs2::FileExt;
 use std::{
@@ -15,7 +14,7 @@ static WRITE_LOCK: Mutex<()> = Mutex::new(());
 pub struct LocalAccountStorage {
     storage_dir: PathBuf,
     secret_box: LocalSecretBox,
-    #[cfg(all(test, feature = "basic"))]
+    #[cfg(test)]
     test_storage: bool,
 }
 impl LocalAccountStorage {
@@ -34,7 +33,7 @@ impl LocalAccountStorage {
         Ok(Self {
             storage_dir,
             secret_box,
-            #[cfg(all(test, feature = "basic"))]
+            #[cfg(test)]
             test_storage: false,
         })
     }
@@ -43,7 +42,6 @@ impl LocalAccountStorage {
         Self {
             storage_dir,
             secret_box: LocalSecretBox::ephemeral(),
-            #[cfg(feature = "basic")]
             test_storage: true,
         }
     }
@@ -111,7 +109,6 @@ impl LocalAccountStorage {
             Ok(result)
         })
     }
-    #[cfg(feature = "basic")]
     fn read_slots(&self) -> Result<Option<String>, String> {
         #[cfg(test)]
         if self.test_storage {
@@ -130,7 +127,6 @@ impl LocalAccountStorage {
         }
     }
 
-    #[cfg(feature = "basic")]
     fn write_slots(&self, encrypted: &str) -> Result<(), String> {
         #[cfg(test)]
         if self.test_storage {
@@ -141,7 +137,6 @@ impl LocalAccountStorage {
             .map_err(|error| error.to_string())
     }
 
-    #[cfg(feature = "basic")]
     pub(super) fn with_profile_access<T>(
         &self,
         mutate_vault: bool,

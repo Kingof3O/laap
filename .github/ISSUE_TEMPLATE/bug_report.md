@@ -12,7 +12,7 @@ A clear and concise description of what the bug is.
 **Environment & Setup:**
 - **OS & Version:** [e.g. macOS Sequoia 15.6 / Windows 11 23H2]
 - **LAAP Desktop Version:** [e.g. 0.2.0]
-- **App Mode:** [Personal Roster (Local) / Team Vault (Cloud)]
+- **Tier:** [Basic / Pro]
 - **Riot Client Version:** [e.g. Live patch 14.x / 15.x]
 
 **Steps to Reproduce**

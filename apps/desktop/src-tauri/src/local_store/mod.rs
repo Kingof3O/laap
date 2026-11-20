@@ -1,7 +1,6 @@
 pub mod crypto;
 pub mod manager;
 pub mod models;
-#[cfg(feature = "basic")]
 mod profile_access;
 pub mod storage;
 
@@ -10,7 +9,6 @@ pub use models::{
     default_games, Game, LocalAccount, LocalAccountFull, LocalAccountSummary, ProfileCustomization,
 };
 pub use storage::LocalAccountStorage;
-#[cfg(feature = "basic")]
 pub use profile_access::ProfileSlots;
 
 #[cfg(test)]
@@ -142,7 +140,7 @@ mod safety_tests {
             })
             .collect();
         let results: Vec<_> = handles.into_iter().map(|handle| handle.join().unwrap()).collect();
-        let expected = if cfg!(feature = "basic") { 2 } else { 16 };
+        let expected = 2;
         assert_eq!(results.iter().filter(|result| result.is_ok()).count(), expected);
         assert!(results.iter().filter_map(|result| result.as_ref().err()).all(|error| error.contains("two active profiles")));
         assert_eq!(store.load_accounts().unwrap().len(), expected);
@@ -153,7 +151,6 @@ mod safety_tests {
         std::fs::remove_dir_all(path).unwrap();
     }
 
-    #[cfg(feature = "basic")]
     #[test]
     fn legacy_vault_requires_selection_and_keeps_extras_encrypted() {
         use std::fs;
@@ -192,7 +189,6 @@ mod safety_tests {
         fs::remove_dir_all(path).unwrap();
     }
 
-    #[cfg(feature = "basic")]
     #[test]
     fn expired_offline_access_restores_previous_slots_until_the_paid_term_ends() {
         use crate::billing::Entitlement;

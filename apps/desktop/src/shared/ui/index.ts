@@ -1,7 +1,6 @@
 export { AccountCard } from './AccountCard'
 export { AccountListTable } from './AccountListTable'
 export { AccountRosterDisplay } from './AccountRosterDisplay'
-export { RosterOverviewRail } from './RosterOverviewRail'
 export { Header } from './Header'
 export { SubNavbar } from './SubNavbar'
 export { EmptyState } from './EmptyState'

@@ -202,7 +202,6 @@ pub fn set_auto_launch(enabled: bool) -> Result<bool, String> {
                 .status();
         }
     }
-    #[cfg(not(feature = "studio"))]
     let _ = crate::launcher_settings::update(|s| {
         s.auto_launch = enabled;
         Ok(())
@@ -232,18 +231,14 @@ pub fn get_auto_launch() -> Result<bool, String> {
             }
         }
     }
-    #[cfg(not(feature = "studio"))]
     {
         let s = crate::launcher_settings::load().unwrap_or_default();
         Ok(s.auto_launch)
     }
-    #[cfg(feature = "studio")]
-    Ok(false)
 }
 
 #[tauri::command]
 pub fn set_minimize_to_tray(enabled: bool) -> Result<bool, String> {
-    #[cfg(not(feature = "studio"))]
     {
         crate::launcher_settings::update(|s| {
             s.minimize_to_tray = enabled;
@@ -251,19 +246,14 @@ pub fn set_minimize_to_tray(enabled: bool) -> Result<bool, String> {
         })
         .map(|s| s.minimize_to_tray)
     }
-    #[cfg(feature = "studio")]
-    Ok(enabled)
 }
 
 #[tauri::command]
 pub fn get_minimize_to_tray() -> Result<bool, String> {
-    #[cfg(not(feature = "studio"))]
     {
         let s = crate::launcher_settings::load().unwrap_or_default();
         Ok(s.minimize_to_tray)
     }
-    #[cfg(feature = "studio")]
-    Ok(false)
 }
 
 #[cfg(target_os = "windows")]
@@ -309,7 +299,6 @@ mod tests {
         let _ = fs::remove_file(temp);
     }
 
-    #[cfg(not(feature = "studio"))]
     #[test]
     fn test_minimize_to_tray_settings_round_trip() {
         let set_res = set_minimize_to_tray(true).unwrap();
@@ -320,7 +309,6 @@ mod tests {
         assert!(!reset_res);
     }
 
-    #[cfg(not(feature = "studio"))]
     #[test]
     fn test_auto_launch_settings_load() {
         let status = get_auto_launch();

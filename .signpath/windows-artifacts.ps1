@@ -8,13 +8,11 @@ Set-Location $repo
 $root = Join-Path $repo '.signpath/out'
 $source = if ($Signed) { Join-Path $root 'signed-applications' } else { Join-Path $root 'applications' }
 $editions = @(
-  @{ Name='offline'; Product='LAAP Offline'; FileName='LAAP-Offline'; Config=@('--config','src-tauri/tauri.offline.conf.json') }
+  @{ Name='offline'; Product='LAAP Offline'; FileName='LAAP-Offline' }
 )
 $config = Get-Content 'apps/desktop/src-tauri/tauri.conf.json' -Raw | ConvertFrom-Json
 $version = $config.version
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Signing requires a three-part numeric release version' }
-$offline = Get-Content 'apps/desktop/src-tauri/tauri.offline.conf.json' -Raw | ConvertFrom-Json
-if ($offline.version -ne $version) { throw 'Offline and base versions differ' }
 
 function Assert-Version([string]$Actual) {
   if ($Actual -ne $version -and $Actual -ne "$version.0") { throw "Unexpected product version: $Actual; expected $version" }
@@ -49,7 +47,7 @@ if ($Stage -in @('BuildApplications','PrepareApplications')) {
   $first = $null
   foreach ($edition in $editions) {
     if ($Stage -eq 'BuildApplications') {
-      Run-Tauri (@('build','--ci','--no-bundle') + $edition.Config + @('--','--no-default-features'))
+      Run-Tauri @('build','--ci','--no-bundle')
       $app = Join-Path $repo 'apps/desktop/src-tauri/target/release/laap-desktop-core.exe'
     } else {
       $app = Join-Path $root "compiled/$($edition.Name)/laap-desktop-core.exe"
@@ -101,8 +99,9 @@ if ($Stage -eq 'BundleInstallers') {
       $env:LAAP_SIGNPATH_REQUIRE_SIGNATURE = [string][bool]$Signed
       $hook = Join-Path $repo '.signpath/app-signing-hook.ps1'
       $hookConfig = Join-Path $root 'tauri-signing-hook.json'
-      @{bundle=@{windows=@{signCommand=@{cmd='pwsh';args=@('-NoProfile','-File',$hook,'%1')}}}} | ConvertTo-Json -Depth 8 | Set-Content $hookConfig -Encoding utf8
-      Run-Tauri (@('bundle','--ci','--bundles',$format) + $edition.Config + @('--config',$hookConfig))
+      # The release workflow signs the updater payload after Windows signing is complete.
+      @{bundle=@{createUpdaterArtifacts=$false;windows=@{signCommand=@{cmd='pwsh';args=@('-NoProfile','-File',$hook,'%1')}}}} | ConvertTo-Json -Depth 8 | Set-Content $hookConfig -Encoding utf8
+      Run-Tauri @('bundle','--ci','--bundles',$format,'--config',$hookConfig)
       if ((Get-FileHash $target -Algorithm SHA256).Hash -ne (Get-FileHash $compiled -Algorithm SHA256).Hash) { throw 'Tauri did not restore the compiled application' }
       $dest = Join-Path $root "installers/$($edition.Name)"
       New-Item $dest -ItemType Directory -Force | Out-Null

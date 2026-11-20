@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { invokeTauri, isTauriAvailable } from '../../lib/api'
 import { invalidateIcons } from '../../lib/iconCache'
 import { useRiotOperations } from '../../context/RiotOperations'
-import { flavor } from '../../product/flavors'
 import type { ProfileSlots } from '../billing/useBilling'
 import type {
   CapturedProfile,
@@ -55,7 +54,7 @@ export function useLocalAccounts() {
       const accounts = await invokeTauri<LocalAccountSummary[]>(
         'list_local_accounts',
       )
-      const slots = flavor === 'basic' ? await invokeTauri<ProfileSlots>('basic_profile_slots') : null
+      const slots = await invokeTauri<ProfileSlots>('basic_profile_slots')
       if (mounted.current && request === requests.current) {
         setLocalAccounts(accounts)
         setProfileSlots(slots)

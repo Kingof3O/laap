@@ -1,7 +1,7 @@
 import { useTrayActions } from './hooks/useTrayActions'
 import { useLauncher } from './hooks/useLauncher'
 import { PresenceBanner, PresenceSelect } from './shared/ui/PresenceControls'
-import { useEffect, useRef, useState, type ReactNode, type ComponentProps } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Header, SubNavbar, SettingsModal, WindowTitleBar } from './shared/ui'
 import { UpdateModal } from './shared/ui/UpdateModal'
 import { ToastProvider, useToast } from './context/ToastContext'
@@ -22,18 +22,7 @@ import { product } from './product/flavors'
 import type { SortOrder } from './lib/sorting'
 import type { Region, ViewMode } from './lib/types'
 
-interface AppProps {
-  background?: ReactNode
-  navigation?: ReactNode
-  studio?: ReactNode
-  advancedSettings?: ReactNode
-  onShowAccounts?: () => void
-  profileActions?: ComponentProps<typeof PersonalRosterView>['profileActions']
-  onProfilesChanged?: (profiles: {id:string;name:string}[]) => void
-  onProfileSwitched?: (id:string) => void
-}
-
-function AppContent({ background, navigation, studio, advancedSettings, onShowAccounts, profileActions, onProfilesChanged, onProfileSwitched }: AppProps) {
+function AppContent() {
   const { activeGame, setActiveGame } = useGame()
   const operations = useRiotOperations()
   const launcher = useLauncher()
@@ -88,18 +77,10 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
     launcher,
     activeGame,
     (id) => {
-      onShowAccounts?.()
       setTrayRequest({ id, sequence: Date.now() })
     },
     showError,
   )
-
-  useEffect(() => {
-    if (activeGame === 'valorant' && studio) {
-      onShowAccounts?.()
-      showError('Studio is available for League of Legends only.')
-    }
-  }, [activeGame, studio, onShowAccounts, showError])
 
   const {
     currentVersion,
@@ -198,10 +179,8 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
 
   return (
     <div className="app-container">
-      {background}
       <WindowTitleBar>
       <Header
-        navigation={navigation}
         brandLabel={billing.status?.pro ? 'LAAP Pro' : undefined}
         isPro={Boolean(billing.status?.pro)}
         onOpenBilling={billing.status?.available ? () => setShowBilling(true) : undefined}
@@ -236,39 +215,33 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
       )}
 
       {/* Sub Navigation Bar */}
-      {!studio && (
-        <SubNavbar
-          activeGame={activeGame}
-          onGameChange={setActiveGame}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          selectedRegion={selectedRegion}
-          onRegionChange={setSelectedRegion}
-          selectedRank={selectedRank}
-          rankOptions={rankOptions}
-          onRankChange={setSelectedRank}
-          sortOrder={sortOrder}
-          onSortChange={setSortOrder}
-          favoritesOnly={favoritesOnly}
-          onFavoritesOnlyChange={setFavoritesOnly}
-          favoriteCount={favoriteCount}
-          viewMode={viewMode}
-          onViewModeChange={handleViewModeChange}
-          onAddAccount={openAddProfile}
-          addButtonLabel={activeGame === 'valorant' ? 'Add VALORANT Profile' : 'Add Profile'}
-          totalCount={localCount}
-        />
-      )}
+      <SubNavbar
+        activeGame={activeGame}
+        onGameChange={setActiveGame}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        selectedRegion={selectedRegion}
+        onRegionChange={setSelectedRegion}
+        selectedRank={selectedRank}
+        rankOptions={rankOptions}
+        onRankChange={setSelectedRank}
+        sortOrder={sortOrder}
+        onSortChange={setSortOrder}
+        favoritesOnly={favoritesOnly}
+        onFavoritesOnlyChange={setFavoritesOnly}
+        favoriteCount={favoriteCount}
+        viewMode={viewMode}
+        onViewModeChange={handleViewModeChange}
+        onAddAccount={openAddProfile}
+        addButtonLabel={activeGame === 'valorant' ? 'Add VALORANT Profile' : 'Add Profile'}
+        totalCount={localCount}
+      />
 
       {/* Main Content Stage */}
-      {studio && <section className="main-viewport" tabIndex={0}>{studio}</section>}
-      <main className="main-viewport" tabIndex={0} style={studio ? { display: 'none' } : undefined}>
+      <main className="main-viewport" tabIndex={0}>
           <PersonalRosterView
             activeGame={activeGame}
             onGameChange={setActiveGame}
-            profileActions={profileActions}
-            onProfilesChanged={onProfilesChanged}
-            onProfileSwitched={onProfileSwitched}
             trayRequest={trayRequest}
             onTrayRequestHandled={() => setTrayRequest(null)}
             searchQuery={searchQuery}
@@ -315,7 +288,6 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
           setShowUpdateModal(true)
         }}
         currentVersion={currentVersion}
-        advancedSettings={advancedSettings}
         billingStatus={billing.status}
         onOpenBilling={() => {
           setShowSettingsModal(false)
@@ -342,13 +314,13 @@ function AppContent({ background, navigation, studio, advancedSettings, onShowAc
   )
 }
 
-export default function App(props: AppProps) {
+export default function App() {
   return (
     <I18nProvider>
       <GameProvider>
         <ToastProvider>
           <RiotOperationsProvider>
-            <AppContent {...props} />
+            <AppContent />
           </RiotOperationsProvider>
         </ToastProvider>
       </GameProvider>

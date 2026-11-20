@@ -28,23 +28,6 @@ We will acknowledge receipt within **48 hours** and coordinate a fix and coordin
 
 ---
 
-## Architectural Security Guarantees
+## Security design
 
-### 1. Zero Plain-Text Password Storage
-- LAAP **never** prompts for, stores, hashes, logs, or transmits Riot account passwords.
-- The current deferred integration can handle authenticated Riot session material written by the official Riot Client into local YAML configuration files. That material is encrypted at rest, but this is not an official Riot API and is not a ban-safety guarantee.
-
-### 2. Ed25519 Hardware Device Authentication
-- Every physical desktop client generates a unique Ed25519 cryptographic keypair stored in native OS hardware-backed storage:
-  - **Windows**: Windows Credential Manager (`windows-native`)
-  - **macOS**: Apple Keychain Services (`apple-native`)
-- Claiming an account lease requires signing a time-bound server nonce (`timestamp:accountId`). Replay attacks or forged claims from unauthorized machines fail verification.
-
-### 3. Mutual Single-Active Lease Enforcement
-- Account pools enforce a strict database-level unique constraint (`idx_exclusive_account_session`).
-- An account can never be leased to multiple operators or machines simultaneously.
-- When an operator releases an account or the session expires, the local client scrubs managed session material and restores the user's personal configuration. A startup recovery path handles backups left by a crashed desktop process when Riot is not running.
-
-### 4. Process Sandboxing & Safe Teardown
-- LAAP interacts only with Riot Client and League processes via standard OS process APIs (`sysinfo` and `Command`).
-- LAAP does not inject memory DLLs, modify game binaries, or interact with Vanguard anti-cheat memory space.
+See the [security and storage model](docs/SECURITY_MODEL.md) for local Riot sessions, native update checks, device-bound Pro leases, and presence.

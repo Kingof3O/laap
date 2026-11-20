@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { invokeTauri, isTauriAvailable } from '../../lib/api'
-import { flavor } from '../../product/flavors'
 
 export interface BillingStatus {
   available: boolean
@@ -31,7 +30,6 @@ export function useBilling() {
     }
   }, [])
   useEffect(() => {
-    if (flavor !== 'basic') return
     let closed = false
     let pending = false
     const load = async () => {

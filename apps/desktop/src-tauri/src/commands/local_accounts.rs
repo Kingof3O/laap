@@ -12,21 +12,18 @@ pub fn list_local_accounts_sync() -> Result<Vec<LocalAccountSummary>, String> {
     store.list_summaries()
 }
 
-#[cfg(feature = "basic")]
 #[tauri::command]
 pub async fn basic_profile_slots() -> Result<crate::local_store::ProfileSlots, String> {
     tauri::async_runtime::spawn_blocking(|| LocalStore::new()?.profile_slots())
         .await.map_err(|error| error.to_string())?
 }
 
-#[cfg(feature = "basic")]
 #[tauri::command]
 pub async fn select_basic_profiles(ids: Vec<String>) -> Result<crate::local_store::ProfileSlots, String> {
     tauri::async_runtime::spawn_blocking(move || LocalStore::new()?.select_profiles(ids))
         .await.map_err(|error| error.to_string())?
 }
 
-#[cfg(feature = "basic")]
 #[tauri::command]
 pub async fn replace_basic_profile(active_id: String, locked_id: String) -> Result<crate::local_store::ProfileSlots, String> {
     tauri::async_runtime::spawn_blocking(move || LocalStore::new()?.replace_profile(&active_id, locked_id))

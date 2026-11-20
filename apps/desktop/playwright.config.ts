@@ -6,7 +6,7 @@ export default defineConfig({
   workers: 1,
   use: { baseURL: 'http://127.0.0.1:1422', headless: true },
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1 --port 1422 --mode offline',
+    command: 'npm run dev -- --host 127.0.0.1 --port 1422',
     url: 'http://127.0.0.1:1422',
     reuseExistingServer: false,
   },
