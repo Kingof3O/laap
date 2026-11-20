@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowRight, ArrowUpRight, Check, Command, Fingerprint, Github, Heart, Layers3, LockKeyhole, MonitorDown, Search, ShieldCheck, SlidersHorizontal, Sparkles, Star, Zap } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUpRight, Check, Command, Fingerprint, Github, Heart, Layers3, LockKeyhole, MonitorDown, Search, ShieldCheck, SlidersHorizontal, Sparkles, Zap } from "lucide-react";
 import Nav from "./components/Nav";
 import Brand from "./components/Brand";
 import ProductWindow from "./components/ProductWindow";
