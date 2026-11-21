@@ -433,3 +433,88 @@ test('displays OP.GG top champions and agents with icons only, hover tooltips, a
 
   await page.screenshot({ path: testInfo.outputPath('opgg-top-heroes-and-val-rr.png') })
 })
+
+test('account cards display top 3 most-played champions on the right side of rank with hover tooltips and login saved in bottom row', async ({ page }, testInfo) => {
+  await page.addInitScript(() => {
+    const defaults = {
+      region: 'EUW', notes: '', favorite: false, session_status: 'saved',
+      has_session: true, created_at: '2026-01-01', last_used_at: null,
+    }
+    const profiles = [
+      { ...defaults, id: 'main-euw', name: 'Main - EUW', rank: 'Platinum II', riot_id: 'Kingof3O#EUW', games: ['league'] },
+      { ...defaults, id: 'main-val', name: 'Main - EUNE', valorant_rank: 'Silver 3', riot_id: 'Kingof3O#2516', games: ['valorant'] },
+    ]
+    Object.assign(window, {
+      __TAURI_INTERNALS__: {
+        invoke: async (command: string, args: Record<string, unknown>) => {
+          if (command === 'list_local_accounts') return structuredClone(profiles)
+          if (command === 'runtime_snapshot') return { riot_client: false, league_client: false, league_game: false, valorant_game: false }
+          if (command === 'fetch_opgg_summoner_stats') {
+            if (args.game === 'league') {
+              return {
+                game: 'league',
+                formattedRank: 'Platinum II (17 LP)',
+                wins: 136,
+                losses: 139,
+                winRate: 49,
+                topChampions: [
+                  { name: 'Wukong', iconUrl: 'https://opgg-static.akamaized.net/meta/images/lol/latest/champion/MonkeyKing.png', winRate: 62, count: 38 },
+                  { name: 'Diana', iconUrl: 'https://opgg-static.akamaized.net/meta/images/lol/latest/champion/Diana.png', winRate: 54, count: 26 },
+                  { name: 'Yasuo', iconUrl: 'https://opgg-static.akamaized.net/meta/images/lol/latest/champion/Yasuo.png', winRate: 50, count: 20 },
+                ],
+              }
+            }
+            return {
+              game: 'valorant',
+              formattedRank: 'Silver 3',
+              wins: 42,
+              losses: 38,
+              winRate: 53,
+            }
+          }
+          return null
+        },
+      },
+    })
+  })
+
+  await page.setViewportSize({ width: 1200, height: 800 })
+  await page.goto('/')
+
+  // 1. Verify League Account Card
+  const leagueCard = page.locator('.roster-card').filter({ hasText: 'Main - EUW' })
+  await expect(leagueCard).toBeVisible()
+
+  // Verify Top Champions container on the right of rank section
+  const cardTopChamps = leagueCard.locator('.card-top-champions')
+  await expect(cardTopChamps).toBeVisible()
+  await expect(cardTopChamps.locator('.card-top-champions-label')).toHaveText('Most Played')
+
+  const champItems = cardTopChamps.locator('.card-champion-item')
+  await expect(champItems).toHaveCount(3)
+
+  // Verify first champion (Wukong)
+  const wukong = champItems.first()
+  await expect(wukong.locator('.card-champion-img')).toBeVisible()
+  await expect(wukong).toHaveAttribute('title', 'Wukong · 62% WR (38 games)')
+
+  // Hover over Wukong to trigger premium tooltip
+  await wukong.hover()
+  const tooltip = wukong.locator('.card-champion-tooltip')
+  await expect(tooltip).toBeVisible()
+  await expect(tooltip.locator('.card-champion-tooltip-name')).toHaveText('Wukong')
+  await expect(tooltip.locator('.card-champion-tooltip-games')).toHaveText('38 games')
+  await expect(tooltip.locator('.card-champion-tooltip-wr')).toHaveText('62% WR')
+
+  // Verify Login saved status pill is in the bottom row
+  const bottomMeta = leagueCard.locator('.card-bottom-row .card-bottom-meta')
+  await expect(bottomMeta.locator('.card-status-pill')).toContainText('Login saved')
+
+  // 2. Switch to VALORANT and verify champion section is not rendered
+  await page.getByRole('button', { name: 'VALORANT', exact: true }).click()
+  const valCard = page.locator('.roster-card').filter({ hasText: 'Main - EUNE' })
+  await expect(valCard).toBeVisible()
+  await expect(valCard.locator('.card-top-champions')).toHaveCount(0)
+
+  await page.screenshot({ path: testInfo.outputPath('card-top-champions.png') })
+})

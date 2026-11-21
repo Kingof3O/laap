@@ -28,7 +28,7 @@ export function AccountCardSkeleton({ className = '' }: { className?: string }) 
         </div>
       </div>
 
-      {/* Details Row: Rank Emblem + Copy + Status Pill */}
+      {/* Details Row: Rank Emblem + Copy + Top Champions Placeholder */}
       <div className="card-details-row" style={{ marginTop: 2 }}>
         <div className="card-rank" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Skeleton variant="circular" width={28} height={28} />
@@ -37,7 +37,14 @@ export function AccountCardSkeleton({ className = '' }: { className?: string }) 
             <Skeleton variant="text" width={78} height={12} />
           </div>
         </div>
-        <Skeleton variant="pill" width={86} height={22} />
+        <div className="card-top-champions" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+          <Skeleton variant="text" width={48} height={9} />
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Skeleton variant="rectangular" width={34} height={34} style={{ borderRadius: '8px' }} />
+            <Skeleton variant="rectangular" width={34} height={34} style={{ borderRadius: '8px' }} />
+            <Skeleton variant="rectangular" width={34} height={34} style={{ borderRadius: '8px' }} />
+          </div>
+        </div>
       </div>
 
       {/* Win-rate bar placeholder */}
@@ -52,11 +59,14 @@ export function AccountCardSkeleton({ className = '' }: { className?: string }) 
         <Skeleton variant="pill" width="100%" height={4} />
       </div>
 
-      {/* Bottom Row: Last Played + Action Button */}
+      {/* Bottom Row: Last Played + Status + Action Button */}
       <div className="card-bottom-row" style={{ paddingTop: 8 }}>
-        <div className="last-played-text" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Skeleton variant="circular" width={13} height={13} />
-          <Skeleton variant="text" width={68} height={11} />
+        <div className="card-bottom-meta" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="last-played-text" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Skeleton variant="circular" width={13} height={13} />
+            <Skeleton variant="text" width={68} height={11} />
+          </div>
+          <Skeleton variant="pill" width={76} height={18} />
         </div>
         <div className="card-actions-group" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Skeleton variant="pill" width={74} height={32} />

@@ -19,7 +19,8 @@ import { getRankTierClass } from '../../lib/sorting'
 import { formatLiveMatchLabel, formatLiveMinutes } from '../../lib/liveStatus'
 import { formatLastPlayed } from '../../lib/lastPlayed'
 import type { Game, LiveStatusBadge } from '../../lib/types'
-import type { OpggStats } from '../../lib/opgg'
+import type { ChampionStat, OpggStats } from '../../lib/opgg'
+import { CardTopChampions } from './CardTopChampions'
 
 export interface AccountCardProps {
   id: string
@@ -27,7 +28,7 @@ export interface AccountCardProps {
   region: string
   rank?: string | null
   level?: number | null
-  seasonStats?: Pick<OpggStats, 'wins' | 'losses'> | null
+  seasonStats?: (Pick<OpggStats, 'wins' | 'losses'> & { topChampions?: ChampionStat[] }) | null
   valorantRank?: string | null
   games?: Game[]
   activeGame?: Game
@@ -271,17 +272,10 @@ export function AccountCard({
         </div>
       </div>
 
-      <div className="card-details-row">
-        <div className="card-rank" title={displayRank ? `Rank: ${displayRank}` : 'Rank not set'}>
-          <span className={`card-rank-emblem ${getRankTierClass(displayRank ?? '')}`}>
-            <RankCrest rank={displayRank || 'Unranked'} game={activeGame} />
-          </span>
-          <span className="card-rank-copy">
-            <span className="card-rank-caption">Rank</span>
-            <span className="card-rank-value">{displayRank || 'Unranked'}</span>
-          </span>
-        </div>
-        {needsSignIn ? (
+      {(() => {
+        const topChampions = seasonStats?.topChampions
+        const hasTopChampions = activeGame === 'league' && Boolean(topChampions && topChampions.length > 0)
+        const statusBadge = needsSignIn ? (
           <span className="card-status-pill card-status-warn">Sign in required</span>
         ) : isStale ? (
           <span className="card-status-pill card-status-warn" title={status}>Session needs attention</span>
@@ -290,57 +284,83 @@ export function AccountCard({
             <CheckCircle2 size={13} aria-hidden="true" />
             Login saved
           </span>
-        )}
-      </div>
-      {seasonStats ? <SeasonRecord wins={seasonStats.wins} losses={seasonStats.losses} /> : null}
-      {liveStatus?.checking ? (
-        <div className="card-live-row">
-          <span className="card-status-pill card-status-idle">Checking live match…</span>
-        </div>
-      ) : liveStatus?.inGame ? (
-        <div className="card-live-row">
-          <span className="card-status-pill card-status-ingame" title={formatLiveMatchLabel(liveStatus)}>
-            <Activity size={13} aria-hidden="true" />
-            {(() => {
-              const mins = formatLiveMinutes(liveStatus.gameLengthSeconds)
-              return mins !== null ? `In Match · ${mins}m` : 'In Match'
-            })()}
-          </span>
-        </div>
-      ) : null}
+        )
 
-      {notes ? <p className="account-notes card-notes">{notes}</p> : null}
+        return (
+          <>
+            <div className="card-details-row">
+              <div className="card-rank" title={displayRank ? `Rank: ${displayRank}` : 'Rank not set'}>
+                <span className={`card-rank-emblem ${getRankTierClass(displayRank ?? '')}`}>
+                  <RankCrest rank={displayRank || 'Unranked'} game={activeGame} />
+                </span>
+                <span className="card-rank-copy">
+                  <span className="card-rank-caption">Rank</span>
+                  <span className="card-rank-value">{displayRank || 'Unranked'}</span>
+                </span>
+              </div>
+              {hasTopChampions ? (
+                <CardTopChampions heroes={topChampions} />
+              ) : (
+                statusBadge
+              )}
+            </div>
 
-      {/* Secondary actions are visually quiet; launching remains the only CTA. */}
-      <div className="card-bottom-row">
-        <span className="last-played-text" title={lastUsedText ? `Last played: ${lastUsedText}` : 'Never launched'}>
-          <Clock3 size={13} aria-hidden="true" />
-          <span>{lastPlayedLabel === 'Never' ? 'Never launched' : lastPlayedLabel}</span>
-        </span>
-        <div className="card-actions-group">
-          {onEdit ? (
-            <button
-              type="button"
-              className="btn-card-action"
-              onClick={(event) => { event.stopPropagation(); onEdit() }}
-              disabled={busy}
-              title="Edit Profile"
-              aria-label={`Edit ${name}`}
-            >
-              <Pencil size={14} />
-            </button>
-          ) : null}
-          {menuItems.length > 0 ? <ContextMenu items={menuItems} label={`Options for ${displayName}`} /> : null}
-          <button
-            type="button"
-            className={`btn-launch-primary ${isLaunching ? 'btn-launch-loading' : ''}`}
-            disabled={buttonDisabled}
-            onClick={handlePrimaryAction}
-          >
-            {buttonContent}
-          </button>
-        </div>
-      </div>
+            {seasonStats ? <SeasonRecord wins={seasonStats.wins} losses={seasonStats.losses} /> : null}
+
+            {liveStatus?.checking ? (
+              <div className="card-live-row">
+                <span className="card-status-pill card-status-idle">Checking live match…</span>
+              </div>
+            ) : liveStatus?.inGame ? (
+              <div className="card-live-row">
+                <span className="card-status-pill card-status-ingame" title={formatLiveMatchLabel(liveStatus)}>
+                  <Activity size={13} aria-hidden="true" />
+                  {(() => {
+                    const mins = formatLiveMinutes(liveStatus.gameLengthSeconds)
+                    return mins !== null ? `In Match · ${mins}m` : 'In Match'
+                  })()}
+                </span>
+              </div>
+            ) : null}
+
+            {notes ? <p className="account-notes card-notes">{notes}</p> : null}
+
+            {/* Secondary actions are visually quiet; launching remains the only CTA. */}
+            <div className="card-bottom-row">
+              <div className="card-bottom-meta">
+                <span className="last-played-text" title={lastUsedText ? `Last played: ${lastUsedText}` : 'Never launched'}>
+                  <Clock3 size={13} aria-hidden="true" />
+                  <span>{lastPlayedLabel === 'Never' ? 'Never launched' : lastPlayedLabel}</span>
+                </span>
+                {hasTopChampions ? statusBadge : null}
+              </div>
+              <div className="card-actions-group">
+                {onEdit ? (
+                  <button
+                    type="button"
+                    className="btn-card-action"
+                    onClick={(event) => { event.stopPropagation(); onEdit() }}
+                    disabled={busy}
+                    title="Edit Profile"
+                    aria-label={`Edit ${name}`}
+                  >
+                    <Pencil size={14} />
+                  </button>
+                ) : null}
+                {menuItems.length > 0 ? <ContextMenu items={menuItems} label={`Options for ${displayName}`} /> : null}
+                <button
+                  type="button"
+                  className={`btn-launch-primary ${isLaunching ? 'btn-launch-loading' : ''}`}
+                  disabled={buttonDisabled}
+                  onClick={handlePrimaryAction}
+                >
+                  {buttonContent}
+                </button>
+              </div>
+            </div>
+          </>
+        )
+      })()}
     </div>
   )
 }

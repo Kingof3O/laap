@@ -882,6 +882,137 @@ body { background: #0c0a13; }
   align-items: center;
 }
 
+/* Card Most Played Champions (Right side of rank section) */
+.card-top-champions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 5;
+}
+
+.card-top-champions-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #a898b9;
+  line-height: 1;
+}
+
+.card-top-champions-list {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-champion-item {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  cursor: pointer;
+  outline: none;
+  background: rgba(20, 16, 30, 0.6);
+  flex-shrink: 0;
+}
+
+.card-champion-img {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1), border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.card-champion-item:hover .card-champion-img,
+.card-champion-item:focus-visible .card-champion-img {
+  transform: translateY(-2px) scale(1.05);
+  border-color: rgba(201, 166, 255, 0.5);
+  box-shadow: 0 4px 12px rgba(201, 166, 255, 0.22);
+}
+
+.card-champion-tooltip {
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 16, 30, 0.96);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(201, 166, 255, 0.3);
+  border-radius: 8px;
+  padding: 5px 9px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 12px rgba(201, 166, 255, 0.15);
+  white-space: nowrap;
+  z-index: 100;
+  pointer-events: none;
+  animation: tooltip-fade 120ms ease-out both;
+}
+
+.card-champion-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 4px;
+  border-style: solid;
+  border-color: rgba(201, 166, 255, 0.3) transparent transparent transparent;
+}
+
+.card-champion-tooltip-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: #eee7fa;
+  line-height: 1.25;
+}
+
+.card-champion-tooltip-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: #c5b5d5;
+  margin-top: 2px;
+}
+
+.card-champion-tooltip-wr {
+  font-weight: 700;
+}
+
+.card-champion-wr-high {
+  color: #8edac5;
+}
+
+.card-champion-wr-low {
+  color: #fca5a5;
+}
+
+.card-bottom-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+@keyframes tooltip-fade {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 3px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
 .error-state-card {
   margin: 36px auto;
   max-width: 520px;
@@ -925,8 +1056,12 @@ body { background: #0c0a13; }
   .skeleton-shimmer,
   .inspector-refresh-accent-line,
   .content-reveal-active,
-  .roster-viewport-skeleton {
+  .roster-viewport-skeleton,
+  .card-champion-tooltip,
+  .card-champion-img {
     animation: none;
+    transition: none;
+    transform: none;
   }
   .skeleton-shimmer {
     background-image: none;

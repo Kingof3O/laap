@@ -7,6 +7,7 @@ export interface ChampionStat {
   losses?: number
   winRate?: number
   count?: number
+  kda?: string | number
 }
 
 export interface CombatStats {
