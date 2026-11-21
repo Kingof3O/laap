@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import path from 'node:path'
 
-const TARGET_DIR = process.env.SCREENSHOT_TARGET_DIR || 'C:/Users/hessa/.gemini/antigravity/brain/f40ff0ce-a142-445f-822d-95fe6c065d8e/baseline'
+const TARGET_DIR = 'C:/Users/hessa/.gemini/antigravity/brain/f40ff0ce-a142-445f-822d-95fe6c065d8e/redesigned'
 
 function mockWorkspaceData(page: any, { empty = false, loading = false } = {}) {
   return page.addInitScript(({ empty, loading }) => {
