@@ -677,3 +677,170 @@ body { background: #0c0a13; }
 .billing-profile-slots h2 { font-size: 18px; }
 .billing-slot-choices { display: grid; gap: 8px; border: 0; max-height: 240px; overflow-y: auto; }
 .billing-slot-choices input { margin-right: 8px; }
+
+/* ==========================================================================
+   Premium Velvet Amethyst Loading & Micro-Interaction System
+   ========================================================================== */
+
+.skeleton {
+  display: block;
+  background-color: rgba(255, 255, 255, 0.04);
+  background-size: 200% 100%;
+  border-radius: var(--radius-xs);
+  flex-shrink: 0;
+}
+
+.skeleton-text {
+  height: 14px;
+  border-radius: 3px;
+}
+
+.skeleton-circular {
+  border-radius: 50%;
+}
+
+.skeleton-rectangular {
+  border-radius: var(--radius-xs);
+}
+
+.skeleton-pill {
+  border-radius: var(--radius-full);
+}
+
+.skeleton-avatar {
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.skeleton-avatar-rounded {
+  border-radius: var(--radius-md);
+}
+
+.skeleton-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(201, 166, 255, 0.09) 50%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  animation: skeleton-shimmer 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.skeleton-text-group {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.skeleton-metric {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+/* Season Stats Skeleton Layout matching loaded geometry */
+.inspector-stats-skeleton {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.inspector-top-heroes-skeleton {
+  margin-top: 0;
+  padding-top: 2px;
+  border-top: none;
+}
+
+.inspector-hero-pill-skeleton {
+  cursor: default;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.season-record-skeleton {
+  display: grid;
+  gap: 5px;
+  padding-top: 3px;
+}
+
+.season-record-label-skeleton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Velvet Amethyst Hairline Revalidation Indicator */
+.inspector-refresh-accent-line {
+  position: relative;
+  height: 2px;
+  width: calc(100% + 18px);
+  margin: -7px -9px 5px -9px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(201, 166, 255, 0.2) 20%,
+    rgba(201, 166, 255, 0.85) 50%,
+    rgba(201, 166, 255, 0.2) 80%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: refresh-accent-line 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  border-top-left-radius: 9px;
+  border-top-right-radius: 9px;
+  overflow: hidden;
+}
+
+/* Content smooth reveal */
+.content-reveal {
+  opacity: 1;
+}
+
+.content-reveal-active {
+  animation: content-reveal-fade 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes refresh-accent-line {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes content-reveal-fade {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer,
+  .inspector-refresh-accent-line,
+  .content-reveal-active {
+    animation: none;
+  }
+  .skeleton-shimmer {
+    background-image: none;
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+}
+

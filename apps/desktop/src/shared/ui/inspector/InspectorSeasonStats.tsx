@@ -4,6 +4,7 @@ import type { OpggStats } from '../../../lib/opgg.ts'
 import { SeasonRecord } from '../SeasonRecord.tsx'
 import { TopHeroesStrip } from './TopHeroesStrip.tsx'
 import { InspectorIconButton } from './InspectorIconButton.tsx'
+import { SeasonStatsSkeleton, ContentReveal } from '../skeleton/index.ts'
 
 export function InspectorSeasonStats({
   stats,
@@ -50,6 +51,9 @@ export function InspectorSeasonStats({
   onSubmitRiotId: (e: FormEvent) => void
   hasValidInputTag: boolean
 }) {
+  const isRefreshing = statsLoading && Boolean(stats)
+  const isInitialLoading = statsLoading && !stats
+
   return (
     <section className="inspector-section" aria-label="Season stats">
       <div className="inspector-section-heading">
@@ -77,87 +81,95 @@ export function InspectorSeasonStats({
       </div>
 
       <div className="inspector-stats-card">
-        {statsLoading ? (
-          <p className="inspector-stat-message" role="status">
-            <Loader2 size={14} className="animate-spin" aria-hidden="true" />
-            Fetching {isVal ? 'VALORANT' : 'League'} stats…
-          </p>
+        {isRefreshing ? (
+          <div
+            className="inspector-refresh-accent-line"
+            role="progressbar"
+            aria-label="Refreshing season stats"
+            aria-busy="true"
+          />
+        ) : null}
+
+        {isInitialLoading ? (
+          <SeasonStatsSkeleton isVal={isVal} />
         ) : stats ? (
-          isVal ? (
-            <div className="inspector-valorant-stats">
-              {stats.topChampions && stats.topChampions.length > 0 ? (
-                <TopHeroesStrip heroes={stats.topChampions} game="valorant" />
-              ) : null}
-              <dl className="inspector-season-metrics">
-                {showOpggRank ? (
-                  <div>
-                    <dt>OP.GG rank</dt>
-                    <dd>{opggRank}</dd>
+          <ContentReveal active={!statsLoading}>
+            {isVal ? (
+              <div className="inspector-valorant-stats">
+                {stats.topChampions && stats.topChampions.length > 0 ? (
+                  <TopHeroesStrip heroes={stats.topChampions} game="valorant" />
+                ) : null}
+                <dl className="inspector-season-metrics">
+                  {showOpggRank ? (
+                    <div>
+                      <dt>OP.GG rank</dt>
+                      <dd>{opggRank}</dd>
+                    </div>
+                  ) : null}
+                  {typeof level === 'number' ? (
+                    <div>
+                      <dt>Account level</dt>
+                      <dd>{level}</dd>
+                    </div>
+                  ) : !showOpggRank ? (
+                    <div>
+                      <dt>Competitive rank</dt>
+                      <dd>{rank}</dd>
+                    </div>
+                  ) : null}
+                  {stats.combatStats?.kd !== undefined ? (
+                    <div title="Kill / Death ratio this season">
+                      <dt>K/D</dt>
+                      <dd>{stats.combatStats.kd.toFixed(2)}</dd>
+                    </div>
+                  ) : null}
+                  {stats.combatStats?.headshotRate !== undefined ? (
+                    <div title="Headshot hit rate this season">
+                      <dt>HS%</dt>
+                      <dd>{stats.combatStats.headshotRate}%</dd>
+                    </div>
+                  ) : null}
+                  {stats.wins + stats.losses === 0 && !stats.combatStats ? (
+                    <div title="No competitive matches recorded in the current active Act on OP.GG">
+                      <dt>Current Act</dt>
+                      <dd>0 matches</dd>
+                    </div>
+                  ) : null}
+                </dl>
+                {stats.wins + stats.losses > 0 ? (
+                  <SeasonRecord
+                    wins={stats.wins}
+                    losses={stats.losses}
+                    fallback={<p className="inspector-stat-message">{stats.formattedWinRate}</p>}
+                  />
+                ) : null}
+              </div>
+            ) : (
+              <div className="inspector-league-stats">
+                {stats.topChampions && stats.topChampions.length > 0 ? (
+                  <TopHeroesStrip heroes={stats.topChampions} game="league" />
+                ) : null}
+                {stats.winRate && stats.winRate >= 54 && stats.wins >= 15 ? (
+                  <div
+                    className="inspector-momentum-badge"
+                    title={`${stats.winRate}% win rate across ${stats.wins + stats.losses} ranked games`}
+                  >
+                    <Flame size={11} aria-hidden="true" />
+                    <span>Hot Streak · {stats.winRate}% WR</span>
                   </div>
                 ) : null}
-                {typeof level === 'number' ? (
-                  <div>
-                    <dt>Account level</dt>
-                    <dd>{level}</dd>
-                  </div>
-                ) : !showOpggRank ? (
-                  <div>
-                    <dt>Competitive rank</dt>
-                    <dd>{rank}</dd>
-                  </div>
-                ) : null}
-                {stats.combatStats?.kd !== undefined ? (
-                  <div title="Kill / Death ratio this season">
-                    <dt>K/D</dt>
-                    <dd>{stats.combatStats.kd.toFixed(2)}</dd>
-                  </div>
-                ) : null}
-                {stats.combatStats?.headshotRate !== undefined ? (
-                  <div title="Headshot hit rate this season">
-                    <dt>HS%</dt>
-                    <dd>{stats.combatStats.headshotRate}%</dd>
-                  </div>
-                ) : null}
-                {stats.wins + stats.losses === 0 && !stats.combatStats ? (
-                  <div title="No competitive matches recorded in the current active Act on OP.GG">
-                    <dt>Current Act</dt>
-                    <dd>0 matches</dd>
-                  </div>
-                ) : null}
-              </dl>
-              {stats.wins + stats.losses > 0 ? (
                 <SeasonRecord
                   wins={stats.wins}
                   losses={stats.losses}
-                  fallback={<p className="inspector-stat-message">{stats.formattedWinRate}</p>}
+                  fallback={
+                    <p className="inspector-stat-message">
+                      {stats.formattedWinRate || 'No ranked games'}
+                    </p>
+                  }
                 />
-              ) : null}
-            </div>
-          ) : (
-            <div className="inspector-league-stats">
-              {stats.topChampions && stats.topChampions.length > 0 ? (
-                <TopHeroesStrip heroes={stats.topChampions} game="league" />
-              ) : null}
-              {stats.winRate && stats.winRate >= 54 && stats.wins >= 15 ? (
-                <div
-                  className="inspector-momentum-badge"
-                  title={`${stats.winRate}% win rate across ${stats.wins + stats.losses} ranked games`}
-                >
-                  <Flame size={11} aria-hidden="true" />
-                  <span>Hot Streak · {stats.winRate}% WR</span>
-                </div>
-              ) : null}
-              <SeasonRecord
-                wins={stats.wins}
-                losses={stats.losses}
-                fallback={
-                  <p className="inspector-stat-message">
-                    {stats.formattedWinRate || 'No ranked games'}
-                  </p>
-                }
-              />
-            </div>
-          )
+              </div>
+            )}
+          </ContentReveal>
         ) : riotTag && !isEditingRiotId ? (
           <p className="inspector-stat-message" role="status">
             {statsError?.toLowerCase().includes('not found')

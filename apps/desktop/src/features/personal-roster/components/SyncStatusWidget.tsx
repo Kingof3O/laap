@@ -22,7 +22,7 @@ export function SyncStatusWidget({
   return (
     <details className={`sync-compact sync-status-${syncState}`}>
       <summary>
-        <RefreshCw size={15} /> <span>Icon &amp; rank sync</span>
+        <RefreshCw size={15} className={syncState === 'syncing' ? 'animate-spin' : ''} /> <span>Icon &amp; rank sync</span>
         <span className="sync-compact-state">
           {syncState === 'syncing'
             ? 'Syncing…'

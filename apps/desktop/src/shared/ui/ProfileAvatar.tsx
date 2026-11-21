@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Loader2 } from 'lucide-react'
 import { peekIcon, readIcon } from '../../lib/iconCache'
 import { getOpggCachedAvatar } from '../../lib/opgg'
 import type { Game } from '../../lib/types'
+import { Skeleton } from './skeleton/index.ts'
 
 export function ProfileAvatar({
   name,
@@ -110,9 +110,11 @@ export function ProfileAvatar({
           draggable={false}
         />
       ) : loading ? (
-        <Loader2
-          size={16}
-          className="animate-spin"
+        <Skeleton
+          variant="circular"
+          width="100%"
+          height="100%"
+          shimmer
           aria-label="Loading profile icon"
         />
       ) : (

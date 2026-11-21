@@ -1,5 +1,5 @@
 import type { FormEvent, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { RosterItem } from './AccountRosterDisplay.tsx'
 import type { Game } from '../../lib/types.ts'
 import { useGame } from '../../context/GameContext.tsx'
@@ -74,6 +74,10 @@ export function ProfileInspector({
   const [savingRiotId, setSavingRiotId] = useState(false)
   const [riotIdError, setRiotIdError] = useState<string | null>(null)
 
+  const activeRequestIdRef = useRef(0)
+  const statsRef = useRef<OpggStats | null>(stats)
+  statsRef.current = stats
+
   const opggInfo = useMemo(
     () => getOpggSummonerUrl(name, region, riotId, activeGame),
     [name, region, riotId, activeGame],
@@ -81,11 +85,13 @@ export function ProfileInspector({
 
   const loadStats = useCallback(
     async (forceRefresh = false) => {
+      const requestId = ++activeRequestIdRef.current
+
       if (!opggInfo.hasTag) {
         setStats(null)
         setStatsError(null)
         setStatsLoading(false)
-        return
+        return null
       }
 
       setStatsLoading(true)
@@ -98,16 +104,25 @@ export function ProfileInspector({
           forceRefresh,
           activeGame,
         )
-        setStats(res)
-        if (res?.avatarUrl) {
-          window.dispatchEvent(new Event('laap:icons-updated'))
+        if (activeRequestIdRef.current === requestId) {
+          setStats(res)
+          if (res?.avatarUrl) {
+            window.dispatchEvent(new Event('laap:icons-updated'))
+          }
         }
         return res
       } catch (err: unknown) {
-        setStats(null)
-        setStatsError(err instanceof Error ? err.message : String(err))
+        if (activeRequestIdRef.current === requestId) {
+          if (!statsRef.current) {
+            setStats(null)
+          }
+          setStatsError(err instanceof Error ? err.message : String(err))
+        }
+        return null
       } finally {
-        setStatsLoading(false)
+        if (activeRequestIdRef.current === requestId) {
+          setStatsLoading(false)
+        }
       }
     },
     [name, region, riotId, opggInfo.hasTag, activeGame],
@@ -116,6 +131,8 @@ export function ProfileInspector({
   useEffect(() => {
     setIsEditingRiotId(false)
     setRiotIdInput(account.riotId || (account.name.includes('#') ? account.name : ''))
+    setStats(null)
+    setStatsError(null)
     void loadStats(false)
   }, [name, riotId, loadStats, account.riotId, account.name])
 
