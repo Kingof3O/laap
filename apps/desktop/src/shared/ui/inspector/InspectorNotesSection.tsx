@@ -10,7 +10,7 @@ export function InspectorNotesSection({ notes }: { notes?: string }) {
           <FileText size={14} aria-hidden="true" /> Notes
         </h3>
       </div>
-      <p>{notes || 'No notes added.'}</p>
+      <p className="inspector-notes-body">{notes || 'No notes added.'}</p>
     </section>
   )
 }

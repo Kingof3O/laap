@@ -46,8 +46,8 @@
 .filter-controls { gap: 9px; }
 .search-box,
 .search-box:focus-within {
-  min-width: 140px;
-  width: clamp(140px, 18vw, 260px);
+  min-width: 200px;
+  width: clamp(200px, 22vw, 290px);
   height: 40px;
   background: rgba(36, 29, 52, .68);
   border-color: var(--polish-stroke-strong);
@@ -192,12 +192,13 @@
 .roster-card::before {
   content: '';
   position: absolute;
-  inset-block: 17px;
-  left: 0;
-  width: 3px;
+  inset-block: 18px;
+  left: -1px;
+  width: 3.5px;
   background: transparent;
   border-radius: 0 4px 4px 0;
-  transition: background 160ms ease;
+  transition: background 180ms ease, box-shadow 180ms ease;
+  pointer-events: none;
 }
 .roster-card:hover {
   transform: translateY(-2px);
@@ -207,10 +208,14 @@
 }
 .roster-card-selected,
 .roster-card-selected:hover {
-  border-color: rgba(201, 166, 255, .48);
-  box-shadow: inset 0 1px rgba(255,255,255,.07), 0 12px 32px rgba(6,4,12,.30);
+  border-color: rgba(201, 166, 255, .56);
+  background: linear-gradient(165deg, rgba(48, 37, 68, .98), rgba(28, 22, 42, .98) 72%);
+  box-shadow: 0 0 0 1px rgba(201, 166, 255, .28), inset 0 1px rgba(255,255,255,.08), 0 14px 34px rgba(6,4,12,.34);
 }
-.roster-card-selected::before { background: #d7b9ff; }
+.roster-card-selected::before {
+  background: linear-gradient(180deg, rgba(201, 166, 255, .85), #d7b9ff 50%, rgba(201, 166, 255, .85));
+  box-shadow: 0 0 10px rgba(201, 166, 255, .5);
+}
 .roster-card:focus-within { border-color: rgba(201, 166, 255, .48); }
 .card-top-row { gap: 14px; align-items: flex-start; }
 .card-identity { gap: 14px; align-items: center; flex: 1; min-width: 0; }
@@ -283,10 +288,29 @@
 .card-rank-copy { display: grid; gap: 3px; min-width: 0; }
 .card-rank-caption { font-size: 10px; line-height: 1; color: #a898b9; letter-spacing: .035em; }
 .card-rank-value { color: #eee7fa; font-weight: 650; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card-details-row .card-status-pill { font-size: 11px; line-height: 1.35; text-align: right; max-width: 46%; }
-.card-status-ready { color: #77d8bd; }
-.card-details-row .card-status-ready { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-.card-status-warn { color: #ecc48b; }
+.card-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 650;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.card-details-row .card-status-pill { font-size: 10.5px; line-height: 1.25; text-align: right; max-width: 50%; }
+.card-status-ready {
+  background: rgba(52, 184, 153, 0.12);
+  color: #8edac5;
+  border: 1px solid rgba(52, 184, 153, 0.28);
+}
+.card-details-row .card-status-ready { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.card-status-warn {
+  background: rgba(255, 171, 64, 0.12);
+  color: #ffab40;
+  border: 1px solid rgba(255, 171, 64, 0.28);
+}
 .season-record { display: grid; gap: 7px; }
 .season-record-label {
   display: flex;
@@ -404,7 +428,7 @@
 /* Respect desktop sizes and accessibility preferences. */
 @media (max-width: 1160px) {
   .sub-navbar, .filter-controls, .view-action-controls { gap: 8px; }
-  .sub-navbar .search-box { min-width: 110px; padding-inline: 8px; }
+  .sub-navbar .search-box { min-width: 155px; padding-inline: 10px; }
   .sub-navbar .search-shortcut, .sub-navbar .star-filter-label,
   .sub-navbar .toolbar-reset-btn > span { display: none; }
   .view-action-controls .btn-add-primary { padding-inline: 10px; white-space: nowrap; }

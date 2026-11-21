@@ -56,38 +56,28 @@
   box-shadow: 0 0 0 1px var(--accent-primary), var(--shadow-card-hover);
 }
 
-.roster-card.rank-platinum:hover,
-.roster-card.rank-platinum.roster-card-selected {
+.roster-card.rank-platinum:hover:not(.roster-card-selected) {
   border-color: rgba(78, 199, 182, 0.45);
 }
-.roster-card.rank-emerald:hover,
-.roster-card.rank-emerald.roster-card-selected {
+.roster-card.rank-emerald:hover:not(.roster-card-selected) {
   border-color: rgba(58, 202, 131, 0.45);
 }
-.roster-card.rank-diamond:hover,
-.roster-card.rank-diamond.roster-card-selected {
+.roster-card.rank-diamond:hover:not(.roster-card-selected) {
   border-color: rgba(142, 126, 245, 0.45);
 }
-.roster-card.rank-master:hover,
-.roster-card.rank-master.roster-card-selected,
-.roster-card.rank-grandmaster:hover,
-.roster-card.rank-grandmaster.roster-card-selected,
-.roster-card.rank-challenger:hover,
-.roster-card.rank-challenger.roster-card-selected {
+.roster-card.rank-master:hover:not(.roster-card-selected),
+.roster-card.rank-grandmaster:hover:not(.roster-card-selected),
+.roster-card.rank-challenger:hover:not(.roster-card-selected) {
   border-color: rgba(235, 94, 219, 0.45);
 }
-.roster-card.rank-gold:hover,
-.roster-card.rank-gold.roster-card-selected {
+.roster-card.rank-gold:hover:not(.roster-card-selected) {
   border-color: rgba(229, 182, 70, 0.45);
 }
-.roster-card.rank-ascendant:hover,
-.roster-card.rank-ascendant.roster-card-selected {
+.roster-card.rank-ascendant:hover:not(.roster-card-selected) {
   border-color: rgba(58, 210, 159, 0.45);
 }
-.roster-card.rank-immortal:hover,
-.roster-card.rank-immortal.roster-card-selected,
-.roster-card.rank-radiant:hover,
-.roster-card.rank-radiant.roster-card-selected {
+.roster-card.rank-immortal:hover:not(.roster-card-selected),
+.roster-card.rank-radiant:hover:not(.roster-card-selected) {
   border-color: rgba(255, 90, 115, 0.45);
 }
 

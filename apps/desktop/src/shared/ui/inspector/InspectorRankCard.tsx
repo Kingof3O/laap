@@ -35,7 +35,7 @@ export function InspectorRankCard({
         <div className="inspector-crest">
           <RankCrest rank={rank} game={activeGame} />
         </div>
-        <div>
+        <div className="inspector-rank-copy">
           <span className="inspector-meta-label">Rank</span>
           <strong>{displayRankWithScore}</strong>
         </div>
@@ -46,7 +46,7 @@ export function InspectorRankCard({
           <div className="inspector-session-actions">
             {onLaunch && sessionReady ? (
               <button
-                className="btn-modal-primary inspector-launch-btn"
+                className="inspector-launch-btn"
                 type="button"
                 onClick={onLaunch}
                 disabled={busy}
