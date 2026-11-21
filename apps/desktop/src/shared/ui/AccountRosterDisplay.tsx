@@ -47,6 +47,7 @@ export interface AccountRosterDisplayProps {
   toolbarSlot?: ReactNode
   onDelete: (id: string, name: string) => void
   onToggleFavorite?: (id: string) => void
+  onSaveNotes?: (id: string, notes: string) => Promise<void>
   sortOrder?: SortOrder
   onSortChange?: (order: SortOrder) => void
 }
@@ -70,6 +71,7 @@ export function AccountRosterDisplay({
   toolbarSlot,
   onDelete,
   onToggleFavorite,
+  onSaveNotes,
   sortOrder,
   onSortChange,
 }: AccountRosterDisplayProps) {
@@ -208,6 +210,7 @@ export function AccountRosterDisplay({
             onEdit={onEdit ? () => onEdit(activeHero.id) : undefined}
             onLaunch={() => onLaunch(activeHero.id, activeGame)}
             onCheckLive={activeGame === 'league' && onCheckLive ? () => onCheckLive(activeHero.id) : undefined}
+            onSaveNotes={onSaveNotes ? (notes) => onSaveNotes(activeHero.id, notes) : undefined}
             launchLabel={launchLabel}
           />
         ) : null}

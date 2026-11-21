@@ -33,6 +33,7 @@ import {
   useRosterLiveStatus,
 } from './hooks/index.ts'
 import { SyncStatusWidget } from './components/SyncStatusWidget.tsx'
+import { recordActivity } from '../../lib/activityLog.ts'
 import { RosterWorkspaceSkeleton, ContentReveal } from '../../shared/ui/skeleton/index.ts'
 
 interface Props {
@@ -465,6 +466,28 @@ export function PersonalRosterView({
           }}
           onDelete={(id, name) => setDeleteTarget({ id, name })}
           onToggleFavorite={handleToggleFavorite}
+          onSaveNotes={async (id, notes) => {
+            const raw = localAccounts.find((a) => a.id === id)
+            if (!raw) return
+            await editAccount(id, {
+              name: raw.name,
+              region: raw.region,
+              rank: raw.rank ?? null,
+              notes,
+              favorite: raw.favorite,
+              customization: raw.customization,
+              riot_id: raw.riot_id ?? null,
+              games: raw.games,
+              valorant_rank: raw.valorant_rank ?? null,
+            })
+            recordActivity({
+              type: 'notes',
+              accountId: raw.id,
+              accountName: raw.name,
+              game: activeGame,
+              detail: `Updated notes: ${notes.slice(0, 30)}${notes.length > 30 ? '...' : ''}`,
+            })
+          }}
           sortOrder={sortOrder}
           onSortChange={onSortChange}
         />

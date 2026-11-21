@@ -19,8 +19,10 @@ import {
 } from './context/RiotOperations'
 import { isNewerVersion } from './hooks/useUpdateChecker'
 import { product } from './product/flavors'
+import { CommandPalette } from './shared/ui/CommandPalette'
+import { AccountComparisonModal } from './shared/ui/AccountComparisonModal'
 import type { SortOrder } from './lib/sorting'
-import type { Region, ViewMode } from './lib/types'
+import type { LocalAccountSummary, Region, ViewMode } from './lib/types'
 
 function AppContent() {
   const { activeGame, setActiveGame } = useGame()
@@ -53,10 +55,30 @@ function AppContent() {
   const [localCount, setLocalCount] = useState(0)
   const [profileSlots, setProfileSlots] = useState<ProfileSlots | null>(null)
   const [showBilling, setShowBilling] = useState(false)
+  const [showCommandPalette, setShowCommandPalette] = useState(false)
+  const [showCompareModal, setShowCompareModal] = useState(false)
+  const [rawAccounts, setRawAccounts] = useState<LocalAccountSummary[]>([])
   const [favoritesOnly, setFavoritesOnly] = useState(false)
   const [favoriteCount, setFavoriteCount] = useState(0)
   const billing = useBilling()
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    const fetchAccounts = async () => {
+      if (!hasTauri) return
+      try {
+        const list = await invokeTauri<LocalAccountSummary[]>('list_local_accounts')
+        if (Array.isArray(list)) setRawAccounts(list)
+      } catch {}
+    }
+    void fetchAccounts()
+    window.addEventListener('laap:refresh', fetchAccounts)
+    window.addEventListener('laap:roster-updated', fetchAccounts)
+    return () => {
+      window.removeEventListener('laap:refresh', fetchAccounts)
+      window.removeEventListener('laap:roster-updated', fetchAccounts)
+    }
+  }, [])
 
   const { showSuccess, showError } = useToast()
   const openAddProfile = () => {
@@ -145,12 +167,12 @@ function AppContent() {
     }
   }, [operations.provisioning])
 
-  // Keyboard shortcut listener (Cmd+K / Ctrl+K)
+  // Keyboard shortcut listener (Cmd+K / Ctrl+K) -> Toggle Command Palette
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
-        document.querySelector<HTMLInputElement>('.search-input')?.focus()
+        setShowCommandPalette((prev) => !prev)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -184,6 +206,8 @@ function AppContent() {
         brandLabel={billing.status?.pro ? 'LAAP Pro' : undefined}
         isPro={Boolean(billing.status?.pro)}
         onOpenBilling={billing.status?.available ? () => setShowBilling(true) : undefined}
+        onOpenPalette={() => setShowCommandPalette(true)}
+        onOpenCompare={() => setShowCompareModal(true)}
         updateAvailable={updateAvailable}
         onOpenUpdates={() => setShowUpdateModal(true)}
         onRefresh={() => window.dispatchEvent(new Event('laap:refresh'))}
@@ -308,6 +332,32 @@ function AppContent() {
         onDismiss={(forever) => {
           dismissUpdate(forever)
           setShowUpdateModal(false)
+        }}
+      />
+      {/* Universal Command Palette (Ctrl+K) */}
+      <CommandPalette
+        isOpen={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        accounts={rawAccounts}
+        activeGame={activeGame}
+        onSwitchGame={setActiveGame}
+        onLaunchAccount={(id) => {
+          setTrayRequest({ id, sequence: Date.now() })
+        }}
+        onOpenAddModal={openAddProfile}
+        onOpenSettings={() => setShowSettingsModal(true)}
+        onOpenCompare={() => setShowCompareModal(true)}
+        onRefreshAll={() => window.dispatchEvent(new Event('laap:refresh'))}
+      />
+
+      {/* Multi-Account Comparison Matrix */}
+      <AccountComparisonModal
+        isOpen={showCompareModal}
+        onClose={() => setShowCompareModal(false)}
+        accounts={rawAccounts}
+        activeGame={activeGame}
+        onLaunchAccount={(id) => {
+          setTrayRequest({ id, sequence: Date.now() })
         }}
       />
     </div>

@@ -1,5 +1,8 @@
+import { ExternalLink } from 'lucide-react'
 import type { ChampionStat } from '../../../lib/opgg.ts'
 import type { Game } from '../../../lib/types.ts'
+import { openExternalUrl } from '../../../lib/api.ts'
+import { playHextechSelect } from '../../../lib/soundEffects.ts'
 
 export function TopHeroesStrip({
   heroes,
@@ -11,6 +14,15 @@ export function TopHeroesStrip({
   if (!heroes || heroes.length === 0) return null
   const top3 = heroes.slice(0, 3)
   const isVal = game === 'valorant'
+
+  const handleOpenBuild = (name: string) => {
+    playHextechSelect()
+    const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '')
+    const url = isVal
+      ? `https://op.gg/valorant`
+      : `https://www.op.gg/champions/${cleanName}/build`
+    void openExternalUrl(url)
+  }
 
   return (
     <div
@@ -34,11 +46,14 @@ export function TopHeroesStrip({
               : `${hero.name} · Most played agent`
 
           return (
-            <div
+            <button
+              type="button"
               key={hero.name}
               className="inspector-hero-pill"
               title={tooltip}
               aria-label={tooltip}
+              onClick={() => handleOpenBuild(hero.name)}
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
             >
               <img
                 src={hero.iconUrl}
@@ -59,7 +74,7 @@ export function TopHeroesStrip({
                   {hero.winRate}%
                 </span>
               ) : null}
-            </div>
+            </button>
           )
         })}
       </div>

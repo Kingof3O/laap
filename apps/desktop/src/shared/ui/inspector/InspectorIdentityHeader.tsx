@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { CheckCircle2, Pencil, Settings2, X } from 'lucide-react'
 import type { RosterItem } from '../AccountRosterDisplay.tsx'
 import type { Game } from '../../../lib/types.ts'
 import type { OpggStats } from '../../../lib/opgg.ts'
 import { ProfileAvatar } from '../ProfileAvatar.tsx'
 import { InspectorIconButton } from './InspectorIconButton.tsx'
+import { isStreamerModeEnabled, maskAccountName, maskRiotId } from '../../../lib/streamerMode.ts'
 
 export function InspectorIdentityHeader({
   account,
@@ -41,6 +43,16 @@ export function InspectorIdentityHeader({
   onClose: () => void
   onEditRiotId?: () => void
 }) {
+  const [streamerMode, setStreamerMode] = useState(isStreamerModeEnabled())
+  useEffect(() => {
+    const handler = (e: Event) => setStreamerMode((e as CustomEvent<boolean>).detail)
+    window.addEventListener('laap:streamer-mode-changed', handler)
+    return () => window.removeEventListener('laap:streamer-mode-changed', handler)
+  }, [])
+
+  const displayName = streamerMode ? maskAccountName(name) : name
+  const displayRiotTag = streamerMode ? maskRiotId(riotTag) : riotTag
+
   return (
     <>
       <header className="inspector-top">
@@ -62,7 +74,7 @@ export function InspectorIdentityHeader({
         <div className="inspector-avatar-wrapper">
           <div className="inspector-avatar">
             <ProfileAvatar
-              name={name}
+              name={displayName}
               asset={stats?.avatarUrl || account.iconAsset}
               activeGame={activeGame}
               avatarUrl={stats?.avatarUrl}
@@ -78,12 +90,12 @@ export function InspectorIdentityHeader({
         </div>
 
         <div className="inspector-identity-copy">
-          <strong title={name}>{name}</strong>
+          <strong title={streamerMode ? 'Protected in Streamer Mode' : name}>{displayName}</strong>
 
-          {riotTag ? (
+          {displayRiotTag ? (
             <div className="inspector-riot-id">
-              <span className="inspector-riot-id-tag" title={riotTag}>
-                {riotTag}
+              <span className="inspector-riot-id-tag" title={displayRiotTag}>
+                {displayRiotTag}
               </span>
               {onEditRiotId ? (
                 <InspectorIconButton

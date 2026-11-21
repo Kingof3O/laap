@@ -10,6 +10,7 @@ import {
   getOpggSummonerUrl,
   type OpggStats,
 } from '../../lib/opgg.ts'
+import { recordRankSnapshot } from '../../lib/rankHistory.ts'
 import {
   InspectorActivitySection,
   InspectorIconButton,
@@ -31,6 +32,7 @@ export function ProfileInspector({
   onEdit,
   onLaunch,
   onCheckLive,
+  onSaveNotes,
   launchLabel = 'Launch',
   actions,
 }: {
@@ -42,6 +44,7 @@ export function ProfileInspector({
   onEdit?: () => void
   onLaunch?: () => void
   onCheckLive?: () => void
+  onSaveNotes?: (notes: string) => Promise<void>
   launchLabel?: string
   actions?: ReactNode
 }) {
@@ -108,6 +111,17 @@ export function ProfileInspector({
           setStats(res)
           if (res?.avatarUrl) {
             window.dispatchEvent(new Event('laap:icons-updated'))
+          }
+          if (res && account.id) {
+            recordRankSnapshot(account.id, activeGame, {
+              tier: res.tier,
+              division: res.rank,
+              lp: (activeGame === 'valorant' ? res.rr : res.leaguePoints) || 0,
+              wins: res.wins,
+              losses: res.losses,
+              winRate: res.winRate,
+              formattedRank: res.formattedRank,
+            })
           }
         }
         return res
@@ -217,6 +231,8 @@ export function ProfileInspector({
       />
 
       <InspectorSeasonStats
+        accountId={account.id}
+        game={activeGame}
         stats={stats}
         statsLoading={statsLoading}
         statsError={statsError}
@@ -252,7 +268,11 @@ export function ProfileInspector({
         added={added}
       />
 
-      <InspectorNotesSection notes={account.notes} />
+      <InspectorNotesSection
+        notes={account.notes}
+        onSaveNotes={onSaveNotes}
+        disabled={busy}
+      />
     </aside>
   )
 }

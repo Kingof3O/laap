@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { ProfileAvatar } from './ProfileAvatar'
 import { RankCrest } from './RankPicker'
 import { SeasonRecord } from './SeasonRecord'
@@ -21,6 +22,8 @@ import { formatLastPlayed } from '../../lib/lastPlayed'
 import type { Game, LiveStatusBadge } from '../../lib/types'
 import type { ChampionStat, OpggStats } from '../../lib/opgg'
 import { CardTopChampions } from './CardTopChampions'
+import { isStreamerModeEnabled, maskAccountName, maskRiotId } from '../../lib/streamerMode'
+import { playHextechLaunch, playHextechSelect } from '../../lib/soundEffects'
 
 export interface AccountCardProps {
   id: string
@@ -98,6 +101,14 @@ export function AccountCard({
 }: AccountCardProps) {
   const isStale = (status === 'Session stale' || status.includes('unknown'))
   const needsSignIn = !hasSession || status === 'Sign in required'
+  const [streamerMode, setStreamerMode] = useState(isStreamerModeEnabled())
+  useEffect(() => {
+    const handler = (e: Event) => setStreamerMode((e as CustomEvent<boolean>).detail)
+    window.addEventListener('laap:streamer-mode-changed', handler)
+    return () => window.removeEventListener('laap:streamer-mode-changed', handler)
+  }, [])
+
+  const tags = notes ? Array.from(notes.matchAll(/\[(.*?)\]/g), (m) => m[1].trim()).filter(Boolean) : []
   const targetRiotId = riotId ?? (name.includes('#') ? name : null)
   const displayRank = activeGame === 'valorant' ? valorantRank : rank
   const supportedGames = games && games.length > 0 ? games : ['league']
@@ -145,6 +156,7 @@ export function AccountCard({
 
   const handlePrimaryAction = (e: React.MouseEvent) => {
     e.stopPropagation()
+    playHextechLaunch()
     if (launchFailed && onRetry) {
       onRetry(activeGame)
     } else if (!hasSession && onRefreshSession) {
@@ -191,12 +203,12 @@ export function AccountCard({
     )
   }
 
-  const displayName = name
+  const displayName = streamerMode ? maskAccountName(name) : name
 
   return (
     <div
       className={`roster-card ${isSelected ? 'roster-card-selected' : ''} ${getRankTierClass(displayRank ?? '')}`}
-      onClick={() => onSelect?.()}
+      onClick={() => { playHextechSelect(); onSelect?.() }}
     >
       {/* Identity is the hero. Game support and session readiness sit below it. */}
       <div className="card-top-row">
@@ -215,14 +227,19 @@ export function AccountCard({
               <button
                 type="button"
                 className="card-name"
-                title={name}
-                aria-label={`Select ${name}`}
+                title={streamerMode ? 'Protected in Streamer Mode' : name}
+                aria-label={`Select ${displayName}`}
                 aria-pressed={isSelected}
-                onClick={(event) => { event.stopPropagation(); onSelect?.() }}
+                onClick={(event) => { event.stopPropagation(); playHextechSelect(); onSelect?.() }}
               >
-                {name}
+                {displayName}
               </button>
               {isRecent ? <span className="card-recent-badge">Recent</span> : null}
+              {tags.map((tag) => (
+                <span key={tag} className="card-tag-badge" title={`Tag: ${tag}`}>
+                  {tag}
+                </span>
+              ))}
             </div>
             <div className="card-identity-subtitle">
               {!regionAlreadyInName ? <span className="card-region-text">{region}</span> : null}
