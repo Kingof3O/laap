@@ -40,8 +40,10 @@
 .sub-navbar {
   gap: 14px;
   padding-block: 12px;
-  background: rgba(18, 15, 27, .94);
-  border-bottom-color: var(--polish-stroke);
+  background: rgba(16, 12, 24, .88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(201, 166, 255, 0.12);
 }
 .filter-controls { gap: 9px; }
 .search-box,
@@ -324,12 +326,20 @@
 .season-record-label strong { color: #eee7fa; font-size: 13px; }
 .season-record-wins { color: #77d8bd; }
 .season-record-bar {
-  height: 5px;
+  height: 6px;
   overflow: hidden;
   border-radius: 999px;
-  background: #594265;
+  background: rgba(226, 108, 115, 0.22);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
 }
-.season-record-bar span { display: block; height: 100%; background: #77d8bd; }
+.season-record-bar span,
+.season-record-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2eb38f 0%, #4ae3b5 100%);
+  box-shadow: 0 0 8px rgba(74, 227, 181, 0.4);
+}
 .card-live-row { margin-top: -5px; min-height: 20px; }
 .card-live-row .card-status-pill { display: inline-flex; align-items: center; gap: 6px; }
 .card-notes { color: #b6aac6; font-size: 11.5px; line-height: 1.45; }
@@ -359,13 +369,18 @@
   border-radius: 10px;
   font-size: 12px;
   font-weight: 750;
-  background: linear-gradient(135deg, #e8d5ff, #bd99f5);
-  color: #21142e;
-  border-color: rgba(255,255,255,.18);
-  box-shadow: 0 3px 12px rgba(106,68,153,.17), inset 0 1px rgba(255,255,255,.34);
+  background: linear-gradient(135deg, #f0e4ff 0%, #caa7ff 45%, #9d72e6 100%);
+  color: #170d24;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 16px rgba(160, 115, 230, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
 }
-.btn-launch-primary:hover:not(:disabled) { background: linear-gradient(135deg, #f3e7ff, #d0b4ff); box-shadow: 0 5px 16px rgba(106,68,153,.26); }
-.btn-launch-primary:disabled { box-shadow: none; }
+.btn-launch-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f9f2ff 0%, #d8beff 45%, #ae85f2 100%);
+  box-shadow: 0 6px 20px rgba(175, 130, 245, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  transform: translateY(-1px);
+}
+.btn-launch-primary:disabled { box-shadow: none; opacity: 0.5; }
 .btn-launch-primary span { overflow: hidden; text-overflow: ellipsis; }
 
 /* Match the roster list to the card surfaces. */

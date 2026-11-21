@@ -217,13 +217,16 @@ export function InspectorSeasonStats({
             ) : null}
           </form>
         ) : (
-          <div className="inspector-riot-id">
-            <span title={riotTag ?? undefined}>{riotTag ?? 'No Riot ID linked'}</span>
+          <div className="inspector-riot-id inspector-riot-id-sync">
+            <span className="inspector-riot-id-sync-text" title={riotTag ?? undefined}>
+              <span className="inspector-riot-id-sync-label">OP.GG Sync · </span>
+              {riotTag ?? 'No Riot ID linked'}
+            </span>
             <InspectorIconButton
               label={riotTag ? 'Change linked Riot ID' : 'Link Riot ID'}
               onClick={onStartRiotIdEdit}
             >
-              {riotTag ? <Pencil size={14} /> : <Link2 size={15} />}
+              {riotTag ? <Pencil size={13} /> : <Link2 size={14} />}
             </InspectorIconButton>
           </div>
         )}

@@ -42,12 +42,9 @@ export function TopHeroesStrip({
             >
               <img
                 src={hero.iconUrl}
-                alt=""
+                alt={hero.name}
                 className="inspector-hero-icon"
                 loading="lazy"
-                onError={(e) => {
-                  ;(e.target as HTMLElement).style.display = 'none'
-                }}
               />
               {hero.winRate !== undefined && hero.winRate > 0 ? (
                 <span

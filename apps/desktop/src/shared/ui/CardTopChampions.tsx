@@ -3,6 +3,7 @@ import type { ChampionStat } from '../../lib/opgg.ts'
 
 export function CardChampionPortrait({ hero }: { hero: ChampionStat }) {
   const [hovered, setHovered] = useState(false)
+  const [imgError, setImgError] = useState(false)
 
   const record = hero.count
     ? `${hero.count} games`
@@ -11,6 +12,7 @@ export function CardChampionPortrait({ hero }: { hero: ChampionStat }) {
       : ''
   const wr = hero.winRate !== undefined && hero.winRate > 0 ? `${hero.winRate}% WR` : ''
   const tooltipTitle = `${hero.name}${wr ? ` · ${wr}` : ''}${record ? ` (${record})` : ''}`
+  const initial = hero.name ? hero.name.slice(0, 2).toUpperCase() : '?'
 
   return (
     <div
@@ -28,10 +30,14 @@ export function CardChampionPortrait({ hero }: { hero: ChampionStat }) {
         alt={hero.name}
         className="card-champion-img"
         loading="lazy"
-        onError={(e) => {
-          ;(e.target as HTMLElement).style.display = 'none'
-        }}
+        onError={() => setImgError(true)}
+        style={imgError ? { display: 'none' } : undefined}
       />
+      {imgError ? (
+        <span className="card-champion-fallback" aria-hidden="true">
+          {initial}
+        </span>
+      ) : null}
       {hovered ? (
         <div className="card-champion-tooltip" role="tooltip">
           <div className="card-champion-tooltip-name">{hero.name}</div>

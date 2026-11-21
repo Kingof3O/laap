@@ -22,28 +22,28 @@
 }
 
 .roster-card {
-  background: linear-gradient(145deg, rgba(57, 45, 76, 0.68), var(--bg-card) 65%);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  background: var(--velvet-glass-card);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   border: 1px solid var(--border-card);
-  border-radius: var(--radius-lg);
-  padding: 16px 18px;
-  min-height: 156px;
+  border-radius: 14px;
+  padding: 18px 20px 16px;
+  min-height: 180px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
   transition: all var(--transition-normal);
   position: relative;
-  box-shadow: var(--inner-highlight), var(--shadow-card);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.07);
   outline: none;
 }
 
 .roster-card:hover {
-  background: var(--bg-card-hover);
+  background: linear-gradient(165deg, rgba(46, 36, 66, 0.88) 0%, rgba(24, 18, 36, 0.96) 100%);
   border-color: var(--border-card-hover);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2.5px);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .roster-card:focus-within {
@@ -51,9 +51,9 @@
 }
 
 .roster-card-selected {
-  background: var(--bg-card-selected);
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 1px var(--accent-primary), var(--shadow-card-hover);
+  background: var(--velvet-glass-selected);
+  border-color: var(--border-card-selected);
+  box-shadow: 0 0 0 1px rgba(201, 166, 255, 0.35), 0 14px 40px rgba(12, 8, 24, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
 .roster-card.rank-platinum:hover:not(.roster-card-selected) {
