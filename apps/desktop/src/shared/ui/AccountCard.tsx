@@ -26,6 +26,7 @@ export interface AccountCardProps {
   name: string
   region: string
   rank?: string | null
+  level?: number | null
   seasonStats?: Pick<OpggStats, 'wins' | 'losses'> | null
   valorantRank?: string | null
   games?: Game[]
@@ -62,6 +63,7 @@ export function AccountCard({
   name,
   region,
   rank,
+  level,
   seasonStats,
   valorantRank,
   games,
@@ -98,6 +100,7 @@ export function AccountCard({
   const targetRiotId = riotId ?? (name.includes('#') ? name : null)
   const displayRank = activeGame === 'valorant' ? valorantRank : rank
   const supportedGames = games && games.length > 0 ? games : ['league']
+  const otherGames = supportedGames.filter((g) => g !== activeGame)
   const regionAlreadyInName = name.toLocaleLowerCase().includes(region.toLocaleLowerCase())
   const lastPlayedLabel = formatLastPlayed(lastUsedText)
 
@@ -191,13 +194,13 @@ export function AccountCard({
 
   return (
     <div
-      className={`roster-card ${isSelected ? 'roster-card-selected' : ''}`}
+      className={`roster-card ${isSelected ? 'roster-card-selected' : ''} ${getRankTierClass(displayRank ?? '')}`}
       onClick={() => onSelect?.()}
     >
       {/* Identity is the hero. Game support and session readiness sit below it. */}
       <div className="card-top-row">
         <div className="card-identity">
-          <div className="card-avatar">
+          <div className={`card-avatar ${clientRunning ? 'card-avatar-running' : ''}`}>
             <ProfileAvatar
               name={displayName}
               asset={iconAsset}
@@ -237,18 +240,18 @@ export function AccountCard({
           </div>
         </div>
         <div className="card-top-actions">
-          {supportedGames.length > 1 ? (
-            <div className="card-game-badges" aria-label="Supported games">
-              {supportedGames.includes('league') ? (
-                <span className="game-badge game-badge-league" title="Supports League of Legends">
+          {otherGames.length > 0 ? (
+            <div className="card-game-badges" aria-label="Other supported games">
+              {otherGames.includes('league') ? (
+                <span className="game-badge game-badge-league" title="Also plays League of Legends">
                   <img src="/league-of-legends-icon.webp" alt="" aria-hidden="true" className="game-badge-icon" />
-                  <span className="visually-hidden">League of Legends</span>
+                  <span className="visually-hidden">Also plays League of Legends</span>
                 </span>
               ) : null}
-              {supportedGames.includes('valorant') ? (
-                <span className="game-badge game-badge-valo" title="Supports VALORANT">
+              {otherGames.includes('valorant') ? (
+                <span className="game-badge game-badge-valo" title="Also plays VALORANT">
                   <img src="/valorant-icon.webp" alt="" aria-hidden="true" className="game-badge-icon" />
-                  <span className="visually-hidden">VALORANT</span>
+                  <span className="visually-hidden">Also plays VALORANT</span>
                 </span>
               ) : null}
             </div>

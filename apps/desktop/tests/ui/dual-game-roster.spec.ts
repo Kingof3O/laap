@@ -130,12 +130,15 @@ test('roster cards fill every row as the available width and account count chang
       if (row && Math.abs(row.top - rect.top) < 1) row.cards.push(rect)
       else rows.push({ top: rect.top, cards: [rect] })
     }
-    return rows.map(({ cards }) => ({
-      count: cards.length,
-      fillsRow: Math.abs(cards[0].left - bounds.left) < 1 &&
-        Math.abs(cards[cards.length - 1].right - bounds.right) < 1,
-      equalWidths: cards.every((card) => Math.abs(card.width - cards[0].width) < 1),
-    }))
+    return rows.map(({ cards }) => {
+      const touchesRight = Math.abs(cards[cards.length - 1].right - bounds.right) < 1
+      const cappedByMaxWidth = cards.every((card) => card.width <= 520 + 1)
+      return {
+        count: cards.length,
+        fillsRow: Math.abs(cards[0].left - bounds.left) < 1 && (touchesRight || cappedByMaxWidth),
+        equalWidths: cards.every((card) => Math.abs(card.width - cards[0].width) < 1),
+      }
+    })
   })
   const expectRows = async (...counts: number[]) => {
     await expect.poll(measureRows).toEqual(counts.map((count) => ({ count, fillsRow: true, equalWidths: true })))
@@ -335,4 +338,98 @@ test('a running League client still allows switching the same profile to VALORAN
     { id: 'dual', confirmed: false, game: 'league' },
     { id: 'dual', confirmed: false, game: 'valorant' },
   ])
+})
+
+test('displays OP.GG top champions and agents with icons only, hover tooltips, and RR/combat stats parity', async ({ page }, testInfo) => {
+  await page.addInitScript(() => {
+    const defaults = {
+      region: 'EUW', notes: '', favorite: false, session_status: 'saved',
+      has_session: true, created_at: '2026-01-01', last_used_at: null,
+    }
+    const profiles = [
+      { ...defaults, id: 'main-euw', name: 'Main - EUW', rank: 'Platinum II', riot_id: 'Kingof3O#EUW', games: ['league'] },
+      { ...defaults, id: 'main-val', name: 'Main - EUNE', valorant_rank: 'Silver 3', riot_id: 'Kingof3O#2516', games: ['valorant'] },
+    ]
+    Object.assign(window, {
+      __TAURI_INTERNALS__: {
+        invoke: async (command: string, args: Record<string, unknown>) => {
+          if (command === 'list_local_accounts') return structuredClone(profiles)
+          if (command === 'runtime_snapshot') return { riot_client: false, league_client: false, league_game: false, valorant_game: false }
+          if (command === 'fetch_opgg_summoner_stats') {
+            if (args.game === 'league') {
+              return {
+                game: 'league',
+                formattedRank: 'Platinum II (17 LP)',
+                wins: 136,
+                losses: 139,
+                winRate: 49,
+                topChampions: [
+                  { name: 'Wukong', iconUrl: 'https://opgg-static.akamaized.net/meta/images/lol/latest/champion/MonkeyKing.png', winRate: 62, count: 38 },
+                  { name: 'Diana', iconUrl: 'https://opgg-static.akamaized.net/meta/images/lol/latest/champion/Diana.png', winRate: 54, count: 26 },
+                ],
+              }
+            }
+            return {
+              game: 'valorant',
+              formattedRank: 'Silver 3',
+              rr: 64,
+              level: 286,
+              wins: 42,
+              losses: 38,
+              winRate: 53,
+              combatStats: { kd: 1.15, headshotRate: 26 },
+              topChampions: [
+                { name: 'Jett', iconUrl: 'https://c-valorant-api.op.gg/Assets/Characters/ADD6443A-41BD-E414-F6AD-E58D267F4E95_small.png', winRate: 58, count: 24 },
+              ],
+            }
+          }
+          return null
+        },
+      },
+    })
+  })
+
+  await page.setViewportSize({ width: 1200, height: 800 })
+  await page.goto('/')
+
+  // 1. League profile inspector
+  await page.getByRole('button', { name: 'Select Main - EUW' }).click()
+  const inspector = page.getByRole('complementary', { name: 'Selected profile details' })
+  const season = inspector.getByRole('region', { name: 'Season stats' })
+  await expect(season.locator('.inspector-top-heroes-label')).toHaveText('Most Played')
+  const leagueHeroPill = season.locator('.inspector-hero-pill').first()
+  await expect(leagueHeroPill).toBeVisible()
+  await expect(leagueHeroPill).toHaveAttribute('title', 'Wukong · 62% WR (38 games)')
+  // Verify icon is rendered, but hero name is NOT visible text
+  await expect(leagueHeroPill.locator('.inspector-hero-icon')).toBeVisible()
+  await expect(leagueHeroPill).toContainText('62%')
+  await expect(leagueHeroPill).not.toContainText('Wukong')
+
+  // 2. Switch to VALORANT and inspect
+  await page.getByRole('button', { name: 'VALORANT', exact: true }).click()
+  await page.getByRole('button', { name: 'Select Main - EUNE' }).click()
+
+  // Verify Valorant RR in rank card: Silver 3 (64 RR)
+  await expect(inspector.locator('.inspector-rank')).toContainText('Silver 3 (64 RR)')
+  // Verify Account level, K/D, HS%
+  await expect(season.getByText('Account level')).toBeVisible()
+  await expect(season.getByText('286')).toBeVisible()
+  await expect(season.getByText('K/D')).toBeVisible()
+  await expect(season.getByText('1.15')).toBeVisible()
+  await expect(season.getByText('HS%')).toBeVisible()
+  await expect(season.getByText('26%')).toBeVisible()
+  // Verify Season Record bar
+  await expect(season.locator('.season-record-bar')).toBeVisible()
+  await expect(season).toContainText('53% win rate')
+
+  // Verify Top Agents: Jett icon + 58% WR, name only in hover tooltip
+  await expect(season.locator('.inspector-top-heroes-label')).toHaveText('Top Agents')
+  const valHeroPill = season.locator('.inspector-hero-pill').first()
+  await expect(valHeroPill).toBeVisible()
+  await expect(valHeroPill).toHaveAttribute('title', 'Jett · 58% WR (24 games)')
+  await expect(valHeroPill.locator('.inspector-hero-icon')).toBeVisible()
+  await expect(valHeroPill).toContainText('58%')
+  await expect(valHeroPill).not.toContainText('Jett')
+
+  await page.screenshot({ path: testInfo.outputPath('opgg-top-heroes-and-val-rr.png') })
 })

@@ -66,7 +66,8 @@ export function SubNavbar({
     <div className="sub-navbar">
       {/* Search & Filtering Toolbar */}
       <div className="filter-controls">
-        <div className="game-toggle" role="group" aria-label="Active game">
+        <div className={`game-toggle game-toggle-${activeGame}`} role="group" aria-label="Active game">
+          <div className="game-toggle-thumb" aria-hidden="true" />
           <button
             type="button"
             className={`game-toggle-btn ${activeGame === 'league' ? 'game-toggle-btn-active' : ''}`}

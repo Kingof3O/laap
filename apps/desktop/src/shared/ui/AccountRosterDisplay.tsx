@@ -12,6 +12,7 @@ export interface RosterItem {
   name: string
   region: string
   rank?: string | null
+  level?: number | null
   seasonStats?: AccountCardProps['seasonStats']
   valorantRank?: string | null
   games?: Game[]
@@ -158,6 +159,7 @@ export function AccountRosterDisplay({
                 name={item.name}
                 region={item.region}
                 rank={item.rank}
+                level={item.level}
                 seasonStats={item.seasonStats}
                 valorantRank={item.valorantRank}
                 games={item.games}

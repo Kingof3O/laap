@@ -11,11 +11,14 @@
   ],
   "scripts": {
     "dev": "npm run desktop:dev",
+    "desktop": "npm --workspace @laap/desktop run tauri:basic --",
+    "desktop:basic": "npm --workspace @laap/desktop run tauri:basic --",
     "desktop:check": "npm --workspace @laap/desktop run check",
     "desktop:test": "npm --workspace @laap/desktop run test",
     "desktop:dev": "npm --workspace @laap/desktop run dev",
     "build": "npm --workspace @laap/api run build && npm run desktop:build",
     "desktop:build": "npm --workspace @laap/desktop run build",
+    "desktop:build:basic": "npm --workspace @laap/desktop run tauri:build --",
     "typecheck": "npm --workspace @laap/api run typecheck",
     "test": "npm --workspace @laap/api run test"
   }

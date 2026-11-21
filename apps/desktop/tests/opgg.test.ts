@@ -6,6 +6,8 @@ import {
   fetchOpggStats,
   valorantTierToRank,
   parseOpggValorantHtml,
+  parseOpggMetaDescription,
+  extractLeagueLevel,
 } from '../src/lib/opgg.ts'
 
 test('generates league OP.GG url with region segment', () => {
@@ -106,4 +108,102 @@ test('League cache isolates matching Riot IDs on different regions', async (t) =
   assert.match(getOpggCachedRank('Cache Test#QA', 'EUW') ?? '', /Gold II/)
   assert.match(getOpggCachedRank('Cache Test#QA', 'NA') ?? '', /Silver I/)
   assert.equal(fetch.mock.callCount(), 2)
+})
+
+test('parses league account level from html and rsc fixtures', () => {
+  const htmlFixture = `
+    <html><head><meta name="description" content="Kingof3O#2516 / Platinum 2 12 LP / 66Win 65Lose Win rate 50%"></head><body>
+      <div class="relative">
+        <img src="https://opgg-static.akamaized.net/meta/images/profile_icons/profileIcon3458.jpg?image=q_auto:good"/>
+        <div class="mt-[-11px] text-center"><span class="inline-flex h-5 rounded-[10px] bg-[var(--color-gray-900)] px-2 text-[12px] leading-5 text-white">197</span></div>
+      </div>
+    </body></html>
+  `
+  assert.equal(extractLeagueLevel(htmlFixture), 197)
+  const stats = parseOpggMetaDescription(
+    'Kingof3O#2516 / Platinum 2 12 LP / 66Win 65Lose Win rate 50%',
+    'Kingof3O',
+    '2516',
+    'EUNE',
+    htmlFixture,
+  )
+  assert.equal(stats.level, 197)
+  assert.equal(stats.formattedRank, 'Platinum II (12 LP)')
+  assert.equal(stats.wins, 66)
+  assert.equal(stats.losses, 65)
+
+  const rscFixture = `
+    "className":"mt-[-11px] text-center","children":["$","span",null,{"className":"inline-flex text-white","children":946}]
+  `
+  assert.equal(extractLeagueLevel(rscFixture), 946)
+})
+
+test('parses league top champions from meta description with icon mapping', () => {
+  const meta =
+    'Kingof3O#EUW / Platinum 2 17 LP / 136Win 139Lose Win rate 49% / Wukong - 115Win 120Lose Win rate 49%, Diana - 22Win 26Lose Win rate 46%, Nocturne - 5Win 6Lose Win rate 45%'
+  const stats = parseOpggMetaDescription(meta, 'Kingof3O', 'EUW', 'EUW')
+  assert.ok(stats.topChampions)
+  assert.equal(stats.topChampions.length, 3)
+  assert.equal(stats.topChampions[0].name, 'Wukong')
+  assert.equal(stats.topChampions[0].wins, 115)
+  assert.equal(stats.topChampions[0].losses, 120)
+  assert.equal(stats.topChampions[0].winRate, 49)
+  assert.equal(stats.topChampions[0].count, 235)
+  assert.equal(
+    stats.topChampions[0].iconUrl,
+    'https://opgg-static.akamaized.net/meta/images/lol/latest/champion/MonkeyKing.png',
+  )
+  assert.equal(stats.topChampions[1].name, 'Diana')
+  assert.equal(
+    stats.topChampions[1].iconUrl,
+    'https://opgg-static.akamaized.net/meta/images/lol/latest/champion/Diana.png',
+  )
+})
+
+test('parses valorant rr, combat stats, and top agents from html fixture', () => {
+  const fixture = `
+    <html><body>
+    <script>
+      self.__next_f.push([1,"\"profile\":{\"gameName\":\"Kingof3O\",\"tagLine\":\"2516\",\"level\":286,\"region\":\"eu\",\"competitiveTier\":11,\"rank\":64,\"wins\":42,\"losses\":38,\"winRate\":53,\"kd\":1.15,\"headshotRate\":26,\"puuid\":\"test-val-puuid\"}"]);
+      self.__next_f.push([1,"\"agentStats\":[{\"characterId\":\"ADD6443A-41BD-E414-F6AD-E58D267F4E95\",\"agentName\":\"Jett\",\"win\":24,\"lose\":16,\"play\":40,\"winRate\":60},{\"characterId\":\"A3BFB853-43B2-7238-A4F1-AD90E9E46BCC\",\"agentName\":\"Reyna\",\"win\":12,\"lose\":10,\"play\":22,\"winRate\":55}]"]);
+    </script>
+    </body></html>
+  `
+  const stats = parseOpggValorantHtml(fixture, 'Kingof3O', '2516', 'EUNE')
+  assert.ok(stats)
+  assert.equal(stats.game, 'valorant')
+  assert.equal(stats.formattedRank, 'Silver 3')
+  assert.equal(stats.rr, 64)
+  assert.equal(stats.wins, 42)
+  assert.equal(stats.losses, 38)
+  assert.equal(stats.winRate, 53)
+  assert.equal(stats.formattedWinRate, '42W - 38L (53%)')
+  assert.ok(stats.combatStats)
+  assert.equal(stats.combatStats.kd, 1.15)
+  assert.equal(stats.combatStats.headshotRate, 26)
+  assert.ok(stats.topChampions)
+  assert.equal(stats.topChampions.length, 2)
+  assert.equal(stats.topChampions[0].name, 'Jett')
+  assert.equal(stats.topChampions[0].winRate, 60)
+  assert.equal(stats.topChampions[0].count, 40)
+  assert.ok(stats.topChampions[0].iconUrl.includes('ADD6443A-41BD-E414-F6AD-E58D267F4E95'))
+})
+
+test('parses valorant mostCharacterId when no active season agent stats', () => {
+  const fixture = `
+    <html><body>
+    <script>
+      self.__next_f.push([1,"\"profile\":{\"gameName\":\"Kingof3O\",\"tagLine\":\"2516\",\"level\":286,\"region\":\"eu\",\"competitiveTier\":11,\"rank\":null,\"mostCharacterId\":\"A3BFB853-43B2-7238-A4F1-AD90E9E46BCC\",\"puuid\":\"test-val-puuid\"}"]);
+    </script>
+    </body></html>
+  `
+  const stats = parseOpggValorantHtml(fixture, 'Kingof3O', '2516', 'EUNE')
+  assert.ok(stats)
+  assert.equal(stats.formattedRank, 'Silver 3')
+  assert.equal(stats.level, 286)
+  assert.equal(stats.rr, undefined)
+  assert.ok(stats.topChampions)
+  assert.equal(stats.topChampions.length, 1)
+  assert.equal(stats.topChampions[0].name, 'Reyna')
+  assert.ok(stats.topChampions[0].iconUrl.includes('A3BFB853-43B2-7238-A4F1-AD90E9E46BCC'))
 })

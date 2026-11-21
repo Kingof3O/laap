@@ -3,6 +3,7 @@
 /* ========================================================================= */
 .roster-grid {
   --roster-card-basis: 330px;
+  --roster-card-max: 520px;
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
@@ -11,11 +12,13 @@
 
 .roster-workspace:not(.roster-workspace-full) .roster-grid {
   --roster-card-basis: 310px;
+  --roster-card-max: 480px;
 }
 
-/* Each wrapped row distributes its remaining space among its own cards. */
+/* Each wrapped row distributes its remaining space among its own cards up to max-width. */
 .roster-grid > .roster-card {
   flex: 1 1 min(100%, var(--roster-card-basis));
+  max-width: var(--roster-card-max, 500px);
 }
 
 .roster-card {
@@ -53,6 +56,41 @@
   box-shadow: 0 0 0 1px var(--accent-primary), var(--shadow-card-hover);
 }
 
+.roster-card.rank-platinum:hover,
+.roster-card.rank-platinum.roster-card-selected {
+  border-color: rgba(78, 199, 182, 0.45);
+}
+.roster-card.rank-emerald:hover,
+.roster-card.rank-emerald.roster-card-selected {
+  border-color: rgba(58, 202, 131, 0.45);
+}
+.roster-card.rank-diamond:hover,
+.roster-card.rank-diamond.roster-card-selected {
+  border-color: rgba(142, 126, 245, 0.45);
+}
+.roster-card.rank-master:hover,
+.roster-card.rank-master.roster-card-selected,
+.roster-card.rank-grandmaster:hover,
+.roster-card.rank-grandmaster.roster-card-selected,
+.roster-card.rank-challenger:hover,
+.roster-card.rank-challenger.roster-card-selected {
+  border-color: rgba(235, 94, 219, 0.45);
+}
+.roster-card.rank-gold:hover,
+.roster-card.rank-gold.roster-card-selected {
+  border-color: rgba(229, 182, 70, 0.45);
+}
+.roster-card.rank-ascendant:hover,
+.roster-card.rank-ascendant.roster-card-selected {
+  border-color: rgba(58, 210, 159, 0.45);
+}
+.roster-card.rank-immortal:hover,
+.roster-card.rank-immortal.roster-card-selected,
+.roster-card.rank-radiant:hover,
+.roster-card.rank-radiant.roster-card-selected {
+  border-color: rgba(255, 90, 115, 0.45);
+}
+
 .card-top-row {
   display: flex;
   align-items: flex-start;
@@ -78,6 +116,26 @@
   place-items: center;
   position: relative;
   flex-shrink: 0;
+  transition: box-shadow var(--transition-normal), border-color var(--transition-normal);
+}
+
+.card-avatar-running {
+  border-color: rgba(142, 218, 197, 0.7) !important;
+  box-shadow: 0 0 0 2px rgba(142, 218, 197, 0.4), 0 0 12px rgba(142, 218, 197, 0.35);
+  animation: pulse-ring 2.4s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+  0%, 100% {
+    box-shadow: 0 0 0 2px rgba(142, 218, 197, 0.4), 0 0 8px rgba(142, 218, 197, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 2.5px rgba(142, 218, 197, 0.8), 0 0 16px rgba(142, 218, 197, 0.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-avatar-running { animation: none; }
 }
 
 .avatar-initials {
