@@ -2,6 +2,7 @@ import { RegionSelect } from './RegionSelect'
 import { LayoutGrid, List, Plus, Search, X, Star } from 'lucide-react'
 import type { SortOrder } from '../../lib/sorting'
 import type { Game, Region, ViewMode } from '../../lib/types'
+import { Skeleton } from './skeleton/index.ts'
 
 export interface SubNavbarProps {
   activeGame?: Game
@@ -22,7 +23,8 @@ export interface SubNavbarProps {
   onViewModeChange: (mode: ViewMode) => void
   onAddAccount?: () => void
   addButtonLabel?: string
-  totalCount: number
+  totalCount?: number
+  isLoading?: boolean
 }
 
 export function SubNavbar({
@@ -44,7 +46,8 @@ export function SubNavbar({
   onViewModeChange,
   onAddAccount,
   addButtonLabel = 'Add Profile',
-  totalCount = 0,
+  totalCount,
+  isLoading = false,
 }: SubNavbarProps) {
   const isMac = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('mac')
   const shortcutHint = isMac ? '⌘K' : 'Ctrl+K'
@@ -216,9 +219,15 @@ export function SubNavbar({
 
       {/* View Mode & Add Action */}
       <div className="view-action-controls">
-        <span className="account-count">
-          {totalCount} {totalCount === 1 ? 'Profile' : 'Profiles'}
-        </span>
+        {isLoading || totalCount === undefined ? (
+          <span className="account-count account-count-skeleton" aria-label="Loading profiles count">
+            <Skeleton variant="text" width={54} height={12} />
+          </span>
+        ) : (
+          <span className="account-count">
+            {totalCount} {totalCount === 1 ? 'Profile' : 'Profiles'}
+          </span>
+        )}
 
         <div className="view-mode-toggle" role="group" aria-label="View mode">
           <button

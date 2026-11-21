@@ -33,6 +33,7 @@ import {
   useRosterLiveStatus,
 } from './hooks/index.ts'
 import { SyncStatusWidget } from './components/SyncStatusWidget.tsx'
+import { RosterWorkspaceSkeleton, ContentReveal } from '../../shared/ui/skeleton/index.ts'
 
 interface Props {
   activeGame?: Game
@@ -323,6 +324,11 @@ export function PersonalRosterView({
     />
   )
 
+  const isInitialLoading = loading && localAccounts.length === 0 && !error
+  const isError = Boolean(error && localAccounts.length === 0)
+  const isGenuinelyEmpty = !loading && !error && localAccounts.length === 0
+  const isFilteredEmpty = !loading && !error && localAccounts.length > 0 && filteredAccounts.length === 0
+
   return (
     <div>
       {profileSlots && profileSlots.chooseCount > 0 && !error ? (
@@ -339,36 +345,54 @@ export function PersonalRosterView({
           onChange={loadAccounts}
         />
       ) : null}
-      {(loading && localAccounts.length === 0) || error ? (
+      {isError ? (
         <>
           {syncEnabled ? (
             <div className="roster-list-utility roster-list-utility-padded">{syncWidget}</div>
           ) : null}
           <AccountLoadState
-            loading={loading}
+            loading={false}
             error={error}
             onRetry={() => void loadAccounts()}
           />
         </>
-      ) : filteredAccounts.length === 0 ? (
+      ) : isInitialLoading ? (
+        <RosterWorkspaceSkeleton
+          viewMode={viewMode}
+          activeGame={activeGame}
+          toolbarSlot={syncEnabled ? syncWidget : null}
+        />
+      ) : isGenuinelyEmpty ? (
         <>
           {syncEnabled ? (
             <div className="roster-list-utility roster-list-utility-padded">{syncWidget}</div>
           ) : null}
-          {(!profileSlots?.chooseCount || localAccounts.length > 0) && (
-            <EmptyState
-              searchActive={Boolean(
-                searchQuery || selectedRegion !== 'ALL' || selectedRank !== 'all' || favoritesOnly,
-              )}
-              hasAnyProfiles={localAccounts.length > 0 && gameAccounts.length === 0}
-              activeGame={activeGame}
-              onSwitchGame={(game) => setActiveGame(game)}
-              onAction={onOpenAddModal}
-              onQuickImport={() => void detect()}
-            />
-          )}
+          <EmptyState
+            hasAnyProfiles={false}
+            activeGame={activeGame}
+            onSwitchGame={(game) => setActiveGame(game)}
+            onAction={onOpenAddModal}
+            onQuickImport={() => void detect()}
+          />
+        </>
+      ) : isFilteredEmpty ? (
+        <>
+          {syncEnabled ? (
+            <div className="roster-list-utility roster-list-utility-padded">{syncWidget}</div>
+          ) : null}
+          <EmptyState
+            searchActive={Boolean(
+              searchQuery || selectedRegion !== 'ALL' || selectedRank !== 'all' || favoritesOnly,
+            )}
+            hasAnyProfiles={localAccounts.length > 0 && gameAccounts.length === 0}
+            activeGame={activeGame}
+            onSwitchGame={(game) => setActiveGame(game)}
+            onAction={onOpenAddModal}
+            onQuickImport={() => void detect()}
+          />
         </>
       ) : (
+        <ContentReveal active={!loading}>
         <AccountRosterDisplay
           toolbarSlot={syncEnabled ? syncWidget : null}
           items={filteredAccounts.map((acc) => {
@@ -444,6 +468,7 @@ export function PersonalRosterView({
           sortOrder={sortOrder}
           onSortChange={onSortChange}
         />
+        </ContentReveal>
       )}
       {modalOpen ? (
         <AddAccountModal

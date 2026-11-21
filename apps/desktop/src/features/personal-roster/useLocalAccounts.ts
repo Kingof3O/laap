@@ -16,6 +16,8 @@ const asError = (cause: unknown) =>
   cause instanceof Error ? cause : new Error(String(cause))
 export function useLocalAccounts() {
   const [localAccounts, setLocalAccounts] = useState<LocalAccountSummary[]>([])
+  const localAccountsRef = useRef<LocalAccountSummary[]>([])
+  localAccountsRef.current = localAccounts
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [profileSlots, setProfileSlots] = useState<ProfileSlots | null>(null)
@@ -51,17 +53,19 @@ export function useLocalAccounts() {
       for (let retry = 0; retry < 10 && !isTauriAvailable(); retry++)
         await new Promise((resolve) => window.setTimeout(resolve, 100))
       if (!isTauriAvailable()) throw new Error('Tauri IPC bridge unavailable')
-      const accounts = await invokeTauri<LocalAccountSummary[]>(
-        'list_local_accounts',
-      )
-      const slots = await invokeTauri<ProfileSlots>('basic_profile_slots')
+      const [accounts, slots] = await Promise.all([
+        invokeTauri<LocalAccountSummary[]>('list_local_accounts'),
+        invokeTauri<ProfileSlots>('basic_profile_slots'),
+      ])
       if (mounted.current && request === requests.current) {
         setLocalAccounts(accounts)
         setProfileSlots(slots)
       }
     } catch (cause) {
       if (mounted.current && request === requests.current) {
-        setLocalAccounts([])
+        if (localAccountsRef.current.length === 0) {
+          setLocalAccounts([])
+        }
         setError(asError(cause))
       }
     } finally {

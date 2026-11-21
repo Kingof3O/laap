@@ -824,18 +824,108 @@ body { background: #0c0a13; }
 @keyframes content-reveal-fade {
   from {
     opacity: 0;
-    transform: translateY(2px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
+}
+
+/* Roster Workspace Skeleton & Error States */
+.roster-viewport-skeleton {
+  animation: surface-enter 180ms ease-out both;
+}
+
+.roster-grid > .roster-card-skeleton {
+  flex: 1 1 min(100%, var(--roster-card-basis, 330px));
+  max-width: var(--roster-card-max, 500px);
+}
+
+.roster-card-skeleton {
+  cursor: default;
+  pointer-events: none;
+  background: linear-gradient(145deg, rgba(46, 36, 62, 0.52), rgba(26, 20, 38, 0.82) 65%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  min-height: 156px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.roster-card-skeleton:hover {
+  transform: none;
+}
+
+.skeleton-card-avatar {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.roster-table-row-skeleton td {
+  padding: 12px 14px;
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.profile-inspector-skeleton {
+  pointer-events: none;
+  background: linear-gradient(165deg, rgba(35, 28, 49, 0.85), rgba(22, 18, 32, 0.95));
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.account-count-skeleton {
+  display: inline-flex;
+  align-items: center;
+}
+
+.error-state-card {
+  margin: 36px auto;
+  max-width: 520px;
+  padding: 26px 30px;
+  border: 1px solid rgba(226, 108, 115, 0.32);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(155deg, rgba(48, 28, 40, 0.82), rgba(26, 16, 24, 0.92));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 8px 28px rgba(0, 0, 0, 0.45);
+  display: grid;
+  gap: 14px;
+}
+
+.error-state-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.error-state-icon {
+  color: var(--status-danger, #e26c73);
+  flex-shrink: 0;
+}
+
+.error-state-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 650;
+  color: #ffccd0;
+}
+
+.error-state-message {
+  margin: 0;
+  color: #e5c8cf;
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .skeleton-shimmer,
   .inspector-refresh-accent-line,
-  .content-reveal-active {
+  .content-reveal-active,
+  .roster-viewport-skeleton {
     animation: none;
   }
   .skeleton-shimmer {
