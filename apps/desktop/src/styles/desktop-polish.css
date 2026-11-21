@@ -176,7 +176,7 @@
   letter-spacing: -.035em;
 }
 .roster-heading-actions { gap: 10px; }
-.roster-workspace { grid-template-columns: minmax(0, 1fr) minmax(290px, 330px); gap: 20px; }
+.roster-workspace { grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; }
 .roster-card {
   gap: 15px;
   min-width: 0;
@@ -409,7 +409,7 @@
   .sub-navbar .toolbar-reset-btn > span { display: none; }
   .view-action-controls .btn-add-primary { padding-inline: 10px; white-space: nowrap; }
   .roster-viewport { padding: 22px 20px 30px; }
-  .roster-workspace { grid-template-columns: minmax(0,1fr) 280px; gap: 15px; }
+  .roster-workspace { grid-template-columns: minmax(0,1fr) 295px; gap: 12px; }
   .roster-card { padding: 17px; }
   .card-details-row { gap: 8px; }
   .roster-table :is(th, td) { padding-inline: 8px; }

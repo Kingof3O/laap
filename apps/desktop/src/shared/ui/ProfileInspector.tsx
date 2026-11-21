@@ -171,13 +171,18 @@ export function ProfileInspector({
         name={name}
         region={region}
         riotId={riotId}
+        riotTag={riotTag}
         activeGame={activeGame}
+        isVal={isVal}
+        level={level}
         stats={stats}
         sessionStatus={sessionStatus}
+        sessionReady={sessionReady}
         busy={busy}
         actions={actions}
         onEdit={onEdit}
         onClose={onClose}
+        onEditRiotId={startRiotIdEdit}
       />
 
       <InspectorRankCard

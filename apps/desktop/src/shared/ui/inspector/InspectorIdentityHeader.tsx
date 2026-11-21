@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Settings2, X } from 'lucide-react'
+import { CheckCircle2, Pencil, Settings2, X } from 'lucide-react'
 import type { RosterItem } from '../AccountRosterDisplay.tsx'
 import type { Game } from '../../../lib/types.ts'
 import type { OpggStats } from '../../../lib/opgg.ts'
@@ -11,25 +11,35 @@ export function InspectorIdentityHeader({
   name,
   region,
   riotId,
+  riotTag,
   activeGame,
+  isVal,
+  level,
   stats,
   sessionStatus,
+  sessionReady,
   busy,
   actions,
   onEdit,
   onClose,
+  onEditRiotId,
 }: {
   account: RosterItem
   name: string
   region: string
   riotId?: string | null
+  riotTag: string | null
   activeGame: Game
+  isVal: boolean
+  level?: number
   stats: OpggStats | null
   sessionStatus: string
+  sessionReady: boolean
   busy?: boolean
   actions?: ReactNode
   onEdit?: () => void
   onClose: () => void
+  onEditRiotId?: () => void
 }) {
   return (
     <>
@@ -49,20 +59,66 @@ export function InspectorIdentityHeader({
       </header>
 
       <div className="inspector-profile">
-        <div className="inspector-avatar">
-          <ProfileAvatar
-            name={name}
-            asset={stats?.avatarUrl || account.iconAsset}
-            activeGame={activeGame}
-            avatarUrl={stats?.avatarUrl}
-            riotId={riotId}
-            region={region}
-          />
+        <div className="inspector-avatar-wrapper">
+          <div className="inspector-avatar">
+            <ProfileAvatar
+              name={name}
+              asset={stats?.avatarUrl || account.iconAsset}
+              activeGame={activeGame}
+              avatarUrl={stats?.avatarUrl}
+              riotId={riotId}
+              region={region}
+            />
+          </div>
+          {typeof level === 'number' ? (
+            <span className="inspector-avatar-level" title={`Account level ${level}`}>
+              {level}
+            </span>
+          ) : null}
         </div>
-        <div>
-          <strong>{name}</strong>
-          <span className="inspector-region">{region}</span>
-          <span className="inspector-status">{sessionStatus}</span>
+
+        <div className="inspector-identity-copy">
+          <strong title={name}>{name}</strong>
+
+          {riotTag ? (
+            <div className="inspector-riot-id">
+              <span className="inspector-riot-id-tag" title={riotTag}>
+                {riotTag}
+              </span>
+              {onEditRiotId ? (
+                <InspectorIconButton
+                  label="Edit linked Riot ID"
+                  title="Edit linked Riot ID"
+                  onClick={onEditRiotId}
+                >
+                  <Pencil size={11} />
+                </InspectorIconButton>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="inspector-subtitle">
+            <span className="inspector-region-pill">{region}</span>
+            <span className={`game-badge ${isVal ? 'game-badge-valo' : 'game-badge-league'}`}>
+              <img
+                src={isVal ? '/valorant-icon.webp' : '/league-of-legends-icon.webp'}
+                alt=""
+                className="game-badge-icon"
+              />
+              {isVal ? 'VALORANT' : 'League'}
+            </span>
+            <span
+              className={`inspector-session-pill ${sessionReady ? 'inspector-session-ready' : 'inspector-session-warn'}`}
+              title={
+                sessionReady
+                  ? 'Encrypted in Windows DPAPI Credential Manager · Local session valid'
+                  : 'Session needs refresh · Launch will prompt Riot Sign-In'
+              }
+            >
+              <CheckCircle2 size={11} aria-hidden="true" />
+              <span>{sessionStatus}</span>
+            </span>
+          </div>
         </div>
       </div>
     </>
